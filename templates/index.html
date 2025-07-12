@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quantum0's Bot</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f4f4f4;
+        }
+        header {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        header h1 {
+            margin: 0;
+            font-size: 24px;
+        }
+        .avatar {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            border: 2px solid white;
+        }
+        .container {
+            padding: 20px;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+        .checkbox-label {
+            display: flex;
+            align-items: center;
+            margin: 15px 0;
+            font-size: 16px;
+        }
+        .checkbox-label input {
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            border: 2px solid #4CAF50;
+            border-radius: 4px;
+            margin-right: 10px;
+            cursor: pointer;
+        }
+        .checkbox-label input:checked {
+            background-color: #4CAF50;
+            position: relative;
+        }
+        .checkbox-label input:checked::after {
+            content: "✔";
+            color: white;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Quantum0's Bot</h1>
+        <img src="{{ user.profile_image_url }}" alt="Avatar" class="avatar">
+    </header>
+    <div class="container">
+        <h2>Привет, {{ user.login_name }}!</h2>
+        <p>Настройте функции вашего бота:</p>
+        <form method="post" action="/update_settings">
+            <label class="checkbox-label">
+                <input type="checkbox" name="enable_help" {% if user.enable_help %}checked{% endif %}> Включить !help
+            </label>
+            <label class="checkbox-label">
+                <input type="checkbox" name="enable_random" {% if user.enable_random %}checked{% endif %}> Включить !random
+            </label>
+            <label class="checkbox-label">
+                <input type="checkbox" name="enable_fruit" {% if user.enable_fruit %}checked{% endif %}> Включить !fruit
+            </label>
+            <button type="submit">Сохранить</button>
+        </form>
+    </div>
+</body>
+</html>

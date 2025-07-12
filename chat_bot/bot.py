@@ -1,0 +1,75 @@
+import random
+
+from twitchAPI import Twitch, Chat
+from twitchAPI.types import AuthScope, ChatEvent
+
+from config import settings
+from database import SessionLocal
+from models import User
+from utils import singleton
+#
+# # Twitch конфигурация
+# CLIENT_ID = "q3utk26wxwo4fv64jpgz6470qi1bpp"
+# CLIENT_SECRET = "kicz242hus3n5y37yhulue6k5zsv3g"
+# REDIRECT_URI = "http://localhost:8000/callback"
+# BOT_ACCESS_TOKEN = "51zykti0juazi7bnkgu5hixkwtlawi"
+# BOT_REFRESH_TOKEN = "dq6u7pctx5dhw4ey8l8efl3i276q6o61rr9b8hc6bwj1aepswp"
+#
+
+
+@singleton
+class ChatBot():
+    _twitch: Twitch = None
+    _chat: Chat = None
+    _joined_channels: list[str] = []
+
+    def __init__(self):
+        pass
+
+    async def startup(self):
+        twitch = await Twitch(settings.twitch_client_id, settings.twitch_client_secret)
+        await twitch.set_user_authentication(settings.bot_access_token, [AuthScope.CHAT_READ, AuthScope.CHAT_EDIT],
+                                             settings.bot_refresh_token)
+        chat = await Chat(twitch)
+        chat.register_event(ChatEvent.MESSAGE, self.on_message)
+        chat.start()
+        self._chat = chat
+        self._twitch = twitch
+
+    @staticmethod
+    async def on_message(message):
+        channel = message.room.name  # Имя канала
+
+        with SessionLocal() as session:
+            user = session.query(User).filter_by(login_name=channel.lower()).first()
+            if user:
+                if message.text.startswith('!help') and user.enable_help:
+                    await ChatBot()._chat.send_message(channel, 'Доступные команды: !help, !random, !fruit')
+                elif message.text.startswith('!random') and user.enable_random:
+                    number = random.randint(0, 10)
+                    await ChatBot()._chat.send_message(channel, f'Случайное число: {number}')
+                elif message.text.startswith('!fruit') and user.enable_fruit:
+                    fruits = ['яблоко', 'груша', 'банан']
+                    fruit = random.choice(fruits)
+                    await ChatBot()._chat.send_message(channel, f'Случайный фрукт: {fruit}')
+
+    async def update_bot_channels(self):
+        if not self._chat:
+            return
+        with SessionLocal() as session:
+            users = session.query(User).filter(
+                (User.enable_help == True) |
+                (User.enable_random == True) |
+                (User.enable_fruit == True)
+            ).all()
+            desired_channels = {user.login_name.lower() for user in users}
+            current_channels = {ch.lower() for ch in self._joined_channels}
+
+            # Присоединяемся к новым каналам
+            for channel in desired_channels - current_channels:
+                await self._chat.join_room(channel)
+                self._joined_channels.append(channel)
+            # Покидаем ненужные каналы
+            for channel in current_channels - desired_channels:
+                await self._chat.leave_room(channel)
+                self._joined_channels.remove(channel)
