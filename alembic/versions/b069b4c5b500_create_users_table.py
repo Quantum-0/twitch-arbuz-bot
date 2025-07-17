@@ -27,10 +27,10 @@ def upgrade():
         sa.PrimaryKeyConstraint('id'),
         sa.UniqueConstraint('twitch_id')
     )
-    op.create_index(op.f('ix_users_id'), 'users', ['id'], unique=False)
-    op.create_index(op.f('ix_users_twitch_id'), 'users', ['twitch_id'], unique=True)
+    op.create_index(op.f('ix_users_id'), 'twitch_bot_users', ['id'], unique=False)
+    op.create_index(op.f('ix_users_twitch_id'), 'twitch_bot_users', ['twitch_id'], unique=True)
 
 def downgrade():
-    op.drop_index(op.f('ix_users_twitch_id'), table_name='users')
-    op.drop_index(op.f('ix_users_id'), table_name='users')
+    op.drop_index(op.f('ix_users_twitch_id'), table_name='twitch_bot_users')
+    op.drop_index(op.f('ix_users_id'), table_name='twitch_bot_users')
     op.drop_table('twitch_bot_users')

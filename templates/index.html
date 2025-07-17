@@ -10,6 +10,11 @@
             margin: 0;
             padding: 0;
             background-color: #f4f4f4;
+
+            background-image: url("https://quantum-0.github.io/images/bg_leaves.png"), url("https://quantum-0.github.io/images/bg_leaves_mirror.png"), url("https://quantum-0.github.io/images/bg_leaves_dark2.png"), url("https://quantum-0.github.io/images/bg_leaves_dark_mirror2.png");
+            background-position: left top, right top, left top, right top;
+            background-repeat: repeat-y, repeat-y, repeat-y, repeat-y;
+            background-size: 75px, 60px, 120px, 110px;
         }
         header {
             background-color: #4CAF50;
@@ -73,6 +78,14 @@
             background-color: #45a049;
         }
     </style>
+    <script>
+        function createRedeem() {
+            var xhr = new XMLHttpRequest();
+            xhr.open("POST", "/memealerts?enable=true", true);
+            xhr.setRequestHeader('Content-Type', 'application/json');
+            xhr.send(JSON.stringify({}));
+        }
+    </script>
 </head>
 <body>
     <header>
@@ -94,6 +107,7 @@
             </label>
             <button type="submit">Сохранить</button>
         </form>
+        <button onclick="createRedeem()">Click me</button>
     </div>
 </body>
 </html>

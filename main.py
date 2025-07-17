@@ -1,16 +1,20 @@
 import logging
 
 import httpx
+import uvicorn
 from fastapi import FastAPI, Request, Depends
+from fastapi.params import Query
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from starlette.middleware.sessions import SessionMiddleware
+from twitchAPI.types import TwitchAPIException
 
 from chat_bot.bot import ChatBot
 from config import settings
 from database import get_db
 from models import User
+from twitch.twitch import Twitch
 
 app = FastAPI()
 app.add_middleware(SessionMiddleware, secret_key="some-secret-key")
@@ -20,16 +24,13 @@ logger = logging.getLogger()
 
 @app.on_event("startup")
 async def startup_event():
+    await (Twitch().startup())
     await ChatBot().startup()
     await ChatBot().update_bot_channels()
 
 @app.get("/login")
 async def login():
-    url = (
-        f"https://id.twitch.tv/oauth2/authorize?client_id={settings.twitch_client_id}"
-        f"&redirect_uri={settings.login_redirect_url}&response_type=code&scope=chat:read+chat:edit"
-    )
-    return RedirectResponse(url)
+    return RedirectResponse(settings.login_url)
 
 
 @app.get("/callback")
@@ -110,3 +111,40 @@ async def update_settings(request: Request, db: Session = Depends(get_db)):
         db.commit()
         await ChatBot().update_bot_channels()
     return RedirectResponse(url="/", status_code=303)
+
+
+@app.post("/memealerts")
+async def update_settings(
+    request: Request,
+    enable: bool = Query(...),
+    db: Session = Depends(get_db)
+):
+    # TODO: authorization
+    user_id = request.session.get("user_id")
+    if not user_id:
+        return RedirectResponse(url="/login")
+    user = db.query(User).filter_by(twitch_id=user_id).first()
+    if enable:
+        try:
+            reward = await Twitch().create_reward(user)
+        except TwitchAPIException as exc:
+            pass
+        await Twitch().subscribe_reward(user, reward.id)
+
+        # TODO: если нету - создаём и пишем в бд
+        # подписываемся
+
+    # curl -X POST '' \
+    # -H 'Authorization: Bearer 2gbdx6oar67tqtcmt49t3wpcgycthx' \
+    # -H 'Client-Id: wbmytr93xzw8zbg0p1izqyzzc5mbiz' \
+    # -H 'Content-Type: application/json' \
+    # -d '{"type":"channel.follow","version":"2","condition":{"broadcaster_user_id":"1234", "moderator_user_id": "1234"},"transport":{"method":"webhook","callback":"https://example.com/callback","secret":"s3cre77890ab"}}'
+
+if __name__ == "__main__":
+    uvicorn.run(
+        "main:app",
+        host="0.0.0.0",
+        port=8000,
+        log_level="debug",
+        reload=True,
+    )

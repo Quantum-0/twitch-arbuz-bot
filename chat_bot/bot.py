@@ -1,25 +1,16 @@
 import random
 
-from twitchAPI import Twitch, Chat
-from twitchAPI.types import AuthScope, ChatEvent
+from twitchAPI import Chat
+from twitchAPI.types import ChatEvent
 
-from config import settings
 from database import SessionLocal
 from models import User
+from twitch.twitch import Twitch
 from utils import singleton
-#
-# # Twitch конфигурация
-# CLIENT_ID = "q3utk26wxwo4fv64jpgz6470qi1bpp"
-# CLIENT_SECRET = "kicz242hus3n5y37yhulue6k5zsv3g"
-# REDIRECT_URI = "http://localhost:8000/callback"
-# BOT_ACCESS_TOKEN = "51zykti0juazi7bnkgu5hixkwtlawi"
-# BOT_REFRESH_TOKEN = "dq6u7pctx5dhw4ey8l8efl3i276q6o61rr9b8hc6bwj1aepswp"
-#
 
 
 @singleton
 class ChatBot():
-    _twitch: Twitch = None
     _chat: Chat = None
     _joined_channels: list[str] = []
 
@@ -27,14 +18,10 @@ class ChatBot():
         pass
 
     async def startup(self):
-        twitch = await Twitch(settings.twitch_client_id, settings.twitch_client_secret)
-        await twitch.set_user_authentication(settings.bot_access_token, [AuthScope.CHAT_READ, AuthScope.CHAT_EDIT],
-                                             settings.bot_refresh_token)
-        chat = await Chat(twitch)
+        chat = await Twitch().build_chat_client()
         chat.register_event(ChatEvent.MESSAGE, self.on_message)
         chat.start()
         self._chat = chat
-        self._twitch = twitch
 
     @staticmethod
     async def on_message(message):
