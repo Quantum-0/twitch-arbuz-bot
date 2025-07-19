@@ -1,7 +1,7 @@
 from typing import Any, Annotated
 
 from fastapi import APIRouter, Depends, Security, Form, Query
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.responses import RedirectResponse, JSONResponse
 from twitchAPI.types import TwitchAPIException, TwitchResourceNotFound
 
@@ -17,7 +17,7 @@ router = APIRouter(prefix="/user", tags=["User API"])
 async def update_settings(
     data: Annotated[UpdateSettingsForm, Form()],
     user: Any = Security(user_auth),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     chat_bot: ChatBot = Depends(get_chat_bot),
 ):
     if data.enable_help is not None:
@@ -26,8 +26,10 @@ async def update_settings(
         user.settings.enable_random = data.enable_random
     if data.enable_fruit is not None:
         user.settings.enable_fruit = data.enable_fruit
-    db.commit()
-    db.refresh(user.settings)
+
+    await db.commit()
+    await db.refresh(user.settings)
+
     await chat_bot.update_bot_channels()
     return JSONResponse({"title": "Сохранено", "message": f"Настройки успешно обновлены."}, 200)
 
@@ -37,7 +39,7 @@ async def setup_memealert(
     user: Any = Security(user_auth),
     enable: bool = Query(...),
     memealerts_token: str = Form(None, alias="key"),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     twitch: Twitch = Depends(get_twitch),
 ):
     reward_id = user.memealerts.memealerts_reward
@@ -49,8 +51,8 @@ async def setup_memealert(
         reward = await twitch.create_reward(user)
         user.memealerts.memealerts_reward = reward.id
         user.memealerts.memealerts_token = memealerts_token
-        db.commit()
-        db.refresh(user.memealerts)
+        await db.commit()
+        await db.refresh(user.memealerts)
         print(await Twitch().subscribe_reward(user, reward.id))
         return JSONResponse({"title": "Успешно", "message": f"Награда создана."}, 201)
     else:
@@ -59,6 +61,6 @@ async def setup_memealert(
         except TwitchResourceNotFound:
             pass
         user.memealerts.memealerts_reward = None
-        db.commit()
-        db.refresh(user.memealerts)
+        await db.commit()
+        await db.refresh(user.memealerts)
         return JSONResponse({"title": "Успешно", "message": f"Награда удалена."}, 200)

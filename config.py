@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     bot_access_token: str
     bot_refresh_token: str
     db_url: str
+    db_sync_url: str
 
     model_config = SettingsConfigDict(env_prefix='', env_file='.env')
 

@@ -1,13 +1,20 @@
-from sqlalchemy import create_engine
-from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 
 from config import settings
 
-# SQLALCHEMY_DATABASE_URL = "postgresql://user:password@db:5432/twitch_bot"
-# SQLALCHEMY_DATABASE_URL = "postgresql://user:password@localhost:45432/twitch_bot"
 
-engine = create_engine(settings.db_url)
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
-Base = declarative_base()
+async_engine = create_async_engine(
+    settings.db_url,
+    future=True,
+    echo=False,
+)
+
+AsyncSessionLocal = sessionmaker(
+    bind=async_engine,
+    class_=AsyncSession,
+    # autocommit=False,
+    # autoflush=False,
+    expire_on_commit=False,
+)

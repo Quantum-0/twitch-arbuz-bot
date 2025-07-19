@@ -3,10 +3,11 @@ import random
 from twitchAPI import Chat
 from twitchAPI.types import ChatEvent
 
-from database.database import SessionLocal
+from database.database import AsyncSessionLocal
 from database.models import User, TwitchUserSettings
 from twitch.twitch import Twitch
 from utils.singleton import singleton
+import sqlalchemy as sa
 
 
 @singleton
@@ -27,8 +28,9 @@ class ChatBot:
     async def on_message(message):
         channel = message.room.name  # Имя канала
 
-        with SessionLocal() as session:
-            user = session.query(User).filter_by(login_name=channel.lower()).first()
+        async with AsyncSessionLocal() as session:
+            result = await session.execute(sa.select(User).filter_by(login_name=channel.lower()))
+            user = result.scalar_one_or_none()
             if user:
                 if message.text.startswith('!help') and user.settings.enable_help:
                     await ChatBot()._chat.send_message(channel, 'Доступные команды: !help, !random, !fruit')
@@ -43,17 +45,20 @@ class ChatBot:
     async def update_bot_channels(self):
         if not self._chat:
             return
-        with SessionLocal() as session:
-            users = (
-                session.query(User)
+        async with AsyncSessionLocal() as session:
+            users_result = await session.execute(
+                sa.select(User)
                 .join(TwitchUserSettings)
                 .filter(
-                    (TwitchUserSettings.enable_help == True) |
-                    (TwitchUserSettings.enable_random == True) |
-                    (TwitchUserSettings.enable_fruit == True)
+                    sa.or_(
+                        TwitchUserSettings.enable_help == True,
+                        TwitchUserSettings.enable_random == True,
+                        TwitchUserSettings.enable_fruit == True,
+                    )
                 )
-                .all()
             )
+
+            users = users_result.scalars().all()
             desired_channels = {user.login_name.lower() for user in users}
             current_channels = {ch.lower() for ch in self._joined_channels}
 

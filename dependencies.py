@@ -1,14 +1,11 @@
 from twitch.bot import ChatBot
-from database.database import SessionLocal
+from database.database import AsyncSessionLocal
 from twitch.twitch import Twitch
 
 
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+async def get_db():
+    async with AsyncSessionLocal() as session:
+        yield session
 
 def get_twitch():
     yield Twitch()

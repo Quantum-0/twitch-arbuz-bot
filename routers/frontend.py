@@ -2,7 +2,8 @@ from typing import Any
 
 from fastapi import APIRouter, Security
 from fastapi.params import Depends
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+import sqlalchemy as sa
 from starlette.requests import Request
 from starlette.responses import RedirectResponse, HTMLResponse
 from starlette.templating import Jinja2Templates
@@ -49,7 +50,7 @@ async def main_page(
 async def callback(
     request: Request,
     code: str,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     twitch: Twitch = Depends(get_twitch),
 ):
     access_token, refresh_token = await twitch.get_user_access_refresh_tokens_by_authorization_code(code)
@@ -59,7 +60,8 @@ async def callback(
     login_name = user_info.login
     profile_image_url = user_info.profile_image_url
 
-    user = db.query(User).filter_by(twitch_id=user_id).first()
+    result = await db.execute(sa.select(User).filter_by(twitch_id=user_id))
+    user = result.scalar_one_or_none()
     if not user:
         user = User(
             twitch_id=user_id,
@@ -73,7 +75,7 @@ async def callback(
         user.access_token = access_token
         user.refresh_token = refresh_token
         user.profile_image_url = profile_image_url
-    db.commit()
+    await db.commit()
 
     request.session["user_id"] = user_id
     return RedirectResponse(url="/panel")

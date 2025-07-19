@@ -1,13 +1,15 @@
 import hashlib
 import hmac
 
+import sqlalchemy as sa
 from fastapi import Header, HTTPException, Depends
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 from starlette.requests import Request
 
 from config import settings
-from dependencies import get_db
 from database.models import User
+from dependencies import get_db
 
 
 async def verify_eventsub_signature(
@@ -31,11 +33,19 @@ async def verify_eventsub_signature(
 
 async def user_auth(
     request: Request,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ) -> User:
     if not request.session or not (user_id := request.session.get("user_id")):
         raise HTTPException(status_code=401, detail="Not authorized")
-    user = db.query(User).filter_by(twitch_id=user_id).first()  # TODO: переписать на AsyncSession
+    result = await db.execute(
+        sa.select(User)
+        .options(
+            selectinload(User.settings),
+            selectinload(User.memealerts),
+        )
+        .filter_by(twitch_id=user_id)
+    )
+    user = result.scalar_one_or_none()
     if not user:
         raise HTTPException(status_code=403, detail="User not found")
     return user

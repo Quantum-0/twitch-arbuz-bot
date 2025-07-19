@@ -1,9 +1,9 @@
-import logging
 from typing import Any
 
 from fastapi import APIRouter, Security, Body, Depends, Path
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.responses import PlainTextResponse, Response
+import sqlalchemy as sa
 
 from database.models import User
 from dependencies import get_db
@@ -18,7 +18,7 @@ async def eventsub_handler(
     eventsub_message_type: bytes = Security(verify_eventsub_signature),
     streamer_id: int = Path(...),
     payload: Any = Body(...),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ):
     # Challenge
     if eventsub_message_type == "webhook_callback_verification":
@@ -27,7 +27,8 @@ async def eventsub_handler(
 
     # Notification: channel points reward redemption
     # {'user': 'Quantum075', 'reward': 'test reward by bot', 'timestamp': '2025-07-19T01:36:47.520426697Z', 'input': 'test'}
-    user = db.query(User).filter_by(login_name=payload["user"]).first()
+    result = await db.execute(sa.select(User).filter_by(login_name=payload["user"]))
+    user = result.scalar_one_or_none()
 
     if eventsub_message_type == "notification":
         give_bonus(user.memealerts.memealerts_token, user.login_name, payload["input"])
