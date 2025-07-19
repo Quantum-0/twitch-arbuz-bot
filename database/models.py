@@ -3,6 +3,8 @@ from sqlalchemy import String, Boolean, ForeignKey, Integer, event
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship, DeclarativeBase, Mapped, mapped_column
 
+from utils.cryptography import decrypt_value, encrypt_value
+
 
 class Base(DeclarativeBase):
     pass
@@ -15,8 +17,9 @@ class User(Base):
     twitch_id: Mapped[str] = mapped_column(String, unique=True, index=True)
     login_name: Mapped[str] = mapped_column(String)
     profile_image_url: Mapped[str] = mapped_column(String)
-    access_token: Mapped[str] = mapped_column(String)
-    refresh_token: Mapped[str] = mapped_column(String)
+
+    _access_token: Mapped[str] = mapped_column("access_token", String)
+    _refresh_token: Mapped[str] = mapped_column("refresh_token", String)
 
     # Связи
     settings: Mapped["TwitchUserSettings"] = relationship(
@@ -25,6 +28,22 @@ class User(Base):
     memealerts: Mapped["MemealertsSettings"] = relationship(
         "MemealertsSettings", uselist=False, back_populates="user", cascade="all, delete"
     )
+
+    @property
+    def access_token(self) -> str:
+        return decrypt_value(self._access_token)
+
+    @access_token.setter
+    def access_token(self, value: str) -> None:
+        self._access_token = encrypt_value(value)
+
+    @property
+    def refresh_token(self) -> str:
+        return decrypt_value(self._refresh_token)
+
+    @refresh_token.setter
+    def refresh_token(self, value: str) -> None:
+        self._refresh_token = encrypt_value(value)
 
 
 class TwitchUserSettings(Base):
@@ -45,9 +64,17 @@ class MemealertsSettings(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     user_id: Mapped[int] = mapped_column(Integer, ForeignKey("twitch_bot_users.id", ondelete="CASCADE"), nullable=False)
     memealerts_reward: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True, default=None)
-    memealerts_token: Mapped[str | None] = mapped_column(String, nullable=True)
+    _memealerts_token: Mapped[str | None] = mapped_column("memealerts_token", String, nullable=True)
 
     user: Mapped["User"] = relationship("User", back_populates="memealerts")
+
+    @property
+    def memealerts_token(self) -> str:
+        return decrypt_value(self._memealerts_token)
+
+    @memealerts_token.setter
+    def memealerts_token(self, value: str) -> None:
+        self._memealerts_token = encrypt_value(value)
 
 
 @event.listens_for(User, "after_insert")

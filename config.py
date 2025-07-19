@@ -19,6 +19,7 @@ class Settings(BaseSettings):
     bot_refresh_token: str
     db_url: str
     db_sync_url: str
+    fernet_key: SecretStr
 
     model_config = SettingsConfigDict(env_prefix='', env_file='.env')
 
