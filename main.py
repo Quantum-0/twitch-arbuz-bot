@@ -7,12 +7,16 @@ from starlette.middleware.sessions import SessionMiddleware
 from starlette.requests import Request
 from starlette.responses import JSONResponse, RedirectResponse
 
+from config import settings
 from twitch.bot import ChatBot
 from routers.routers import api_router, user_router
 from twitch.twitch import Twitch
 
+import sentry_sdk
+sentry_sdk.init(settings.sentry_dsn)
+
 app = FastAPI()
-app.add_middleware(SessionMiddleware, secret_key="some-secret-key")
+app.add_middleware(SessionMiddleware, secret_key="some-secret-key")  # FIXME secret_key
 app.include_router(router=api_router)
 app.include_router(router=user_router)
 

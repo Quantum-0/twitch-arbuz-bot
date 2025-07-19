@@ -20,6 +20,7 @@ class Settings(BaseSettings):
     db_url: str
     db_sync_url: str
     fernet_key: SecretStr
+    sentry_dsn: AnyHttpUrl
 
     model_config = SettingsConfigDict(env_prefix='', env_file='.env')
 
