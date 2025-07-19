@@ -1,15 +1,15 @@
 from datetime import datetime, UTC
+import re
 
 from memealerts import MemealertsAsyncClient
-
-import requests, re
-from memealerts.types.models import User, Supporter
+from memealerts.types.models import Supporter
 from memealerts.types.user_id import UserID
 
 
-def token_expires_in_days(memealerts_token) -> int:
-    expires_in: datetime = MemealertsAsyncClient(memealerts_token).token_expires_in
-    return int((expires_in - datetime.now(UTC)).days)
+async def token_expires_in_days(memealerts_token) -> int:
+    async with MemealertsAsyncClient(memealerts_token) as cli:
+        expires_in: datetime = cli.token_expires_in
+        return int((expires_in - datetime.now(UTC)).days)
 
 
 async def load_supporters(cli: MemealertsAsyncClient) -> list[Supporter]:
@@ -24,10 +24,6 @@ async def load_supporters(cli: MemealertsAsyncClient) -> list[Supporter]:
         items += req.data
     assert len(items) == total_count
     return items
-
-
-async def find_user(cli: MemealertsAsyncClient, username: str) -> User:
-    return
 
 
 def is_id(id_: str) -> bool:
@@ -64,7 +60,7 @@ async def find_and_give_bonus(cli: MemealertsAsyncClient, username: str, amount:
 
 
 async def give_bonus(memealerts_token, streamer, supporter, amount):
-    meme_cli = MemealertsAsyncClient(memealerts_token)
-    result = await find_and_give_bonus(meme_cli, supporter, amount)
-    # return "Мемкоины начислены :з" if result else "Ошибка начисления >.<"
-    return result
+    async with MemealertsAsyncClient(memealerts_token) as meme_cli:
+        result = await find_and_give_bonus(meme_cli, supporter, amount)
+        # return "Мемкоины начислены :з" if result else "Ошибка начисления >.<"
+        return result
