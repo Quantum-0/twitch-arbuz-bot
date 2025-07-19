@@ -1,0 +1,65 @@
+from typing import Any, Annotated
+
+from fastapi import APIRouter, Depends, Security, Form, Query
+from sqlalchemy.orm import Session
+from starlette.responses import RedirectResponse, JSONResponse
+from twitchAPI.types import TwitchAPIException
+
+from twitch.bot import ChatBot
+from dependencies import get_db, get_chat_bot, get_twitch
+from routers.schemas import UpdateSettingsForm
+from routers.security_helpers import user_auth
+from twitch.twitch import Twitch
+
+router = APIRouter(prefix="/user", tags=["User API"])
+
+@router.post("/update_settings")
+async def update_settings(
+    data: Annotated[UpdateSettingsForm, Form()],
+    user: Any = Security(user_auth),
+    db: Session = Depends(get_db),
+    chat_bot: ChatBot = Depends(get_chat_bot),
+):
+    if data.enable_help is not None:
+        user.settings.enable_help = data.enable_help
+    if data.enable_random is not None:
+        user.settings.enable_random = data.enable_random
+    if data.enable_fruit is not None:
+        user.settings.enable_fruit = data.enable_fruit
+    db.commit()
+    db.refresh(user.settings)
+    await chat_bot.update_bot_channels()
+    return JSONResponse({"title": "Сохранено", "message": f"Настройки успешно обновлены."}, 200)
+
+
+@router.post("/memealerts")
+async def setup_memealert(
+    user: Any = Security(user_auth),
+    enable: bool = Query(...),
+    db: Session = Depends(get_db),
+    twitch: Twitch = Depends(get_twitch),
+):
+    reward_id = user.memealerts.memealerts_reward
+
+    if enable == bool(reward_id):
+        return JSONResponse({"title": "Без изменений","message": f"Уже {'включено' if enable else 'выключено'}."}, 208)
+
+    if enable:
+        reward = await twitch.create_reward(user)
+        user.memealerts.memealerts_reward = reward.id
+        db.commit()
+        db.refresh(user.memealerts)
+        # await Twitch().subscribe_reward(user, reward.id)
+        return JSONResponse({"title": "Успешно", "message": f"Награда создана."}, 201)
+    else:
+        await twitch.delete_reward(user, reward_id)
+        user.memealerts.memealerts_reward = None
+        db.commit()
+        db.refresh(user.memealerts)
+        return JSONResponse({"title": "Успешно", "message": f"Награда удалена."}, 200)
+
+    # curl -X POST '' \
+    # -H 'Authorization: Bearer 2gbdx6oar67tqtcmt49t3wpcgycthx' \
+    # -H 'Client-Id: wbmytr93xzw8zbg0p1izqyzzc5mbiz' \
+    # -H 'Content-Type: application/json' \
+    # -d '{"type":"channel.follow","version":"2","condition":{"broadcaster_user_id":"1234", "moderator_user_id": "1234"},"transport":{"method":"webhook","callback":"https://example.com/callback","secret":"s3cre77890ab"}}'

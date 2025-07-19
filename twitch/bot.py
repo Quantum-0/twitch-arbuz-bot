@@ -3,14 +3,14 @@ import random
 from twitchAPI import Chat
 from twitchAPI.types import ChatEvent
 
-from database import SessionLocal
-from models import User
+from database.database import SessionLocal
+from database.models import User, TwitchUserSettings
 from twitch.twitch import Twitch
-from utils import singleton
+from utils.singleton import singleton
 
 
 @singleton
-class ChatBot():
+class ChatBot:
     _chat: Chat = None
     _joined_channels: list[str] = []
 
@@ -30,12 +30,12 @@ class ChatBot():
         with SessionLocal() as session:
             user = session.query(User).filter_by(login_name=channel.lower()).first()
             if user:
-                if message.text.startswith('!help') and user.enable_help:
+                if message.text.startswith('!help') and user.settings.enable_help:
                     await ChatBot()._chat.send_message(channel, 'Доступные команды: !help, !random, !fruit')
-                elif message.text.startswith('!random') and user.enable_random:
+                elif message.text.startswith('!random') and user.settings.enable_random:
                     number = random.randint(0, 10)
                     await ChatBot()._chat.send_message(channel, f'Случайное число: {number}')
-                elif message.text.startswith('!fruit') and user.enable_fruit:
+                elif message.text.startswith('!fruit') and user.settings.enable_fruit:
                     fruits = ['яблоко', 'груша', 'банан']
                     fruit = random.choice(fruits)
                     await ChatBot()._chat.send_message(channel, f'Случайный фрукт: {fruit}')
@@ -44,11 +44,16 @@ class ChatBot():
         if not self._chat:
             return
         with SessionLocal() as session:
-            users = session.query(User).filter(
-                (User.enable_help == True) |
-                (User.enable_random == True) |
-                (User.enable_fruit == True)
-            ).all()
+            users = (
+                session.query(User)
+                .join(TwitchUserSettings)
+                .filter(
+                    (TwitchUserSettings.enable_help == True) |
+                    (TwitchUserSettings.enable_random == True) |
+                    (TwitchUserSettings.enable_fruit == True)
+                )
+                .all()
+            )
             desired_channels = {user.login_name.lower() for user in users}
             current_channels = {ch.lower() for ch in self._joined_channels}
 

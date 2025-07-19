@@ -5,13 +5,20 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Quantum0's Bot</title>
     <style>
+        :root {
+            --notif-in-duration: 0.25s;
+            --notif-out-duration: 0.25s;
+            --notif-ttl: 4000ms;
+        }
         body {
             font-family: Arial, sans-serif;
             margin: 0;
             padding: 0;
             background-color: #f4f4f4;
-
-            background-image: url("https://quantum-0.github.io/images/bg_leaves.png"), url("https://quantum-0.github.io/images/bg_leaves_mirror.png"), url("https://quantum-0.github.io/images/bg_leaves_dark2.png"), url("https://quantum-0.github.io/images/bg_leaves_dark_mirror2.png");
+            background-image: url("https://quantum-0.github.io/images/bg_leaves.png"),
+                              url("https://quantum-0.github.io/images/bg_leaves_mirror.png"),
+                              url("https://quantum-0.github.io/images/bg_leaves_dark2.png"),
+                              url("https://quantum-0.github.io/images/bg_leaves_dark_mirror2.png");
             background-position: left top, right top, left top, right top;
             background-repeat: repeat-y, repeat-y, repeat-y, repeat-y;
             background-size: 75px, 60px, 120px, 110px;
@@ -24,48 +31,32 @@
             justify-content: space-between;
             align-items: center;
         }
-        header h1 {
-            margin: 0;
-            font-size: 24px;
-        }
-        .avatar {
-            width: 50px;
-            height: 50px;
-            border-radius: 50%;
-            border: 2px solid white;
-        }
-        .container {
-            padding: 20px;
-            max-width: 600px;
-            margin: 0 auto;
-        }
-        .checkbox-label {
-            display: flex;
-            align-items: center;
-            margin: 15px 0;
-            font-size: 16px;
-        }
-        .checkbox-label input {
-            appearance: none;
-            width: 20px;
-            height: 20px;
-            border: 2px solid #4CAF50;
-            border-radius: 4px;
-            margin-right: 10px;
-            cursor: pointer;
-        }
-        .checkbox-label input:checked {
-            background-color: #4CAF50;
+        header h1 { margin: 0; font-size: 24px; }
+        .avatar { width: 50px; height: 50px; border-radius: 50%; border: 2px solid white; }
+        .container { padding: 20px; max-width: 600px; margin: 0 auto; }
+        .toggle-label { display: flex; align-items: center; justify-content: space-between; margin: 15px 0; font-size: 16px; }
+        .toggle-switch {
             position: relative;
+            width: 50px;
+            height: 26px;
+            background-color: #ccc;
+            border-radius: 26px;
+            cursor: pointer;
+            transition: background-color 0.3s;
         }
-        .checkbox-label input:checked::after {
-            content: "✔";
-            color: white;
+        .toggle-switch::after {
+            content: "";
             position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
+            width: 22px;
+            height: 22px;
+            background: white;
+            border-radius: 50%;
+            top: 2px;
+            left: 2px;
+            transition: transform 0.3s;
         }
+        .toggle-switch.active { background-color: #4CAF50; }
+        .toggle-switch.active::after { transform: translateX(24px); }
         button {
             background-color: #4CAF50;
             color: white;
@@ -73,18 +64,91 @@
             border: none;
             border-radius: 5px;
             cursor: pointer;
+            display: block;
+            margin: 20px auto;
         }
-        button:hover {
-            background-color: #45a049;
+        button:hover { background-color: #45a049; }
+        .notification-container {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 9999;
         }
+        .notification {
+            padding: 0;
+            margin-top: 10px;
+            border-radius: 5px;
+            background: #fff;
+            border: 2px solid #4CAF50;
+            color: #333;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+            opacity: 0;
+            transform: translateY(10px);
+            animation: fadeInUp var(--notif-in-duration) forwards;
+            overflow: hidden;
+        }
+        .notification.error { border-color: #e53935; }
+        .notification-header {
+            background: #d9f2d9;
+            padding: 5px 10px;
+            font-weight: bold;
+            font-size: 14px;
+        }
+        .notification-body {
+            padding: 10px;
+            font-size: 14px;
+        }
+        @keyframes fadeInUp { to { opacity: 1; transform: translateY(0); } }
+        @keyframes fadeOutDown { to { opacity: 0; transform: translateY(10px); } }
     </style>
     <script>
-        function createRedeem() {
-            var xhr = new XMLHttpRequest();
-            xhr.open("POST", "/memealerts?enable=true", true);
-            xhr.setRequestHeader('Content-Type', 'application/json');
-            xhr.send(JSON.stringify({}));
+        function showNotification(title, message, isError=false) {
+            const container = document.querySelector('.notification-container');
+            const div = document.createElement('div');
+            div.className = 'notification' + (isError ? ' error' : '');
+            div.innerHTML = `<div class="notification-header">${title}</div><div class="notification-body">${message}</div>`;
+            container.appendChild(div);
+            setTimeout(() => {
+                div.style.animation = 'fadeOutDown var(--notif-out-duration) forwards';
+                setTimeout(() => div.remove(), 250);
+            }, 4000);
         }
+
+        function toggleSetting(settingName, enabled) {
+            fetch('/api/user/update_settings', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: `${settingName}=${enabled ? 'true' : 'false'}`
+            })
+            .then(res => res.json().then(data => ({ ok: res.ok, data })))
+            .then(({ok, data}) => {
+                showNotification(data.title || 'Настройки', data.message || `Настройка "${settingName}" обновлена`, !ok);
+            })
+            .catch(err => showNotification('Ошибка', err.message, true));
+        }
+
+        function initToggles() {
+            document.querySelectorAll('.toggle-switch').forEach(toggle => {
+                toggle.addEventListener('click', () => {
+                    toggle.classList.toggle('active');
+                    const name = toggle.dataset.name;
+                    const enabled = toggle.classList.contains('active');
+                    toggleSetting(name, enabled);
+                });
+            });
+        }
+
+        function createRedeem(enable) {
+            fetch(`/api/user/memealerts?enable=${enable}`, { method: 'POST' })
+            .then(res => res.json().then(data => ({ ok: res.ok, data })))
+            .then(({ok, data}) => {
+                showNotification(data.title || 'Мемалёрты', data.message, !ok);
+                setTimeout(() => location.reload(), 5000);
+            })
+            .catch(err => showNotification('Ошибка', err.message, true));
+        }
+
+        document.addEventListener('DOMContentLoaded', initToggles);
     </script>
 </head>
 <body>
@@ -95,19 +159,24 @@
     <div class="container">
         <h2>Привет, {{ user.login_name }}!</h2>
         <p>Настройте функции вашего бота:</p>
-        <form method="post" action="/update_settings">
-            <label class="checkbox-label">
-                <input type="checkbox" name="enable_help" {% if user.enable_help %}checked{% endif %}> Включить !help
-            </label>
-            <label class="checkbox-label">
-                <input type="checkbox" name="enable_random" {% if user.enable_random %}checked{% endif %}> Включить !random
-            </label>
-            <label class="checkbox-label">
-                <input type="checkbox" name="enable_fruit" {% if user.enable_fruit %}checked{% endif %}> Включить !fruit
-            </label>
-            <button type="submit">Сохранить</button>
-        </form>
-        <button onclick="createRedeem()">Click me</button>
+        <div class="toggle-label">
+            <span>Включить !help</span>
+            <div class="toggle-switch {% if settings.enable_help %}active{% endif %}" data-name="enable_help"></div>
+        </div>
+        <div class="toggle-label">
+            <span>Включить !random</span>
+            <div class="toggle-switch {% if settings.enable_random %}active{% endif %}" data-name="enable_random"></div>
+        </div>
+        <div class="toggle-label">
+            <span>Включить !fruit</span>
+            <div class="toggle-switch {% if settings.enable_fruit %}active{% endif %}" data-name="enable_fruit"></div>
+        </div>
+        {% if memealerts.enabled %}
+            <button onclick="createRedeem(false)">Отключить мемалёрты</button>
+        {% else %}
+            <button onclick="createRedeem(true)">Включить мемалёрты</button>
+        {% endif %}
     </div>
+    <div class="notification-container"></div>
 </body>
 </html>

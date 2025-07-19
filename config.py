@@ -22,7 +22,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix='', env_file='.env')
 
     @property
-    def login_url(self) -> str:
+    def login_twitch_url(self) -> str:
         scope:str = "+".join(sp.value for sp in user_scope)
         url = (
                 f"https://id.twitch.tv/oauth2/authorize?client_id={settings.twitch_client_id}"
