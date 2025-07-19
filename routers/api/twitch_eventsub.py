@@ -3,6 +3,7 @@ from typing import Any
 
 from fastapi import APIRouter, Security, Body, Depends, Path
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 from starlette.responses import PlainTextResponse, Response
 import sqlalchemy as sa
 
@@ -32,9 +33,12 @@ async def eventsub_handler(
         return PlainTextResponse(content=payload.challenge, media_type="text/plain")
 
     # Notification: channel points reward redemption
-    # {'user': 'Quantum075', 'reward': 'test reward by bot', 'timestamp': '2025-07-19T01:36:47.520426697Z', 'input': 'test'}
     logging.info(f"Notification from twitch: {payload}")
-    result = await db.execute(sa.select(User).filter_by(login_name=payload.event.broadcaster_user_login))
+    result = await db.execute(
+        sa.select(User)
+        .options(selectinload(User.memealerts))
+        .filter_by(login_name=payload.event.broadcaster_user_login)
+    )
     user = result.scalar_one_or_none()
 
     if eventsub_message_type == "notification":
