@@ -63,8 +63,8 @@ async def find_and_give_bonus(cli: MemealertsAsyncClient, username: str, amount:
     return False
 
 
-async def give_bonus(memealerts_token, streamer, supporter):
+async def give_bonus(memealerts_token, streamer, supporter, amount):
     meme_cli = MemealertsAsyncClient(memealerts_token)
-    result = await find_and_give_bonus(meme_cli, supporter)
+    result = await find_and_give_bonus(meme_cli, supporter, amount)
     # return "Мемкоины начислены :з" if result else "Ошибка начисления >.<"
     return result
