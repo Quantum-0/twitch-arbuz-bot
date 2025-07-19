@@ -118,6 +118,7 @@ button:hover { background-color: #45a049; }
     </div>
     {% if memealerts.enabled %}
         <button onclick="createRedeem(false)">Отключить мемалёрты</button>
+        <p>Время жизни токена: {{memealerts.expires_in}} дней. После этого нужно будет обновить токен Memealerts.</p>
     {% else %}
         <button onclick="openModal()">Включить мемалёрты</button>
     {% endif %}

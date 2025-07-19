@@ -9,7 +9,7 @@ from database.models import User
 from dependencies import get_db
 from routers.security_helpers import verify_eventsub_signature
 
-from utils.memealerts import give_bonus
+from utils.memes import give_bonus
 
 router = APIRouter(prefix="/twitch")
 
@@ -32,5 +32,7 @@ async def eventsub_handler(
 
     if eventsub_message_type == "notification":
         give_bonus(user.memealerts.memealerts_token, user.login_name, payload["input"])
+        # TODO: написать в чатик что мемкоины начислены/не начислены
+        # TODO: аппрувнуть или вернуть награду
 
     return Response(status_code=204)

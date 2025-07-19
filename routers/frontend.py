@@ -10,9 +10,10 @@ from starlette.templating import Jinja2Templates
 
 from config import settings
 from dependencies import get_twitch, get_db
-from database.models import User, TwitchUserSettings
+from database.models import User
 from routers.security_helpers import user_auth
 from twitch.twitch import Twitch
+from utils.memes import token_expires_in_days
 
 templates = Jinja2Templates(directory="templates")
 
@@ -42,7 +43,8 @@ async def main_page(
             "user": user,
             "settings": user.settings,
             "memealerts": {
-                "enabled": user.memealerts.memealerts_reward is not None
+                "enabled": user.memealerts.memealerts_reward is not None,
+                "expires_in": token_expires_in_days(user.memealerts.memealerts_token) if user.memealerts.memealerts_token else None,
             },
         }
     )

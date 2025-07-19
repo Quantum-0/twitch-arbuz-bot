@@ -1,15 +1,18 @@
 from typing import Any, Annotated
 
 from fastapi import APIRouter, Depends, Security, Form, Query
+from jwt import DecodeError
+from memealerts.types.exceptions import MATokenExpiredError
 from sqlalchemy.ext.asyncio import AsyncSession
-from starlette.responses import RedirectResponse, JSONResponse
-from twitchAPI.types import TwitchAPIException, TwitchResourceNotFound
+from starlette.responses import JSONResponse
+from twitchAPI.types import TwitchResourceNotFound
 
-from twitch.bot import ChatBot
 from dependencies import get_db, get_chat_bot, get_twitch
 from routers.schemas import UpdateSettingsForm
 from routers.security_helpers import user_auth
+from twitch.bot import ChatBot
 from twitch.twitch import Twitch
+from utils.memes import token_expires_in_days
 
 router = APIRouter(prefix="/user", tags=["User API"])
 
@@ -43,6 +46,10 @@ async def setup_memealert(
     twitch: Twitch = Depends(get_twitch),
 ):
     reward_id = user.memealerts.memealerts_reward
+    try:
+        token_expires_in_days(memealerts_token)
+    except (MATokenExpiredError, DecodeError):
+        return JSONResponse({"title": "Невалидный токен","message": f"Токен, который вы используете - не является валидным. Попробуйте скопировать токен заново."}, 400)
 
     if enable == bool(reward_id):
         return JSONResponse({"title": "Без изменений","message": f"Уже {'включено' if enable else 'выключено'}."}, 208)
