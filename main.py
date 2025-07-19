@@ -2,6 +2,8 @@ import logging
 
 import uvicorn
 from fastapi import FastAPI, HTTPException
+from fastapi.exception_handlers import request_validation_exception_handler
+from fastapi.exceptions import RequestValidationError
 from starlette import status
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.requests import Request
@@ -13,9 +15,30 @@ from routers.routers import api_router, user_router
 from twitch.twitch import Twitch
 
 import sentry_sdk
-sentry_sdk.init(str(settings.sentry_dsn))
+from sentry_sdk.integrations.starlette import StarletteIntegration
+from sentry_sdk.integrations.fastapi import FastApiIntegration
+
+sentry_sdk.init(
+    dsn=str(settings.sentry_dsn),
+    integrations=[StarletteIntegration(), FastApiIntegration()],
+)
 
 app = FastAPI()
+
+@app.exception_handler(RequestValidationError)
+async def sentry_request_validation_handler(request: Request, exc: RequestValidationError):
+    with sentry_sdk.new_scope() as scope:
+        scope.set_tag("type", "request_validation_error")
+        scope.set_extra("path", str(request.url))
+        scope.set_extra("errors", exc.errors())
+        try:
+            body = await request.body()
+            scope.set_extra("raw_body", body.decode("utf-8", errors="replace"))
+        except Exception:
+            pass
+        sentry_sdk.capture_exception(exc)
+    return await request_validation_exception_handler(request, exc)
+
 app.add_middleware(SessionMiddleware, secret_key="some-secret-key")  # FIXME secret_key
 app.include_router(router=api_router)
 app.include_router(router=user_router)
