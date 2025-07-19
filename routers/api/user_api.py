@@ -36,6 +36,7 @@ async def update_settings(
 async def setup_memealert(
     user: Any = Security(user_auth),
     enable: bool = Query(...),
+    memealerts_token: str = Form(None, alias="key"),
     db: Session = Depends(get_db),
     twitch: Twitch = Depends(get_twitch),
 ):
@@ -47,9 +48,10 @@ async def setup_memealert(
     if enable:
         reward = await twitch.create_reward(user)
         user.memealerts.memealerts_reward = reward.id
+        user.memealerts.memealerts_token = memealerts_token
         db.commit()
         db.refresh(user.memealerts)
-        # await Twitch().subscribe_reward(user, reward.id)
+        print(await Twitch().subscribe_reward(user, reward.id))
         return JSONResponse({"title": "Успешно", "message": f"Награда создана."}, 201)
     else:
         await twitch.delete_reward(user, reward_id)
@@ -57,9 +59,3 @@ async def setup_memealert(
         db.commit()
         db.refresh(user.memealerts)
         return JSONResponse({"title": "Успешно", "message": f"Награда удалена."}, 200)
-
-    # curl -X POST '' \
-    # -H 'Authorization: Bearer 2gbdx6oar67tqtcmt49t3wpcgycthx' \
-    # -H 'Client-Id: wbmytr93xzw8zbg0p1izqyzzc5mbiz' \
-    # -H 'Content-Type: application/json' \
-    # -d '{"type":"channel.follow","version":"2","condition":{"broadcaster_user_id":"1234", "moderator_user_id": "1234"},"transport":{"method":"webhook","callback":"https://example.com/callback","secret":"s3cre77890ab"}}'

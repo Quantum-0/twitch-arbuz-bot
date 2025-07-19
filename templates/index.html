@@ -100,6 +100,37 @@
         }
         @keyframes fadeInUp { to { opacity: 1; transform: translateY(0); } }
         @keyframes fadeOutDown { to { opacity: 0; transform: translateY(10px); } }
+
+        /* Модальное окно */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background-color: rgba(0,0,0,0.5);
+            z-index: 10000;
+            justify-content: center;
+            align-items: center;
+        }
+        .modal-content {
+            background: #fff;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            max-width: 300px;
+            width: 100%;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+        }
+        .modal-content input {
+            width: 100%;
+            padding: 8px;
+            margin: 10px 0;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+        .modal-content button {
+            margin-top: 10px;
+        }
     </style>
     <script>
         function showNotification(title, message, isError=false) {
@@ -138,8 +169,30 @@
             });
         }
 
-        function createRedeem(enable) {
-            fetch(`/api/user/memealerts?enable=${enable}`, { method: 'POST' })
+        function openModal() {
+            document.getElementById('memealert-modal').style.display = 'flex';
+        }
+
+        function closeModal() {
+            document.getElementById('memealert-modal').style.display = 'none';
+        }
+
+        function saveMemealert() {
+            const key = document.getElementById('memealert-key').value.trim();
+            if (!key) {
+                showNotification('Ошибка', 'Введите ключ перед сохранением', true);
+                return;
+            }
+            closeModal();
+            createRedeem(true, key);
+        }
+
+        function createRedeem(enable, key = '') {
+            fetch(`/api/user/memealerts?enable=${enable}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: enable ? `key=${encodeURIComponent(key)}` : ''
+            })
             .then(res => res.json().then(data => ({ ok: res.ok, data })))
             .then(({ok, data}) => {
                 showNotification(data.title || 'Мемалёрты', data.message, !ok);
@@ -174,9 +227,19 @@
         {% if memealerts.enabled %}
             <button onclick="createRedeem(false)">Отключить мемалёрты</button>
         {% else %}
-            <button onclick="createRedeem(true)">Включить мемалёрты</button>
+            <button onclick="openModal()">Включить мемалёрты</button>
         {% endif %}
     </div>
     <div class="notification-container"></div>
+
+    <!-- Модальное окно -->
+    <div class="modal" id="memealert-modal">
+        <div class="modal-content">
+            <h3>Введите ключ</h3>
+            <input type="text" id="memealert-key" placeholder="Ваш ключ">
+            <button onclick="saveMemealert()">Сохранить</button>
+            <button onclick="closeModal()">Отмена</button>
+        </div>
+    </div>
 </body>
 </html>

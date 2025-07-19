@@ -62,7 +62,7 @@ class Twitch():
                     }
                 }
             )
-            return response
+            return response.json()
 
     @staticmethod
     async def get_user_access_refresh_tokens_by_authorization_code(authorization_code: str) -> tuple[str, str]:
