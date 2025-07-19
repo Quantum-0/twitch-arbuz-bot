@@ -1,7 +1,54 @@
-from pydantic import BaseModel, Field
+from datetime import datetime
+from uuid import UUID
+
+from pydantic import BaseModel, Field, AnyHttpUrl
+
+from config import settings
 
 
 class UpdateSettingsForm(BaseModel):
     enable_help: bool | None = Field(None)
     enable_random: bool | None = Field(None)
     enable_fruit: bool | None = Field(None)
+
+
+class PointRewardRedemptionWebhookEventSchema(BaseModel):
+    redemption_id: UUID = Field(..., alias="id")
+    status: str = Field(..., examples=["unfulfilled"])
+    user_id: int = Field(..., description="ID зрителя")
+    user_name: str = Field(..., examples=["Quantum075"])
+    user_input: str = Field(...)
+    user_login: str = Field(..., examples=["quantum075"])
+    redeemed_at: datetime = Field(...)
+    broadcaster_user_id: int = Field(...)
+    broadcaster_user_name: str = Field(..., examples=["Quantum075"])
+    broadcaster_user_login: str = Field(..., examples=["quantum075"])
+
+
+class WebhookSubscriptionConditionSchema(BaseModel):
+    reward_id: UUID = Field(...)
+    broadcaster_user_id: int = Field(...)
+
+
+class WebhookSubscriptionSchema(BaseModel):
+    subscription_id: UUID = Field(..., alias="id")
+    cost: int = Field(...)
+    type: str = Field(..., examples=["channel.channel_points_custom_reward_redemption.add"])
+    status: str = Field(..., examples=["enabled"])
+    version: int = Field(..., examples=[1])
+    condition: WebhookSubscriptionConditionSchema
+
+
+class WebhookTransportSchema(BaseModel):
+    method: str = Field(..., examples=["webhook"])
+    callback: AnyHttpUrl = Field(..., examples=[str(settings.reward_redemption_webhook) + "/123"])
+    created_at: datetime = Field(...)
+
+
+class PointRewardRedemptionWebhookSchema(BaseModel):
+    event: PointRewardRedemptionWebhookEventSchema
+    subscription: WebhookSubscriptionSchema
+    transport: WebhookTransportSchema
+
+class TwitchChallengeSchema(BaseModel):
+    challenge: str
