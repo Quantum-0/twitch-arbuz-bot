@@ -1,5 +1,4 @@
 import logging
-from typing import Any
 
 from fastapi import APIRouter, Security, Body, Depends, Path
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -19,7 +18,7 @@ from utils.memes import give_bonus
 router = APIRouter(prefix="/twitch")
 logger = logging.getLogger()
 
-@router.post("/eventsub/{streamer_id:int}")
+@router.post("/eventsub/{streamer_id}")
 async def eventsub_handler(
     payload: PointRewardRedemptionWebhookSchema | TwitchChallengeSchema,
     eventsub_message_type: bytes = Security(verify_eventsub_signature),

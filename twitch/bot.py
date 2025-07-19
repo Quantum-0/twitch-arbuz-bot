@@ -18,8 +18,8 @@ class ChatBot:
     def __init__(self):
         pass
 
-    async def startup(self):
-        chat = await Twitch().build_chat_client()
+    async def startup(self, twitch: Twitch):
+        chat = await twitch.build_chat_client()
         chat.register_event(ChatEvent.MESSAGE, self.on_message)
         chat.start()
         self._chat = chat

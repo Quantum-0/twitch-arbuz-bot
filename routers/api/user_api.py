@@ -60,7 +60,7 @@ async def setup_memealert(
         user.memealerts.memealerts_token = memealerts_token
         await db.commit()
         await db.refresh(user.memealerts)
-        print(await Twitch().subscribe_reward(user, reward.id))
+        print(await twitch.subscribe_reward(user, reward.id))
         return JSONResponse({"title": "Успешно", "message": f"Награда создана."}, 201)
     else:
         try:
