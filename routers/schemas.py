@@ -30,6 +30,11 @@ class WebhookSubscriptionConditionSchema(BaseModel):
     broadcaster_user_id: int = Field(...)
 
 
+class WebhookTransportSchema(BaseModel):
+    method: str = Field(..., examples=["webhook"])
+    callback: AnyHttpUrl = Field(..., examples=[str(settings.reward_redemption_webhook) + "/123"])
+
+
 class WebhookSubscriptionSchema(BaseModel):
     subscription_id: UUID = Field(..., alias="id")
     cost: int = Field(...)
@@ -37,18 +42,13 @@ class WebhookSubscriptionSchema(BaseModel):
     status: str = Field(..., examples=["enabled"])
     version: int = Field(..., examples=[1])
     condition: WebhookSubscriptionConditionSchema
-
-
-class WebhookTransportSchema(BaseModel):
-    method: str = Field(..., examples=["webhook"])
-    callback: AnyHttpUrl = Field(..., examples=[str(settings.reward_redemption_webhook) + "/123"])
+    transport: WebhookTransportSchema
     created_at: datetime = Field(...)
 
 
 class PointRewardRedemptionWebhookSchema(BaseModel):
     event: PointRewardRedemptionWebhookEventSchema
     subscription: WebhookSubscriptionSchema
-    transport: WebhookTransportSchema
 
 class TwitchChallengeSchema(BaseModel):
     challenge: str
