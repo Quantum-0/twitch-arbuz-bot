@@ -42,13 +42,22 @@ class Twitch():
     async def subscribe_reward(user, reward_id: UUID | str):
         async with httpx.AsyncClient() as client:
             response = await client.post(
+                "https://id.twitch.tv/oauth2/token",
+                params={
+                    "client_id": settings.twitch_client_id,
+                    "client_secret": settings.twitch_client_secret,
+                    "grant_type": 'client_credentials'
+                }
+            )
+            app_token = response.json()["access_token"]
+            response = await client.post(
                 "https://api.twitch.tv/helix/eventsub/subscriptions",
                 headers={
-                    "Authorization": "Bearer " + user.access_toke,
+                    "Authorization": "Bearer " + app_token,
                     "Client-Id": settings.twitch_client_id,
                     "Content-Type": "application/json"
                 },
-                data={
+                json={
                     "type": "channel.channel_points_custom_reward_redemption.add",
                     "version": "1",
                     "condition": {
@@ -57,8 +66,8 @@ class Twitch():
                     },
                     "transport": {
                         "method": "webhook",
-                        "callback": settings.reward_redemption_webhook,
-                        "secret": settings.twitch_webhook_secret,
+                        "callback": str(settings.reward_redemption_webhook) + f"/{user.twitch_id}",
+                        "secret": settings.twitch_webhook_secret.get_secret_value(),
                     }
                 }
             )

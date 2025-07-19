@@ -3,7 +3,7 @@ from typing import Any, Annotated
 from fastapi import APIRouter, Depends, Security, Form, Query
 from sqlalchemy.orm import Session
 from starlette.responses import RedirectResponse, JSONResponse
-from twitchAPI.types import TwitchAPIException
+from twitchAPI.types import TwitchAPIException, TwitchResourceNotFound
 
 from twitch.bot import ChatBot
 from dependencies import get_db, get_chat_bot, get_twitch
@@ -54,7 +54,10 @@ async def setup_memealert(
         print(await Twitch().subscribe_reward(user, reward.id))
         return JSONResponse({"title": "Успешно", "message": f"Награда создана."}, 201)
     else:
-        await twitch.delete_reward(user, reward_id)
+        try:
+            await twitch.delete_reward(user, reward_id)
+        except TwitchResourceNotFound:
+            pass
         user.memealerts.memealerts_reward = None
         db.commit()
         db.refresh(user.memealerts)

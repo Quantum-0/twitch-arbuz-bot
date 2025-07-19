@@ -15,5 +15,8 @@ RUN poetry config virtualenvs.create false \
 # Копируем остальной код проекта
 COPY . .
 
+# Накатываем миграции
+RUN alembic upgrade head
+
 # Запускаем Uvicorn
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
