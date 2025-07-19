@@ -1,235 +1,126 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Quantum0's Bot</title>
-    <style>
-        :root {
-            --notif-in-duration: 0.25s;
-            --notif-out-duration: 0.25s;
-            --notif-ttl: 4000ms;
-        }
-        body {
-            font-family: Arial, sans-serif;
-            margin: 0;
-            padding: 0;
-            background-color: #f4f4f4;
-            background-image: url("https://quantum-0.github.io/images/bg_leaves.png"),
-                              url("https://quantum-0.github.io/images/bg_leaves_mirror.png"),
-                              url("https://quantum-0.github.io/images/bg_leaves_dark2.png"),
-                              url("https://quantum-0.github.io/images/bg_leaves_dark_mirror2.png");
-            background-position: left top, right top, left top, right top;
-            background-repeat: repeat-y, repeat-y, repeat-y, repeat-y;
-            background-size: 75px, 60px, 120px, 110px;
-        }
-        header {
-            background-color: #4CAF50;
-            color: white;
-            padding: 10px 20px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        header h1 { margin: 0; font-size: 24px; }
-        .avatar { width: 50px; height: 50px; border-radius: 50%; border: 2px solid white; }
-        .container { padding: 20px; max-width: 600px; margin: 0 auto; }
-        .toggle-label { display: flex; align-items: center; justify-content: space-between; margin: 15px 0; font-size: 16px; }
-        .toggle-switch {
-            position: relative;
-            width: 50px;
-            height: 26px;
-            background-color: #ccc;
-            border-radius: 26px;
-            cursor: pointer;
-            transition: background-color 0.3s;
-        }
-        .toggle-switch::after {
-            content: "";
-            position: absolute;
-            width: 22px;
-            height: 22px;
-            background: white;
-            border-radius: 50%;
-            top: 2px;
-            left: 2px;
-            transition: transform 0.3s;
-        }
-        .toggle-switch.active { background-color: #4CAF50; }
-        .toggle-switch.active::after { transform: translateX(24px); }
-        button {
-            background-color: #4CAF50;
-            color: white;
-            padding: 10px 20px;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-            display: block;
-            margin: 20px auto;
-        }
-        button:hover { background-color: #45a049; }
-        .notification-container {
-            position: fixed;
-            bottom: 20px;
-            right: 20px;
-            z-index: 9999;
-        }
-        .notification {
-            padding: 0;
-            margin-top: 10px;
-            border-radius: 5px;
-            background: #fff;
-            border: 2px solid #4CAF50;
-            color: #333;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-            opacity: 0;
-            transform: translateY(10px);
-            animation: fadeInUp var(--notif-in-duration) forwards;
-            overflow: hidden;
-        }
-        .notification.error { border-color: #e53935; }
-        .notification-header {
-            background: #d9f2d9;
-            padding: 5px 10px;
-            font-weight: bold;
-            font-size: 14px;
-        }
-        .notification-body {
-            padding: 10px;
-            font-size: 14px;
-        }
-        @keyframes fadeInUp { to { opacity: 1; transform: translateY(0); } }
-        @keyframes fadeOutDown { to { opacity: 0; transform: translateY(10px); } }
+{% extends "base.html" %}
 
-        /* Модальное окно */
-        .modal {
-            display: none;
-            position: fixed;
-            top: 0; left: 0;
-            width: 100%; height: 100%;
-            background-color: rgba(0,0,0,0.5);
-            z-index: 10000;
-            justify-content: center;
-            align-items: center;
-        }
-        .modal-content {
-            background: #fff;
-            padding: 20px;
-            border-radius: 10px;
-            text-align: center;
-            max-width: 300px;
-            width: 100%;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
-        }
-        .modal-content input {
-            width: 100%;
-            padding: 8px;
-            margin: 10px 0;
-            border: 1px solid #ccc;
-            border-radius: 5px;
-        }
-        .modal-content button {
-            margin-top: 10px;
-        }
-    </style>
-    <script>
-        function showNotification(title, message, isError=false) {
-            const container = document.querySelector('.notification-container');
-            const div = document.createElement('div');
-            div.className = 'notification' + (isError ? ' error' : '');
-            div.innerHTML = `<div class="notification-header">${title}</div><div class="notification-body">${message}</div>`;
-            container.appendChild(div);
-            setTimeout(() => {
-                div.style.animation = 'fadeOutDown var(--notif-out-duration) forwards';
-                setTimeout(() => div.remove(), 250);
-            }, 4000);
-        }
+{% block title %}Настройки — Quantum0's Bot{% endblock %}
 
-        function toggleSetting(settingName, enabled) {
-            fetch('/api/user/update_settings', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: `${settingName}=${enabled ? 'true' : 'false'}`
-            })
-            .then(res => res.json().then(data => ({ ok: res.ok, data })))
-            .then(({ok, data}) => {
-                showNotification(data.title || 'Настройки', data.message || `Настройка "${settingName}" обновлена`, !ok);
-            })
-            .catch(err => showNotification('Ошибка', err.message, true));
-        }
+{% block styles %}
+.toggle-label { display: flex; align-items: center; justify-content: space-between; margin: 15px 0; font-size: 16px; }
+.toggle-switch {
+    position: relative;
+    width: 50px;
+    height: 26px;
+    background-color: #ccc;
+    border-radius: 26px;
+    cursor: pointer;
+    transition: background-color 0.3s;
+}
+.toggle-switch::after {
+    content: "";
+    position: absolute;
+    width: 22px;
+    height: 22px;
+    background: white;
+    border-radius: 50%;
+    top: 2px;
+    left: 2px;
+    transition: transform 0.3s;
+}
+.toggle-switch.active { background-color: #4CAF50; }
+.toggle-switch.active::after { transform: translateX(24px); }
+button {
+    background-color: #4CAF50;
+    color: white;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    display: block;
+    margin: 20px auto;
+}
+button:hover { background-color: #45a049; }
+.notification-container {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    z-index: 9999;
+}
+.notification {
+    padding: 0;
+    margin-top: 10px;
+    border-radius: 5px;
+    background: #fff;
+    border: 2px solid #4CAF50;
+    color: #333;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    opacity: 0;
+    transform: translateY(10px);
+    animation: fadeInUp var(--notif-in-duration) forwards;
+    overflow: hidden;
+}
+.notification.error { border-color: #e53935; }
+.notification-header {
+    background: #d9f2d9;
+    padding: 5px 10px;
+    font-weight: bold;
+    font-size: 14px;
+}
+.notification-body {
+    padding: 10px;
+    font-size: 14px;
+}
+@keyframes fadeInUp { to { opacity: 1; transform: translateY(0); } }
+@keyframes fadeOutDown { to { opacity: 0; transform: translateY(10px); } }
+/* Модальное окно */
+.modal {
+    display: none;
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    background-color: rgba(0,0,0,0.5);
+    z-index: 10000;
+    justify-content: center;
+    align-items: center;
+}
+.modal-content {
+    background: #fff;
+    padding: 20px;
+    border-radius: 10px;
+    text-align: center;
+    max-width: 300px;
+    width: 100%;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+}
+.modal-content input {
+    width: 100%;
+    padding: 8px;
+    margin: 10px 0;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+}
+.modal-content button {
+    margin-top: 10px;
+}
+{% endblock %}
 
-        function initToggles() {
-            document.querySelectorAll('.toggle-switch').forEach(toggle => {
-                toggle.addEventListener('click', () => {
-                    toggle.classList.toggle('active');
-                    const name = toggle.dataset.name;
-                    const enabled = toggle.classList.contains('active');
-                    toggleSetting(name, enabled);
-                });
-            });
-        }
-
-        function openModal() {
-            document.getElementById('memealert-modal').style.display = 'flex';
-        }
-
-        function closeModal() {
-            document.getElementById('memealert-modal').style.display = 'none';
-        }
-
-        function saveMemealert() {
-            const key = document.getElementById('memealert-key').value.trim();
-            if (!key) {
-                showNotification('Ошибка', 'Введите ключ перед сохранением', true);
-                return;
-            }
-            closeModal();
-            createRedeem(true, key);
-        }
-
-        function createRedeem(enable, key = '') {
-            fetch(`/api/user/memealerts?enable=${enable}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: enable ? `key=${encodeURIComponent(key)}` : ''
-            })
-            .then(res => res.json().then(data => ({ ok: res.ok, data })))
-            .then(({ok, data}) => {
-                showNotification(data.title || 'Мемалёрты', data.message, !ok);
-                setTimeout(() => location.reload(), 5000);
-            })
-            .catch(err => showNotification('Ошибка', err.message, true));
-        }
-
-        document.addEventListener('DOMContentLoaded', initToggles);
-    </script>
-</head>
-<body>
-    <header>
-        <h1>Quantum0's Bot</h1>
-        <img src="{{ user.profile_image_url }}" alt="Avatar" class="avatar">
-    </header>
-    <div class="container">
-        <h2>Привет, {{ user.login_name }}!</h2>
-        <p>Настройте функции вашего бота:</p>
-        <div class="toggle-label">
-            <span>Включить !help</span>
-            <div class="toggle-switch {% if settings.enable_help %}active{% endif %}" data-name="enable_help"></div>
-        </div>
-        <div class="toggle-label">
-            <span>Включить !random</span>
-            <div class="toggle-switch {% if settings.enable_random %}active{% endif %}" data-name="enable_random"></div>
-        </div>
-        <div class="toggle-label">
-            <span>Включить !fruit</span>
-            <div class="toggle-switch {% if settings.enable_fruit %}active{% endif %}" data-name="enable_fruit"></div>
-        </div>
-        {% if memealerts.enabled %}
-            <button onclick="createRedeem(false)">Отключить мемалёрты</button>
-        {% else %}
-            <button onclick="openModal()">Включить мемалёрты</button>
-        {% endif %}
+{% block content %}
+    <h2>Привет, {{ user.login_name }}!</h2>
+    <p>Настройте функции вашего бота:</p>
+    <div class="toggle-label">
+        <span>Включить !help</span>
+        <div class="toggle-switch {% if settings.enable_help %}active{% endif %}" data-name="enable_help"></div>
     </div>
+    <div class="toggle-label">
+        <span>Включить !random</span>
+        <div class="toggle-switch {% if settings.enable_random %}active{% endif %}" data-name="enable_random"></div>
+    </div>
+    <div class="toggle-label">
+        <span>Включить !fruit</span>
+        <div class="toggle-switch {% if settings.enable_fruit %}active{% endif %}" data-name="enable_fruit"></div>
+    </div>
+    {% if memealerts.enabled %}
+        <button onclick="createRedeem(false)">Отключить мемалёрты</button>
+    {% else %}
+        <button onclick="openModal()">Включить мемалёрты</button>
+    {% endif %}
     <div class="notification-container"></div>
 
     <!-- Модальное окно -->
@@ -241,5 +132,60 @@
             <button onclick="closeModal()">Отмена</button>
         </div>
     </div>
-</body>
-</html>
+{% endblock %}
+
+{% block body_scripts %}
+<script>
+    function showNotification(title, message, isError=false) {
+        const container = document.querySelector('.notification-container');
+        const div = document.createElement('div');
+        div.className = 'notification' + (isError ? ' error' : '');
+        div.innerHTML = `<div class="notification-header">${title}</div><div class="notification-body">${message}</div>`;
+        container.appendChild(div);
+        setTimeout(() => {
+            div.style.animation = 'fadeOutDown var(--notif-out-duration) forwards';
+            setTimeout(() => div.remove(), 250);
+        }, 4000);
+    }
+    function toggleSetting(name, enabled) {
+        fetch('/api/user/update_settings', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: `${name}=${enabled ? 'true' : 'false'}`
+        })
+        .then(res => res.json().then(data => ({ ok: res.ok, data })))
+        .then(({ok, data}) => showNotification(data.title || 'Настройки', data.message, !ok))
+        .catch(err => showNotification('Ошибка', err.message, true));
+    }
+    function initToggles() {
+        document.querySelectorAll('.toggle-switch').forEach(toggle => {
+            toggle.addEventListener('click', () => {
+                toggle.classList.toggle('active');
+                toggleSetting(toggle.dataset.name, toggle.classList.contains('active'));
+            });
+        });
+    }
+    function openModal() { document.getElementById('memealert-modal').style.display = 'flex'; }
+    function closeModal() { document.getElementById('memealert-modal').style.display = 'none'; }
+    function saveMemealert() {
+        const key = document.getElementById('memealert-key').value.trim();
+        if (!key) return showNotification('Ошибка', 'Введите ключ', true);
+        closeModal();
+        createRedeem(true, key);
+    }
+    function createRedeem(enable, key='') {
+        fetch(`/api/user/memealerts?enable=${enable}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: enable ? `key=${encodeURIComponent(key)}` : ''
+        })
+        .then(res => res.json().then(data => ({ ok: res.ok, data })))
+        .then(({ok, data}) => {
+            showNotification(data.title || 'Мемалёрты', data.message, !ok);
+            setTimeout(() => location.reload(), 5000);
+        })
+        .catch(err => showNotification('Ошибка', err.message, true));
+    }
+    document.addEventListener('DOMContentLoaded', initToggles);
+</script>
+{% endblock %}

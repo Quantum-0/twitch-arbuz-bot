@@ -43,7 +43,20 @@ async def main_page(
             "settings": user.settings,
             "memealerts": {
                 "enabled": user.memealerts.memealerts_reward is not None
-            }}
+            },
+        }
+    )
+
+@router.get("/about")
+async def about_page(
+    request: Request,
+    user: Any = Security(user_auth),
+):
+    return templates.TemplateResponse(
+        "about.html",
+        {
+            "request": request,
+        }
     )
 
 @router.get("/login-callback")

@@ -1,0 +1,67 @@
+<div id="imageContainer">
+    <img src="https://raw.githubusercontent.com/Quantum-0/q0-ttv-bot/refs/heads/main/tosha_jump_1.webp" alt="Jumping Image">
+</div>
+
+<style>
+    #imageContainer {
+        position: fixed;
+        bottom: 64px;
+        left: -64px;
+        width: 64px;
+        height: 64px;
+        z-index: 1000;
+        pointer-events: none; /* Чтобы не мешал кликам */
+    }
+    #imageContainer img {
+        width: 100%;
+        height: 100%;
+    }
+</style>
+
+<script>
+    let isImageActive = false;
+
+    function startImageAnimation() {
+        if (isImageActive) return;
+        isImageActive = true;
+
+        const imageContainer = document.getElementById('imageContainer');
+        imageContainer.style.left = '-100px';
+        imageContainer.style.bottom = '100px';
+
+        let xPosition = -100;
+        let t = 0;
+        const screenWidth = window.innerWidth;
+        const horizontalSpeed = 2;
+        const jumpHeight = 100;
+        const jumpSpeed = 0.05;
+        const pauseDuration = 1000;
+
+        function moveImage() {
+            const yOffset = Math.abs(Math.sin(t)) * jumpHeight;
+            imageContainer.style.bottom = `${0 + yOffset}px`;
+
+            const isOnGround = yOffset < 5;
+            if (!isOnGround) {
+                xPosition += horizontalSpeed;
+                imageContainer.style.left = `${xPosition}px`;
+            }
+            t += jumpSpeed;
+
+            if (xPosition > screenWidth) {
+                isImageActive = false;
+                imageContainer.style.left = '-100px';
+                imageContainer.style.bottom = '100px';
+                setTimeout(startImageAnimation, 2 * 60 * 1000); // 2 минуты
+            } else {
+                if (isOnGround) {
+                    setTimeout(() => requestAnimationFrame(moveImage), pauseDuration);
+                } else {
+                    requestAnimationFrame(moveImage);
+                }
+            }
+        }
+        requestAnimationFrame(moveImage);
+    }
+    setTimeout(startImageAnimation, 7000);
+</script>
