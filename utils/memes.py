@@ -11,6 +11,8 @@ from database.database import AsyncSessionLocal
 from database.models import MemealertsSupporters
 
 logger = logging.getLogger()
+logger.setLevel(logging.INFO)
+logger.addHandler(logging.StreamHandler())
 
 
 async def save_all_supporters_into_db(supporters: list[Supporter]) -> None:
