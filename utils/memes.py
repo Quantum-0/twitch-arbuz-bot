@@ -34,8 +34,8 @@ async def save_all_supporters_into_db(supporters: list[Supporter]) -> None:
             }
         )
     )
-    async with get_db() as db:
-        await db.execute(q)
+    db = await get_db()
+    await db.execute(q)
 
 
 async def token_expires_in_days(memealerts_token) -> int:
