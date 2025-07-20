@@ -101,11 +101,11 @@ class Twitch():
     @staticmethod
     async def cancel_redemption(user: User, reward_id: UUID, redemption_id: UUID):
         twitch_user = await TwitchClient(settings.twitch_client_id, settings.twitch_client_secret)
-        await twitch_user.set_user_authentication(user.access_token, [], user.refresh_token)
+        await twitch_user.set_user_authentication(user.access_token, [AuthScope.CHANNEL_MANAGE_REDEMPTIONS], user.refresh_token)
         await twitch_user.update_redemption_status(user.twitch_id, reward_id, redemption_id, CustomRewardRedemptionStatus.CANCELED)
 
     @staticmethod
     async def fulfill_redemption(user: User, reward_id: UUID, redemption_id: UUID):
         twitch_user = await TwitchClient(settings.twitch_client_id, settings.twitch_client_secret)
-        await twitch_user.set_user_authentication(user.access_token, [], user.refresh_token)
+        await twitch_user.set_user_authentication(user.access_token, [AuthScope.CHANNEL_MANAGE_REDEMPTIONS], user.refresh_token)
         await twitch_user.update_redemption_status(user.twitch_id, reward_id, redemption_id, CustomRewardRedemptionStatus.FULFILLED)
