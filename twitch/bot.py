@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import random
 
 from twitchAPI import Chat
@@ -9,6 +10,10 @@ from database.models import User, TwitchUserSettings
 from twitch.twitch import Twitch
 from utils.singleton import singleton
 import sqlalchemy as sa
+
+logger = logging.getLogger()
+logger.setLevel(logging.DEBUG)
+logger.addHandler(logging.StreamHandler())
 
 
 @singleton
@@ -38,6 +43,7 @@ class ChatBot:
             chat = chat.login_name
         elif not isinstance(chat, str):
             raise ValueError
+        logger.info(f"Sending message `{message}` to channel `{channel}`")
         await self._chat.send_message(chat, message)
 
     async def _on_message_wrapper(self, message):
@@ -45,6 +51,8 @@ class ChatBot:
 
     async def on_message(self, message):
         channel = message.room.name  # Имя канала
+
+        logger.debug(f"Got message `{message}` from channel `{channel}`")
 
         async with AsyncSessionLocal() as session:
             result = await session.execute(sa.select(User).filter_by(login_name=channel.lower()))
@@ -79,6 +87,7 @@ class ChatBot:
             users = users_result.scalars().all()
             desired_channels = {user.login_name.lower() for user in users}
             current_channels = {ch.lower() for ch in self._joined_channels}
+            logger.info(f"Updated joined channels: {current_channels}")
 
             # Присоединяемся к новым каналам
             for channel in desired_channels - current_channels:
