@@ -1,3 +1,5 @@
+import asyncio
+
 from twitch.bot import ChatBot
 from database.database import AsyncSessionLocal
 from twitch.twitch import Twitch
@@ -10,10 +12,11 @@ async def get_db():
         yield session
 
 async def init_and_startup():
+    loop = asyncio.get_event_loop()
     singletons["twitch"] = Twitch()
     singletons["chat_bot"] = ChatBot()
     await singletons["twitch"].startup()
-    await singletons["chat_bot"].startup(singletons["twitch"])
+    await singletons["chat_bot"].startup(singletons["twitch"], loop)
     await singletons["chat_bot"].update_bot_channels()
 
 def get_twitch():
