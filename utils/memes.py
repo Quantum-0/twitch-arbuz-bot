@@ -16,7 +16,7 @@ from dependencies import get_db
 async def save_all_supporters_into_db(supporters: list[Supporter]) -> None:
     data = [
         {
-            "id": sup.supporter_id,
+            "id": sup.supporter_id.root,
             "link": sup.supporter_link,
             "name": sup.supporter_name,
         }
