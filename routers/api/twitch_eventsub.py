@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from starlette.responses import PlainTextResponse, Response
 import sqlalchemy as sa
+from twitchAPI.types import TwitchResourceNotFound
 
 from database.models import User
 from dependencies import get_db, get_twitch, get_chat_bot
@@ -50,9 +51,17 @@ async def eventsub_handler(
             raise
         if result:
             await chat_bot.send_message(user, "Мемкоины начислены :з")
-            await twitch.fulfill_redemption(user, payload.subscription.condition.reward_id, payload.event.redemption_id)
+            try:
+                await twitch.fulfill_redemption(user, payload.subscription.condition.reward_id, payload.event.redemption_id)
+            except TwitchResourceNotFound:
+                logger.error("Cannot find redemption")
+                pass
         else:
             await chat_bot.send_message(user, "Ошибка начисления >.< Баллы возвращены 👀. Проверьте имя пользователя на мемалёрте!")
-            await twitch.cancel_redemption(user, payload.subscription.condition.reward_id, payload.event.redemption_id)
+            try:
+                await twitch.cancel_redemption(user, payload.subscription.condition.reward_id, payload.event.redemption_id)
+            except TwitchResourceNotFound:
+                logger.error("Cannot find redemption")
+                pass
 
     return Response(status_code=204)
