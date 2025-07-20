@@ -8,6 +8,7 @@ from memealerts.types.user_id import UserID
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from database.database import AsyncSessionLocal
 from database.models import MemealertsSupporters
 from dependencies import get_db
 
@@ -34,8 +35,8 @@ async def save_all_supporters_into_db(supporters: list[Supporter]) -> None:
             }
         )
     )
-    db = await get_db()
-    await db.execute(q)
+    async with AsyncSessionLocal() as db:
+        await db.execute(q)
 
 
 async def token_expires_in_days(memealerts_token) -> int:
