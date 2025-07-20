@@ -1,16 +1,16 @@
-from datetime import datetime, UTC
+import logging
 import re
+from datetime import datetime, UTC
 
-from fastapi.params import Depends
 from memealerts import MemealertsAsyncClient
 from memealerts.types.models import Supporter, User
 from memealerts.types.user_id import UserID
 from sqlalchemy.dialects.postgresql import insert as pg_insert
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from database.database import AsyncSessionLocal
 from database.models import MemealertsSupporters
-from dependencies import get_db
+
+logger = logging.getLogger()
 
 
 async def save_all_supporters_into_db(supporters: list[Supporter]) -> None:
@@ -48,6 +48,7 @@ async def load_supporters(cli: MemealertsAsyncClient) -> list[Supporter]:
         req = await cli.get_supporters(limit, skip=skip)
         items += req.data
     assert len(items) == total_count
+    logger.info(f"Loaded {len(items)} supporters")
     await save_all_supporters_into_db(items)
     return items
 
@@ -59,16 +60,17 @@ def is_id(id_: str) -> bool:
 async def find_user_in_supporters(cli: MemealertsAsyncClient, username: str) -> Supporter | None:
     users = await load_supporters(cli)
     username = username.lower().strip()
+    # TODO: link and name both - 2 supporters???
     for user in users:
         if user.supporter_link.lower() == username or user.supporter_name.lower() == username:
             return user
-    # print("Не удалось найти пользователя среди саппортеров")
+    logger.info(f"Failed to search {username} in supporters")
     return None
 
 
 async def find_and_give_bonus(cli: MemealertsAsyncClient, username: str, amount: int = 2) -> bool:
     if is_id(username):
-        # print(f"Начисление мемкоинов по user_id=`{username}`")
+        logger.info(f"Giving memecoins by user_id=`{username}`")
         return bool(await cli.give_bonus(UserID(username), amount))
 
     # TODO: search in database supporters
@@ -76,18 +78,20 @@ async def find_and_give_bonus(cli: MemealertsAsyncClient, username: str, amount:
     user_in_supporters = await find_user_in_supporters(cli, username)
     if user_in_supporters:
         # print(f"Начисление мемкоинов саппортеру по username=`{username}`")
+        logger.info(f"Giving memecoins for supporter by username=`{username}`")
         return bool(await cli.give_bonus(user_in_supporters.supporter_id, amount))
 
     user_in_search: User = await cli.find_user(username)
     if user_in_search:
-        # print(f"Начисление мемкоинов через общий поиск по username=`{username}`")
+        logger.info(f"Giving memecoins via global search by username=`{username}`")
         return bool(await cli.give_bonus(user_in_search.id, amount))
 
-    # print(f"Не удалось начислить мемкоины :с")
+    logger.info(f"Failed to give bonus")
     return False
 
 
 async def give_bonus(memealerts_token, streamer, supporter, amount):
+    logger.info(f"Giving bonus {amount} memecoins from {streamer} to {supporter}")
     async with MemealertsAsyncClient(memealerts_token) as meme_cli:
         result = await find_and_give_bonus(meme_cli, supporter, amount)
         return result
