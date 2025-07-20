@@ -1,4 +1,4 @@
-import logging
+import logging.config
 import re
 from datetime import datetime, UTC
 
@@ -10,10 +10,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from database.database import AsyncSessionLocal
 from database.models import MemealertsSupporters
+from utils.logging_conf import LOGGING_CONFIG
 
-logger = logging.getLogger()
-logger.setLevel(logging.INFO)
-logger.addHandler(logging.StreamHandler())
+logging.config.dictConfig(LOGGING_CONFIG)
+logger = logging.getLogger(__name__)
 
 
 async def save_all_supporters_into_db(supporters: list[Supporter]) -> None:

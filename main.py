@@ -1,4 +1,4 @@
-import logging
+import logging.config
 from contextlib import asynccontextmanager
 
 import uvicorn
@@ -18,6 +18,8 @@ from routers.routers import api_router, user_router
 import sentry_sdk
 from sentry_sdk.integrations.starlette import StarletteIntegration
 from sentry_sdk.integrations.fastapi import FastApiIntegration
+
+from utils.logging_conf import LOGGING_CONFIG
 
 sentry_sdk.init(
     dsn=str(settings.sentry_dsn),
@@ -50,7 +52,8 @@ app.add_middleware(SessionMiddleware, secret_key="some-secret-key")  # FIXME sec
 app.include_router(router=api_router)
 app.include_router(router=user_router)
 
-logger = logging.getLogger()
+logging.config.dictConfig(LOGGING_CONFIG)
+logger = logging.getLogger(__name__)
 
 
 @app.exception_handler(Exception)

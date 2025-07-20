@@ -1,19 +1,21 @@
 import asyncio
-import logging
+import logging.config
 import random
 
+from sqlalchemy.orm import selectinload
 from twitchAPI import Chat
+from twitchAPI.chat import ChatMessage
 from twitchAPI.types import ChatEvent
 
 from database.database import AsyncSessionLocal
 from database.models import User, TwitchUserSettings
 from twitch.twitch import Twitch
+from utils.logging_conf import LOGGING_CONFIG
 from utils.singleton import singleton
 import sqlalchemy as sa
 
-logger = logging.getLogger()
-logger.setLevel(logging.DEBUG)
-logger.addHandler(logging.StreamHandler())
+logging.config.dictConfig(LOGGING_CONFIG)
+logger = logging.getLogger(__name__)
 
 
 @singleton
@@ -29,11 +31,12 @@ class ChatBot:
         self._main_event_loop = event_loop
         chat = await twitch.build_chat_client()
 
-        async def _on_message_wrapper(message):
-            logger.debug(f"[Wrapper] Got message `{message}`")
-            asyncio.run_coroutine_threadsafe(self.on_message(message), event_loop)
+        async def on_message(msg: ChatMessage):
+            logger.debug(f"[Wrapper] Got message `{msg}`")
+            asyncio.run_coroutine_threadsafe(self.on_message(msg), event_loop)
 
-        chat.register_event(ChatEvent.MESSAGE, _on_message_wrapper)
+        chat.register_event(ChatEvent.MESSAGE, on_message)
+        logger.debug("On_message handler registered")
         chat.start()
         self._chat = chat
         logger.info("Chat bot started!")
@@ -58,7 +61,7 @@ class ChatBot:
         logger.debug(f"Got message `{message.text}` from channel `{channel}`")
 
         async with AsyncSessionLocal() as session:
-            result = await session.execute(sa.select(User).filter_by(login_name=channel.lower()))
+            result = await session.execute(sa.select(User).options(selectinload(User.settings)).filter_by(login_name=channel.lower()))
             user = result.scalar_one_or_none()
             if user:
                 if message.text.startswith('!help') and user.settings.enable_help:

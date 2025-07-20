@@ -1,4 +1,4 @@
-import logging
+import logging.config
 
 from fastapi import APIRouter, Security, Body, Depends, Path
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -13,11 +13,13 @@ from routers.schemas import PointRewardRedemptionWebhookSchema, TwitchChallengeS
 from routers.security_helpers import verify_eventsub_signature
 from twitch.bot import ChatBot
 from twitch.twitch import Twitch
+from utils.logging_conf import LOGGING_CONFIG
 
 from utils.memes import give_bonus
 
 router = APIRouter(prefix="/twitch")
-logger = logging.getLogger()
+logging.config.dictConfig(LOGGING_CONFIG)
+logger = logging.getLogger(__name__)
 
 @router.post("/eventsub/{streamer_id}")
 async def eventsub_handler(
