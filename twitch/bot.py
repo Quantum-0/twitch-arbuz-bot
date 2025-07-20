@@ -24,8 +24,20 @@ class ChatBot:
         chat.start()
         self._chat = chat
 
-    @staticmethod
-    async def on_message(message):
+    async def send_message(self, chat: User | str, message: str) -> None:
+        """
+        Send message to twitch chat.
+
+        :param chat: Модель пользователя в БД или логин твича.
+        :param message: Текст сообщения.
+        """
+        if isinstance(chat, User):
+            chat = chat.login_name
+        elif not isinstance(chat, str):
+            raise ValueError
+        await self._chat.send_message(chat, message)
+
+    async def on_message(self, message):
         channel = message.room.name  # Имя канала
 
         async with AsyncSessionLocal() as session:
@@ -33,14 +45,14 @@ class ChatBot:
             user = result.scalar_one_or_none()
             if user:
                 if message.text.startswith('!help') and user.settings.enable_help:
-                    await ChatBot()._chat.send_message(channel, 'Доступные команды: !help, !random, !fruit')
+                    await self.send_message(channel, 'Доступные команды: !help, !random, !fruit')
                 elif message.text.startswith('!random') and user.settings.enable_random:
                     number = random.randint(0, 10)
-                    await ChatBot()._chat.send_message(channel, f'Случайное число: {number}')
+                    await self.send_message(channel, f'Случайное число: {number}')
                 elif message.text.startswith('!fruit') and user.settings.enable_fruit:
                     fruits = ['яблоко', 'груша', 'банан']
                     fruit = random.choice(fruits)
-                    await ChatBot()._chat.send_message(channel, f'Случайный фрукт: {fruit}')
+                    await self.send_message(channel, f'Случайный фрукт: {fruit}')
 
     async def update_bot_channels(self):
         if not self._chat:
