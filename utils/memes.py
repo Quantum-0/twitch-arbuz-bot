@@ -50,7 +50,7 @@ async def find_and_give_bonus(cli: MemealertsAsyncClient, username: str, amount:
         # print(f"Начисление мемкоинов саппортеру по username=`{username}`")
         return bool(await cli.give_bonus(user_in_supporters.supporter_id, amount))
 
-    user_in_search = await cli.find_user(username)
+    user_in_search: User = await cli.find_user(username)
     if user_in_search:
         # print(f"Начисление мемкоинов через общий поиск по username=`{username}`")
         return bool(await cli.give_bonus(user_in_search.id, amount))
@@ -62,5 +62,4 @@ async def find_and_give_bonus(cli: MemealertsAsyncClient, username: str, amount:
 async def give_bonus(memealerts_token, streamer, supporter, amount):
     async with MemealertsAsyncClient(memealerts_token) as meme_cli:
         result = await find_and_give_bonus(meme_cli, supporter, amount)
-        # return "Мемкоины начислены :з" if result else "Ошибка начисления >.<"
         return result

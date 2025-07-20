@@ -6,6 +6,7 @@ from twitchAPI.object import CustomReward, TwitchUser
 from twitchAPI.types import AuthScope
 
 from config import settings, user_scope
+from database.models import User
 from utils.singleton import singleton
 
 
@@ -96,3 +97,15 @@ class Twitch():
         twitch_user = await TwitchClient(settings.twitch_client_id, settings.twitch_client_secret)
         await twitch_user.set_user_authentication(access_token, [], refresh_token)
         return await anext(twitch_user.get_users())
+
+    @staticmethod
+    async def cancel_redemption(user: User, reward_id: UUID, redemption_id: UUID):
+        twitch_user = await TwitchClient(settings.twitch_client_id, settings.twitch_client_secret)
+        await twitch_user.set_user_authentication(user.access_token, [], user.refresh_token)
+        twitch_user.update_redemption_status(user.twitch_id, reward_id, redemption_id, "FULFILLED")
+
+    @staticmethod
+    async def fulfill_redemption(user: User, reward_id: UUID, redemption_id: UUID):
+        twitch_user = await TwitchClient(settings.twitch_client_id, settings.twitch_client_secret)
+        await twitch_user.set_user_authentication(user.access_token, [], user.refresh_token)
+        twitch_user.update_redemption_status(user.twitch_id, reward_id, redemption_id, "FULFILLED")

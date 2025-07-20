@@ -45,14 +45,14 @@ async def eventsub_handler(
             result = await give_bonus(user.memealerts.memealerts_token, user.login_name, payload.event.user_login, amount=2)
         except Exception as exc:
             logger.error(exc)
-            await chat_bot._chat.send_message(user.login_name, "Непредвиденная ошибка начисления мемкоинов! О.О Баллы возвращены!")
-            # await twitch.cancel_redemption(user, )
+            await chat_bot.send_message(user, "Непредвиденная ошибка начисления мемкоинов! О.О Баллы возвращены!")
+            await twitch.cancel_redemption(user, payload.subscription.condition.reward_id, payload.event.redemption_id)
             raise
         if result:
-            pass
-            # await twitch.fulfill_redemption()
+            await chat_bot.send_message(user, "Мемкоины начислены :з")
+            await twitch.fulfill_redemption(user, payload.subscription.condition.reward_id, payload.event.redemption_id)
         else:
-            pass
-            # await twitch.cancel_redemption()
+            await chat_bot.send_message(user, "Ошибка начисления >.< Баллы возвращены 👀. Проверьте имя пользователя на мемалёрте!")
+            await twitch.cancel_redemption(user, payload.subscription.condition.reward_id, payload.event.redemption_id)
 
     return Response(status_code=204)
