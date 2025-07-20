@@ -47,12 +47,13 @@ class ChatBot:
         await self._chat.send_message(chat, message)
 
     async def _on_message_wrapper(self, message):
+        logger.debug(f"[Wrapper] Got message `{message}`")
         asyncio.run_coroutine_threadsafe(self.on_message(message), self._main_event_loop)
 
     async def on_message(self, message):
         channel = message.room.name  # Имя канала
 
-        logger.debug(f"Got message `{message}` from channel `{channel}`")
+        logger.debug(f"Got message `{message.text}` from channel `{channel}`")
 
         async with AsyncSessionLocal() as session:
             result = await session.execute(sa.select(User).filter_by(login_name=channel.lower()))
