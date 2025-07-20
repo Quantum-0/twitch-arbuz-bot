@@ -6,6 +6,7 @@ from memealerts import MemealertsAsyncClient
 from memealerts.types.models import Supporter, User
 from memealerts.types.user_id import UserID
 from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from database.database import AsyncSessionLocal
 from database.models import MemealertsSupporters
@@ -29,8 +30,10 @@ async def save_all_supporters_into_db(supporters: list[Supporter]) -> None:
             "name": q.excluded.name,
         },
     )
+    db: AsyncSession
     async with AsyncSessionLocal() as db:
         await db.execute(q)
+        await db.commit()
 
 
 async def token_expires_in_days(memealerts_token) -> int:
