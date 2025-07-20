@@ -12,7 +12,7 @@ from database.models import MemealertsSupporters
 from dependencies import get_db
 
 
-async def save_all_supporters_into_db(supporters: list[Supporter], db: AsyncSession = Depends(get_db())) -> None:
+async def save_all_supporters_into_db(supporters: list[Supporter], db: AsyncSession = get_db()) -> None:
     data = [
         {
             "id": sup.supporter_id,
