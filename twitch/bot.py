@@ -49,7 +49,7 @@ class ChatBot:
             chat = chat.login_name
         elif not isinstance(chat, str):
             raise ValueError
-        logger.info(f"Sending message `{message}` to channel `{channel}`")
+        logger.info(f"Sending message `{message}` to channel `{chat}`")
         await self._chat.send_message(chat, message)
 
     async def on_message(self, message):
