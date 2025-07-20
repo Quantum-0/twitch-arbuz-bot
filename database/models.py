@@ -77,6 +77,14 @@ class MemealertsSettings(Base):
         self._memealerts_token = encrypt_value(value)
 
 
+class MemealertsSupporters(Base):
+    __tablename__ = "memealerts_supporters"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, index=True)
+    name: Mapped[str] = mapped_column(String, index=True)
+    link: Mapped[str] = mapped_column(String, index=True)
+
+
 @event.listens_for(User, "after_insert")
 def create_settings(mapper, connection, target):
     connection.execute(

@@ -1,9 +1,40 @@
 from datetime import datetime, UTC
 import re
 
+from fastapi.params import Depends
 from memealerts import MemealertsAsyncClient
-from memealerts.types.models import Supporter
+from memealerts.types.models import Supporter, User
 from memealerts.types.user_id import UserID
+from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from database.models import MemealertsSupporters
+from dependencies import get_db
+
+
+async def save_all_supporters_into_db(supporters: list[Supporter], db: AsyncSession = Depends(get_db())) -> None:
+    data = [
+        {
+            "id": sup.supporter_id,
+            "link": sup.supporter_link,
+            "name": sup.supporter_name,
+        }
+        for sup in supporters
+    ]
+    q = (
+        pg_insert(MemealertsSupporters)
+        .values(data)
+    )
+    q = (
+        q.on_conflict_do_update(
+            index_elements=(MemealertsSupporters.id,),
+            set_={
+                "link": q.excluded.link,
+                "name": q.excluded.name,
+            }
+        )
+    )
+    await db.execute(q)
 
 
 async def token_expires_in_days(memealerts_token) -> int:
@@ -23,6 +54,7 @@ async def load_supporters(cli: MemealertsAsyncClient) -> list[Supporter]:
         req = await cli.get_supporters(limit, skip=skip)
         items += req.data
     assert len(items) == total_count
+    await save_all_supporters_into_db(items)
     return items
 
 
@@ -44,6 +76,8 @@ async def find_and_give_bonus(cli: MemealertsAsyncClient, username: str, amount:
     if is_id(username):
         # print(f"Начисление мемкоинов по user_id=`{username}`")
         return bool(await cli.give_bonus(UserID(username), amount))
+
+    # TODO: search in database supporters
 
     user_in_supporters = await find_user_in_supporters(cli, username)
     if user_in_supporters:
