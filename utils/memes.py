@@ -14,26 +14,18 @@ from dependencies import get_db
 
 
 async def save_all_supporters_into_db(supporters: list[Supporter]) -> None:
+    unique_data = {sup.supporter_id: sup for sup in supporters}.values()
     data = [
-        {
-            "id": sup.supporter_id.root,
-            "link": sup.supporter_link,
-            "name": sup.supporter_name,
-        }
-        for sup in supporters
+        {"id": sup.supporter_id.root, "link": sup.supporter_link, "name": sup.supporter_name}
+        for sup in unique_data
     ]
-    q = (
-        pg_insert(MemealertsSupporters)
-        .values(data)
-    )
-    q = (
-        q.on_conflict_do_update(
-            index_elements=(MemealertsSupporters.id,),
-            set_={
-                "link": q.excluded.link,
-                "name": q.excluded.name,
-            }
-        )
+    q = pg_insert(MemealertsSupporters).values(data)
+    q = q.on_conflict_do_update(
+        index_elements=(MemealertsSupporters.id,),
+        set_={
+            "link": q.excluded.link,
+            "name": q.excluded.name,
+        },
     )
     async with AsyncSessionLocal() as db:
         await db.execute(q)
