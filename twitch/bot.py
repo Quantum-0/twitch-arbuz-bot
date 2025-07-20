@@ -28,7 +28,12 @@ class ChatBot:
     async def startup(self, twitch: Twitch, event_loop: asyncio.AbstractEventLoop):
         self._main_event_loop = event_loop
         chat = await twitch.build_chat_client()
-        chat.register_event(ChatEvent.MESSAGE, self._on_message_wrapper)
+
+        async def _on_message_wrapper(message):
+            logger.debug(f"[Wrapper] Got message `{message}`")
+            asyncio.run_coroutine_threadsafe(self.on_message(message), event_loop)
+
+        chat.register_event(ChatEvent.MESSAGE, _on_message_wrapper)
         chat.start()
         self._chat = chat
 
@@ -45,10 +50,6 @@ class ChatBot:
             raise ValueError
         logger.info(f"Sending message `{message}` to channel `{channel}`")
         await self._chat.send_message(chat, message)
-
-    async def _on_message_wrapper(self, message):
-        logger.debug(f"[Wrapper] Got message `{message}`")
-        asyncio.run_coroutine_threadsafe(self.on_message(message), self._main_event_loop)
 
     async def on_message(self, message):
         channel = message.room.name  # Имя канала
