@@ -36,6 +36,7 @@ class ChatBot:
         chat.register_event(ChatEvent.MESSAGE, _on_message_wrapper)
         chat.start()
         self._chat = chat
+        logger.info("Chat bot started!")
 
     async def send_message(self, chat: User | str, message: str) -> None:
         """
