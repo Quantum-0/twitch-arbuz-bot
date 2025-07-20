@@ -73,20 +73,23 @@ async def find_user_in_supporters(cli: MemealertsAsyncClient, username: str) -> 
 async def find_and_give_bonus(cli: MemealertsAsyncClient, username: str, amount: int = 2) -> bool:
     if is_id(username):
         logger.info(f"Giving memecoins by user_id=`{username}`")
-        return bool(await cli.give_bonus(UserID(username), amount))
-
-    # TODO: search in database supporters
+        await cli.give_bonus(UserID(username), amount)
+        return True
 
     user_in_supporters = await find_user_in_supporters(cli, username)
     if user_in_supporters:
         # print(f"Начисление мемкоинов саппортеру по username=`{username}`")
         logger.info(f"Giving memecoins for supporter by username=`{username}`")
-        return bool(await cli.give_bonus(user_in_supporters.supporter_id, amount))
+        await cli.give_bonus(user_in_supporters.supporter_id, amount)
+        return True
+
+    # TODO: search in database supporters
 
     user_in_search: User = await cli.find_user(username)
     if user_in_search:
         logger.info(f"Giving memecoins via global search by username=`{username}`")
-        return bool(await cli.give_bonus(user_in_search.id, amount))
+        await cli.give_bonus(user_in_search.id, amount)
+        return True
 
     logger.info(f"Failed to give bonus")
     return False
