@@ -44,7 +44,7 @@ async def main_page(
             "settings": user.settings,
             "memealerts": {
                 "enabled": user.memealerts.memealerts_reward is not None,
-                "expires_in": token_expires_in_days(user.memealerts.memealerts_token) if user.memealerts.memealerts_token else None,
+                "expires_in": await token_expires_in_days(user.memealerts.memealerts_token) if user.memealerts.memealerts_token else None,
             },
         }
     )

@@ -47,7 +47,7 @@ async def setup_memealert(
 ):
     reward_id = user.memealerts.memealerts_reward
     try:
-        token_expires_in_days(memealerts_token)
+        await token_expires_in_days(memealerts_token)
     except (MATokenExpiredError, DecodeError):
         return JSONResponse({"title": "Невалидный токен","message": f"Токен, который вы используете - не является валидным. Попробуйте скопировать токен заново."}, 400)
 
