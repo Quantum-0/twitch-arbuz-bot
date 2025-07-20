@@ -12,7 +12,7 @@ from database.models import MemealertsSupporters
 from dependencies import get_db
 
 
-async def save_all_supporters_into_db(supporters: list[Supporter], db: AsyncSession = get_db()) -> None:
+async def save_all_supporters_into_db(supporters: list[Supporter]) -> None:
     data = [
         {
             "id": sup.supporter_id,
@@ -34,7 +34,8 @@ async def save_all_supporters_into_db(supporters: list[Supporter], db: AsyncSess
             }
         )
     )
-    await db.execute(q)
+    async with get_db() as db:
+        await db.execute(q)
 
 
 async def token_expires_in_days(memealerts_token) -> int:
