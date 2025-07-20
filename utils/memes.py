@@ -14,7 +14,7 @@ from dependencies import get_db
 
 
 async def save_all_supporters_into_db(supporters: list[Supporter]) -> None:
-    unique_data = {sup.supporter_id: sup for sup in supporters}.values()
+    unique_data = {sup.supporter_id.root: sup for sup in supporters}.values()
     data = [
         {"id": sup.supporter_id.root, "link": sup.supporter_link, "name": sup.supporter_name}
         for sup in unique_data
