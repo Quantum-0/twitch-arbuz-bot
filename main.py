@@ -9,6 +9,7 @@ from starlette import status
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.requests import Request
 from starlette.responses import JSONResponse, RedirectResponse
+from starlette.staticfiles import StaticFiles
 
 from config import settings
 from database.database import async_engine
@@ -51,6 +52,7 @@ async def sentry_request_validation_handler(request: Request, exc: RequestValida
 app.add_middleware(SessionMiddleware, secret_key="some-secret-key")  # FIXME secret_key
 app.include_router(router=api_router)
 app.include_router(router=user_router)
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
 logging.config.dictConfig(LOGGING_CONFIG)
 logger = logging.getLogger(__name__)

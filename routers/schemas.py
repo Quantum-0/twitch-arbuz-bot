@@ -12,6 +12,10 @@ class UpdateSettingsForm(BaseModel):
     enable_fruit: bool | None = Field(None)
 
 
+class UpdateMemealertsCoinsSchema(BaseModel):
+    count: int = Field(..., ge=1, le=100)
+
+
 class PointRewardRedemptionWebhookEventSchema(BaseModel):
     redemption_id: UUID = Field(..., alias="id")
     status: str = Field(..., examples=["unfulfilled"])

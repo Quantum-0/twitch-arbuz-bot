@@ -8,7 +8,7 @@ from starlette.responses import JSONResponse
 from twitchAPI.types import TwitchResourceNotFound
 
 from dependencies import get_db, get_chat_bot, get_twitch
-from routers.schemas import UpdateSettingsForm
+from routers.schemas import UpdateSettingsForm, UpdateMemealertsCoinsSchema
 from routers.security_helpers import user_auth
 from twitch.bot import ChatBot
 from twitch.twitch import Twitch
@@ -37,6 +37,17 @@ async def update_settings(
     return JSONResponse({"title": "Сохранено", "message": f"Настройки успешно обновлены."}, 200)
 
 
+@router.post("/memealerts/coins")
+async def update_memealert_coins(
+    data: UpdateMemealertsCoinsSchema,
+    user: Any = Security(user_auth),
+    db: AsyncSession = Depends(get_db),
+):
+    user.memealerts.coins_for_reward = data.count
+    await db.commit()
+    return JSONResponse({"title": "Сохранено", "message": f"Количество выдаваемых мемкоинов за награду обновлено."}, 200)
+
+
 @router.post("/memealerts")
 async def setup_memealert(
     user: Any = Security(user_auth),
@@ -46,15 +57,18 @@ async def setup_memealert(
     twitch: Twitch = Depends(get_twitch),
 ):
     reward_id = user.memealerts.memealerts_reward
-    try:
-        await token_expires_in_days(memealerts_token)
-    except (MATokenExpiredError, DecodeError):
-        return JSONResponse({"title": "Невалидный токен","message": f"Токен, который вы используете - не является валидным. Попробуйте скопировать токен заново."}, 400)
 
     if enable == bool(reward_id):
         return JSONResponse({"title": "Без изменений","message": f"Уже {'включено' if enable else 'выключено'}."}, 208)
 
     if enable:
+        try:
+            await token_expires_in_days(memealerts_token)
+        except (MATokenExpiredError, DecodeError):
+            return JSONResponse({"title": "Невалидный токен",
+                                 "message": f"Токен, который вы используете - не является валидным. Попробуйте скопировать токен заново."},
+                                400)
+
         reward = await twitch.create_reward(user)
         user.memealerts.memealerts_reward = reward.id
         user.memealerts.memealerts_token = memealerts_token

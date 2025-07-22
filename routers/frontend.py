@@ -45,6 +45,7 @@ async def main_page(
             "memealerts": {
                 "enabled": user.memealerts.memealerts_reward is not None,
                 "expires_in": await token_expires_in_days(user.memealerts.memealerts_token) if user.memealerts.memealerts_token else None,
+                "coins_for_reward": user.memealerts.coins_for_reward
             },
         }
     )
@@ -56,6 +57,17 @@ async def about_page(
 ):
     return templates.TemplateResponse(
         "about.html",
+        {
+            "request": request,
+        }
+    )
+
+@router.get("/memealerts-tutorial")
+async def meme_tutorial_page(
+    request: Request,
+):
+    return templates.TemplateResponse(
+        "memealerts-tutorial.html",
         {
             "request": request,
         }

@@ -45,7 +45,7 @@ async def eventsub_handler(
 
     if eventsub_message_type == "notification":
         try:
-            result = await give_bonus(user.memealerts.memealerts_token, user.login_name, payload.event.user_login, amount=2)
+            result = await give_bonus(user.memealerts.memealerts_token, user.login_name, payload.event.user_login, amount=user.memealerts.coins_for_reward)
         except Exception as exc:
             logger.error(exc)
             await chat_bot.send_message(user, "Непредвиденная ошибка начисления мемкоинов! О.О Баллы возвращены!")

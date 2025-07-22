@@ -2,22 +2,17 @@
 
 {% block title %}Настройки — Quantum0's Bot{% endblock %}
 
-{# ---------------------------------------------------------- #}
-{#  Styles                                                    #}
-{# ---------------------------------------------------------- #}
 {% block styles %}
 {{ super() }}
 
-/* Make the base container wider on large screens */
 .container {
-    max-width: min(60%, 1000px); /* ~50-60% viewport, capped */
+    max-width: min(60%, 1000px);
     width: 100%;
 }
 @media (max-width: 900px) {
     .container { max-width: 90%; }
 }
 
-/* Toggle switches -------------------------------------------------- */
 .toggle-label {
     display: flex;
     align-items: center;
@@ -48,7 +43,6 @@
 .toggle-switch.active { background-color: #4CAF50; }
 .toggle-switch.active::after { transform: translateX(24px); }
 
-/* Global buttons ---------------------------------------------------- */
 button {
     background-color: #4CAF50;
     color: white;
@@ -62,13 +56,9 @@ button {
 }
 button:hover { background-color: #45a049; }
 button[disabled] { opacity: 0.6; cursor: not-allowed; }
-
-/* Variants */
 .btn-danger { background-color: #e53935 !important; }
 .btn-danger:hover { background-color: #d32f2f !important; }
-.btn-inline { margin: 0 !important; display: inline-block !important; }
 
-/* Notifications ----------------------------------------------------- */
 .notification-container { position: fixed; bottom: 20px; right: 20px; z-index: 9999; }
 .notification {
     padding: 0;
@@ -89,7 +79,6 @@ button[disabled] { opacity: 0.6; cursor: not-allowed; }
 @keyframes fadeInUp { to { opacity: 1; transform: translateY(0); } }
 @keyframes fadeOutDown { to { opacity: 0; transform: translateY(10px); } }
 
-/* Modal ------------------------------------------------------------- */
 .modal {
     display: none;
     position: fixed;
@@ -142,13 +131,16 @@ button[disabled] { opacity: 0.6; cursor: not-allowed; }
     cursor: pointer;
 }
 
-/* Memealert coins control ------------------------------------------- */
+.memealert-coins-wrapper {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 10px;
+}
 .memealert-coins {
     display: flex;
     align-items: center;
-    justify-content: center;
     gap: 10px;
-    margin-top: 10px;
 }
 .memealert-coins .coin-btn {
     background-color: #4CAF50;
@@ -173,13 +165,8 @@ button[disabled] { opacity: 0.6; cursor: not-allowed; }
     font-size: 16px;
     margin: 0;
 }
-#update-coins-btn { margin-top: 10px; }
-
 {% endblock %}
 
-{# ---------------------------------------------------------- #}
-{#  Content                                                   #}
-{# ---------------------------------------------------------- #}
 {% block content %}
 <h2>Привет, {{ user.login_name }}!</h2>
 <p>Настройте функции вашего бота:</p>
@@ -207,12 +194,14 @@ button[disabled] { opacity: 0.6; cursor: not-allowed; }
     {% if memealerts.enabled %}
         <button id="memealerts-btn" class="btn-danger" onclick="toggleMemealerts(false)">Отключить мемалёрты</button>
         <p>Время жизни токена: {{ memealerts.expires_in }} дней.</p>
-        <div class="memealert-coins">
-            <button type="button" class="coin-btn" onclick="changeCoinCount(-1)">−</button>
-            <input type="number" id="coin-count" min="1" max="100" value="{{ memealerts.coins_for_reward }}">
-            <button type="button" class="coin-btn" onclick="changeCoinCount(1)">+</button>
+        <div class="memealert-coins-wrapper">
+            <span>Количество мемкоинов за награду</span>
+            <div class="memealert-coins">
+                <button type="button" class="coin-btn" onclick="changeCoinCount(-1)">−</button>
+                <input type="number" id="coin-count" min="1" max="100" value="{{ memealerts.coins_for_reward }}">
+                <button type="button" class="coin-btn" onclick="changeCoinCount(1)">+</button>
+            </div>
         </div>
-        <button id="update-coins-btn" onclick="updateCoins()">Сохранить</button>
     {% else %}
         <button id="memealerts-btn" onclick="openModal()">Включить мемалёрты</button>
     {% endif %}
@@ -220,7 +209,6 @@ button[disabled] { opacity: 0.6; cursor: not-allowed; }
 
 <div class="notification-container"></div>
 
-<!-- Модальное окно -->
 <div class="modal" id="memealert-modal">
     <div class="modal-content">
         <h3>Введите ключ</h3>
@@ -234,12 +222,10 @@ button[disabled] { opacity: 0.6; cursor: not-allowed; }
 </div>
 {% endblock %}
 
-{# ---------------------------------------------------------- #}
-{#  Scripts                                                   #}
-{# ---------------------------------------------------------- #}
 {% block body_scripts %}
 <script>
-    // ---------------- Notifications -----------------
+    let coinSaveTimer = null;
+
     function showNotification(title, message, isError=false) {
         const container = document.querySelector('.notification-container');
         const div = document.createElement('div');
@@ -252,7 +238,6 @@ button[disabled] { opacity: 0.6; cursor: not-allowed; }
         }, 4000);
     }
 
-    // ---------------- Chatbot toggle settings --------
     function toggleSetting(name, enabled) {
         fetch('/api/user/update_settings', {
             method: 'POST',
@@ -273,14 +258,8 @@ button[disabled] { opacity: 0.6; cursor: not-allowed; }
         });
     }
 
-    // ---------------- Modal ---------------------------
-    function openModal() {
-        document.getElementById('memealert-modal').style.display = 'flex';
-    }
-    function closeModal() {
-        document.getElementById('memealert-modal').style.display = 'none';
-    }
-
+    function openModal() { document.getElementById('memealert-modal').style.display = 'flex'; }
+    function closeModal() { document.getElementById('memealert-modal').style.display = 'none'; }
     function saveMemealert() {
         const key = document.getElementById('memealert-key').value.trim();
         if (!key) return showNotification('Ошибка', 'Введите ключ', true);
@@ -288,7 +267,6 @@ button[disabled] { opacity: 0.6; cursor: not-allowed; }
         toggleMemealerts(true, key);
     }
 
-    // ---------------- Memealerts toggle ---------------
     function toggleMemealerts(enable, key='') {
         const btn = document.getElementById('memealerts-btn');
         if (btn) {
@@ -314,7 +292,6 @@ button[disabled] { opacity: 0.6; cursor: not-allowed; }
         });
     }
 
-    // ---------------- Memecoins update ----------------
     function changeCoinCount(delta) {
         const input = document.getElementById('coin-count');
         if (!input) return;
@@ -322,19 +299,20 @@ button[disabled] { opacity: 0.6; cursor: not-allowed; }
         if (isNaN(val)) val = 1;
         val = Math.max(1, Math.min(100, val + delta));
         input.value = val;
+        triggerCoinSave();
+    }
+
+    function triggerCoinSave() {
+        if (coinSaveTimer) clearTimeout(coinSaveTimer);
+        coinSaveTimer = setTimeout(updateCoins, 3000);
     }
 
     function updateCoins() {
-        const btn = document.getElementById('update-coins-btn');
         const input = document.getElementById('coin-count');
         if (!input) return;
         const count = parseInt(input.value, 10);
         if (isNaN(count) || count < 1 || count > 100) {
             return showNotification('Ошибка', 'Введите число от 1 до 100', true);
-        }
-        if (btn) {
-            btn.disabled = true;
-            btn.textContent = 'Сохраняю...';
         }
         fetch('/api/user/memealerts/coins', {
             method: 'POST',
@@ -342,22 +320,16 @@ button[disabled] { opacity: 0.6; cursor: not-allowed; }
             body: JSON.stringify({ count: count })
         })
         .then(res => res.json().then(data => ({ ok: res.ok, data })))
-        .then(({ok, data}) => {
-            showNotification(data.title || 'Мемкоины', data.message, !ok);
-            if (btn) {
-                btn.textContent = 'Сохранено!';
-                setTimeout(() => { btn.disabled = false; btn.textContent = 'Сохранить'; }, 1000);
-            }
-        })
-        .catch(err => {
-            showNotification('Ошибка', err.message, true);
-            if (btn) {
-                btn.disabled = false;
-                btn.textContent = 'Сохранить';
-            }
-        });
+        .then(({ok, data}) => showNotification(data.title || 'Мемкоины', data.message, !ok))
+        .catch(err => showNotification('Ошибка', err.message, true));
     }
 
-    document.addEventListener('DOMContentLoaded', initToggles);
+    document.addEventListener('DOMContentLoaded', () => {
+        initToggles();
+        const coinInput = document.getElementById('coin-count');
+        if (coinInput) {
+            coinInput.addEventListener('input', triggerCoinSave);
+        }
+    });
 </script>
 {% endblock %}
