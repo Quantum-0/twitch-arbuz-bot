@@ -30,7 +30,7 @@ class Twitch():
     async def create_reward(user, reward_title: str, reward_cost: int, reward_description: str, is_user_input_required: bool) -> CustomReward:
         twitch_user = await TwitchClient(settings.twitch_client_id, settings.twitch_client_secret)
         await twitch_user.set_user_authentication(user.access_token, user_scope, user.refresh_token)
-        reward = await twitch_user.create_custom_reward(user.twitch_id, reward_title, reward_cost, reward_description, is_user_input_required)
+        reward = await twitch_user.create_custom_reward(user.twitch_id, reward_title, reward_cost, reward_description, is_user_input_required=is_user_input_required)
         return reward
 
     @staticmethod
