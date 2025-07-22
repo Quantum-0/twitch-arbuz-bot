@@ -171,6 +171,8 @@ button[disabled] { opacity: 0.6; cursor: not-allowed; }
 <h2>Привет, {{ user.login_name }}!</h2>
 <p>Настройте функции вашего бота:</p>
 
+<hr>
+
 <section>
     <h3>Настройки чат-бота</h3>
     <div class="toggle-label">
@@ -193,7 +195,7 @@ button[disabled] { opacity: 0.6; cursor: not-allowed; }
     <h3>Настройки мемалёртов</h3>
     {% if memealerts.enabled %}
         <button id="memealerts-btn" class="btn-danger" onclick="toggleMemealerts(false)">Отключить мемалёрты</button>
-        <p>Время жизни токена: {{ memealerts.expires_in }} дней.</p>
+        <p>Время жизни токена: {{ memealerts.expires_in }} дней. По истечению срока действия токена его необходимо будет обновить.</p>
         <div class="memealert-coins-wrapper">
             <span>Количество мемкоинов за награду</span>
             <div class="memealert-coins">
