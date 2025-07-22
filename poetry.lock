@@ -974,14 +974,14 @@ files = [
 
 [[package]]
 name = "memealerts"
-version = "1.0.9"
+version = "1.0.11"
 description = "Memealerts async/sync client"
 optional = false
 python-versions = ">=3.11"
 groups = ["main"]
 files = [
-    {file = "memealerts-1.0.9-py3-none-any.whl", hash = "sha256:8468b9fe27b28a89d799de6fe31d0cb1244293e75ad0d2b16e17d340d033c4c8"},
-    {file = "memealerts-1.0.9.tar.gz", hash = "sha256:6749bdea155ad9cf254c4629702b18c30e0bfad48fe822b7a0b6d75240057103"},
+    {file = "memealerts-1.0.11-py3-none-any.whl", hash = "sha256:9492a914ecaf8f9a079624b7a1d04d5388257dbde3f66d85a492dfe421acf080"},
+    {file = "memealerts-1.0.11.tar.gz", hash = "sha256:5bb0477ed0b592a2a93f8bd57060870cafd33005763848ba330b9b1d167c1e28"},
 ]
 
 [package.dependencies]
@@ -1952,4 +1952,4 @@ propcache = ">=0.2.1"
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.11"
-content-hash = "a1b47c2825ad272705a61e23ce0701f7256d091ff4b07841ddb98621398f05dd"
+content-hash = "dde46d5766e5c480f3853462b2d46bc22c63be459aba507fe2662192670cbfd9"

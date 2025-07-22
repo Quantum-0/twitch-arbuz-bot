@@ -27,10 +27,10 @@ class Twitch():
         return await Chat(self._twitch)
 
     @staticmethod
-    async def create_reward(user) -> CustomReward:
+    async def create_reward(user, reward_title: str, reward_cost: int, reward_description: str, is_user_input_required: bool) -> CustomReward:
         twitch_user = await TwitchClient(settings.twitch_client_id, settings.twitch_client_secret)
         await twitch_user.set_user_authentication(user.access_token, user_scope, user.refresh_token)
-        reward = await twitch_user.create_custom_reward(user.twitch_id, "test reward by bot", 123, "meow meow?", is_user_input_required=True)
+        reward = await twitch_user.create_custom_reward(user.twitch_id, reward_title, reward_cost, reward_description, is_user_input_required)
         return reward
 
     @staticmethod

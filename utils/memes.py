@@ -3,6 +3,7 @@ import re
 from datetime import datetime, UTC
 
 from memealerts import MemealertsAsyncClient
+from memealerts.types.exceptions import MAUserNotFoundError
 from memealerts.types.models import Supporter, User
 from memealerts.types.user_id import UserID
 from sqlalchemy.dialects.postgresql import insert as pg_insert
@@ -88,7 +89,10 @@ async def find_and_give_bonus(cli: MemealertsAsyncClient, username: str, amount:
 
     # TODO: search in database supporters
 
-    user_in_search: User = await cli.find_user(username)
+    try:
+        user_in_search: User | None = await cli.find_user(username)
+    except MAUserNotFoundError:
+        user_in_search = None
     if user_in_search:
         logger.info(f"Giving memecoins via global search by username=`{username}`")
         await cli.give_bonus(user_in_search.id, amount)

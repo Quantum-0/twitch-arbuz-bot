@@ -52,7 +52,7 @@ async def update_memealert_coins(
 async def setup_memealert(
     user: Any = Security(user_auth),
     enable: bool = Query(...),
-    memealerts_token: str = Form(None, alias="key"),
+    memealerts_token: str | None = Form(None, alias="key"),
     db: AsyncSession = Depends(get_db),
     twitch: Twitch = Depends(get_twitch),
 ):
@@ -62,6 +62,9 @@ async def setup_memealert(
         return JSONResponse({"title": "Без изменений","message": f"Уже {'включено' if enable else 'выключено'}."}, 208)
 
     if enable:
+        if not memealerts_token:
+            return JSONResponse({"title": "Ошибка","message": f"Ключ не передан."}, 422)
+        memealerts_token = memealerts_token.strip().replace("Bearer", "").strip()
         try:
             await token_expires_in_days(memealerts_token)
         except (MATokenExpiredError, DecodeError):
@@ -69,12 +72,18 @@ async def setup_memealert(
                                  "message": f"Токен, который вы используете - не является валидным. Попробуйте скопировать токен заново."},
                                 400)
 
-        reward = await twitch.create_reward(user)
+        reward = await twitch.create_reward(
+            user,
+            "Memecoins",
+            500,
+            "Награда начисляется автомагически. В комментарии к награде обязательно укажи свой полный ник или ID на мемалёрте. По нику выдача ТОЛЬКО после получения приветственного бонуса.",
+            is_user_input_required=True,
+        )
         user.memealerts.memealerts_reward = reward.id
         user.memealerts.memealerts_token = memealerts_token
         await db.commit()
         await db.refresh(user.memealerts)
-        print(await twitch.subscribe_reward(user, reward.id))
+        await twitch.subscribe_reward(user, reward.id)
         return JSONResponse({"title": "Успешно", "message": f"Награда создана."}, 201)
     else:
         try:

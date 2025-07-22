@@ -1,3 +1,4 @@
+import asyncio
 import logging.config
 
 from fastapi import APIRouter, Security, Body, Depends, Path
@@ -42,6 +43,9 @@ async def eventsub_handler(
         .filter_by(login_name=payload.event.broadcaster_user_login)
     )
     user = result.scalar_one_or_none()
+
+    # Small sleep, maybe that will fix twitch's twitchAPI.types.TwitchResourceNotFound
+    await asyncio.sleep(3000)
 
     if eventsub_message_type == "notification":
         try:
