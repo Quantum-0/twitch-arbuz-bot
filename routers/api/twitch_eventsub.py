@@ -45,7 +45,7 @@ async def eventsub_handler(
     user = result.scalar_one_or_none()
 
     # Small sleep, maybe that will fix twitch's twitchAPI.types.TwitchResourceNotFound
-    await asyncio.sleep(3000)
+    await asyncio.sleep(3)
 
     if eventsub_message_type == "notification":
         try:
