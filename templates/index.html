@@ -176,16 +176,20 @@ button[disabled] { opacity: 0.6; cursor: not-allowed; }
 <section>
     <h3>Настройки чат-бота</h3>
     <div class="toggle-label">
-        <span>Включить !help</span>
-        <div class="toggle-switch {% if settings.enable_help %}active{% endif %}" data-name="enable_help"></div>
+        <span><b>Включить чат-бота</b></span>
+        <div class="toggle-switch {% if settings.enable_chat_bot %}active{% endif %}" data-name="enable_chat_bot"></div>
     </div>
     <div class="toggle-label">
-        <span>Включить !random</span>
-        <div class="toggle-switch {% if settings.enable_random %}active{% endif %}" data-name="enable_random"></div>
+        <span>Включить !кусь</span>
+        <div class="toggle-switch {% if settings.enable_bite %}active{% endif %}" data-name="enable_bite"></div>
     </div>
     <div class="toggle-label">
-        <span>Включить !fruit</span>
-        <div class="toggle-switch {% if settings.enable_fruit %}active{% endif %}" data-name="enable_fruit"></div>
+        <span>Включить !лизь</span>
+        <div class="toggle-switch {% if settings.enable_lick %}active{% endif %}" data-name="enable_lick"></div>
+    </div>
+    <div class="toggle-label">
+        <span>Включить !boop</span>
+        <div class="toggle-switch {% if settings.enable_boop %}active{% endif %}" data-name="enable_boop"></div>
     </div>
 </section>
 

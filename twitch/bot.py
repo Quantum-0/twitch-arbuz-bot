@@ -9,6 +9,7 @@ from twitchAPI.types import ChatEvent
 
 from database.database import AsyncSessionLocal
 from database.models import User, TwitchUserSettings
+from twitch.handlers import cmd_bite_handler, cmd_lick_handler, cmd_boop_handler
 from twitch.twitch import Twitch
 from utils.logging_conf import LOGGING_CONFIG
 from utils.singleton import singleton
@@ -68,15 +69,15 @@ class ChatBot:
             if not user.in_beta_test:
                 return
 
-            # # TODO: settings!!!
-            # if any(message.text.startswith(x) for x in ['!bite', '!кусь', '!куснуть', '!укусить']):
-            #     await cmd_bite_handler(self, channel, message)
-            # if any(message.text.startswith(x) for x in ['!lick', '!лизь', '!лизнуть', '!облизать']):
-            #     await cmd_lick_handler(self, channel, message)
-            # if any(message.text.startswith(x) for x in ['!hug', '!обнять', '!обнимашки']):
-            #     await cmd_hug_handler(self, channel, message)
-            # if any(message.text.startswith(x) for x in ['!boop', '!буп']):
-            #     await cmd_boop_handler(self, channel, message)
+            user_settings: TwitchUserSettings = user.settings
+            if any(message.text.startswith(x) for x in ['!bite', '!кусь', '!куснуть', '!укусить']) and user_settings.enable_bite:
+                await cmd_bite_handler(self, channel, message)
+            if any(message.text.startswith(x) for x in ['!lick', '!лизь', '!лизнуть', '!облизать']) and user_settings.enable_lick:
+                await cmd_lick_handler(self, channel, message)
+            #if any(message.text.startswith(x) for x in ['!hug', '!обнять', '!обнимашки']) and user_settings.enable_hug:
+            #    await cmd_hug_handler(self, channel, message)
+            if any(message.text.startswith(x) for x in ['!boop', '!буп']) and user_settings.enable_boop:
+                await cmd_boop_handler(self, channel, message)
             # if any(message.text.startswith(x) for x in ['!якто', '!ктоя', '!whoami']):
             #     await cmd_whoami_handler(self, channel, message)
             # if any(message.text.startswith(x) for x in ['!horny', '!хорни']):
@@ -101,9 +102,7 @@ class ChatBot:
                 .join(TwitchUserSettings)
                 .filter(
                     sa.or_(
-                        TwitchUserSettings.enable_help == True,
-                        TwitchUserSettings.enable_random == True,
-                        TwitchUserSettings.enable_fruit == True,
+                        TwitchUserSettings.enable_chat_bot == True,
                     )
                 )
             )

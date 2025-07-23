@@ -7,9 +7,15 @@ from config import settings
 
 
 class UpdateSettingsForm(BaseModel):
-    enable_help: bool | None = Field(None)
-    enable_random: bool | None = Field(None)
-    enable_fruit: bool | None = Field(None)
+    # enable_help: bool | None = Field(None)
+    # enable_random: bool | None = Field(None)
+    # enable_fruit: bool | None = Field(None)
+
+    enable_chat_bot: bool | None = Field(None)
+
+    enable_boop: bool | None = Field(None)
+    enable_lick: bool | None = Field(None)
+    enable_bite: bool | None = Field(None)
 
 
 class UpdateMemealertsCoinsSchema(BaseModel):

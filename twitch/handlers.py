@@ -1,3 +1,4 @@
+import random
 import re
 from typing import TYPE_CHECKING
 
@@ -36,6 +37,32 @@ def extract_targets(text: str) -> str | None:
 async def cmd_bite_handler(chatbot: "ChatBot", channel: str, message: ChatMessage):
     target = extract_targets(message.text)
     if not target:
-        await chatbot.send_message(channel, f"Чтобы укусить кого-то, нужно указать, кого именно кусаешь. Например \"!Кусь @{message.user.display_name}\"")
+        await chatbot.send_message(channel, f"Чтобы укусить кого-то, нужно указать, кого именно кусаешь. Например \"!кусь @{message.user.display_name}\"")
         return
-    await chatbot.send_message(channel, f"@{message.user.display_name} кусает {target} за пэрсики")
+    kind_of_bite = ["злобный", "приятный", "мягкий", "нежный", "аккуратный", "агрессивный", "коварный"]
+    target_to_bite = ["ухо", "пятку", "хвост", "ногу", "пэрсики", "нос", "плечо", "жёпку"]
+    await chatbot.send_message(channel, f"@{message.user.display_name} делает {random.choice(kind_of_bite)} кусь {target} за {random.choice(target_to_bite)}")
+
+
+async def cmd_lick_handler(chatbot: "ChatBot", channel: str, message: ChatMessage):
+    target = extract_targets(message.text)
+    if not target:
+        await chatbot.send_message(channel, f"Чтобы кого-то лизнуть, нужно указать, кого именно ты хочешь лизнуть. Например \"!лизь @{message.user.display_name}\"")
+        return
+    user = message.user.display_name
+    random_variants = [
+        f'{user} вылизывает всё лицо {target}',
+        f'{user} облизывает ухо {target}',
+        f'{user} лижет в нос {target}',
+        f'{user} пытается лизнуть {target}, но {target} успешно уворачивается от нападения языком!',
+    ]
+    await chatbot.send_message(channel, random.choice(random_variants))
+
+
+async def cmd_boop_handler(chatbot: "ChatBot", channel: str, message: ChatMessage):
+    target = extract_targets(message.text)
+    if not target:
+        await chatbot.send_message(channel, f"Чтобы кого-то лизнуть, нужно указать, кого именно ты хочешь лизнуть. Например \"!лизь @{message.user.display_name}\"")
+        return
+    user = message.user.display_name
+    await chatbot.send_message(channel, f"{user} делает буп в нось {target} !")

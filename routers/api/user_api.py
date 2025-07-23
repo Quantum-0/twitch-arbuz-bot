@@ -23,12 +23,18 @@ async def update_settings(
     db: AsyncSession = Depends(get_db),
     chat_bot: ChatBot = Depends(get_chat_bot),
 ):
-    if data.enable_help is not None:
-        user.settings.enable_help = data.enable_help
-    if data.enable_random is not None:
-        user.settings.enable_random = data.enable_random
-    if data.enable_fruit is not None:
-        user.settings.enable_fruit = data.enable_fruit
+    # user.settings: TwitchUserSettings
+    # if data.enable_bite is not None:
+    #     user.settings.enable_bite = data.enable_bite
+    # if data.enable_lick is not None:
+    #     user.settings.enable_lick = data.enable_lick
+    # if data.enable_boop is not None:
+    #     user.settings.enable_boop = data.enable_boop
+
+    for field in data.model_fields_set:
+        value = getattr(data, field)
+        if value is not None:
+            setattr(user.settings, field, value)
 
     await db.commit()
     await db.refresh(user.settings)

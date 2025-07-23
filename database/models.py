@@ -54,9 +54,24 @@ class TwitchUserSettings(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     user_id: Mapped[int] = mapped_column(Integer, ForeignKey("twitch_bot_users.id", ondelete="CASCADE"), nullable=False)
-    enable_help: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
-    enable_random: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
-    enable_fruit: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+
+    enable_chat_bot: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false(), nullable=False)
+
+    enable_bite: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false(), nullable=False)
+    enable_lick: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false(), nullable=False)
+    enable_boop: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false(), nullable=False)
+    enable_pat: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false(), nullable=False)
+
+    enable_banana: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false(), nullable=False)
+    enable_whoami: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false(), nullable=False)
+    enable_lurk: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false(), nullable=False)
+
+    enable_riot: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false(), nullable=False)
+    enable_pants: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false(), nullable=False)
+
+    enable_pyramid: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false(), nullable=False)
+    enable_pyramid_breaker: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false(), nullable=False)
+
 
     user: Mapped["User"] = relationship("User", back_populates="settings")
 
