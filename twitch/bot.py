@@ -63,16 +63,32 @@ class ChatBot:
         async with AsyncSessionLocal() as session:
             result = await session.execute(sa.select(User).options(selectinload(User.settings)).filter_by(login_name=channel.lower()))
             user = result.scalar_one_or_none()
-            if user:
-                if message.text.startswith('!help') and user.settings.enable_help:
-                    await self.send_message(channel, 'Доступные команды: !help, !random, !fruit')
-                elif message.text.startswith('!random') and user.settings.enable_random:
-                    number = random.randint(0, 10)
-                    await self.send_message(channel, f'Случайное число: {number}')
-                elif message.text.startswith('!fruit') and user.settings.enable_fruit:
-                    fruits = ['яблоко', 'груша', 'банан']
-                    fruit = random.choice(fruits)
-                    await self.send_message(channel, f'Случайный фрукт: {fruit}')
+            if not user:
+                return
+
+            # # TODO: settings!!!
+            # if any(message.text.startswith(x) for x in ['!bite', '!кусь', '!куснуть', '!укусить']):
+            #     await cmd_bite_handler(self, channel, message)
+            # if any(message.text.startswith(x) for x in ['!lick', '!лизь', '!лизнуть', '!облизать']):
+            #     await cmd_lick_handler(self, channel, message)
+            # if any(message.text.startswith(x) for x in ['!hug', '!обнять', '!обнимашки']):
+            #     await cmd_hug_handler(self, channel, message)
+            # if any(message.text.startswith(x) for x in ['!boop', '!буп']):
+            #     await cmd_boop_handler(self, channel, message)
+            # if any(message.text.startswith(x) for x in ['!якто', '!ктоя', '!whoami']):
+            #     await cmd_whoami_handler(self, channel, message)
+            # if any(message.text.startswith(x) for x in ['!horny', '!хорни']):
+            #     await cmd_horny_handler(self, channel, message)
+
+            if message.text.startswith('!help') and user.settings.enable_help:
+                await self.send_message(channel, 'Доступные команды: !help, !random, !fruit')
+            elif message.text.startswith('!random') and user.settings.enable_random:
+                number = random.randint(0, 10)
+                await self.send_message(channel, f'Случайное число: {number}')
+            elif message.text.startswith('!fruit') and user.settings.enable_fruit:
+                fruits = ['яблоко', 'груша', 'банан']
+                fruit = random.choice(fruits)
+                await self.send_message(channel, f'Случайный фрукт: {fruit}')
 
     async def update_bot_channels(self):
         if not self._chat:
