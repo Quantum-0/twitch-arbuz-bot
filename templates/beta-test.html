@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+
+{% block title %}Бета-тест — Quantum0's Bot{% endblock %}
+
+{% block styles %}
+.beta-container {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    min-height: 70vh;
+    text-align: center;
+    padding: 20px;
+}
+.beta-container h1 {
+    font-size: 32px;
+    color: #e53935;
+    margin-bottom: 20px;
+}
+.beta-container p {
+    font-size: 18px;
+    color: #333;
+}
+.beta-container a {
+    color: #4CAF50;
+    font-weight: bold;
+    text-decoration: none;
+}
+.beta-container a:hover {
+    text-decoration: underline;
+}
+{% endblock %}
+
+{% block content %}
+<div class="beta-container">
+    <h1>Бот находится в статусе закрытого бета-тестирования</h1>
+    <p>Для участия в бета-тестировании обращайтесь к <a href="https://twitch.tv/quantum075" target="_blank">Quantum0</a>.</p>
+</div>
+{% endblock %}

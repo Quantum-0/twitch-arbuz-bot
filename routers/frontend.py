@@ -36,6 +36,8 @@ async def main_page(
     request: Request,
     user: Any = Security(user_auth),
 ):
+    if not user.in_beta_test:
+        return templates.TemplateResponse("beta-test.html", {"request": request})
     return templates.TemplateResponse(
         "index.html",
         {
@@ -53,7 +55,6 @@ async def main_page(
 @router.get("/about")
 async def about_page(
     request: Request,
-    user: Any = Security(user_auth),
 ):
     return templates.TemplateResponse(
         "about.html",
@@ -72,6 +73,34 @@ async def meme_tutorial_page(
             "request": request,
         }
     )
+
+@router.get("/streamers")
+async def get_streamers(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    q = (
+        sa.select(User.login_name.label("username"), User.profile_image_url.label("avatar_url"), User.followers_count.label("followers"))
+        .where(User.followers_count > 20)
+        .limit(50)
+    )
+    res = (await db.execute(q)).fetchall()
+    # res = [row._asdict() for row in res] * 20
+    # for row in res:
+    #     row["followers"] = random.randint(30, 500)
+    #
+    # # Перемешиваем для случайного порядка
+    # random.shuffle(res)
+    #
+    # # Размер пузырька в зависимости от фолловеров
+    # max_followers = max(s["followers"] for s in res) or 1
+    # min_size, max_size = 20, 150
+    # for s in res:
+    #     ratio = s["followers"] / max_followers
+    #     s["size"] = int(min_size + (max_size - min_size) * ratio)
+
+    return templates.TemplateResponse("streamers.html", {"request": request, "streamers": res})
+
 
 @router.get("/login-callback")
 async def callback(
@@ -102,6 +131,9 @@ async def callback(
         user.access_token = access_token
         user.refresh_token = refresh_token
         user.profile_image_url = profile_image_url
+
+    followers = await twitch.get_followers(user)
+    user.followers_count = followers.total
     await db.commit()
 
     request.session["user_id"] = user_id

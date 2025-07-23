@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+
+{% block title %}Пользователи бота — Quantum0's Bot{% endblock %}
+
+{% block styles %}
+.streamers-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+    gap: 20px;
+    justify-items: center;
+    margin-top: 20px;
+}
+.streamer-avatar {
+    width: 100px;
+    height: 100px;
+    border-radius: 50%;
+    border: 3px solid #4CAF50;
+    object-fit: cover;
+    transition: transform 0.3s;
+}
+.streamer-avatar:hover {
+    transform: scale(1.05);
+    border-color: #45a049;
+}
+{% endblock %}
+
+{% block content %}
+<h2>А вот списочек наших дорогих стримеров, которые используют этого бота >w<</h2>
+<p>Кликните по аватарке, чтобы перейти на страницу стримера:</p>
+
+<div class="streamers-grid">
+    {% for streamer in streamers %}
+        <a href="https://twitch.tv/{{ streamer.username }}" target="_blank">
+            <img src="{{ streamer.avatar_url }}" alt="{{ streamer.username }}" class="streamer-avatar">
+        </a>
+    {% endfor %}
+</div>
+{% endblock %}

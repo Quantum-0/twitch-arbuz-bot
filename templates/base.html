@@ -41,6 +41,9 @@
             align-items: center;
         }
         header h1 { margin: 0; font-size: 24px; }
+        header nav a:hover {
+            text-decoration: underline;
+        }
         .avatar { width: 50px; height: 50px; border-radius: 50%; border: 3px solid white; }
         .container { padding: 20px; max-width: 1400px; margin: 0 auto; }
         .site-footer {
@@ -70,13 +73,18 @@
 </head>
 <body>
     <header>
-        <h1>Quantum0's Bot</h1>
-        <div style="display: flex; align-items: center; gap: 10px;">
-        {% if user %}
-            <a href="https://twitch.tv/{{ user.twitch_login }}"><img src="{{ user.profile_image_url }}" alt="Avatar" class="avatar"></a>
-        {% endif %}
+    <h1>Quantum0's Bot</h1>
+    <nav style="display: flex; gap: 15px; align-items: center;">
+        <a href="/panel" style="color: white; text-decoration: none;">Главная</a>
+        <a href="/streamers" style="color: white; text-decoration: none;">Стримеры</a>
+        <a href="/about" style="color: white; text-decoration: none;">О сервисе</a>
+    </nav>
+    <div style="display: flex; align-items: center; gap: 10px;">
+    {% if user %}
+        <a href="https://twitch.tv/{{ user.twitch_login }}"><img src="{{ user.profile_image_url }}" alt="Avatar" class="avatar"></a>
+    {% endif %}
     </div>
-    </header>
+</header>
 
     <div class="container">
         {% block content %}{% endblock %}

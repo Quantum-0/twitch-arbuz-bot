@@ -1,15 +1,20 @@
 import hashlib
 import hmac
+import secrets
+from typing import Annotated
 
 import sqlalchemy as sa
 from fastapi import Header, HTTPException, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
+from starlette import status
 from starlette.requests import Request
 
 from config import settings
 from database.models import User
 from dependencies import get_db
+
+from fastapi.security import HTTPBasicCredentials, HTTPBasic
 
 
 async def verify_eventsub_signature(
@@ -49,3 +54,28 @@ async def user_auth(
     if not user:
         raise HTTPException(status_code=403, detail="User not found")
     return user
+
+
+security = HTTPBasic()
+
+
+def admin_auth(
+    credentials: Annotated[HTTPBasicCredentials, Depends(security)],
+):
+    current_username_bytes = credentials.username.encode("utf8")
+    correct_username_bytes = settings.admin_api_login.encode()
+    is_correct_username = secrets.compare_digest(
+        current_username_bytes, correct_username_bytes
+    )
+    current_password_bytes = credentials.password.encode("utf8")
+    correct_password_bytes = settings.admin_api_password.encode()
+    is_correct_password = secrets.compare_digest(
+        current_password_bytes, correct_password_bytes
+    )
+    if not (is_correct_username and is_correct_password):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Incorrect username or password",
+            headers={"WWW-Authenticate": "Basic"},
+        )
+    return credentials.username

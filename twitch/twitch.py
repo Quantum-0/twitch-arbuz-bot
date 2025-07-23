@@ -2,7 +2,7 @@ from uuid import UUID
 
 import httpx
 from twitchAPI import Twitch as TwitchClient, Chat
-from twitchAPI.object import CustomReward, TwitchUser
+from twitchAPI.object import CustomReward, TwitchUser, ChannelFollowersResult
 from twitchAPI.types import AuthScope, CustomRewardRedemptionStatus
 
 from config import settings, user_scope
@@ -97,6 +97,13 @@ class Twitch():
         twitch_user = await TwitchClient(settings.twitch_client_id, settings.twitch_client_secret)
         await twitch_user.set_user_authentication(access_token, [], refresh_token)
         return await anext(twitch_user.get_users())
+
+    @staticmethod
+    async def get_followers(user: User) -> ChannelFollowersResult:
+        twitch_user = await TwitchClient(settings.twitch_client_id, settings.twitch_client_secret)
+        await twitch_user.set_user_authentication(user.access_token, [AuthScope.MODERATOR_READ_FOLLOWERS], user.refresh_token)
+        return await twitch_user.get_channel_followers(user.twitch_id, user.twitch_id, first=100)
+        # TODO: load all via pagination
 
     @staticmethod
     async def cancel_redemption(user: User, reward_id: UUID, redemption_id: UUID):

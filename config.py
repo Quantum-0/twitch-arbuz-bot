@@ -3,7 +3,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 from twitchAPI.types import AuthScope
 
 
-user_scope = [AuthScope.CHANNEL_READ_REDEMPTIONS, AuthScope.CHANNEL_MANAGE_REDEMPTIONS, AuthScope.MODERATOR_READ_CHATTERS]
+user_scope = [AuthScope.MODERATOR_READ_FOLLOWERS, AuthScope.CHANNEL_READ_REDEMPTIONS, AuthScope.CHANNEL_MANAGE_REDEMPTIONS, AuthScope.MODERATOR_READ_CHATTERS]
 bot_scope = [AuthScope.CHAT_READ, AuthScope.CHAT_EDIT, AuthScope.CHANNEL_READ_REDEMPTIONS, AuthScope.CHANNEL_MANAGE_REDEMPTIONS]
 
 
@@ -21,6 +21,8 @@ class Settings(BaseSettings):
     db_sync_url: str
     fernet_key: SecretStr
     sentry_dsn: AnyHttpUrl
+    admin_api_login: str
+    admin_api_password: str
 
     model_config = SettingsConfigDict(env_prefix='', env_file='.env')
 
