@@ -65,6 +65,8 @@ class ChatBot:
             user = result.scalar_one_or_none()
             if not user:
                 return
+            if not user.in_beta_test:
+                return
 
             # # TODO: settings!!!
             # if any(message.text.startswith(x) for x in ['!bite', '!кусь', '!куснуть', '!укусить']):
