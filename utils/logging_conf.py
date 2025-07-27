@@ -37,6 +37,9 @@ LOGGING_CONFIG = {
 
 
         "twitchAPI": {"level": "INFO", "propagate": False},
+        "python_multipart.multipart": {"level": "WARN", "propagate": False},
+        "asyncio": {"level": "WARN", "propagate": False},
+        "urllib3.connectionpool": {"level": "WARN", "propagate": False},
         # "twitch.bot": {"level": "DEBUG", "propagate": False},
     },
 }

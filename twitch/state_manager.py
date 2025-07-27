@@ -7,9 +7,10 @@ from typing import OrderedDict
 class SMParam(StrEnum):
     DEFAULT = auto()
     COOLDOWN = auto()
-    COUNT = auto()
-    COUNT_RECEIVED = auto()
+    CALL_COUNT = auto()
+    # COUNT_RECEIVED = auto()
     PREVIOUS_VALUE = auto()
+    PREVIOUS_VALUE_TIME = auto()
 
 
 COMMAND_TYPE = str
@@ -69,6 +70,8 @@ class InMemoryStateManager(StateManager):
         channel = channel.lower()
         command = command.lower()
         param = param.lower()
+        if isinstance(user, str):
+            user = user.lower()
         if channel in self._storage:
             if user in self._storage[channel]:
                 if command in self._storage[channel][user]:
@@ -89,6 +92,8 @@ class InMemoryStateManager(StateManager):
         channel = channel.lower()
         command = command.lower()
         param = param.lower()
+        if isinstance(user, str):
+            user = user.lower()
         if channel not in self._storage:
             self._storage[channel] = OrderedDict[int, OrderedDict[str, OrderedDict[SMParam, VALUE_TYPE]]]()
         if user not in self._storage[channel]:

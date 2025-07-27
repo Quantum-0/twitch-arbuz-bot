@@ -165,6 +165,21 @@ button[disabled] { opacity: 0.6; cursor: not-allowed; }
     font-size: 16px;
     margin: 0;
 }
+.toggles-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px 40px;
+    margin-top: 20px;
+}
+@media (max-width: 600px) {
+    .toggles-grid {
+        grid-template-columns: 1fr;
+    }
+}
+.toggle-label.disabled {
+    opacity: 0.5;
+    pointer-events: none;
+}
 {% endblock %}
 
 {% block content %}
@@ -175,21 +190,63 @@ button[disabled] { opacity: 0.6; cursor: not-allowed; }
 
 <section>
     <h3>Настройки чат-бота</h3>
+
+    <!-- Главный переключатель -->
     <div class="toggle-label">
         <span><b>Включить чат-бота</b></span>
         <div class="toggle-switch {% if settings.enable_chat_bot %}active{% endif %}" data-name="enable_chat_bot"></div>
     </div>
-    <div class="toggle-label">
-        <span>Включить !кусь</span>
-        <div class="toggle-switch {% if settings.enable_bite %}active{% endif %}" data-name="enable_bite"></div>
-    </div>
-    <div class="toggle-label">
-        <span>Включить !лизь</span>
-        <div class="toggle-switch {% if settings.enable_lick %}active{% endif %}" data-name="enable_lick"></div>
-    </div>
-    <div class="toggle-label">
-        <span>Включить !boop</span>
-        <div class="toggle-switch {% if settings.enable_boop %}active{% endif %}" data-name="enable_boop"></div>
+
+    <!-- Остальные переключатели -->
+    <div id="dependent-toggles" class="toggles-grid">
+        <div class="toggle-label {% if not settings.enable_chat_bot %}disabled{% endif %}">
+            <span>Включить !кусь</span>
+            <div class="toggle-switch {% if settings.enable_bite %}active{% endif %}" data-name="enable_bite"></div>
+        </div>
+        <div class="toggle-label {% if not settings.enable_chat_bot %}disabled{% endif %}">
+            <span>Включить !лизь</span>
+            <div class="toggle-switch {% if settings.enable_lick %}active{% endif %}" data-name="enable_lick"></div>
+        </div>
+        <div class="toggle-label {% if not settings.enable_chat_bot %}disabled{% endif %}">
+            <span>Включить !boop</span>
+            <div class="toggle-switch {% if settings.enable_boop %}active{% endif %}" data-name="enable_boop"></div>
+        </div>
+        <!--
+        <div class="toggle-label {% if not settings.enable_chat_bot %}disabled{% endif %}">
+            <span>Включить !pat</span>
+            <div class="toggle-switch {% if settings.enable_pat %}active{% endif %}" data-name="enable_pat"></div>
+        </div>
+        -->
+        <div class="toggle-label {% if not settings.enable_chat_bot %}disabled{% endif %}">
+            <span>Включить !банан</span>
+            <div class="toggle-switch {% if settings.enable_banana %}active{% endif %}" data-name="enable_banana"></div>
+        </div>
+        <!--
+        <div class="toggle-label {% if not settings.enable_chat_bot %}disabled{% endif %}">
+            <span>Включить !якто</span>
+            <div class="toggle-switch {% if settings.enable_whoami %}active{% endif %}" data-name="enable_whoami"></div>
+        </div>
+        <div class="toggle-label {% if not settings.enable_chat_bot %}disabled{% endif %}">
+            <span>Включить !lurk</span>
+            <div class="toggle-switch {% if settings.enable_lurk %}active{% endif %}" data-name="enable_lurk"></div>
+        </div>
+        <div class="toggle-label {% if not settings.enable_chat_bot %}disabled{% endif %}">
+            <span>Включить !бунд</span>
+            <div class="toggle-switch {% if settings.enable_riot %}active{% endif %}" data-name="enable_riot"></div>
+        </div>
+        <div class="toggle-label {% if not settings.enable_chat_bot %}disabled{% endif %}">
+            <span>Включить !трусы</span>
+            <div class="toggle-switch {% if settings.enable_pants %}active{% endif %}" data-name="enable_pants"></div>
+        </div>
+        <div class="toggle-label {% if not settings.enable_chat_bot %}disabled{% endif %}">
+            <span>Включить обработчик пирамидок</span>
+            <div class="toggle-switch {% if settings.enable_pyramid %}active{% endif %}" data-name="enable_pyramid"></div>
+        </div>
+        <div class="toggle-label {% if not settings.enable_chat_bot %}disabled{% endif %}">
+            <span>Включить ломатель пирамидок</span>
+            <div class="toggle-switch {% if settings.enable_pyramid_breaker %}active{% endif %}" data-name="enable_pyramid_breaker"></div>
+        </div>
+        -->
     </div>
 </section>
 
@@ -260,9 +317,26 @@ button[disabled] { opacity: 0.6; cursor: not-allowed; }
             toggle.addEventListener('click', () => {
                 toggle.classList.toggle('active');
                 toggleSetting(toggle.dataset.name, toggle.classList.contains('active'));
+                if (toggle.dataset.name === 'enable_chat_bot') {
+                updateDependentTogglesState();
+            }
             });
         });
     }
+
+    function updateDependentTogglesState() {
+    const isEnabled = document.querySelector('.toggle-switch[data-name="enable_chat_bot"]').classList.contains('active');
+    const container = document.getElementById('dependent-toggles');
+    if (!container) return;
+    container.querySelectorAll('.toggle-label').forEach(label => {
+        if (isEnabled) {
+            label.classList.remove('disabled');
+        } else {
+            label.classList.add('disabled');
+        }
+    });
+}
+
 
     function openModal() { document.getElementById('memealert-modal').style.display = 'flex'; }
     function closeModal() { document.getElementById('memealert-modal').style.display = 'none'; }
@@ -332,6 +406,7 @@ button[disabled] { opacity: 0.6; cursor: not-allowed; }
 
     document.addEventListener('DOMContentLoaded', () => {
         initToggles();
+        updateDependentTogglesState();
         const coinInput = document.getElementById('coin-count');
         if (coinInput) {
             coinInput.addEventListener('input', triggerCoinSave);

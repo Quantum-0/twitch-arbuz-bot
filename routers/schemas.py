@@ -1,21 +1,30 @@
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, Field, AnyHttpUrl
+from pydantic import AnyHttpUrl
+from pydantic import BaseModel, Field
 
 from config import settings
 
 
 class UpdateSettingsForm(BaseModel):
-    # enable_help: bool | None = Field(None)
-    # enable_random: bool | None = Field(None)
-    # enable_fruit: bool | None = Field(None)
-
     enable_chat_bot: bool | None = Field(None)
 
-    enable_boop: bool | None = Field(None)
-    enable_lick: bool | None = Field(None)
     enable_bite: bool | None = Field(None)
+    enable_lick: bool | None = Field(None)
+    enable_boop: bool | None = Field(None)
+    enable_pat: bool | None = Field(None)
+
+    enable_banana: bool | None = Field(None)
+    enable_whoami: bool | None = Field(None)
+    enable_lurk: bool | None = Field(None)
+
+    enable_riot: bool | None = Field(None)
+    enable_pants: bool | None = Field(None)
+
+    enable_pyramid: bool | None = Field(None)
+    enable_pyramid_breaker: bool | None = Field(None)
+
 
 
 class UpdateMemealertsCoinsSchema(BaseModel):

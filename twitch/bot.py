@@ -9,7 +9,9 @@ from twitchAPI.types import ChatEvent
 
 from database.database import AsyncSessionLocal
 from database.models import User, TwitchUserSettings
-from twitch.handlers import cmd_bite_handler, cmd_lick_handler, cmd_boop_handler
+from twitch.command import BiteCommand, LickCommand, BananaCommand, BoopCommand
+from twitch.command_manager import CommandsManager
+from twitch.state_manager import get_state_manager
 from twitch.twitch import Twitch
 from utils.logging_conf import LOGGING_CONFIG
 from utils.singleton import singleton
@@ -36,6 +38,12 @@ class ChatBot:
             logger.debug(f"[Wrapper] Got message `{msg}`")
             asyncio.run_coroutine_threadsafe(self.on_message(msg), event_loop)
 
+        self._command_manager = CommandsManager(get_state_manager(), self.send_message)
+        self._command_manager.register(BiteCommand)
+        self._command_manager.register(LickCommand)
+        self._command_manager.register(BananaCommand)
+        self._command_manager.register(BoopCommand)
+
         chat.register_event(ChatEvent.MESSAGE, on_message)
         logger.debug("On_message handler registered")
         chat.start()
@@ -54,7 +62,7 @@ class ChatBot:
         elif not isinstance(chat, str):
             raise ValueError
         logger.info(f"Sending message `{message}` to channel `{chat}`")
-        await self._chat.send_message(chat, message)
+        await self._chat.send_message(chat.lower(), message)
 
     async def on_message(self, message):
         channel = message.room.name  # Имя канала
@@ -70,28 +78,13 @@ class ChatBot:
                 return
 
             user_settings: TwitchUserSettings = user.settings
-            if any(message.text.startswith(x) for x in ['!bite', '!кусь', '!куснуть', '!укусить']) and user_settings.enable_bite:
-                await cmd_bite_handler(self, channel, message)
-            if any(message.text.startswith(x) for x in ['!lick', '!лизь', '!лизнуть', '!облизать']) and user_settings.enable_lick:
-                await cmd_lick_handler(self, channel, message)
+            await self._command_manager.handle(user_settings, channel, message)
             #if any(message.text.startswith(x) for x in ['!hug', '!обнять', '!обнимашки']) and user_settings.enable_hug:
             #    await cmd_hug_handler(self, channel, message)
-            if any(message.text.startswith(x) for x in ['!boop', '!буп']) and user_settings.enable_boop:
-                await cmd_boop_handler(self, channel, message)
             # if any(message.text.startswith(x) for x in ['!якто', '!ктоя', '!whoami']):
             #     await cmd_whoami_handler(self, channel, message)
             # if any(message.text.startswith(x) for x in ['!horny', '!хорни']):
             #     await cmd_horny_handler(self, channel, message)
-
-            if message.text.startswith('!help') and user.settings.enable_help:
-                await self.send_message(channel, 'Доступные команды: !help, !random, !fruit')
-            elif message.text.startswith('!random') and user.settings.enable_random:
-                number = random.randint(0, 10)
-                await self.send_message(channel, f'Случайное число: {number}')
-            elif message.text.startswith('!fruit') and user.settings.enable_fruit:
-                fruits = ['яблоко', 'груша', 'банан']
-                fruit = random.choice(fruits)
-                await self.send_message(channel, f'Случайный фрукт: {fruit}')
 
     async def update_bot_channels(self):
         if not self._chat:
@@ -110,13 +103,16 @@ class ChatBot:
             users = users_result.scalars().all()
             desired_channels = {user.login_name.lower() for user in users}
             current_channels = {ch.lower() for ch in self._joined_channels}
-            logger.info(f"Updated joined channels: {current_channels}")
 
             # Присоединяемся к новым каналам
             for channel in desired_channels - current_channels:
                 await self._chat.join_room(channel)
                 self._joined_channels.append(channel)
+            if desired_channels - current_channels:
+                logger.info(f"Joined to channels: {desired_channels - current_channels}")
             # Покидаем ненужные каналы
             for channel in current_channels - desired_channels:
                 await self._chat.leave_room(channel)
                 self._joined_channels.remove(channel)
+            if current_channels - desired_channels:
+                logger.info(f"Left channels: {current_channels - desired_channels}")
