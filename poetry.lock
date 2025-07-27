@@ -974,14 +974,14 @@ files = [
 
 [[package]]
 name = "memealerts"
-version = "1.0.11"
+version = "1.0.12"
 description = "Memealerts async/sync client"
 optional = false
 python-versions = ">=3.11"
 groups = ["main"]
 files = [
-    {file = "memealerts-1.0.11-py3-none-any.whl", hash = "sha256:9492a914ecaf8f9a079624b7a1d04d5388257dbde3f66d85a492dfe421acf080"},
-    {file = "memealerts-1.0.11.tar.gz", hash = "sha256:5bb0477ed0b592a2a93f8bd57060870cafd33005763848ba330b9b1d167c1e28"},
+    {file = "memealerts-1.0.12-py3-none-any.whl", hash = "sha256:c6eae34677ddda04fbb488ecad7fdc62bbf8d4691f0c129a2426ed7aaa2f1bd1"},
+    {file = "memealerts-1.0.12.tar.gz", hash = "sha256:8205b4c3c61bd789bec87f421bff78f125a5b2a1b986b5b6f91157a94bac3678"},
 ]
 
 [package.dependencies]
@@ -1731,14 +1731,14 @@ sqlcipher = ["sqlcipher3_binary"]
 
 [[package]]
 name = "starlette"
-version = "0.47.1"
+version = "0.47.2"
 description = "The little ASGI library that shines."
 optional = false
 python-versions = ">=3.9"
 groups = ["main"]
 files = [
-    {file = "starlette-0.47.1-py3-none-any.whl", hash = "sha256:5e11c9f5c7c3f24959edbf2dffdc01bba860228acf657129467d8a7468591527"},
-    {file = "starlette-0.47.1.tar.gz", hash = "sha256:aef012dd2b6be325ffa16698f9dc533614fb1cebd593a906b90dc1025529a79b"},
+    {file = "starlette-0.47.2-py3-none-any.whl", hash = "sha256:c5847e96134e5c5371ee9fac6fdf1a67336d5815e09eb2a01fdb57a351ef915b"},
+    {file = "starlette-0.47.2.tar.gz", hash = "sha256:6ae9aa5db235e4846decc1e7b79c4f346adf41e9777aebeb49dfd09bbd7023d8"},
 ]
 
 [package.dependencies]
@@ -1952,4 +1952,4 @@ propcache = ">=0.2.1"
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.11"
-content-hash = "dde46d5766e5c480f3853462b2d46bc22c63be459aba507fe2662192670cbfd9"
+content-hash = "27fb510cce8878ef2323bf59d089f490c993486520015c6a860f552e90cb0210"
