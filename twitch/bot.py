@@ -35,7 +35,6 @@ class ChatBot:
         chat = await twitch.build_chat_client()
 
         async def on_message(msg: ChatMessage):
-            logger.debug(f"[Wrapper] Got message `{msg}`")
             asyncio.run_coroutine_threadsafe(self.on_message(msg), event_loop)
 
         self._command_manager = CommandsManager(get_state_manager(), self.send_message)

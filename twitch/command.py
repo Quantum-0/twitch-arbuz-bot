@@ -107,7 +107,7 @@ class SimpleTargetCommand(Command, ABC):
             if response:
                 await self.send_response(chat=channel, message=response)
                 return
-        if len(targets) == 1 and targets[0].lower() in {"@streamelements", "@wisebot", "@alurarin"}:
+        if len(targets) == 1 and targets[0].lower() in {"@streamelements", "@wisebot", "@alurarin", "@nightbot", "@botrixoficial", "@dustyfox_bot"}:
             response = await self._bot_call_reply(user, target=targets[0])
             if response:
                 await self.send_response(chat=channel, message=response)
