@@ -1,3 +1,4 @@
+import asyncio
 import logging.config
 import re
 from datetime import datetime, UTC
@@ -44,17 +45,30 @@ async def token_expires_in_days(memealerts_token) -> int:
 
 
 async def load_supporters(cli: MemealertsAsyncClient) -> list[Supporter]:
-    skip = 0
     limit = 100
-    req = await cli.get_supporters(limit, skip=0)
-    total_count = req.total
-    items = req.data
-    while len(items) < total_count:
-        skip += limit
-        req = await cli.get_supporters(limit, skip=skip)
-        items += req.data
+    first_page = await cli.get_supporters(limit=limit, skip=0)
+    total_count = first_page.total
+    items = first_page.data
+
+    if total_count <= limit:
+        await save_all_supporters_into_db(items)
+        logger.info(f"Loaded {len(items)} supporters (1 page)")
+        return items
+
+    # Подготовка остальных запросов
+    remaining_skips = list(range(limit, total_count, limit))
+    tasks = [
+        cli.get_supporters(limit=limit, skip=skip)
+        for skip in remaining_skips
+    ]
+    results = await asyncio.gather(*tasks)
+
+    # Сборка всех данных
+    for page in results:
+        items.extend(page.data)
+
     assert len(items) == total_count
-    logger.info(f"Loaded {len(items)} supporters")
+    logger.info(f"Loaded {len(items)} supporters ({len(results) + 1} pages)")
     await save_all_supporters_into_db(items)
     return items
 
