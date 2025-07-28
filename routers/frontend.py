@@ -1,3 +1,4 @@
+import random
 from typing import Any
 
 from fastapi import APIRouter, Security
@@ -84,7 +85,8 @@ async def get_streamers(
         .where(User.followers_count > 20)
         .limit(50)
     )
-    res = (await db.execute(q)).fetchall()
+    res = list((await db.execute(q)).fetchall())
+    random.shuffle(res)
     # res = [row._asdict() for row in res] * 20
     # for row in res:
     #     row["followers"] = random.randint(30, 500)
