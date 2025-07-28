@@ -22,8 +22,8 @@ def upgrade():
         sa.Column('twitch_id', sa.String(), nullable=True),
         sa.Column('login_name', sa.String(), nullable=True),
         sa.Column('profile_image_url', sa.String(), nullable=True),
-        sa.Column('access_token', sa.String(), nullable=True),  # TODO: шифровать
-        sa.Column('refresh_token', sa.String(), nullable=True),  # TODO: шифровать
+        sa.Column('access_token', sa.String(), nullable=True),
+        sa.Column('refresh_token', sa.String(), nullable=True),
         sa.PrimaryKeyConstraint('id'),
         sa.UniqueConstraint('twitch_id'),
     )
