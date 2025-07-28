@@ -1,6 +1,7 @@
 import uuid
+from datetime import datetime
 
-from sqlalchemy import String, Boolean, ForeignKey, Integer, event, false
+from sqlalchemy import String, Boolean, ForeignKey, Integer, event, false, func, DateTime
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship, DeclarativeBase, Mapped, mapped_column
 
@@ -20,6 +21,8 @@ class User(Base):
     profile_image_url: Mapped[str] = mapped_column(String)
     followers_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
     in_beta_test: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false(), nullable=False)
+
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), nullable=False)
 
     _access_token: Mapped[str] = mapped_column("access_token", String)
     _refresh_token: Mapped[str] = mapped_column("refresh_token", String)
