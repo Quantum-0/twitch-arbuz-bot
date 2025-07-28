@@ -17,7 +17,7 @@ class User(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     twitch_id: Mapped[str] = mapped_column(String, unique=True, index=True)
-    login_name: Mapped[str] = mapped_column(String)
+    login_name: Mapped[str] = mapped_column(String, unique=True, index=True)
     profile_image_url: Mapped[str] = mapped_column(String)
     followers_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
     in_beta_test: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false(), nullable=False)
