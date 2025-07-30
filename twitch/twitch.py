@@ -102,7 +102,7 @@ class Twitch():
     @staticmethod
     async def set_bot_moder(user: User) -> None:
         twitch_user = await TwitchClient(settings.twitch_client_id, settings.twitch_client_secret)
-        await twitch_user.set_user_authentication(user.access_token, [AuthScope.CHANNEL_MANAGE_MODERATORS],
+        await twitch_user.set_user_authentication(user.access_token, [AuthScope.CHANNEL_MANAGE_MODERATORS, AuthScope.MODERATION_READ],
                                                   user.refresh_token)
         mods: AsyncGenerator[Moderator] = twitch_user.get_moderators(user.twitch_id, first=100)
         async for mod in mods:
