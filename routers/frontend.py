@@ -81,7 +81,7 @@ async def get_streamers(
     db: AsyncSession = Depends(get_db),
 ):
     q = (
-        sa.select(User.login_name.label("username"), User.profile_image_url.label("avatar_url"), User.followers_count.label("followers"))
+        sa.select(User.login_name.label("username"), User.profile_image_url.label("avatar_url"), User.followers_count.label("followers"), User.in_beta_test.label("is_beta_tester"))
         .where(User.followers_count > 20)
         .limit(50)
     )
@@ -101,6 +101,11 @@ async def get_streamers(
     #     ratio = s["followers"] / max_followers
     #     s["size"] = int(min_size + (max_size - min_size) * ratio)
 
+    res = [row._asdict() for row in res]
+    for row in res:
+        row["role"] = "beta" if row["is_beta_tester"] else None
+        if row["username"] == "quantum075":
+            row["role"] = "dev"
     return templates.TemplateResponse("streamers.html", {"request": request, "streamers": res})
 
 

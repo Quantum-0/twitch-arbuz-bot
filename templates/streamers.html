@@ -10,6 +10,11 @@
     justify-items: center;
     margin-top: 20px;
 }
+.streamer-container {
+    position: relative;
+    width: 100px;
+    height: 100px;
+}
 .streamer-avatar {
     width: 100px;
     height: 100px;
@@ -22,6 +27,13 @@
     transform: scale(1.05);
     border-color: #45a049;
 }
+.streamer-badge {
+    position: absolute;
+    bottom: -12px;
+    right: -12px;
+    width: 48px;
+    height: 48px;
+}
 {% endblock %}
 
 {% block content %}
@@ -30,9 +42,42 @@
 
 <div class="streamers-grid">
     {% for streamer in streamers %}
-        <a href="https://twitch.tv/{{ streamer.username }}" target="_blank">
-            <img src="{{ streamer.avatar_url }}" alt="{{ streamer.username }}" class="streamer-avatar">
-        </a>
+        <div class="streamer-container">
+            <a href="https://twitch.tv/{{ streamer.username }}" target="_blank">
+                <img src="{{ streamer.avatar_url }}" alt="{{ streamer.username }}" class="streamer-avatar">
+            </a>
+            {% if streamer.role == "beta" %}
+                <div class="streamer-badge" title="Бета-тестер">
+                    <!-- BETA SVG -->
+                    <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <defs>
+                            <linearGradient id="betaGradient" x1="0" y1="0" x2="48" y2="48" gradientUnits="userSpaceOnUse">
+                                <stop stop-color="#7B61FF"/>
+                                <stop offset="1" stop-color="#4AE0FF"/>
+                            </linearGradient>
+                        </defs>
+                        <circle cx="24" cy="24" r="14" fill="url(#betaGradient)" stroke="white" stroke-width="2"/>
+                        <text x="24" y="25.5" text-anchor="middle" dominant-baseline="middle"
+                              fill="white" font-size="14" font-weight="bold" font-family="sans-serif">β</text>
+                    </svg>
+                </div>
+            {% elif streamer.role == "dev" %}
+                <div class="streamer-badge" title="Разработчик">
+                    <!-- DEV SVG -->
+                    <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <defs>
+                            <linearGradient id="devGradientSunset" x1="0" y1="0" x2="48" y2="48" gradientUnits="userSpaceOnUse">
+                                <stop stop-color="#FF8A00"/>
+                                <stop offset="1" stop-color="#E52E71"/>
+                            </linearGradient>
+                        </defs>
+                        <circle cx="24" cy="24" r="14" fill="url(#devGradientSunset)" stroke="white" stroke-width="2"/>
+                        <text x="24" y="25.5" text-anchor="middle" dominant-baseline="middle"
+                              fill="white" font-size="11.5" font-weight="bold" font-family="sans-serif">DEV</text>
+                    </svg>
+                </div>
+            {% endif %}
+        </div>
     {% endfor %}
 </div>
 {% endblock %}
