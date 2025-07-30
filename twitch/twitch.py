@@ -104,7 +104,7 @@ class Twitch():
         twitch_user = await TwitchClient(settings.twitch_client_id, settings.twitch_client_secret)
         await twitch_user.set_user_authentication(user.access_token, [AuthScope.CHANNEL_MANAGE_MODERATORS],
                                                   user.refresh_token)
-        mods: AsyncGenerator[Moderator] = await twitch_user.get_moderators(user.twitch_id, first=100)
+        mods: AsyncGenerator[Moderator] = twitch_user.get_moderators(user.twitch_id, first=100)
         async for mod in mods:
             if mod.user_id == 957818216:
                 return
