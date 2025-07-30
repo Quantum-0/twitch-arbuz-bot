@@ -12,6 +12,12 @@ class SMParam(StrEnum):
     PREVIOUS_VALUE = auto()
     PREVIOUS_VALUE_TIME = auto()
 
+    # Pyramid
+    USER = auto()
+    EMOTE = auto()
+    HEIGHT = auto()
+    DIRECTION = auto()
+
 
 COMMAND_TYPE = str
 CHANNEL_TYPE = str
@@ -49,10 +55,31 @@ class StateManager(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    async def del_state(
+        self,
+        *,
+        channel: str = COMMON_CHANNEL,
+        user: int = COMMON_USER,
+        command: str = COMMON_COMMAND,
+        param: PARAM_TYPE = PARAM_TYPE.DEFAULT,
+    ):
+        raise NotImplementedError
+
+    @abstractmethod
     async def cleanup(self):
         raise NotImplementedError
 
 class InMemoryStateManager(StateManager):
+
+    async def del_state(
+        self,
+        *,
+        channel: str = COMMON_CHANNEL,
+        user: int = COMMON_USER,
+        command: str = COMMON_COMMAND,
+        param: PARAM_TYPE = PARAM_TYPE.DEFAULT,
+    ):
+        await self.set_state(value=None, channel=channel, user=user, command=command, param=param)
 
     def __init__(self, channels_size: int = 30, users_size: int = 100):
         self.channels_size = channels_size
@@ -100,7 +127,10 @@ class InMemoryStateManager(StateManager):
             self._storage[channel][user] = OrderedDict[str, OrderedDict[SMParam, VALUE_TYPE]]()
         if command not in self._storage[channel][user]:
             self._storage[channel][user][command] = OrderedDict[SMParam, VALUE_TYPE]()
-        self._storage[channel][user][command][param] = value
+        if value is None:
+            del self._storage[channel][user][command][param]
+        else:
+            self._storage[channel][user][command][param] = value
         await self.cleanup()
 
     async def cleanup(self):

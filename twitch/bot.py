@@ -11,6 +11,7 @@ from database.database import AsyncSessionLocal
 from database.models import User, TwitchUserSettings
 from twitch.command import BiteCommand, LickCommand, BananaCommand, BoopCommand
 from twitch.command_manager import CommandsManager
+from twitch.handlers import MessagesHandlerManager, PyramidHandler
 from twitch.state_manager import get_state_manager
 from twitch.twitch import Twitch
 from utils.logging_conf import LOGGING_CONFIG
@@ -37,6 +38,8 @@ class ChatBot:
         async def on_message(msg: ChatMessage):
             asyncio.run_coroutine_threadsafe(self.on_message(msg), event_loop)
 
+        self._handler_manager = MessagesHandlerManager(get_state_manager(), self.send_message)
+        self._handler_manager.register(PyramidHandler)
         self._command_manager = CommandsManager(get_state_manager(), self.send_message)
         self._command_manager.register(BiteCommand)
         self._command_manager.register(LickCommand)
@@ -77,6 +80,7 @@ class ChatBot:
                 return
 
             user_settings: TwitchUserSettings = user.settings
+            await self._handler_manager.handle(user_settings, channel, message)
             await self._command_manager.handle(user_settings, channel, message)
             #if any(message.text.startswith(x) for x in ['!hug', '!обнять', '!обнимашки']) and user_settings.enable_hug:
             #    await cmd_hug_handler(self, channel, message)
