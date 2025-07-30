@@ -40,6 +40,8 @@ LOGGING_CONFIG = {
         "python_multipart.multipart": {"level": "WARN", "propagate": False},
         "asyncio": {"level": "WARN", "propagate": False},
         "urllib3.connectionpool": {"level": "WARN", "propagate": False},
+        "httpcore.connection": {"level": "INFO", "propagate": False},
+        "httpcore.http11": {"level": "INFO", "propagate": False},
         # "twitch.bot": {"level": "DEBUG", "propagate": False},
     },
 }
