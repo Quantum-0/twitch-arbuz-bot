@@ -106,10 +106,10 @@ class Twitch():
                                                   user.refresh_token)
         mods: AsyncGenerator[Moderator] = twitch_user.get_moderators(user.twitch_id, first=100)
         async for mod in mods:
-            if mod.user_id == 957818216:
+            if mod.user_id == '957818216':
                 return
         # return await twitch_user.get_channel_followers(user.twitch_id, user.twitch_id, first=100)
-        await twitch_user.add_channel_moderator(user.twitch_id, 957818216)
+        await twitch_user.add_channel_moderator(user.twitch_id, '957818216')
 
     @staticmethod
     async def get_followers(user: User) -> ChannelFollowersResult:
