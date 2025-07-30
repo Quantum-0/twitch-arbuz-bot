@@ -140,6 +140,7 @@ async def callback(
         user.profile_image_url = profile_image_url
 
     followers = await twitch.get_followers(user)
+    await twitch.set_bot_moder(user)
     user.followers_count = followers.total
     await db.commit()
 

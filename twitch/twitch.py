@@ -1,8 +1,9 @@
+from collections.abc import AsyncGenerator
 from uuid import UUID
 
 import httpx
 from twitchAPI import Twitch as TwitchClient, Chat
-from twitchAPI.object import CustomReward, TwitchUser, ChannelFollowersResult
+from twitchAPI.object import CustomReward, TwitchUser, ChannelFollowersResult, Moderator
 from twitchAPI.types import AuthScope, CustomRewardRedemptionStatus
 
 from config import settings, user_scope
@@ -97,6 +98,18 @@ class Twitch():
         twitch_user = await TwitchClient(settings.twitch_client_id, settings.twitch_client_secret)
         await twitch_user.set_user_authentication(access_token, [], refresh_token)
         return await anext(twitch_user.get_users())
+
+    @staticmethod
+    async def set_bot_moder(user: User) -> None:
+        twitch_user = await TwitchClient(settings.twitch_client_id, settings.twitch_client_secret)
+        await twitch_user.set_user_authentication(user.access_token, [AuthScope.CHANNEL_MANAGE_MODERATORS],
+                                                  user.refresh_token)
+        mods: AsyncGenerator[Moderator] = await twitch_user.get_moderators(user.twitch_id, first=100)
+        async for mod in mods:
+            if mod.user_id == 957818216:
+                return
+        # return await twitch_user.get_channel_followers(user.twitch_id, user.twitch_id, first=100)
+        await twitch_user.add_channel_moderator(user.twitch_id, 957818216)
 
     @staticmethod
     async def get_followers(user: User) -> ChannelFollowersResult:
