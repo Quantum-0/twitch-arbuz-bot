@@ -179,3 +179,103 @@ class CmdlistCommand(SimpleCDCommand):
 
     def is_enabled(self, streamer_settings: TwitchUserSettings) -> bool:
         return True
+
+class PatCommand(SimpleTargetCommand):
+    command_name = "pat"
+    command_aliases = ["pat", "patpat", "pat-pat", "пат", "пат-пат", "патпат", "погладить", "гладить"]
+    command_description = "Пат-патнуть пользователя по голове ^w^"
+
+    need_target = True
+    cooldown_timer = 45
+    cooldown_count = 2
+
+    def is_enabled(self, streamer_settings: TwitchUserSettings) -> bool:
+        return streamer_settings.enable_pat
+
+    async def _handle(self, channel: str, user: str, message: str, targets: list[str]) -> str:
+        target = join_targets(targets)
+        how_pat = random.choice(["мягко", "аккуратно", "приятно", "нежно", "ласково"])
+        how_stroke = random.choice(["легонько", "мягко", "аккуратно", "приятно"])
+        if len(targets) == 1:
+            variants = [
+                f"@{user} {how_pat} пат-патает {target} по голове",
+                f"@{user} {how_pat} пат-патает {target} по головушке",
+                f"@{user} {how_pat} делает пат-пат {target}",
+                f"@{user} {how_stroke} гладит {target} по голове",
+                f"@{user} {how_stroke} гладит по голове {target}",
+                f"@{user} хорошенько так патает {target}!",
+            ]
+        else:
+            variants = [
+                f"@{user} {how_pat} пат-патает {target} по головам",
+                f"@{user} {how_pat} пат-патает {target} по головушкам",
+                f"@{user} {how_pat} делает пат-пат {target}",
+                f"@{user} {how_stroke} гладит {target} по голове",
+                f"@{user} {how_stroke} гладит по голове {target}",
+                f"@{user} хорошенько так патает {target}!",
+            ]
+        return random.choice(variants)
+
+    async def _no_target_reply(self, user: str) -> str | None:
+        return f"Чтобы кого-нибудь пат-патнуть, нужно указать, кого именно! Например \"!pat @Quantum075Bot\""
+
+    async def _cooldown_reply(self, user: str, delay: int) -> str | None:
+        return f"@{user}, подожди, пожалуйста {self.delay_to_seconds(delay)}, а то сейчас кому-нибудь лысину сделаешь своими поглаживаниями о:"
+
+    async def _self_call_reply(self, user: str) -> str | None:
+        return random.choice([f"@{user} с важным видом гладит собственную голову", f"@{user} делает пат-пат себе же",
+                              f"Кажется, кому-то не хватает патов! Погладьте @{user} пожалуйста!"])
+
+    async def _bot_call_reply(self, user: str, target: str) -> str | None:
+        return random.choice(
+            [f"Правильно, боты тоже заслуживаниют поглаживаний ^w^", f"@{target} пат-пат тебя, коллега-бот <3"])
+
+    async def _this_bot_call_reply(self, user: str) -> str | None:
+        return random.choice([f"*довольное мурчание* ^w^", f"уиии, пасипа за пат-пат >w<"])
+
+
+class HugCommand(SimpleTargetCommand):
+    command_name = "hug"
+    command_aliases = ["hug", "hugs", "обнять", "обнимать"]
+    command_description = "Заобнимать чаттерса!"
+
+    need_target = True
+    cooldown_timer = 25
+
+    def is_enabled(self, streamer_settings: TwitchUserSettings) -> bool:
+        return streamer_settings.enable_hug
+
+    async def _handle(self, channel: str, user: str, message: str, targets: list[str]) -> str:
+        target = join_targets(targets)
+        variants = [
+            f"@{user} обнимает {target}",
+            f"@{user} крепко обнимает {target}",
+            f"@{user} набрасывается с объятиями на {target}",
+            f"@{user} стискивает в объятиях {target}",
+            f"@{user} заобнимовывает {target}",
+        ]
+        # TODO: добавить в SM дату последнего объятия, если это было меньше чем минуту назад - выдавать "присоединяется к обнимашкам"
+        return random.choice(variants)
+
+    async def _no_target_reply(self, user: str) -> str | None:
+        return f"@{user} хочет обнимашек, но не справляется с выбором цели для этого, по-этому обнимает плюшевую акулку"
+
+    async def _cooldown_reply(self, user: str, delay: int) -> str | None:
+        return random.choice([f"@{user} подожди, секундочку, прежде чем обнимать кого-то другого!", f"@{user}, вы пока что в процессе обнимания другого пользователя! Подождите {self.delay_to_seconds(delay)}"])
+
+    async def _self_call_reply(self, user: str) -> str | None:
+        return random.choice([
+            #f"@{user} обхватывает себя руками",
+            f"@{user} испытывает тактильный голод, из-за чего пытается обнимать себя. Обнимите @{user}, пожалуйста!",
+            f"Awww, @{user}, ну ты чего? Давай хотя бы я тебя обниму o^o !hug @{user}",
+            f"@{user} обнимает плюшевую акулу из Икеи",
+        ])
+
+    async def _bot_call_reply(self, user: str, target: str) -> str | None:
+        return random.choice([
+            f"Обнимаем боооота! >w<",
+            f"Боты тоже заслуживают обнимашек! Обнимаем @{target}!"
+         ])
+
+    async def _this_bot_call_reply(self, user: str) -> str | None:
+        return random.choice([f"Уиии, пасиба за обнимашки!", f"@{user}, обнимаю тебя в ответ! <3"])

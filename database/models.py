@@ -64,6 +64,7 @@ class TwitchUserSettings(Base):
     enable_lick: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false(), nullable=False)
     enable_boop: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false(), nullable=False)
     enable_pat: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false(), nullable=False)
+    enable_hug: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false(), nullable=False)
 
     enable_banana: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false(), nullable=False)
     enable_whoami: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false(), nullable=False)

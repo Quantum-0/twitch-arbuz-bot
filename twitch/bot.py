@@ -9,7 +9,7 @@ from twitchAPI.types import ChatEvent
 
 from database.database import AsyncSessionLocal
 from database.models import User, TwitchUserSettings
-from twitch.command import BiteCommand, LickCommand, BananaCommand, BoopCommand, CmdlistCommand
+from twitch.command import BiteCommand, LickCommand, BananaCommand, BoopCommand, CmdlistCommand, PatCommand, HugCommand
 from twitch.command_manager import CommandsManager
 from twitch.handlers import MessagesHandlerManager, PyramidHandler
 from twitch.state_manager import get_state_manager
@@ -46,6 +46,8 @@ class ChatBot:
         self._command_manager.register(LickCommand)
         self._command_manager.register(BananaCommand)
         self._command_manager.register(BoopCommand)
+        self._command_manager.register(PatCommand)
+        self._command_manager.register(HugCommand)
 
         chat.register_event(ChatEvent.MESSAGE, on_message)
         logger.debug("On_message handler registered")

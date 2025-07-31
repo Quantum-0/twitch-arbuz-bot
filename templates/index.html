@@ -211,12 +211,14 @@ button[disabled] { opacity: 0.6; cursor: not-allowed; }
             <span>Включить !boop</span>
             <div class="toggle-switch {% if settings.enable_boop %}active{% endif %}" data-name="enable_boop"></div>
         </div>
-        <!--
         <div class="toggle-label {% if not settings.enable_chat_bot %}disabled{% endif %}">
             <span>Включить !pat</span>
             <div class="toggle-switch {% if settings.enable_pat %}active{% endif %}" data-name="enable_pat"></div>
         </div>
-        -->
+        <div class="toggle-label {% if not settings.enable_chat_bot %}disabled{% endif %}">
+            <span>Включить !hug</span>
+            <div class="toggle-switch {% if settings.enable_hug %}active{% endif %}" data-name="enable_hug"></div>
+        </div>
         <div class="toggle-label {% if not settings.enable_chat_bot %}disabled{% endif %}">
             <span>Включить !банан</span>
             <div class="toggle-switch {% if settings.enable_banana %}active{% endif %}" data-name="enable_banana"></div>
