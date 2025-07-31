@@ -86,8 +86,8 @@ class ChatBot:
                 return
 
             user_settings: TwitchUserSettings = user.settings
-            await self._handler_manager.handle(user_settings, channel, message)
             await self._command_manager.handle(user_settings, channel, message)
+            await self._handler_manager.handle(user_settings, channel, message)
             #if any(message.text.startswith(x) for x in ['!hug', '!обнять', '!обнимашки']) and user_settings.enable_hug:
             #    await cmd_hug_handler(self, channel, message)
             # if any(message.text.startswith(x) for x in ['!якто', '!ктоя', '!whoami']):
@@ -126,5 +126,5 @@ class ChatBot:
             if current_channels - desired_channels:
                 logger.info(f"Left channels: {current_channels - desired_channels}")
 
-    async def get_commands(self, user: User) -> list[tuple[str, list[str], str]]:
+    async def get_commands(self, user: User) -> list[tuple[str, str, str]]:
         return await self._command_manager.get_commands_of_user(user)

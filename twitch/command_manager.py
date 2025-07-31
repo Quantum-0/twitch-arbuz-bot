@@ -5,7 +5,7 @@ from typing import Awaitable
 from twitchAPI.chat import ChatMessage
 
 from database.models import TwitchUserSettings
-from twitch.command import Command
+from twitch.base_commands import Command
 from twitch.state_manager import StateManager
 
 
@@ -31,7 +31,7 @@ class CommandsManager:
                 logger.debug(f"Handler for command was found: {cmd}")
                 await cmd.handle(channel, message)
 
-    async def get_commands_of_user(self, user) -> list[tuple[str, list[str], str]]:
+    async def get_commands_of_user(self, user) -> list[tuple[str, str, str]]:
         user_settings: TwitchUserSettings = user.settings
         result = []
         for cmd in self.commands:

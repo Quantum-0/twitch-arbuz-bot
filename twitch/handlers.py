@@ -1,3 +1,4 @@
+import logging
 from abc import abstractmethod
 from collections.abc import Callable, Awaitable
 from enum import auto, Enum
@@ -6,6 +7,9 @@ from twitchAPI.chat import ChatMessage
 
 from database.models import TwitchUserSettings
 from twitch.state_manager import StateManager, SMParam
+
+
+logger = logging.getLogger(__name__)
 
 
 class HandlerResult(Enum):
@@ -67,6 +71,7 @@ class PyramidHandler(CommonMessagesHandler):
             await self._state_manager.del_state(channel=channel, command=self.COMMAND_NAME, param=SMParam.HEIGHT)
             await self._state_manager.del_state(channel=channel, command=self.COMMAND_NAME, param=SMParam.DIRECTION)
             await self.send_response(chat=channel, message=f"@{user} поломал пирамидку @{state_user}. Ехехе")
+            return HandlerResult.HANDLED
 
         if not state_exists and emote and emote_count == 1:
             # Начало пирамидки
@@ -74,24 +79,28 @@ class PyramidHandler(CommonMessagesHandler):
             await self._state_manager.set_state(channel=channel, command=self.COMMAND_NAME, param=SMParam.EMOTE, value=emote)
             await self._state_manager.set_state(channel=channel, command=self.COMMAND_NAME, param=SMParam.HEIGHT, value=emote_count)
             await self._state_manager.set_state(channel=channel, command=self.COMMAND_NAME, param=SMParam.DIRECTION, value="UP")
-        elif emote == state_emote and (emote_count == state_height + 1) and state_dir == "UP":
+            return HandlerResult.HANDLED_AND_CONTINUE
+        if emote == state_emote and (emote_count == state_height + 1) and state_dir == "UP":
             # +1 вверх
             await self._state_manager.set_state(channel=channel, command=self.COMMAND_NAME, param=SMParam.USER, value=user)
             # await self._state_manager.set_state(channel=channel, command=self.COMMAND_NAME, param=SMParam.EMOTE, value=emote)
             await self._state_manager.set_state(channel=channel, command=self.COMMAND_NAME, param=SMParam.HEIGHT, value=emote_count)
             # await self._state_manager.set_state(channel=channel, command=self.COMMAND_NAME, param=SMParam.DIRECTION, value="UP")
+            return HandlerResult.HANDLED_AND_CONTINUE
         elif emote == state_emote and (emote_count == state_height - 1) and state_dir == "UP":
             # развернулись вниз
             await self._state_manager.set_state(channel=channel, command=self.COMMAND_NAME, param=SMParam.USER, value=user)
             # await self._state_manager.set_state(channel=channel, command=self.COMMAND_NAME, param=SMParam.EMOTE, value=emote)
             await self._state_manager.set_state(channel=channel, command=self.COMMAND_NAME, param=SMParam.HEIGHT, value=emote_count)
             await self._state_manager.set_state(channel=channel, command=self.COMMAND_NAME, param=SMParam.DIRECTION, value="DOWN")
+            return HandlerResult.HANDLED_AND_CONTINUE
         elif emote == state_emote and (emote_count == state_height - 1) and emote_count > 1 and state_dir == "DOWN":
             # -1
             await self._state_manager.set_state(channel=channel, command=self.COMMAND_NAME, param=SMParam.USER, value=user)
             # await self._state_manager.set_state(channel=channel, command=self.COMMAND_NAME, param=SMParam.EMOTE, value=emote)
             await self._state_manager.set_state(channel=channel, command=self.COMMAND_NAME, param=SMParam.HEIGHT, value=emote_count)
             # await self._state_manager.set_state(channel=channel, command=self.COMMAND_NAME, param=SMParam.DIRECTION, value="DOWN")
+            return HandlerResult.HANDLED_AND_CONTINUE
         elif emote == state_emote and (emote_count == 1) and state_dir == "DOWN":
             # закончили пирамидку
             await self._state_manager.del_state(channel=channel, command=self.COMMAND_NAME, param=SMParam.USER)
@@ -99,6 +108,9 @@ class PyramidHandler(CommonMessagesHandler):
             await self._state_manager.del_state(channel=channel, command=self.COMMAND_NAME, param=SMParam.HEIGHT)
             await self._state_manager.del_state(channel=channel, command=self.COMMAND_NAME, param=SMParam.DIRECTION)
             await self.send_response(chat=channel, message=f"@{user} достроил пирамидку! Молодец!")
+            return HandlerResult.HANDLED
+
+        return HandlerResult.SKIPED
 
 
 
@@ -112,6 +124,7 @@ class MessagesHandlerManager:
         self.handlers.append(command(self._sm, self._send_message))
 
     async def handle(self, user_settings: TwitchUserSettings, channel: str, message: ChatMessage):
+        logger.debug(f"Handling message with {self}")
         for handler in self.handlers:
             if not handler.is_enabled(user_settings):
                 continue
