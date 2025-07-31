@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from distutils.command.clean import clean
+from collections.abc import AsyncIterator
 from enum import StrEnum, auto
 from typing import OrderedDict
 
@@ -66,10 +66,28 @@ class StateManager(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    async def get_all_from_channel(
+        self,
+        *,
+        channel: str = COMMON_CHANNEL,
+    ) -> AsyncIterator[tuple[USER_TYPE, COMMAND_TYPE, PARAM_TYPE, VALUE_TYPE]]:
+        raise NotImplementedError
+
+    @abstractmethod
     async def cleanup(self):
         raise NotImplementedError
 
 class InMemoryStateManager(StateManager):
+
+    async def get_all_from_channel(
+            self,
+            *,
+            channel: str = COMMON_CHANNEL,
+    ) -> AsyncIterator[tuple[USER_TYPE, COMMAND_TYPE, PARAM_TYPE, VALUE_TYPE]]:
+        for user in self._storage[channel]:
+            for command in self._storage[channel][user]:
+                for param in self._storage[channel][user][command]:
+                    yield user, command, param, self._storage[channel][user][command][param]
 
     async def del_state(
         self,

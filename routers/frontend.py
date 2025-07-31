@@ -1,7 +1,7 @@
 import random
 from typing import Any
 
-from fastapi import APIRouter, Security
+from fastapi import APIRouter, Security, HTTPException
 from fastapi.params import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 import sqlalchemy as sa
@@ -12,7 +12,8 @@ from starlette.templating import Jinja2Templates
 from config import settings
 from dependencies import get_twitch, get_db
 from database.models import User
-from routers.security_helpers import user_auth
+from routers.security_helpers import user_auth, admin_auth
+from twitch.state_manager import get_state_manager
 from twitch.twitch import Twitch
 from utils.memes import token_expires_in_days
 
@@ -70,6 +71,42 @@ async def meme_tutorial_page(
 ):
     return templates.TemplateResponse(
         "memealerts-tutorial.html",
+        {
+            "request": request,
+        }
+    )
+
+@router.get("/debug")
+async def debug_page(
+    request: Request,
+    user: Any = Security(user_auth),
+):
+    if not user.in_beta_test:
+        raise HTTPException(status_code=403, detail="No access to debug")
+    state_manager_data = []
+    async for values in get_state_manager().get_all_from_channel(channel="quantum075"):
+        state_manager_data.append(values)
+    async for values in get_state_manager().get_all_from_channel():
+        state_manager_data.append(values)
+    return templates.TemplateResponse(
+        "debug.html",
+        {
+            "request": request,
+            "state_manager_data": state_manager_data
+        }
+    )
+
+
+@router.get("/admin")
+async def admin_page(
+    request: Request,
+    user: Any = Security(user_auth),
+    _: None = Security(admin_auth),
+):
+    if not user.login_name == "quantum075":
+        raise HTTPException(status_code=403, detail="No access to admin panel")
+    return templates.TemplateResponse(
+        "admin.html",
         {
             "request": request,
         }

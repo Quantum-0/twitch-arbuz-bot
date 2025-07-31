@@ -102,9 +102,6 @@ class PyramidHandler(CommonMessagesHandler):
 
 
 
-
-
-
 class MessagesHandlerManager:
     def __init__(self, storage: StateManager, send_message: Callable[..., Awaitable[None]]):
         self.handlers: list[CommonMessagesHandler] = []
