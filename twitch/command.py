@@ -222,7 +222,7 @@ class PatCommand(SimpleTargetCommand):
         return f"Чтобы кого-нибудь пат-патнуть, нужно указать, кого именно! Например \"!pat @Quantum075Bot\""
 
     async def _cooldown_reply(self, user: str, delay: int) -> str | None:
-        return f"@{user}, подожди, пожалуйста {self.delay_to_seconds(delay)}, а то сейчас кому-нибудь лысину сделаешь своими поглаживаниями о:"
+        return f"@{user}, подожди, пожалуйста, {self.delay_to_seconds(delay)}, а то сейчас кому-нибудь лысину сделаешь своими поглаживаниями о:"
 
     async def _self_call_reply(self, user: str) -> str | None:
         return random.choice([f"@{user} с важным видом гладит собственную голову", f"@{user} делает пат-пат себе же",
