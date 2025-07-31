@@ -92,7 +92,7 @@ class SimpleTargetCommand(Command, ABC):
         )
 
         if last_command_call and self.cooldown_timer and time() - last_command_call < self.cooldown_timer:
-            if self.cooldown_count == 1 or (command_calls_count or 1) > self.cooldown_count:
+            if self.cooldown_count == 1 or (command_calls_count or 1) >= self.cooldown_count:
                 delay = self.cooldown_timer - int(time() - last_command_call)
                 response = await self._cooldown_reply(user, delay)
                 await self.send_response(chat=channel, message=response)
