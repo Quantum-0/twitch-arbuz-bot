@@ -9,7 +9,7 @@ from twitchAPI.types import ChatEvent
 
 from database.database import AsyncSessionLocal
 from database.models import User, TwitchUserSettings
-from twitch.command import BiteCommand, LickCommand, BananaCommand, BoopCommand
+from twitch.command import BiteCommand, LickCommand, BananaCommand, BoopCommand, CmdlistCommand
 from twitch.command_manager import CommandsManager
 from twitch.handlers import MessagesHandlerManager, PyramidHandler
 from twitch.state_manager import get_state_manager
@@ -41,6 +41,7 @@ class ChatBot:
         self._handler_manager = MessagesHandlerManager(get_state_manager(), self.send_message)
         self._handler_manager.register(PyramidHandler)
         self._command_manager = CommandsManager(get_state_manager(), self.send_message)
+        self._command_manager.register(CmdlistCommand)
         self._command_manager.register(BiteCommand)
         self._command_manager.register(LickCommand)
         self._command_manager.register(BananaCommand)
@@ -63,6 +64,9 @@ class ChatBot:
             chat = chat.login_name
         elif not isinstance(chat, str):
             raise ValueError
+        if len(message) == 0 or message is None:
+            logger.info(f"No message to send to channel `{chat}`")
+            return
         logger.info(f"Sending message `{message}` to channel `{chat}`")
         await self._chat.send_message(chat.lower(), message)
 

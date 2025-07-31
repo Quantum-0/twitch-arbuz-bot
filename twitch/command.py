@@ -150,6 +150,62 @@ class SimpleTargetCommand(Command, ABC):
     async def _handle(self, channel: str, user: str, message: str, targets: list[str]) -> str:
         raise NotImplementedError
 
+class SimpleCDCommand(Command):
+    @property
+    @abstractmethod
+    def cooldown_timer_per_chat(self) -> int | None:
+        return None
+
+    @property
+    @abstractmethod
+    def cooldown_timer_per_user(self) -> int | None:
+        return None
+
+    async def handle(self, channel: str, message: ChatMessage):
+        user: str = message.user.display_name
+        user_id: int = int(message.user.id)
+
+        last_command_call_user = await self._state_manager.get_state(
+            channel=channel,
+            user=user_id,
+            command=self.command_name,
+            param=SMParam.COOLDOWN
+        )
+        last_command_call_channel = await self._state_manager.get_state(
+            channel=channel,
+            command=self.command_name,
+            param=SMParam.COOLDOWN
+        )
+
+        if last_command_call_user and self.cooldown_timer_per_user and time() - last_command_call_user < self.cooldown_timer_per_user:
+            delay = self.cooldown_timer_per_user - int(time() - last_command_call_user)
+            response = await self._cooldown_reply(user, delay)
+            await self.send_response(chat=channel, message=response)
+            return
+
+        if last_command_call_channel and self.cooldown_timer_per_chat and time() - last_command_call_channel < self.cooldown_timer_per_chat:
+            delay = self.cooldown_timer_per_chat - int(time() - last_command_call_channel)
+            response = await self._cooldown_reply(user, delay)
+            await self.send_response(chat=channel, message=response)
+            return
+
+        if self.cooldown_timer_per_chat:
+            await self._state_manager.set_state(channel=channel, command=self.command_name, param=SMParam.COOLDOWN, value=time())
+        if self.cooldown_timer_per_user:
+            await self._state_manager.set_state(channel=channel, user=user_id, command=self.command_name, param=SMParam.COOLDOWN, value=time())
+
+        response = await self._handle(channel, user, message.text)
+        await self.send_response(chat=channel, message=response)
+        return
+
+    @abstractmethod
+    async def _handle(self, channel: str, user: str, message: str) -> str:
+        raise NotImplementedError
+
+    @abstractmethod
+    async def _cooldown_reply(self, user: str, delay: int) -> str | None:
+        raise NotImplementedError
+
 class SavingResultCommand(Command):
     @property
     @abstractmethod
@@ -385,3 +441,20 @@ class BoopCommand(SimpleTargetCommand):
 
     async def _this_bot_call_reply(self, user: str) -> str | None:
         return random.choice([f"*удивлённо скосил глаза и смотрит на свой нос*", f"{user} нось мой трогаешь? с: И как он тебе?"])
+
+class CmdlistCommand(SimpleCDCommand):
+    cooldown_timer_per_chat = 120
+    cooldown_timer_per_user = 600
+
+    async def _handle(self, channel: str, user: str, message: str) -> str:
+        return f"Список команд в чате для этого бота: https://bot.quantum0.ru/cmdlist?streamer={channel}"
+
+    async def _cooldown_reply(self, user: str, delay: int) -> str | None:
+        return None
+
+    command_name = "cmdlist"
+    command_description = "Список команд чата"
+    command_aliases = ["cmdlist"]
+
+    def is_enabled(self, streamer_settings: TwitchUserSettings) -> bool:
+        return True

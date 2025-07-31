@@ -117,12 +117,15 @@ async def admin_page(
 @router.get("/cmdlist")
 async def command_list_page(
     request: Request,
-    streamer_id: int = Query(...),
+    # streamer_id: int = Query(...),
+    streamer: str = Query(...),
     db: AsyncSession = Depends(get_db),
     chat_bot: ChatBot = Depends(get_chat_bot),
 ):
     result = await db.execute(
-        sa.select(User).options(selectinload(User.settings)).filter_by(twitch_id=str(streamer_id)))
+        # sa.select(User).options(selectinload(User.settings)).filter_by(twitch_id=str(streamer_id))
+        sa.select(User).options(selectinload(User.settings)).filter_by(login_name=streamer)
+    )
     user = result.scalar_one_or_none()
     if not user:
         return HTTPException(404, "Streamer not found")
