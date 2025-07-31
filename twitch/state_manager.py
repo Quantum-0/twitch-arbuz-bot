@@ -11,6 +11,7 @@ class SMParam(StrEnum):
     # COUNT_RECEIVED = auto()
     PREVIOUS_VALUE = auto()
     PREVIOUS_VALUE_TIME = auto()
+    LAST_APPLY = auto()
 
     # Pyramid
     USER = auto()

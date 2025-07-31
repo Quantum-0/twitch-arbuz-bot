@@ -123,7 +123,14 @@ class SimpleTargetCommand(Command, ABC):
 
         response = await self._handle(channel, user, message.text, targets)
         await self.send_response(chat=channel, message=response)
-        return
+
+        for target in targets:
+            if target.startswith('@'):
+                target = target[1:].lower()
+            else:
+                continue
+            # TODO: сюда б айди писать а не строку, но не оч понятно где б его взять
+            await self._state_manager.set_state(channel=channel, user=target, command=self.command_name, param=SMParam.LAST_APPLY, value=time())
 
     @abstractmethod
     async def _no_target_reply(self, user: str) -> str | None:

@@ -1,7 +1,9 @@
 import random
+from time import time
 
 from database.models import TwitchUserSettings
 from twitch.base_commands import SimpleTargetCommand, SavingResultCommand, SimpleCDCommand
+from twitch.state_manager import SMParam
 from twitch.utils import join_targets
 
 
@@ -247,14 +249,18 @@ class HugCommand(SimpleTargetCommand):
 
     async def _handle(self, channel: str, user: str, message: str, targets: list[str]) -> str:
         target = join_targets(targets)
+        join_to_hugs_str = ""
+        if len(targets) == 1:
+            last_hug_target = await self._state_manager.get_state(channel=channel, user=target[1:].lower(), command=self.command_name, param=SMParam.LAST_APPLY)
+            if last_hug_target and time() - last_hug_target < 20:
+                join_to_hugs_str = "присоединяется к обнимашкам и "
         variants = [
-            f"@{user} обнимает {target}",
-            f"@{user} крепко обнимает {target}",
-            f"@{user} набрасывается с объятиями на {target}",
-            f"@{user} стискивает в объятиях {target}",
-            f"@{user} заобнимовывает {target}",
+            f"@{user}{join_to_hugs_str} обнимает {target}",
+            f"@{user}{join_to_hugs_str} крепко обнимает {target}",
+            f"@{user}{join_to_hugs_str} набрасывается с объятиями на {target}",
+            f"@{user}{join_to_hugs_str} стискивает в объятиях {target}",
+            f"@{user}{join_to_hugs_str} заобнимовывает {target}",
         ]
-        # TODO: добавить в SM дату последнего объятия, если это было меньше чем минуту назад - выдавать "присоединяется к обнимашкам"
         return random.choice(variants)
 
     async def _no_target_reply(self, user: str) -> str | None:
