@@ -84,6 +84,8 @@ class InMemoryStateManager(StateManager):
             *,
             channel: str = COMMON_CHANNEL,
     ) -> AsyncIterator[tuple[USER_TYPE, COMMAND_TYPE, PARAM_TYPE, VALUE_TYPE]]:
+        if channel not in self._storage:
+            return
         for user in self._storage[channel]:
             for command in self._storage[channel][user]:
                 for param in self._storage[channel][user][command]:
