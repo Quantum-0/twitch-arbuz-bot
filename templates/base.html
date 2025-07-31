@@ -77,6 +77,12 @@
     <nav style="display: flex; gap: 15px; align-items: center;">
         <a href="/panel" style="color: white; text-decoration: none;">Главная</a>
         <a href="/streamers" style="color: white; text-decoration: none;">Стримеры</a>
+        {% if user.in_beta_test %}
+        <a href="/debug" style="color: white; text-decoration: none;">Отладка</a>
+        {% endif %}
+        {% if user.twitch_login == "quantum075" %}
+        <a href="/admin" style="color: white; text-decoration: none;">Админка</a>
+        {% endif %}
         <a href="/about" style="color: white; text-decoration: none;">О сервисе</a>
     </nav>
     <div style="display: flex; align-items: center; gap: 10px;">
