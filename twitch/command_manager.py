@@ -28,6 +28,6 @@ class CommandsManager:
         user_settings: TwitchUserSettings = user.settings
         result = []
         for cmd in self.commands:
-            if not cmd.is_enabled(user_settings):
+            if cmd.is_enabled(user_settings):
                 result.append((cmd.command_name, ', '.join(["!" + cmd for cmd in cmd.command_aliases]), cmd.command_description))
         return result
