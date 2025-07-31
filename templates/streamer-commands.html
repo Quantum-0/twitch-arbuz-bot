@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+
+{% block title %}Доступные команды на канале {{ streamer_name }}{% endblock %}
+
+{% block content %}
+
+<div style="display: flex; justify-content: center; margin: 20px 0;">
+    <img src="{{ streamer_pic }}" alt="Аватар стримера"
+         style="width: 256px; height: 256px; border-radius: 50%; border: 5px solid #4CAF50; object-fit: cover;">
+</div>
+
+<h2>Доступные в чате команды</h2>
+
+<table style="width: 100%; border-collapse: collapse; background: white; margin-top: 20px;">
+    <thead>
+        <tr style="background-color: #4CAF50; color: white;">
+            <th style="padding: 10px; border: 1px solid #ddd;">Команда</th>
+            <th style="padding: 10px; border: 1px solid #ddd;">Алиасы</th>
+            <th style="padding: 10px; border: 1px solid #ddd;">Описание</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for command, aliases, description in commands %}
+        <tr style="border-bottom: 1px solid #ddd;">
+            <td style="padding: 10px; border: 1px solid #ddd;">{{ command }}</td>
+            <td style="padding: 10px; border: 1px solid #ddd;">{{ aliases }}</td>
+            <td style="padding: 10px; border: 1px solid #ddd;">{{ description }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+{% if commands|length == 0 %}
+<p style="margin-top: 20px;">Нет доступных команд.</p>
+{% endif %}
+{% endblock %}

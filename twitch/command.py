@@ -19,6 +19,11 @@ class Command(ABC):
 
     @property
     @abstractmethod
+    def command_description(self) -> str:
+        raise NotImplementedError
+
+    @property
+    @abstractmethod
     def command_aliases(self) -> list[str]:
         raise NotImplementedError
 
@@ -226,6 +231,7 @@ class SavingResultCommand(Command):
 class BiteCommand(SimpleTargetCommand):
     command_name = "bite"
     command_aliases = ["bite", "кусь", "кусьб", "укусить", "куснуть"]
+    command_description = "Укусить пользователя чата"
 
     need_target = True
     cooldown_timer = 60
@@ -260,6 +266,7 @@ class BiteCommand(SimpleTargetCommand):
 class LickCommand(SimpleTargetCommand):
     command_name = "lick"
     command_aliases = ['lick', 'лизь', 'лизнуть', 'облизать']
+    command_description = "Облизнуть пользователя чата"
 
     need_target = True
     cooldown_timer = 60
@@ -303,6 +310,7 @@ class LickCommand(SimpleTargetCommand):
 class BananaCommand(SavingResultCommand):
     command_name = "banana"
     command_aliases = ['banan', 'banana', 'банан']
+    command_description = "Проанализировать состояние вашего банана"
 
     cooldown_timer = 10
     cooldown_count = 3
@@ -348,6 +356,7 @@ class BananaCommand(SavingResultCommand):
 class BoopCommand(SimpleTargetCommand):
     command_name = "boop"
     command_aliases = ["boop", "буп", "бупнуть"]
+    command_description = "Бупнуть пользователя чата в нос :з"
 
     need_target = True
     cooldown_timer = 60

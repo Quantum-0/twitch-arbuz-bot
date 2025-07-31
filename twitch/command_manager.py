@@ -23,3 +23,11 @@ class CommandsManager:
                 continue
             if any(message.text.startswith(x) for x in ["!" + alias for alias in cmd.command_aliases]):
                 await cmd.handle(channel, message)
+
+    async def get_commands_of_user(self, user) -> list[tuple[str, list[str], str]]:
+        user_settings: TwitchUserSettings = user.settings
+        result = []
+        for cmd in self.commands:
+            if not cmd.is_enabled(user_settings):
+                result.append((cmd.command_name, ', '.join(["!" + cmd for cmd in cmd.command_aliases]), cmd.command_description))
+        return result

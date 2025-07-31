@@ -119,3 +119,6 @@ class ChatBot:
                 self._joined_channels.remove(channel)
             if current_channels - desired_channels:
                 logger.info(f"Left channels: {current_channels - desired_channels}")
+
+    async def get_commands(self, user: User) -> list[tuple[str, list[str], str]]:
+        return await self._command_manager.get_commands_of_user(user)

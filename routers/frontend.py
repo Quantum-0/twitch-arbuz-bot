@@ -1,18 +1,20 @@
 import random
 from typing import Any
 
-from fastapi import APIRouter, Security, HTTPException
+from fastapi import APIRouter, Security, HTTPException, Query
 from fastapi.params import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 import sqlalchemy as sa
+from sqlalchemy.orm import selectinload
 from starlette.requests import Request
 from starlette.responses import RedirectResponse, HTMLResponse
 from starlette.templating import Jinja2Templates
 
 from config import settings
-from dependencies import get_twitch, get_db
-from database.models import User
+from dependencies import get_twitch, get_db, get_chat_bot
+from database.models import User, TwitchUserSettings
 from routers.security_helpers import user_auth, admin_auth
+from twitch.bot import ChatBot
 from twitch.state_manager import get_state_manager
 from twitch.twitch import Twitch
 from utils.memes import token_expires_in_days
@@ -109,6 +111,29 @@ async def admin_page(
         "admin.html",
         {
             "request": request,
+        }
+    )
+
+@router.get("/cmdlist")
+async def command_list_page(
+    request: Request,
+    streamer_id: int = Query(...),
+    db: AsyncSession = Depends(get_db),
+    chat_bot: ChatBot = Depends(get_chat_bot),
+):
+    result = await db.execute(
+        sa.select(User).options(selectinload(User.settings)).filter_by(twitch_id=str(streamer_id)))
+    user = result.scalar_one_or_none()
+    if not user:
+        return HTTPException(404, "Streamer not found")
+    user_settings: TwitchUserSettings = user.settings
+    return templates.TemplateResponse(
+        "streamer-commands.html",
+        {
+            "request": request,
+            "streamer_name": user.login_name,
+            "streamer_pic": user.profile_image_url,
+            "commands": await chat_bot.get_commands(user)
         }
     )
 
