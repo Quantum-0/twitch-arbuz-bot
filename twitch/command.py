@@ -255,11 +255,11 @@ class HugCommand(SimpleTargetCommand):
             if last_hug_target and time() - last_hug_target < 20:
                 join_to_hugs_str = "присоединяется к обнимашкам и "
         variants = [
-            f"@{user}{join_to_hugs_str} обнимает {target}",
-            f"@{user}{join_to_hugs_str} крепко обнимает {target}",
-            f"@{user}{join_to_hugs_str} набрасывается с объятиями на {target}",
-            f"@{user}{join_to_hugs_str} стискивает в объятиях {target}",
-            f"@{user}{join_to_hugs_str} заобнимовывает {target}",
+            f"@{user} {join_to_hugs_str}обнимает {target}",
+            f"@{user} {join_to_hugs_str}крепко обнимает {target}",
+            f"@{user} {join_to_hugs_str}набрасывается с объятиями на {target}",
+            f"@{user} {join_to_hugs_str}стискивает в объятиях {target}",
+            f"@{user} {join_to_hugs_str}заобнимовывает {target}",
         ]
         return random.choice(variants)
 
