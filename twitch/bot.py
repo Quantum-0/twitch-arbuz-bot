@@ -79,8 +79,10 @@ class ChatBot:
             result = await session.execute(sa.select(User).options(selectinload(User.settings)).filter_by(login_name=channel.lower()))
             user = result.scalar_one_or_none()
             if not user:
+                logger.error(f"User {channel.lower()} not found")
                 return
             if not user.in_beta_test:
+                logger.error(f"User {channel.lower()} not in beta test")
                 return
 
             user_settings: TwitchUserSettings = user.settings

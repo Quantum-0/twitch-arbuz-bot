@@ -23,6 +23,7 @@ class CommandsManager:
         logger.info(f"Command {command} was registered")
 
     async def handle(self, user_settings: TwitchUserSettings, channel: str, message: ChatMessage):
+        logger.debug(f"Handling message with {self}")
         for cmd in self.commands:
             if not cmd.is_enabled(user_settings):
                 continue
