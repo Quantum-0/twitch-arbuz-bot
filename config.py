@@ -23,6 +23,9 @@ class Settings(BaseSettings):
     sentry_dsn: AnyHttpUrl
     admin_api_login: str
     admin_api_password: str
+    # github_token: SecretStr
+    # github_repo_owner: str = "Quantum-0"
+    # github_repo_name: str
 
     model_config = SettingsConfigDict(env_prefix='', env_file='.env')
 
