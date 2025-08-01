@@ -1,6 +1,6 @@
 import asyncio
 import logging.config
-import random
+from time import time
 
 from sqlalchemy.orm import selectinload
 from twitchAPI import Chat
@@ -14,6 +14,8 @@ from twitch.command_manager import CommandsManager
 from twitch.handlers import MessagesHandlerManager, PyramidHandler
 from twitch.state_manager import get_state_manager
 from twitch.twitch import Twitch
+from twitch.user_list_manager import UserListManager
+from twitch.utils import delay_to_seconds
 from utils.logging_conf import LOGGING_CONFIG
 from utils.singleton import singleton
 import sqlalchemy as sa
@@ -29,7 +31,9 @@ class ChatBot:
     _main_event_loop: asyncio.AbstractEventLoop
 
     def __init__(self):
-        pass
+        self._user_list_manager = UserListManager()
+        self._handler_manager: MessagesHandlerManager = MessagesHandlerManager(get_state_manager(), self.send_message)
+        self._command_manager = CommandsManager(get_state_manager(), self.send_message)
 
     async def startup(self, twitch: Twitch, event_loop: asyncio.AbstractEventLoop):
         self._main_event_loop = event_loop
@@ -38,9 +42,7 @@ class ChatBot:
         async def on_message(msg: ChatMessage):
             asyncio.run_coroutine_threadsafe(self.on_message(msg), event_loop)
 
-        self._handler_manager = MessagesHandlerManager(get_state_manager(), self.send_message)
         self._handler_manager.register(PyramidHandler)
-        self._command_manager = CommandsManager(get_state_manager(), self.send_message)
         self._command_manager.register(CmdlistCommand)
         self._command_manager.register(BiteCommand)
         self._command_manager.register(LickCommand)
@@ -88,6 +90,7 @@ class ChatBot:
                 return
 
             user_settings: TwitchUserSettings = user.settings
+            await self._user_list_manager.handle(channel, message)
             await self._command_manager.handle(user_settings, channel, message)
             await self._handler_manager.handle(user_settings, channel, message)
             #if any(message.text.startswith(x) for x in ['!hug', '!обнять', '!обнимашки']) and user_settings.enable_hug:
@@ -130,3 +133,10 @@ class ChatBot:
 
     async def get_commands(self, user: User) -> list[tuple[str, str, str]]:
         return await self._command_manager.get_commands_of_user(user)
+
+    async def get_last_active_users(self, user: User) -> list[tuple[str, str]]:
+        result = []
+        dt = time()
+        for name, last_active in self._user_list_manager.get_active_users(user.login_name):
+            result.append((name, delay_to_seconds(dt - last_active) + " назад"))
+        return result

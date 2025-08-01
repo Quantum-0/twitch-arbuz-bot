@@ -32,3 +32,14 @@ def join_targets(targets) -> str | None:
         return targets[0]
     else:
         return ", ".join(targets[:-1]) + " и " + targets[-1]
+
+def delay_to_seconds(delay: float | int) -> str:
+    delay = int(delay)
+
+    tens = (delay // 10 % 10)
+    ones = (delay % 10)
+    if ones == 1 and tens != 1:
+        return f"{delay} секунду"
+    if ones in (2, 3, 4) and tens != 1:
+        return f"{delay} секунды"
+    return f"{delay} секунд"

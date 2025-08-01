@@ -3,7 +3,7 @@
 {% block title %}Debug bot{% endblock %}
 
 {% block content %}
-<h2>Debug Information</h2>
+<h2>State Manager</h2>
 <table style="width: 100%; border-collapse: collapse; background: white;">
     <thead>
         <tr style="background-color: #4CAF50; color: white;">
@@ -20,6 +20,24 @@
             <td style="padding: 10px; border: 1px solid #ddd;">{{ command }}</td>
             <td style="padding: 10px; border: 1px solid #ddd;">{{ param }}</td>
             <td style="padding: 10px; border: 1px solid #ddd;">{{ value }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<h2>Last Active Users</h2>
+<table style="width: 100%; border-collapse: collapse; background: white;">
+    <thead>
+        <tr style="background-color: #4CAF50; color: white;">
+            <th style="padding: 10px; border: 1px solid #ddd;">User</th>
+            <th style="padding: 10px; border: 1px solid #ddd;">Last Active</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for user, active in last_active %}
+        <tr style="border-bottom: 1px solid #ddd;">
+            <td style="padding: 10px; border: 1px solid #ddd;">{{ user }}</td>
+            <td style="padding: 10px; border: 1px solid #ddd;">{{ active }}</td>
         </tr>
         {% endfor %}
     </tbody>

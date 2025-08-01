@@ -70,8 +70,11 @@ class PyramidHandler(CommonMessagesHandler):
             await self._state_manager.del_state(channel=channel, command=self.COMMAND_NAME, param=SMParam.EMOTE)
             await self._state_manager.del_state(channel=channel, command=self.COMMAND_NAME, param=SMParam.HEIGHT)
             await self._state_manager.del_state(channel=channel, command=self.COMMAND_NAME, param=SMParam.DIRECTION)
-            await self.send_response(chat=channel, message=f"@{user} поломал пирамидку @{state_user}. Ехехе")
-            return HandlerResult.HANDLED
+            if state_height >= 3 or state_dir == "DOWN":
+                await self.send_response(chat=channel, message=f"@{user} поломал пирамидку @{state_user}. Ехехе")
+                return HandlerResult.HANDLED
+            else:
+                return HandlerResult.HANDLED_AND_CONTINUE
 
         if not state_exists and emote and emote_count == 1:
             # Начало пирамидки

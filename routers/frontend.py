@@ -82,6 +82,7 @@ async def meme_tutorial_page(
 async def debug_page(
     request: Request,
     user: Any = Security(user_auth),
+    chat_bot: ChatBot = Depends(get_chat_bot)
 ):
     if not user.in_beta_test:
         raise HTTPException(status_code=403, detail="No access to debug")
@@ -94,7 +95,8 @@ async def debug_page(
         "debug.html",
         {
             "request": request,
-            "state_manager_data": state_manager_data
+            "state_manager_data": state_manager_data,
+            "last_active": await chat_bot.get_last_active_users(user),
         }
     )
 

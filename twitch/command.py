@@ -4,7 +4,7 @@ from time import time
 from database.models import TwitchUserSettings
 from twitch.base_commands import SimpleTargetCommand, SavingResultCommand, SimpleCDCommand
 from twitch.state_manager import SMParam
-from twitch.utils import join_targets
+from twitch.utils import join_targets, delay_to_seconds
 
 
 class BiteCommand(SimpleTargetCommand):
@@ -31,7 +31,7 @@ class BiteCommand(SimpleTargetCommand):
     async def _cooldown_reply(self, user: str, delay: int) -> str | None:
         if random.random() < 0.5:
             return f"@{user}, твои зубки находятся в перезарядке! Подожди чуть-чуть, прежде чем пользоваться командой снова."
-        return f"@{user}, твои зубки устали кусаться, подожди {self.delay_to_seconds(delay)}, прежде чем делать новый кусь!"
+        return f"@{user}, твои зубки устали кусаться, подожди {delay_to_seconds(delay)}, прежде чем делать новый кусь!"
 
     async def _self_call_reply(self, user: str) -> str | None:
         return random.choice([f"@{user} кусает сам себя о.О", f"@{user} совершает САМОКУСЬ!"])
@@ -71,9 +71,9 @@ class LickCommand(SimpleTargetCommand):
 
     async def _cooldown_reply(self, user: str, delay: int) -> str | None:
         random_variants = [
-            f'@{user}, твой язык на перезарядке. Прежде чем сделать следующи лизь, подожди {self.delay_to_seconds(delay)}',
-            f'@{user}, остановись, язык ж отвалится! Повторный лизь возможен через {self.delay_to_seconds(delay)}',
-            f'Язык @{user} устал и не хочет двигаться. Попытка лизнуть оказалась неуспешна. Повторите через {self.delay_to_seconds(delay)}',
+            f'@{user}, твой язык на перезарядке. Прежде чем сделать следующи лизь, подожди {delay_to_seconds(delay)}',
+            f'@{user}, остановись, язык ж отвалится! Повторный лизь возможен через {delay_to_seconds(delay)}',
+            f'Язык @{user} устал и не хочет двигаться. Попытка лизнуть оказалась неуспешна. Повторите через {delay_to_seconds(delay)}',
         ]
         return random.choice(random_variants)
 
@@ -154,7 +154,7 @@ class BoopCommand(SimpleTargetCommand):
         return f"Чтобы бупнуть кого-нибудь в носярку, нужно указать, кого ты хочешь бупнуть! Например \"!буп @{user}\""
 
     async def _cooldown_reply(self, user: str, delay: int) -> str | None:
-        return f"@{user}, подожди {self.delay_to_seconds(delay)}, прежде чем делать бупать снова :з"
+        return f"@{user}, подожди {delay_to_seconds(delay)}, прежде чем делать бупать снова :з"
 
     async def _self_call_reply(self, user: str) -> str | None:
         return random.choice([f"@{user} тыкает себя пальцем в нос", f"@{user} загадочно ощупывает свой нос о-о\""])
@@ -222,7 +222,7 @@ class PatCommand(SimpleTargetCommand):
         return f"Чтобы кого-нибудь пат-патнуть, нужно указать, кого именно! Например \"!pat @Quantum075Bot\""
 
     async def _cooldown_reply(self, user: str, delay: int) -> str | None:
-        return f"@{user}, подожди, пожалуйста, {self.delay_to_seconds(delay)}, а то сейчас кому-нибудь лысину сделаешь своими поглаживаниями о:"
+        return f"@{user}, подожди, пожалуйста, {delay_to_seconds(delay)}, а то сейчас кому-нибудь лысину сделаешь своими поглаживаниями о:"
 
     async def _self_call_reply(self, user: str) -> str | None:
         return random.choice([f"@{user} с важным видом гладит собственную голову", f"@{user} делает пат-пат себе же",
@@ -267,7 +267,7 @@ class HugCommand(SimpleTargetCommand):
         return f"@{user} хочет обнимашек, но не справляется с выбором цели для этого, по-этому обнимает плюшевую акулку"
 
     async def _cooldown_reply(self, user: str, delay: int) -> str | None:
-        return random.choice([f"@{user} подожди, секундочку, прежде чем обнимать кого-то другого!", f"@{user}, вы пока что в процессе обнимания другого пользователя! Подождите {self.delay_to_seconds(delay)}"])
+        return random.choice([f"@{user} подожди, секундочку, прежде чем обнимать кого-то другого!", f"@{user}, вы пока что в процессе обнимания другого пользователя! Подождите {delay_to_seconds(delay)}"])
 
     async def _self_call_reply(self, user: str) -> str | None:
         return random.choice([

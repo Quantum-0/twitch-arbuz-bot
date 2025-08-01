@@ -39,18 +39,6 @@ class Command(ABC):
     async def handle(self, channel: str, message: ChatMessage):
         raise NotImplementedError
 
-    @staticmethod
-    def delay_to_seconds( delay: float) -> str:
-        delay = int(delay)
-
-        tens = (delay // 10 % 10)
-        ones = (delay % 10)
-        if ones == 1 and tens != 1:
-            return f"{delay} секунду"
-        if ones in (2, 3, 4) and tens != 1:
-            return f"{delay} секунды"
-        return f"{delay} секунд"
-
 class SimpleTargetCommand(Command, ABC):
     @property
     @abstractmethod
