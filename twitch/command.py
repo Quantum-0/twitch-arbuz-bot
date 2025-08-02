@@ -21,7 +21,7 @@ class BiteCommand(SimpleTargetCommand):
 
     async def _handle(self, channel: str, user: str, message: str, targets: list[str]) -> str:
         kind_of_bite = ["злобный", "приятный", "мягкий", "нежный", "аккуратный", "агрессивный", "коварный"]
-        target_to_bite = ["ухо", "пятку", "хвост", "ногу", "пэрсики", "нос", "плечо", "жёпку"]
+        target_to_bite = ["левое ухо", "правое ухо", "пятку", "хвост", "ногу", "пэрсики", "нос", "плечо", "жёпку"]
         target = join_targets(targets)
         return f"@{user} делает {random.choice(kind_of_bite)} кусь {target} за {random.choice(target_to_bite)}"
 
@@ -310,7 +310,13 @@ class LurkCommand(SimpleCDCommand):
 
         if state and not previous_state:
             await self._state_manager.set_state(channel=channel, user=user.lower(), command=self.command_name, value=time())
-            return f"@{user} спотыкается об камушек, падает и проваливается в лурк"
+            variants = [
+                f"@{user} прячется за холодильник и наблюдает за стримом оттуда. Спасибо за лурк!",
+                f"@{user} спотыкается об камушек, падает и проваливается в лурк",
+                f"У @{user} появились более важные дела, чем просмотр этого стрима, представляете?!",
+                f"@{user} превращается в крокодила, погружается в ближайшую лужу, и теперь оттуда торчат только глазки 👀",
+            ]
+            return random.choice(variants)
 
         if previous_state and not state:
             await self._state_manager.set_state(channel=channel, user=user.lower(), command=self.command_name, value=None)
