@@ -1,6 +1,7 @@
 import asyncio
 import logging.config
 from collections import deque
+from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Security, Depends, Path, HTTPException, Header
@@ -14,6 +15,7 @@ from twitchAPI.types import TwitchResourceNotFound
 from database.database import AsyncSessionLocal
 from database.models import User, TwitchUserSettings
 from dependencies import get_twitch, get_chat_bot
+from routers.helpers import parse_eventsub_payload
 from routers.schemas import PointRewardRedemptionWebhookSchema, TwitchChallengeSchema, RaidWebhookSchema
 from routers.security_helpers import verify_eventsub_signature
 from twitch.bot import ChatBot
@@ -28,49 +30,44 @@ logger = logging.getLogger(__name__)
 
 local_duplicates_cache: deque[UUID] = deque(maxlen=50)
 
-SCHEMA_BY_TYPE: dict[str, type[BaseModel]] = {
-    "channel.raid": RaidWebhookSchema,
-    "channel.channel_points_custom_reward_redemption.add": PointRewardRedemptionWebhookSchema,
-    "webhook_callback_verification": TwitchChallengeSchema,
-}
 
 @router.post("/eventsub/{streamer_id}")
 async def eventsub_handler(
-    # payload: PointRewardRedemptionWebhookSchema | TwitchChallengeSchema | RaidWebhookSchema,
-    request: Request,
-    eventsub_message_type: str = Security(verify_eventsub_signature),
-    eventsub_subscription_type: str = Header(..., alias="Twitch-Eventsub-Subscription-Type"),
+    payload: Annotated[
+        PointRewardRedemptionWebhookSchema | RaidWebhookSchema | TwitchChallengeSchema,
+        Depends(parse_eventsub_payload)
+    ],
     streamer_id: int = Path(...),
     twitch: Twitch = Depends(get_twitch),
     chat_bot: ChatBot = Depends(get_chat_bot),
 ):
-    body = await request.json()
-    schema_cls = SCHEMA_BY_TYPE.get(eventsub_subscription_type)
-    if schema_cls is None:
-        logger.warning(f"Couldn't determine schema by eventsub_subscription_type: {eventsub_subscription_type}")
-        # если тип неожиданный — можно попытаться угадать по содержимому.
-        last_err = None
-        for candidate in SCHEMA_BY_TYPE.values():
-            try:
-                payload = candidate.model_validate(body)
-                break
-            except ValidationError as e:
-                last_err = e
-        else:
-            logger.error(f"Couldn't validate: {body}")
-            raise HTTPException(
-                status_code=400,
-                detail=f"Unknown eventsub_subscription_type '{eventsub_subscription_type}' "
-                       f"and body did not match any expected schema. "
-                       f"Last validation error: {last_err.errors() if last_err else 'none'}",
-            )
-    else:
-        logger.info(f"Determine schema {schema_cls} by eventsub_subscription_type: {eventsub_subscription_type}")
-        try:
-            payload = schema_cls.model_validate(body)
-        except ValidationError as e:
-            # явное падение по ожидаемой схеме — покажем ошибку валидации
-            raise HTTPException(status_code=422, detail=e.errors())
+    # body = await request.json()
+    # schema_cls = SCHEMA_BY_TYPE.get(eventsub_subscription_type)
+    # if schema_cls is None:
+    #     logger.warning(f"Couldn't determine schema by eventsub_subscription_type: {eventsub_subscription_type}")
+    #     # если тип неожиданный — можно попытаться угадать по содержимому.
+    #     last_err = None
+    #     for candidate in SCHEMA_BY_TYPE.values():
+    #         try:
+    #             payload = candidate.model_validate(body)
+    #             break
+    #         except ValidationError as e:
+    #             last_err = e
+    #     else:
+    #         logger.error(f"Couldn't validate: {body}")
+    #         raise HTTPException(
+    #             status_code=400,
+    #             detail=f"Unknown eventsub_subscription_type '{eventsub_subscription_type}' "
+    #                    f"and body did not match any expected schema. "
+    #                    f"Last validation error: {last_err.errors() if last_err else 'none'}",
+    #         )
+    # else:
+    #     logger.info(f"Determine schema {schema_cls} by eventsub_subscription_type: {eventsub_subscription_type}")
+    #     try:
+    #         payload = schema_cls.model_validate(body)
+    #     except ValidationError as e:
+    #         # явное падение по ожидаемой схеме — покажем ошибку валидации
+    #         raise HTTPException(status_code=422, detail=e.errors())
 
     # Ответ на challenge сразу
     if isinstance(payload, TwitchChallengeSchema):

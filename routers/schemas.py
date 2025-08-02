@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Literal
 from uuid import UUID
 
 from pydantic import AnyHttpUrl
@@ -47,9 +48,13 @@ class PointRewardRedemptionWebhookEventSchema(BaseModel):
     broadcaster_user_login: str = Field(..., examples=["quantum075"])
 
 
-class WebhookSubscriptionConditionSchema(BaseModel):
+class WebhookSubscriptionRewardRedemptionConditionSchema(BaseModel):
     reward_id: UUID = Field(...)
     broadcaster_user_id: int = Field(...)
+
+class WebhookSubscriptionRaidConditionSchema(BaseModel):
+    from_broadcaster_user_id: int | Literal[""] = Field(...)
+    to_broadcaster_user_id: int | Literal[""] = Field(...)
 
 
 class WebhookTransportSchema(BaseModel):
@@ -60,10 +65,10 @@ class WebhookTransportSchema(BaseModel):
 class WebhookSubscriptionSchema(BaseModel):
     subscription_id: UUID = Field(..., alias="id")
     cost: int = Field(...)
-    type: str = Field(..., examples=["channel.channel_points_custom_reward_redemption.add"])
+    type: str = Field(..., examples=["channel.channel_points_custom_reward_redemption.add", "channel.raid"])
     status: str = Field(..., examples=["enabled"])
     version: int = Field(..., examples=[1])
-    condition: WebhookSubscriptionConditionSchema
+    condition: WebhookSubscriptionRewardRedemptionConditionSchema | WebhookSubscriptionRaidConditionSchema
     transport: WebhookTransportSchema
     created_at: datetime = Field(...)
 
