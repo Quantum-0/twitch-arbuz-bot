@@ -3,7 +3,7 @@ import logging.config
 from collections import deque
 from uuid import UUID
 
-from fastapi import APIRouter, Security, Depends, Path, HTTPException
+from fastapi import APIRouter, Security, Depends, Path, HTTPException, Header
 from pydantic import BaseModel, ValidationError
 from sqlalchemy.orm import selectinload
 from starlette.requests import Request
@@ -39,19 +39,20 @@ async def eventsub_handler(
     # payload: PointRewardRedemptionWebhookSchema | TwitchChallengeSchema | RaidWebhookSchema,
     request: Request,
     eventsub_message_type: str = Security(verify_eventsub_signature),
+    eventsub_subscription_type: str = Header(..., alias="Twitch-Eventsub-Subscription-Type"),
     streamer_id: int = Path(...),
     twitch: Twitch = Depends(get_twitch),
     chat_bot: ChatBot = Depends(get_chat_bot),
 ):
     body = await request.json()
-    schema_cls = SCHEMA_BY_TYPE.get(eventsub_message_type)
+    schema_cls = SCHEMA_BY_TYPE.get(eventsub_subscription_type)
     if schema_cls is None:
-        logger.warning(f"Couldn't determine schema by eventsub_message_type: {eventsub_message_type}")
+        logger.warning(f"Couldn't determine schema by eventsub_subscription_type: {eventsub_subscription_type}")
         # если тип неожиданный — можно попытаться угадать по содержимому.
         last_err = None
         for candidate in SCHEMA_BY_TYPE.values():
             try:
-                payload = candidate(**body)
+                payload = candidate.model_validate(body)
                 break
             except ValidationError as e:
                 last_err = e
@@ -59,13 +60,13 @@ async def eventsub_handler(
             logger.error(f"Couldn't validate: {body}")
             raise HTTPException(
                 status_code=400,
-                detail=f"Unknown eventsub_message_type '{eventsub_message_type}' "
+                detail=f"Unknown eventsub_subscription_type '{eventsub_subscription_type}' "
                        f"and body did not match any expected schema. "
                        f"Last validation error: {last_err.errors() if last_err else 'none'}",
             )
     else:
         try:
-            payload = schema_cls(**body)
+            payload = schema_cls.model_validate(body)
         except ValidationError as e:
             # явное падение по ожидаемой схеме — покажем ошибку валидации
             raise HTTPException(status_code=422, detail=e.errors())
