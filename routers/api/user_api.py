@@ -22,6 +22,7 @@ async def update_settings(
     user: Any = Security(user_auth),
     db: AsyncSession = Depends(get_db),
     chat_bot: ChatBot = Depends(get_chat_bot),
+    twitch: Twitch = Depends(get_twitch),
 ):
     # user.settings: TwitchUserSettings
     # if data.enable_bite is not None:
@@ -40,6 +41,14 @@ async def update_settings(
     await db.refresh(user.settings)
 
     await chat_bot.update_bot_channels()
+
+    if data.enable_shoutout_on_raid is not None:
+        if data.enable_shoutout_on_raid is True:
+            await twitch.subscribe_raid(user)
+        # else:
+        #     await twitch.unsubscribe_raid(user)
+        # TODO: unsubscribe
+
     return JSONResponse({"title": "Сохранено", "message": f"Настройки успешно обновлены."}, 200)
 
 

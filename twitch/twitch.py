@@ -27,6 +27,9 @@ class Twitch():
     async def build_chat_client(self) -> Chat:
         return await Chat(self._twitch)
 
+    async def shoutout(self, user: User, shoutout_to: int) -> bool:
+        await self._twitch.send_a_shoutout(from_broadcaster_id=user.twitch_id, to_broadcaster_id=str(shoutout_to), moderator_id='957818216')
+
     @staticmethod
     async def create_reward(user, reward_title: str, reward_cost: int, reward_description: str, is_user_input_required: bool) -> CustomReward:
         twitch_user = await TwitchClient(settings.twitch_client_id, settings.twitch_client_secret)
@@ -71,6 +74,65 @@ class Twitch():
                         "callback": str(settings.reward_redemption_webhook) + f"/{user.twitch_id}",
                         "secret": settings.twitch_webhook_secret.get_secret_value(),
                     }
+                }
+            )
+            return response.json()
+
+    @staticmethod
+    async def subscribe_raid(user: User):
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                "https://id.twitch.tv/oauth2/token",
+                params={
+                    "client_id": settings.twitch_client_id,
+                    "client_secret": settings.twitch_client_secret,
+                    "grant_type": 'client_credentials'
+                }
+            )
+            app_token = response.json()["access_token"]
+            response = await client.post(
+                "https://api.twitch.tv/helix/eventsub/subscriptions",
+                headers={
+                    "Authorization": "Bearer " + app_token,
+                    "Client-Id": settings.twitch_client_id,
+                    "Content-Type": "application/json"
+                },
+                json={
+                    "type": "channel.raid",
+                    "version": "1",
+                    "condition": {
+                        "to_broadcaster_user_id": user.twitch_id,
+                    },
+                    "transport": {
+                        "method": "webhook",
+                        "callback": str(settings.reward_redemption_webhook) + f"/{user.twitch_id}",
+                        "secret": settings.twitch_webhook_secret.get_secret_value(),
+                    }
+                }
+            )
+            return response.json()
+
+    @staticmethod
+    async def unsubscribe_raid(subscription_id: UUID):
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                "https://id.twitch.tv/oauth2/token",
+                params={
+                    "client_id": settings.twitch_client_id,
+                    "client_secret": settings.twitch_client_secret,
+                    "grant_type": 'client_credentials'
+                }
+            )
+            app_token = response.json()["access_token"]
+            response = await client.delete(
+                "https://api.twitch.tv/helix/eventsub/subscriptions",
+                headers={
+                    "Authorization": "Bearer " + app_token,
+                    "Client-Id": settings.twitch_client_id,
+                    "Content-Type": "application/json"
+                },
+                params={
+                    "id": str(subscription_id),
                 }
             )
             return response.json()

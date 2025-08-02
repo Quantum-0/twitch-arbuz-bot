@@ -76,6 +76,8 @@ class TwitchUserSettings(Base):
     enable_pyramid: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false(), nullable=False)
     enable_pyramid_breaker: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false(), nullable=False)
 
+    enable_shoutout_on_raid: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false(), nullable=False)
+
 
     user: Mapped["User"] = relationship("User", back_populates="settings")
 

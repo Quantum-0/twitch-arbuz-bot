@@ -10,9 +10,9 @@ import sqlalchemy as sa
 from twitchAPI.types import TwitchResourceNotFound
 
 from database.database import AsyncSessionLocal
-from database.models import User
+from database.models import User, TwitchUserSettings
 from dependencies import get_twitch, get_chat_bot
-from routers.schemas import PointRewardRedemptionWebhookSchema, TwitchChallengeSchema
+from routers.schemas import PointRewardRedemptionWebhookSchema, TwitchChallengeSchema, RaidWebhookSchema
 from routers.security_helpers import verify_eventsub_signature
 from twitch.bot import ChatBot
 from twitch.twitch import Twitch
@@ -44,8 +44,34 @@ async def eventsub_handler(
         return Response(status_code=204)
 
     # Мгновенно возвращаем 204, а обработку делаем в фоне
-    asyncio.create_task(handle_reward_redemption(payload, streamer_id, twitch, chat_bot))
+    if isinstance(payload, PointRewardRedemptionWebhookSchema):
+        asyncio.create_task(handle_reward_redemption(payload, streamer_id, twitch, chat_bot))
+    elif isinstance(payload, RaidWebhookSchema):
+        asyncio.create_task(handle_raid(payload, twitch))
     return Response(status_code=204)
+
+
+async def handle_raid(payload: RaidWebhookSchema, twitch: Twitch):
+    async with AsyncSessionLocal() as db:
+        try:
+            result = await db.execute(
+                sa.select(User)
+                .options(selectinload(User.settings))
+                .filter_by(login_name=payload.event.broadcaster_user_login)
+            )
+            user = result.scalar_one_or_none()
+            if user is None:
+                logger.error(f"User not found for login: {payload.event.broadcaster_user_login}")
+                return
+            user_settings: TwitchUserSettings = user.settings
+
+            if not user_settings.enable_shoutout_on_raid:
+                await twitch.unsubscribe_raid(payload.subscription.subscription_id)
+                return
+
+            await twitch.shoutout(user=user, shoutout_to=payload.event.from_broadcaster_user_id)
+        except Exception:
+            logger.error("Error handling raid event", exc_info=True)
 
 
 async def handle_reward_redemption(payload: PointRewardRedemptionWebhookSchema, streamer_id: int, twitch: Twitch, chat_bot: ChatBot):

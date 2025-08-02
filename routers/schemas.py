@@ -26,6 +26,8 @@ class UpdateSettingsForm(BaseModel):
     enable_pyramid: bool | None = Field(None)
     enable_pyramid_breaker: bool | None = Field(None)
 
+    enable_shoutout_on_raid: bool | None = Field(None)
+
 
 
 class UpdateMemealertsCoinsSchema(BaseModel):
@@ -72,3 +74,16 @@ class PointRewardRedemptionWebhookSchema(BaseModel):
 
 class TwitchChallengeSchema(BaseModel):
     challenge: str
+
+class RaidWebhookEventSchema(BaseModel):
+    from_broadcaster_user_id: int = Field(...)
+    from_broadcaster_user_name: str = Field(..., examples=["Quantum075"])
+    from_broadcaster_user_login: str = Field(..., examples=["quantum075"])
+    to_broadcaster_user_id: int = Field(...)
+    to_broadcaster_user_name: str = Field(..., examples=["Quantum075"])
+    to_broadcaster_user_login: str = Field(..., examples=["quantum075"])
+    viewers: int = Field(...)
+
+class RaidWebhookSchema(BaseModel):
+    subscription: WebhookSubscriptionSchema
+    event: RaidWebhookEventSchema

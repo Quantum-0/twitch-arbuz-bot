@@ -274,6 +274,18 @@ button[disabled] { opacity: 0.6; cursor: not-allowed; }
     {% endif %}
 </section>
 
+<hr>
+
+<section>
+    <h3>Другие настройки</h3>
+    <div class="toggles-grid">
+        <div class="toggle-label">
+            <span>Включить shoutout на рейды</span>
+            <div class="toggle-switch {% if settings.enable_shoutout_on_raid %}active{% endif %}" data-name="enable_shoutout_on_raid"></div>
+        </div>
+    </div>
+</section>
+
 <div class="notification-container"></div>
 
 <div class="modal" id="memealert-modal">
