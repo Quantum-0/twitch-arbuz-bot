@@ -27,7 +27,7 @@ class CommandsManager:
         for cmd in self.commands:
             if not cmd.is_enabled(user_settings):
                 continue
-            if any(message.text.startswith(x) for x in ["!" + alias for alias in cmd.command_aliases]):
+            if any(message.text.lower().startswith(x) for x in ["!" + alias for alias in cmd.command_aliases]):
                 logger.debug(f"Handler for command was found: {cmd}")
                 await cmd.handle(channel, message)
 
