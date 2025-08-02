@@ -223,14 +223,14 @@ button[disabled] { opacity: 0.6; cursor: not-allowed; }
             <span>Включить !банан</span>
             <div class="toggle-switch {% if settings.enable_banana %}active{% endif %}" data-name="enable_banana"></div>
         </div>
+        <div class="toggle-label {% if not settings.enable_chat_bot %}disabled{% endif %}">
+            <span>Включить !lurk</span>
+            <div class="toggle-switch {% if settings.enable_lurk %}active{% endif %}" data-name="enable_lurk"></div>
+        </div>
         <!--
         <div class="toggle-label {% if not settings.enable_chat_bot %}disabled{% endif %}">
             <span>Включить !якто</span>
             <div class="toggle-switch {% if settings.enable_whoami %}active{% endif %}" data-name="enable_whoami"></div>
-        </div>
-        <div class="toggle-label {% if not settings.enable_chat_bot %}disabled{% endif %}">
-            <span>Включить !lurk</span>
-            <div class="toggle-switch {% if settings.enable_lurk %}active{% endif %}" data-name="enable_lurk"></div>
         </div>
         <div class="toggle-label {% if not settings.enable_chat_bot %}disabled{% endif %}">
             <span>Включить !бунд</span>
