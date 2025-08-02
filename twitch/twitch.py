@@ -6,7 +6,7 @@ from twitchAPI import Twitch as TwitchClient, Chat
 from twitchAPI.object import CustomReward, TwitchUser, ChannelFollowersResult, Moderator
 from twitchAPI.types import AuthScope, CustomRewardRedemptionStatus
 
-from config import settings, user_scope
+from config import settings, user_scope, bot_scope
 from database.models import User
 from utils.singleton import singleton
 
@@ -20,7 +20,7 @@ class Twitch():
 
     async def startup(self):
         twitch = await TwitchClient(settings.twitch_client_id, settings.twitch_client_secret)
-        await twitch.set_user_authentication(settings.bot_access_token, [AuthScope.CHAT_READ, AuthScope.CHAT_EDIT],
+        await twitch.set_user_authentication(settings.bot_access_token, bot_scope,
                                              settings.bot_refresh_token)
         self._twitch = twitch
 
@@ -164,8 +164,11 @@ class Twitch():
     @staticmethod
     async def set_bot_moder(user: User) -> None:
         twitch_user = await TwitchClient(settings.twitch_client_id, settings.twitch_client_secret)
-        await twitch_user.set_user_authentication(user.access_token, [AuthScope.CHANNEL_MANAGE_MODERATORS, AuthScope.MODERATION_READ],
-                                                  user.refresh_token)
+        await twitch_user.set_user_authentication(
+            user.access_token,
+            [AuthScope.CHANNEL_MANAGE_MODERATORS, AuthScope.MODERATION_READ],
+            user.refresh_token
+        )
         mods: AsyncGenerator[Moderator] = twitch_user.get_moderators(user.twitch_id, first=100)
         async for mod in mods:
             if mod.user_id == '957818216':
