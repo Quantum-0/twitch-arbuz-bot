@@ -4,12 +4,10 @@ from collections import deque
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Security, Depends, Path, HTTPException, Header
-from pydantic import BaseModel, ValidationError
-from sqlalchemy.orm import selectinload
-from starlette.requests import Request
-from starlette.responses import PlainTextResponse, Response
 import sqlalchemy as sa
+from fastapi import APIRouter, Depends, Path
+from sqlalchemy.orm import selectinload
+from starlette.responses import PlainTextResponse, Response
 from twitchAPI.types import TwitchResourceNotFound
 
 from database.database import AsyncSessionLocal
@@ -17,11 +15,9 @@ from database.models import User, TwitchUserSettings
 from dependencies import get_twitch, get_chat_bot
 from routers.helpers import parse_eventsub_payload
 from routers.schemas import PointRewardRedemptionWebhookSchema, TwitchChallengeSchema, RaidWebhookSchema
-from routers.security_helpers import verify_eventsub_signature
 from twitch.bot import ChatBot
 from twitch.twitch import Twitch
 from utils.logging_conf import LOGGING_CONFIG
-
 from utils.memes import give_bonus
 
 router = APIRouter(prefix="/twitch")
