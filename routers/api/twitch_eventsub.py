@@ -65,6 +65,7 @@ async def eventsub_handler(
                        f"Last validation error: {last_err.errors() if last_err else 'none'}",
             )
     else:
+        logger.warning(f"Determine schema {schema_cls} by eventsub_subscription_type: {eventsub_subscription_type}")
         try:
             payload = schema_cls.model_validate(body)
         except ValidationError as e:
