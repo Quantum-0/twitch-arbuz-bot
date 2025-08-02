@@ -93,11 +93,11 @@ async def handle_raid(payload: RaidWebhookSchema, twitch: Twitch):
             result = await db.execute(
                 sa.select(User)
                 .options(selectinload(User.settings))
-                .filter_by(login_name=payload.event.from_broadcaster_user_login)
+                .filter_by(login_name=payload.event.to_broadcaster_user_login)
             )
             user = result.scalar_one_or_none()
             if user is None:
-                logger.error(f"User not found for login: {payload.event.from_broadcaster_user_login}")
+                logger.error(f"User not found for login: {payload.event.to_broadcaster_user_login}")
                 return
             user_settings: TwitchUserSettings = user.settings
 
