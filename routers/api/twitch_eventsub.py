@@ -29,13 +29,13 @@ local_duplicates_cache: deque[UUID] = deque(maxlen=50)
 @router.post("/eventsub/{streamer_id}")
 async def eventsub_handler(
     payload: PointRewardRedemptionWebhookSchema | TwitchChallengeSchema,
-    eventsub_message_type: bytes = Security(verify_eventsub_signature),
+    eventsub_message_type: str = Security(verify_eventsub_signature),
     streamer_id: int = Path(...),
     twitch: Twitch = Depends(get_twitch),
     chat_bot: ChatBot = Depends(get_chat_bot),
 ):
     # Ответ на challenge сразу
-    if eventsub_message_type == b"webhook_callback_verification":
+    if eventsub_message_type == "webhook_callback_verification":
         return PlainTextResponse(content=payload.challenge, media_type="text/plain")
 
     # Отброс дубликатов
