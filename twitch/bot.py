@@ -9,9 +9,10 @@ from twitchAPI.types import ChatEvent
 
 from database.database import AsyncSessionLocal
 from database.models import User, TwitchUserSettings
-from twitch.command import BiteCommand, LickCommand, BananaCommand, BoopCommand, CmdlistCommand, PatCommand, HugCommand
+from twitch.command import BiteCommand, LickCommand, BananaCommand, BoopCommand, CmdlistCommand, PatCommand, HugCommand, \
+    LurkCommand
 from twitch.command_manager import CommandsManager
-from twitch.handlers import MessagesHandlerManager, PyramidHandler
+from twitch.handlers import MessagesHandlerManager, PyramidHandler, UnlurkHandler
 from twitch.state_manager import get_state_manager
 from twitch.twitch import Twitch
 from twitch.user_list_manager import UserListManager
@@ -43,6 +44,7 @@ class ChatBot:
             asyncio.run_coroutine_threadsafe(self.on_message(msg), event_loop)
 
         self._handler_manager.register(PyramidHandler)
+        self._handler_manager.register(UnlurkHandler)
         self._command_manager.register(CmdlistCommand)
         self._command_manager.register(BiteCommand)
         self._command_manager.register(LickCommand)
@@ -50,6 +52,7 @@ class ChatBot:
         self._command_manager.register(BoopCommand)
         self._command_manager.register(PatCommand)
         self._command_manager.register(HugCommand)
+        self._command_manager.register(LurkCommand)
 
         chat.register_event(ChatEvent.MESSAGE, on_message)
         logger.debug("On_message handler registered")
@@ -68,7 +71,7 @@ class ChatBot:
             chat = chat.login_name
         elif not isinstance(chat, str):
             raise ValueError
-        if len(message) == 0 or message is None:
+        if message is None or len(message) == 0:
             logger.info(f"No message to send to channel `{chat}`")
             return
         logger.info(f"Sending message `{message}` to channel `{chat}`")

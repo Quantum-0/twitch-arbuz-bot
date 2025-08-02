@@ -1,3 +1,4 @@
+import logging
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Awaitable
 from time import time
@@ -7,6 +8,8 @@ from twitchAPI.chat import ChatMessage
 from database.models import TwitchUserSettings
 from twitch.state_manager import StateManager, SMParam
 from twitch.utils import extract_targets
+
+logger = logging.getLogger(__name__)
 
 
 class Command(ABC):
@@ -171,12 +174,14 @@ class SimpleCDCommand(Command):
         )
 
         if last_command_call_user and self.cooldown_timer_per_user and time() - last_command_call_user < self.cooldown_timer_per_user:
+            logger.debug(f"Skip command {self.command_name} because of per-user cooldown")
             delay = self.cooldown_timer_per_user - int(time() - last_command_call_user)
             response = await self._cooldown_reply(user, delay)
             await self.send_response(chat=channel, message=response)
             return
 
         if last_command_call_channel and self.cooldown_timer_per_chat and time() - last_command_call_channel < self.cooldown_timer_per_chat:
+            logger.debug(f"Skip command {self.command_name} because of per-channel cooldown")
             delay = self.cooldown_timer_per_chat - int(time() - last_command_call_channel)
             response = await self._cooldown_reply(user, delay)
             await self.send_response(chat=channel, message=response)
@@ -187,6 +192,7 @@ class SimpleCDCommand(Command):
         if self.cooldown_timer_per_user:
             await self._state_manager.set_state(channel=channel, user=user_id, command=self.command_name, param=SMParam.COOLDOWN, value=time())
 
+        logger.debug(f"Handling with command handler")
         response = await self._handle(channel, user, message.text)
         await self.send_response(chat=channel, message=response)
         return

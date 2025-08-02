@@ -2,6 +2,7 @@ import logging
 from abc import abstractmethod
 from collections.abc import Callable, Awaitable
 from enum import auto, Enum
+from time import time
 
 from twitchAPI.chat import ChatMessage
 
@@ -134,3 +135,24 @@ class MessagesHandlerManager:
             res: HandlerResult = await handler.handle(channel, message)
             if res == HandlerResult.HANDLED:
                 return
+
+
+class UnlurkHandler(CommonMessagesHandler):
+    COMMAND_NAME = "lurk"
+    UNLURK_AFTER = 360
+
+    def is_enabled(self, streamer_settings: TwitchUserSettings) -> bool:
+        return True or streamer_settings.enable_lurk
+
+    async def handle(self, channel: str, message: ChatMessage) -> HandlerResult:
+        if any(x in message.text for x in ("!lurk", "!unlurk", "!лурк", "!анлурк")):
+            return HandlerResult.SKIPED
+
+        user = message.user.display_name.lower()
+
+        previous_state: float = await self._state_manager.get_state(channel=channel, user=user, command=self.COMMAND_NAME)
+        if previous_state is not None and time() - previous_state > self.UNLURK_AFTER:
+            await self._state_manager.set_state(channel=channel, user=user, command=self.COMMAND_NAME, value=None)
+            await self.send_response(chat=channel, message=f"@{user}, с возвращением из лурка!")
+            return HandlerResult.HANDLED_AND_CONTINUE
+        return HandlerResult.SKIPED

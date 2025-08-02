@@ -285,3 +285,33 @@ class HugCommand(SimpleTargetCommand):
 
     async def _this_bot_call_reply(self, user: str) -> str | None:
         return random.choice([f"Уиии, пасиба за обнимашки!", f"@{user}, обнимаю тебя в ответ! <3"])
+
+
+class LurkCommand(SimpleCDCommand):
+    async def _cooldown_reply(self, user: str, delay: int) -> str | None:
+        return None
+
+    cooldown_timer_per_user = 30
+    cooldown_timer_per_chat = None
+
+    command_name = "lurk"
+    command_aliases = ['lurk', 'unlurk', 'лурк', 'анлурк']
+    command_description = "Сообщить стримеру и чатику, что вы уходите в лурк или возвращаетесь из него"
+
+    def is_enabled(self, streamer_settings: TwitchUserSettings) -> bool:
+        return True or streamer_settings.enable_lurk
+
+    async def _handle(self, channel: str, user: str, message: str) -> str:
+        state: bool = not ('unlurk' in message or 'анлурк' in message)
+        previous_state: bool = await self._state_manager.get_state(channel=channel, user=user.lower(), command=self.command_name) is not None
+
+        if state == previous_state and state is True:
+            return f"@{user}, ты и так уже в лурке"
+
+        if state and not previous_state:
+            await self._state_manager.set_state(channel=channel, user=user.lower(), command=self.command_name, value=time())
+            return f"@{user} спотыкается об камушек, падает и проваливается в лурк"
+
+        if previous_state and not state:
+            await self._state_manager.set_state(channel=channel, user=user.lower(), command=self.command_name, value=None)
+            return f"@{user} выпылывает из лурка. С возвращением!"

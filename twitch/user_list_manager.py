@@ -18,8 +18,11 @@ class UserListManager:
             while len(q):
                 if dt - q[0][1] > self._forget_timeout:
                     del q[0]
+                else:
+                    break
+        self._last_cleanup = dt
 
-    def handle(self, channel: str, message: ChatMessage):
+    async def handle(self, channel: str, message: ChatMessage):
         user = message.user.display_name.lower()
         dt = time()
         q = self._last_messages[channel.lower()]
