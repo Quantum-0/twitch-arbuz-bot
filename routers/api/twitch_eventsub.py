@@ -73,15 +73,12 @@ async def eventsub_handler(
     if isinstance(payload, TwitchChallengeSchema):
         return PlainTextResponse(content=payload.challenge, media_type="text/plain")
 
-    # Отброс дубликатов
-    if payload.event.redemption_id in local_duplicates_cache:
-        logger.warning(f"Duplicated eventsub with redemption={payload.event.redemption_id}")
-        return Response(status_code=204)
-
-    logger.debug("All checks are done, handling eventsub")
-
     # Мгновенно возвращаем 204, а обработку делаем в фоне
     if isinstance(payload, PointRewardRedemptionWebhookSchema):
+        # Отброс дубликатов
+        if payload.event.redemption_id in local_duplicates_cache:
+            logger.warning(f"Duplicated eventsub with redemption={payload.event.redemption_id}")
+            return Response(status_code=204)
         logger.info("Handling reward redemption")
         asyncio.create_task(handle_reward_redemption(payload, streamer_id, twitch, chat_bot))
     elif isinstance(payload, RaidWebhookSchema):
