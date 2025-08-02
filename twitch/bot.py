@@ -143,3 +143,6 @@ class ChatBot:
         for name, last_active in self._user_list_manager.get_active_users(user.login_name):
             result.append((name, delay_to_seconds(dt - last_active) + " назад"))
         return result
+
+    async def get_user_last_active(self, channel: str, user: str) -> float:
+        return self._user_list_manager.get_last_active(channel, user)

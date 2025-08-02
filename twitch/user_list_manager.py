@@ -51,6 +51,14 @@ class UserListManager:
                 return timeout is None or time() - item[1] < timeout
         return False
 
+    def get_last_active(self, channel: str, user: str, timeout: float | None = None) -> float | None:
+        for item in self._last_messages[channel.lower()]:
+            if item[0] == user.lower():
+                if timeout is not None and time() - item[1] > timeout:
+                    return None
+                return item[1]
+        return False
+
     def get_active_users(self, channel: str, timeout: float | None = None) -> list[tuple[str, float]]:
         result = []
         for item in self._last_messages[channel.lower()][::-1]:

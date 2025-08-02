@@ -7,6 +7,7 @@ from time import time
 from twitchAPI.chat import ChatMessage
 
 from database.models import TwitchUserSettings
+from dependencies import get_chat_bot
 from twitch.state_manager import StateManager, SMParam
 
 
@@ -139,7 +140,7 @@ class MessagesHandlerManager:
 
 class UnlurkHandler(CommonMessagesHandler):
     COMMAND_NAME = "lurk"
-    UNLURK_AFTER = 360
+    UNLURK_AFTER = 300
 
     def is_enabled(self, streamer_settings: TwitchUserSettings) -> bool:
         return True or streamer_settings.enable_lurk
@@ -153,6 +154,8 @@ class UnlurkHandler(CommonMessagesHandler):
         previous_state: float = await self._state_manager.get_state(channel=channel, user=user, command=self.COMMAND_NAME)
         if previous_state is not None and time() - previous_state > self.UNLURK_AFTER:
             await self._state_manager.set_state(channel=channel, user=user, command=self.COMMAND_NAME, value=None)
-            await self.send_response(chat=channel, message=f"@{user}, с возвращением из лурка!")
+            last_active = await get_chat_bot().get_user_last_active(channel, user)
+            if time() - last_active > self.UNLURK_AFTER:
+                await self.send_response(chat=channel, message=f"@{user}, с возвращением из лурка!")
             return HandlerResult.HANDLED_AND_CONTINUE
         return HandlerResult.SKIPED
