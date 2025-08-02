@@ -37,4 +37,6 @@ async def parse_eventsub_payload(
     try:
         return schema_cls(**body)
     except ValidationError as exc:
+        logger.error(f"Failed to validate: {exc.errors()}")
+        logger.error(body, exc_info=True)
         raise HTTPException(status_code=422, detail=exc.errors()) from exc
