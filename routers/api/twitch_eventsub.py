@@ -3,8 +3,10 @@ import logging.config
 from collections import deque
 from uuid import UUID
 
-from fastapi import APIRouter, Security, Depends, Path
+from fastapi import APIRouter, Security, Depends, Path, HTTPException
+from pydantic import BaseModel, ValidationError
 from sqlalchemy.orm import selectinload
+from starlette.requests import Request
 from starlette.responses import PlainTextResponse, Response
 import sqlalchemy as sa
 from twitchAPI.types import TwitchResourceNotFound
@@ -26,16 +28,49 @@ logger = logging.getLogger(__name__)
 
 local_duplicates_cache: deque[UUID] = deque(maxlen=50)
 
+SCHEMA_BY_TYPE: dict[str, type[BaseModel]] = {
+    "channel.raid": RaidWebhookSchema,
+    "channel.channel_points_custom_reward_redemption.add": PointRewardRedemptionWebhookSchema,
+    "webhook_callback_verification": TwitchChallengeSchema,
+}
+
 @router.post("/eventsub/{streamer_id}")
 async def eventsub_handler(
-    payload: PointRewardRedemptionWebhookSchema | TwitchChallengeSchema | RaidWebhookSchema,
+    # payload: PointRewardRedemptionWebhookSchema | TwitchChallengeSchema | RaidWebhookSchema,
+    request: Request,
     eventsub_message_type: str = Security(verify_eventsub_signature),
     streamer_id: int = Path(...),
     twitch: Twitch = Depends(get_twitch),
     chat_bot: ChatBot = Depends(get_chat_bot),
 ):
+    body = await request.json()
+    schema_cls = SCHEMA_BY_TYPE.get(eventsub_message_type)
+    if schema_cls is None:
+        logger.warning("Couldn't determine schema by eventsub_message_type")
+        # если тип неожиданный — можно попытаться угадать по содержимому.
+        last_err = None
+        for candidate in SCHEMA_BY_TYPE.values():
+            try:
+                payload = candidate(**body)
+                break
+            except ValidationError as e:
+                last_err = e
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Unknown eventsub_message_type '{eventsub_message_type}' "
+                       f"and body did not match any expected schema. "
+                       f"Last validation error: {last_err.errors() if last_err else 'none'}",
+            )
+    else:
+        try:
+            payload = schema_cls(**body)
+        except ValidationError as e:
+            # явное падение по ожидаемой схеме — покажем ошибку валидации
+            raise HTTPException(status_code=422, detail=e.errors())
+
     # Ответ на challenge сразу
-    if eventsub_message_type == "webhook_callback_verification":
+    if isinstance(payload, TwitchChallengeSchema):
         return PlainTextResponse(content=payload.challenge, media_type="text/plain")
 
     # Отброс дубликатов
