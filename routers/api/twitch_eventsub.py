@@ -65,7 +65,7 @@ async def eventsub_handler(
                        f"Last validation error: {last_err.errors() if last_err else 'none'}",
             )
     else:
-        logger.warning(f"Determine schema {schema_cls} by eventsub_subscription_type: {eventsub_subscription_type}")
+        logger.info(f"Determine schema {schema_cls} by eventsub_subscription_type: {eventsub_subscription_type}")
         try:
             payload = schema_cls.model_validate(body)
         except ValidationError as e:
@@ -81,10 +81,14 @@ async def eventsub_handler(
         logger.warning(f"Duplicated eventsub with redemption={payload.event.redemption_id}")
         return Response(status_code=204)
 
+    logger.debug("All checks are done, handling eventsub")
+
     # Мгновенно возвращаем 204, а обработку делаем в фоне
     if isinstance(payload, PointRewardRedemptionWebhookSchema):
+        logger.info("Handling reward redemption")
         asyncio.create_task(handle_reward_redemption(payload, streamer_id, twitch, chat_bot))
     elif isinstance(payload, RaidWebhookSchema):
+        logger.info("Handling raid")
         asyncio.create_task(handle_raid(payload, twitch))
     return Response(status_code=204)
 
