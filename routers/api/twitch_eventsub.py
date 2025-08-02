@@ -28,7 +28,7 @@ local_duplicates_cache: deque[UUID] = deque(maxlen=50)
 
 @router.post("/eventsub/{streamer_id}")
 async def eventsub_handler(
-    payload: PointRewardRedemptionWebhookSchema | TwitchChallengeSchema,
+    payload: PointRewardRedemptionWebhookSchema | TwitchChallengeSchema | RaidWebhookSchema,
     eventsub_message_type: str = Security(verify_eventsub_signature),
     streamer_id: int = Path(...),
     twitch: Twitch = Depends(get_twitch),
