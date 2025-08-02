@@ -46,7 +46,7 @@ async def eventsub_handler(
     body = await request.json()
     schema_cls = SCHEMA_BY_TYPE.get(eventsub_message_type)
     if schema_cls is None:
-        logger.warning("Couldn't determine schema by eventsub_message_type")
+        logger.warning(f"Couldn't determine schema by eventsub_message_type: {eventsub_message_type}")
         # если тип неожиданный — можно попытаться угадать по содержимому.
         last_err = None
         for candidate in SCHEMA_BY_TYPE.values():
@@ -56,6 +56,7 @@ async def eventsub_handler(
             except ValidationError as e:
                 last_err = e
         else:
+            logger.error(f"Couldn't validate: {body}")
             raise HTTPException(
                 status_code=400,
                 detail=f"Unknown eventsub_message_type '{eventsub_message_type}' "
