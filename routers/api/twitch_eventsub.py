@@ -6,6 +6,7 @@ from uuid import UUID
 
 import sqlalchemy as sa
 from fastapi import APIRouter, Depends, Path
+from memealerts.types.exceptions import MATokenExpiredError
 from sqlalchemy.orm import selectinload
 from starlette.responses import PlainTextResponse, Response
 from twitchAPI.types import TwitchResourceNotFound
@@ -140,6 +141,10 @@ async def handle_reward_redemption(payload: PointRewardRedemptionWebhookSchema, 
                 except TwitchResourceNotFound:
                     logger.error("Cannot find redemption to cancel", exc_info=True)
 
+        except MATokenExpiredError:
+            logger.error("MA Token expired")
+            await chat_bot.send_message(user, f"Ошибка начисления мемкоинов. @{user.login_name}, истёк срок действия токена. Пожалуйста, обновите токен в панели управления ботом.")
+            await twitch.cancel_redemption(user, payload.subscription.condition.reward_id, payload.event.redemption_id)
         except Exception:
             logger.error("Error handling redemption", exc_info=True)
             try:

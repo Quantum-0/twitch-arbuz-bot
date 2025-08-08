@@ -4,7 +4,7 @@ import re
 from datetime import datetime, UTC
 
 from memealerts import MemealertsAsyncClient
-from memealerts.types.exceptions import MAUserNotFoundError
+from memealerts.types.exceptions import MAUserNotFoundError, MATokenExpiredError
 from memealerts.types.models import Supporter, User
 from memealerts.types.user_id import UserID
 from sqlalchemy.dialects.postgresql import insert as pg_insert
@@ -39,9 +39,12 @@ async def save_all_supporters_into_db(supporters: list[Supporter]) -> None:
 
 
 async def token_expires_in_days(memealerts_token) -> int:
-    async with MemealertsAsyncClient(memealerts_token) as cli:
-        expires_in: datetime = cli.token_expires_in
-        return int((expires_in - datetime.now(UTC)).days)
+    try:
+        async with MemealertsAsyncClient(memealerts_token) as cli:
+            expires_in: datetime = cli.token_expires_in
+            return int((expires_in - datetime.now(UTC)).days)
+    except MATokenExpiredError:
+        return 0
 
 
 async def load_supporters(cli: MemealertsAsyncClient) -> list[Supporter]:

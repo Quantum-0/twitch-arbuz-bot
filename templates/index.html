@@ -260,7 +260,14 @@ button[disabled] { opacity: 0.6; cursor: not-allowed; }
     <h3>Настройки мемалёртов</h3>
     {% if memealerts.enabled %}
         <button id="memealerts-btn" class="btn-danger" onclick="toggleMemealerts(false)">Отключить мемалёрты</button>
-        <p>Время жизни токена: {{ memealerts.expires_in }} дней. По истечению срока действия токена его необходимо будет обновить.</p>
+        <p>Время жизни токена:
+            {% if memealerts.expires_in == 0 %}
+                <span style="font-weight: bold; color: red;">{{ memealerts.expires_in }} дней</span>
+            {% else %}
+                {{ memealerts.expires_in }} дней
+            {% endif %}. По истечению срока действия токена его необходимо будет обновить.
+        </p>
+        <button id="refresh-token-btn" onclick="openRefreshModal()">Обновить токен</button>
         <div class="memealert-coins-wrapper">
             <span>Количество мемкоинов за награду</span>
             <div class="memealert-coins">
@@ -270,7 +277,7 @@ button[disabled] { opacity: 0.6; cursor: not-allowed; }
             </div>
         </div>
     {% else %}
-        <button id="memealerts-btn" onclick="openModal()">Включить мемалёрты</button>
+        <button id="memealerts-btn" onclick="openActivateModal()">Включить мемалёрты</button>
     {% endif %}
 </section>
 
@@ -295,7 +302,7 @@ button[disabled] { opacity: 0.6; cursor: not-allowed; }
         <a class="tutorial-link" href="/memealerts-tutorial" target="_blank">Как его получить?</a>
         <div class="modal-buttons">
             <button type="button" class="btn-cancel" onclick="closeModal()">Отмена</button>
-            <button type="button" onclick="saveMemealert()">Сохранить</button>
+            <button type="button" id="save-btn" onclick="saveMemealert()">Сохранить</button>
         </div>
     </div>
 </div>
@@ -304,6 +311,7 @@ button[disabled] { opacity: 0.6; cursor: not-allowed; }
 {% block body_scripts %}
 <script>
     let coinSaveTimer = null;
+    let isRefresh = false;
 
     function showNotification(title, message, isError=false) {
         const container = document.querySelector('.notification-container');
@@ -341,18 +349,27 @@ button[disabled] { opacity: 0.6; cursor: not-allowed; }
     }
 
     function updateDependentTogglesState() {
-    const isEnabled = document.querySelector('.toggle-switch[data-name="enable_chat_bot"]').classList.contains('active');
-    const container = document.getElementById('dependent-toggles');
-    if (!container) return;
-    container.querySelectorAll('.toggle-label').forEach(label => {
-        if (isEnabled) {
-            label.classList.remove('disabled');
-        } else {
-            label.classList.add('disabled');
-        }
-    });
-}
+        const isEnabled = document.querySelector('.toggle-switch[data-name="enable_chat_bot"]').classList.contains('active');
+        const container = document.getElementById('dependent-toggles');
+        if (!container) return;
+        container.querySelectorAll('.toggle-label').forEach(label => {
+            if (isEnabled) {
+                label.classList.remove('disabled');
+            } else {
+                label.classList.add('disabled');
+            }
+        });
+    }
 
+    function openActivateModal() {
+        isRefresh = false;
+        openModal();
+    }
+
+    function openRefreshModal() {
+        isRefresh = true;
+        openModal();
+    }
 
     function openModal() { document.getElementById('memealert-modal').style.display = 'flex'; }
     function closeModal() { document.getElementById('memealert-modal').style.display = 'none'; }
@@ -360,16 +377,17 @@ button[disabled] { opacity: 0.6; cursor: not-allowed; }
         const key = document.getElementById('memealert-key').value.trim();
         if (!key) return showNotification('Ошибка', 'Введите ключ', true);
         closeModal();
-        toggleMemealerts(true, key);
+        toggleMemealerts(true, key, isRefresh);
     }
 
-    function toggleMemealerts(enable, key='') {
+    function toggleMemealerts(enable, key='', refresh=false) {
         const btn = document.getElementById('memealerts-btn');
         if (btn) {
             btn.disabled = true;
             btn.textContent = 'Подождите...';
         }
-        fetch(`/api/user/memealerts?enable=${enable}`, {
+        const url = `/api/user/memealerts?enable=${enable}${refresh ? '&refresh=true' : ''}`;
+        fetch(url, {
             method: 'POST',
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
             body: enable ? `key=${encodeURIComponent(key)}` : ''

@@ -68,24 +68,31 @@ async def setup_memealert(
     user: Any = Security(user_auth),
     enable: bool = Query(...),
     memealerts_token: str | None = Form(None, alias="key"),
+    refresh: bool = Query(False),
     db: AsyncSession = Depends(get_db),
     twitch: Twitch = Depends(get_twitch),
 ):
     reward_id = user.memealerts.memealerts_reward
 
-    if enable == bool(reward_id):
-        return JSONResponse({"title": "Без изменений","message": f"Уже {'включено' if enable else 'выключено'}."}, 208)
+    if not refresh and enable == bool(reward_id):
+        return JSONResponse({"title": "Без изменений", "message": f"Уже {'включено' if enable else 'выключено'}."}, 208)
 
     if enable:
         if not memealerts_token:
-            return JSONResponse({"title": "Ошибка","message": f"Ключ не передан."}, 422)
+            return JSONResponse({"title": "Ошибка", "message": "Ключ не передан."}, 422)
         memealerts_token = memealerts_token.strip().replace("Bearer", "").strip()
         try:
             await token_expires_in_days(memealerts_token)
         except (MATokenExpiredError, DecodeError):
             return JSONResponse({"title": "Невалидный токен",
-                                 "message": f"Токен, который вы используете - не является валидным. Попробуйте скопировать токен заново."},
+                                 "message": "Токен, который вы используете - не является валидным. Попробуйте скопировать токен заново."},
                                 400)
+
+        if refresh:
+            user.memealerts.memealerts_token = memealerts_token
+            await db.commit()
+            await db.refresh(user.memealerts)
+            return JSONResponse({"title": "Успешно", "message": "Токен обновлён."}, 200)
 
         reward = await twitch.create_reward(
             user,
@@ -99,7 +106,7 @@ async def setup_memealert(
         await db.commit()
         await db.refresh(user.memealerts)
         await twitch.subscribe_reward(user, reward.id)
-        return JSONResponse({"title": "Успешно", "message": f"Награда создана."}, 201)
+        return JSONResponse({"title": "Успешно", "message": "Награда создана."}, 201)
     else:
         try:
             await twitch.delete_reward(user, reward_id)
@@ -108,4 +115,4 @@ async def setup_memealert(
         user.memealerts.memealerts_reward = None
         await db.commit()
         await db.refresh(user.memealerts)
-        return JSONResponse({"title": "Успешно", "message": f"Награда удалена."}, 200)
+        return JSONResponse({"title": "Успешно", "message": "Награда удалена."}, 200)
