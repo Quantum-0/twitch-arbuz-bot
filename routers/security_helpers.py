@@ -56,6 +56,23 @@ async def user_auth(
     return user
 
 
+async def user_auth_optional(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+) -> User | None:
+    if not request.session or not (user_id := request.session.get("user_id")):
+        return None
+    result = await db.execute(
+        sa.select(User)
+        .options(
+            selectinload(User.settings),
+            selectinload(User.memealerts),
+        )
+        .filter_by(twitch_id=user_id)
+    )
+    return result.scalar_one_or_none()
+
+
 security = HTTPBasic()
 
 

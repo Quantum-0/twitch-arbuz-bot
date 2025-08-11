@@ -23,6 +23,7 @@ class BiteCommand(SimpleTargetCommand):
         kind_of_bite = ["злобный", "приятный", "мягкий", "нежный", "аккуратный", "агрессивный", "коварный"]
         target_to_bite = ["левое ухо", "правое ухо", "пятку", "хвост", "ногу", "пэрсики", "нос", "плечо", "жёпку"]
         target = join_targets(targets)
+        # TODO: кусает, делает кусь, кусявкает, покусывает?
         return f"@{user} делает {random.choice(kind_of_bite)} кусь {target} за {random.choice(target_to_bite)}"
 
     async def _no_target_reply(self, user: str) -> str | None:

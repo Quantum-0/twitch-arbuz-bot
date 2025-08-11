@@ -13,7 +13,7 @@ from starlette.templating import Jinja2Templates
 from config import settings
 from dependencies import get_twitch, get_db, get_chat_bot
 from database.models import User, TwitchUserSettings
-from routers.security_helpers import user_auth, admin_auth
+from routers.security_helpers import user_auth, admin_auth, user_auth_optional
 from twitch.bot import ChatBot
 from twitch.state_manager import get_state_manager
 from twitch.twitch import Twitch
@@ -38,7 +38,7 @@ async def login():
 @router.get("/panel")
 async def main_page(
     request: Request,
-    user: Any = Security(user_auth),
+    user: User = Security(user_auth),
 ):
     if not user.in_beta_test:
         return templates.TemplateResponse("beta-test.html", {"request": request})
@@ -59,22 +59,26 @@ async def main_page(
 @router.get("/about")
 async def about_page(
     request: Request,
+    user: User | None = Security(user_auth_optional),
 ):
     return templates.TemplateResponse(
         "about.html",
         {
             "request": request,
+            "user": user,
         }
     )
 
 @router.get("/memealerts-tutorial")
 async def meme_tutorial_page(
     request: Request,
+    user: User | None = Security(user_auth_optional),
 ):
     return templates.TemplateResponse(
         "memealerts-tutorial.html",
         {
             "request": request,
+            "user": user,
         }
     )
 
@@ -94,6 +98,7 @@ async def debug_page(
     return templates.TemplateResponse(
         "debug.html",
         {
+            "user": user,
             "request": request,
             "state_manager_data": state_manager_data,
             "last_active": await chat_bot.get_last_active_users(user),
@@ -113,6 +118,7 @@ async def admin_page(
         "admin.html",
         {
             "request": request,
+            "user": user,
         }
     )
 
@@ -121,6 +127,7 @@ async def command_list_page(
     request: Request,
     # streamer_id: int = Query(...),
     streamer: str = Query(...),
+    user: User | None = Security(user_auth_optional),
     db: AsyncSession = Depends(get_db),
     chat_bot: ChatBot = Depends(get_chat_bot),
 ):
@@ -128,17 +135,18 @@ async def command_list_page(
         # sa.select(User).options(selectinload(User.settings)).filter_by(twitch_id=str(streamer_id))
         sa.select(User).options(selectinload(User.settings)).filter_by(login_name=streamer)
     )
-    user = result.scalar_one_or_none()
-    if not user:
+    streamer_user = result.scalar_one_or_none()
+    if not streamer_user:
         return HTTPException(404, "Streamer not found")
     user_settings: TwitchUserSettings = user.settings
     return templates.TemplateResponse(
         "streamer-commands.html",
         {
+            "user": user,
             "request": request,
-            "streamer_name": user.login_name,
-            "streamer_pic": user.profile_image_url,
-            "commands": await chat_bot.get_commands(user)
+            "streamer_name": streamer_user.login_name,
+            "streamer_pic": streamer_user.profile_image_url,
+            "commands": await chat_bot.get_commands(streamer_user)
         }
     )
 
@@ -146,10 +154,11 @@ async def command_list_page(
 async def get_streamers(
     request: Request,
     db: AsyncSession = Depends(get_db),
+    user: User | None = Security(user_auth_optional),
 ):
     q = (
         sa.select(User.login_name.label("username"), User.profile_image_url.label("avatar_url"), User.followers_count.label("followers"), User.in_beta_test.label("is_beta_tester"))
-        .where(User.followers_count > 20)
+        .where(User.followers_count > 10)
         .limit(50)
     )
     res = list((await db.execute(q)).fetchall())
@@ -173,7 +182,24 @@ async def get_streamers(
         row["role"] = "beta" if row["is_beta_tester"] else None
         if row["username"] == "quantum075":
             row["role"] = "dev"
-    return templates.TemplateResponse("streamers.html", {"request": request, "streamers": res})
+    return templates.TemplateResponse("streamers.html", {"request": request, "streamers": res, "user": user})
+
+
+@router.get("/kinda_roadmap")
+async def roadmap_page(
+    request: Request,
+    user: User | None = Security(user_auth_optional),
+):
+    # TODO: нарисовать красивый роадмап по коммитам, выделив включевые моменты,
+    #  вставить сюда в виде [date, str]
+    #  рисовать на страничке
+    return templates.TemplateResponse(
+        "roadmap.html",
+        {
+            "request": request,
+            "user": user,
+        }
+    )
 
 
 @router.get("/login-callback")
