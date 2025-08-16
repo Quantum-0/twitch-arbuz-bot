@@ -92,7 +92,9 @@
         {% if user and user.login_name == "quantum075" %}
         <a href="/admin" style="color: white; text-decoration: none;">Админка</a>
         {% endif %}
+        {% if user and user.in_beta_test %}
         <a href="/kinda_roadmap" style="color: white; text-decoration: none;">TODO</a>
+        {% endif %}
         <a href="/about" style="color: white; text-decoration: none;">О сервисе</a>
     </nav>
     <div class="user-icon">
