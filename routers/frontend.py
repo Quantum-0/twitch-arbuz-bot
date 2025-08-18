@@ -138,7 +138,7 @@ async def command_list_page(
     streamer_user = result.scalar_one_or_none()
     if not streamer_user:
         return HTTPException(404, "Streamer not found")
-    user_settings: TwitchUserSettings = user.settings
+    user_settings: TwitchUserSettings = streamer_user.settings
     return templates.TemplateResponse(
         "streamer-commands.html",
         {
