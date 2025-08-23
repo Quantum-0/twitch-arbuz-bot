@@ -184,8 +184,8 @@ class HelloHandler(CommonMessagesHandler):
             ]
             if channel.lower() in ('anna_toad', 'toad_anna'):
                 replies = [
-                    f"@{message.user.display_name}, кваствуй! >w<"
-                    f"@Кваствуй, @{message.user.display_name}! <3"
+                    f"@{message.user.display_name}, кваствуй! >w<",
+                    f"@Кваствуй, @{message.user.display_name}! <3",
                 ]
             await self.send_response(chat=channel, message=random.choice(replies))
             return HandlerResult.HANDLED
