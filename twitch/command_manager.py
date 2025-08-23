@@ -27,6 +27,10 @@ class CommandsManager:
         for cmd in self.commands:
             if not cmd.is_enabled(user_settings):
                 continue
+            # Обработка реплаев
+            if message.reply_parent_display_name and message.text.startswith(f"@{message.reply_parent_display_name} "):
+                message.text = message.text[len(message.reply_parent_display_name) + 2:]
+
             if any(message.text.lower().startswith(x) for x in ["!" + alias for alias in cmd.command_aliases]):
                 logger.debug(f"Handler for command was found: {cmd}")
                 await cmd.handle(channel, message)

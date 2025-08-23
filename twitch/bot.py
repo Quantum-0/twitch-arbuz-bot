@@ -12,7 +12,7 @@ from database.models import User, TwitchUserSettings
 from twitch.command import BiteCommand, LickCommand, BananaCommand, BoopCommand, CmdlistCommand, PatCommand, HugCommand, \
     LurkCommand
 from twitch.command_manager import CommandsManager
-from twitch.handlers import MessagesHandlerManager, PyramidHandler, UnlurkHandler
+from twitch.handlers import MessagesHandlerManager, PyramidHandler, UnlurkHandler, HelloHandler, IAmBotHandler
 from twitch.state_manager import get_state_manager
 from twitch.twitch import Twitch
 from twitch.user_list_manager import UserListManager
@@ -45,6 +45,8 @@ class ChatBot:
 
         self._handler_manager.register(PyramidHandler)
         self._handler_manager.register(UnlurkHandler)
+        self._handler_manager.register(HelloHandler)
+        self._handler_manager.register(IAmBotHandler)
         self._command_manager.register(CmdlistCommand)
         self._command_manager.register(BiteCommand)
         self._command_manager.register(LickCommand)

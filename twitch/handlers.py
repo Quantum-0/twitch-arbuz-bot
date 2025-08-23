@@ -1,4 +1,7 @@
+import asyncio
 import logging
+import random
+import re
 from abc import abstractmethod
 from collections.abc import Callable, Awaitable
 from enum import auto, Enum
@@ -163,4 +166,56 @@ class UnlurkHandler(CommonMessagesHandler):
             if time() - last_active > self.UNLURK_AFTER:
                 await self.send_response(chat=channel, message=f"@{user}, с возвращением из лурка!")
             return HandlerResult.HANDLED_AND_CONTINUE
+        return HandlerResult.SKIPED
+
+
+class HelloHandler(CommonMessagesHandler):
+    def is_enabled(self, streamer_settings: TwitchUserSettings) -> bool:
+        return True
+
+    async def handle(self, channel: str, message: ChatMessage) -> HandlerResult:
+        if message.reply_parent_user_login == "quantum075bot":
+            message.text = "@quantum075bot " + message.text
+        if '@quantum075bot' in message.text.lower() and any(hello_word in message.text.lower() for hello_word in {"привет", "дарова", "здравствуй", "кваствуй"}):
+            replies = [
+                f"@{message.user.display_name}, и тебе привет!",
+                f"@{message.user.display_name}, здравствуй-здравствуй!",
+                f"@{message.user.display_name}, дарова! >w<",
+            ]
+            if channel.lower() in ('anna_toad', 'toad_anna'):
+                replies = [
+                    f"@{message.user.display_name}, кваствуй! >w<"
+                    f"@Кваствуй, @{message.user.display_name}! <3"
+                ]
+            await self.send_response(chat=channel, message=random.choice(replies))
+            return HandlerResult.HANDLED
+        return HandlerResult.SKIPED
+
+
+class IAmBotHandler(CommonMessagesHandler):
+    def is_enabled(self, streamer_settings: TwitchUserSettings) -> bool:
+        return True
+
+    async def handle(self, channel: str, message: ChatMessage) -> HandlerResult:
+        if re.match(r"@quantum075bot .{0,5}бот\?", message.text.lower()):
+            if random.random() < 0.1:
+                await asyncio.sleep(0.5)
+                await self.send_response(chat=channel, message=f"Конеяно я бот!")
+                await asyncio.sleep(2)
+                await self.send_response(chat=channel, message=f"конечно* 👀")
+            else:
+                replies = [
+                    f"@{message.user.display_name}, конечно я бот! Какие могут быть сомнения?",
+                    f"@{message.user.display_name}, да, я бот, и я горжусь этим!",
+                    f"@{message.user.display_name}, почему ты так думаешь?",
+                    f"@{message.user.display_name}, нет, я настоящий живой человек, @Quantum075 держит меня в подвале и заставляет отвечать на сообщения Т_Т",
+                    f"@{message.user.display_name}, MrDestructoid !",
+                ]
+                await self.send_response(chat=channel, message=random.choice(replies))
+            return HandlerResult.HANDLED
+
+        if re.match(r"(кто )?боты? (- )?(плюс|плюсик|плюсики|плюсаните|\+)?( в ча[тч])?", message.text.lower()):
+            await self.send_response(chat=channel, message="+")
+            return HandlerResult.HANDLED
+
         return HandlerResult.SKIPED

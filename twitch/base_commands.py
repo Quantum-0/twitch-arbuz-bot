@@ -58,12 +58,12 @@ class SimpleTargetCommand(Command, ABC):
         return 1
 
     async def handle(self, channel: str, message: ChatMessage):
-        targets = []
+        targets = [f"@{message.reply_parent_display_name}"] if message.reply_parent_display_name else []
         user: str = message.user.display_name
         user_id: int = int(message.user.id)
 
         if self.need_target:
-            targets = extract_targets(message.text, channel)
+            targets.extend(extract_targets(message.text, channel))
             if len(targets) == 0 and self.need_target:
                 response = await self._no_target_reply(user)
                 await self.send_response(chat=channel, message=response)
