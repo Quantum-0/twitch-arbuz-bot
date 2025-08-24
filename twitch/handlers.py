@@ -214,7 +214,7 @@ class IAmBotHandler(CommonMessagesHandler):
                 await self.send_response(chat=channel, message=random.choice(replies))
             return HandlerResult.HANDLED
 
-        if re.match(r"(кто )?боты? (- )?(плюс|плюсик|плюсики|плюсаните|\+)?( в ча[тч])?", message.text.lower()):
+        if re.match(r"(кто )?боты? (- )?(плюс|плюсик|плюсики|плюсаните|\+)( в ча[тч])", message.text.lower()):
             await self.send_response(chat=channel, message="+")
             return HandlerResult.HANDLED
 
