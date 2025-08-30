@@ -146,8 +146,7 @@ class UnlurkHandler(CommonMessagesHandler):
 
     def __init__(self, sm: StateManager, send_message: Callable[..., Awaitable[None]]):
         from dependencies import get_chat_bot
-        self.get_chat_bot = get_chat_bot
-        # FIXME ^ костыль
+        self.chat_bot = next(get_chat_bot())
         super().__init__(sm, send_message)
 
     def is_enabled(self, streamer_settings: TwitchUserSettings) -> bool:
@@ -162,7 +161,7 @@ class UnlurkHandler(CommonMessagesHandler):
         previous_state: float = await self._state_manager.get_state(channel=channel, user=user, command=self.COMMAND_NAME)
         if previous_state is not None and time() - previous_state > self.UNLURK_AFTER:
             await self._state_manager.set_state(channel=channel, user=user, command=self.COMMAND_NAME, value=None)
-            last_active = await self.get_chat_bot().get_user_last_active(channel, user)
+            last_active = await self.chat_bot.get_user_last_active(channel, user)
             if time() - last_active > self.UNLURK_AFTER:
                 await self.send_response(chat=channel, message=f"@{user}, с возвращением из лурка!")
             return HandlerResult.HANDLED_AND_CONTINUE
