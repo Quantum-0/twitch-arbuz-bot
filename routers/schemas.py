@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Literal
+from typing import Literal, Any
 from uuid import UUID
 
 from pydantic import AnyHttpUrl
@@ -92,3 +92,7 @@ class RaidWebhookEventSchema(BaseModel):
 class RaidWebhookSchema(BaseModel):
     subscription: WebhookSubscriptionSchema
     event: RaidWebhookEventSchema
+
+class ChatMessageSchema(BaseModel):
+    subscription: WebhookSubscriptionSchema
+    event: dict[str, Any]  # TODO

@@ -3,7 +3,8 @@ import logging
 from fastapi import Request, HTTPException, Security, Header
 from pydantic import ValidationError
 
-from routers.schemas import RaidWebhookSchema, TwitchChallengeSchema, PointRewardRedemptionWebhookSchema
+from routers.schemas import RaidWebhookSchema, TwitchChallengeSchema, PointRewardRedemptionWebhookSchema, \
+    ChatMessageSchema
 from routers.security_helpers import verify_eventsub_signature
 
 logger = logging.getLogger(__name__)
@@ -13,6 +14,7 @@ SCHEMA_BY_TYPE: dict[str, type] = {
     "channel.raid": RaidWebhookSchema,
     "channel.channel_points_custom_reward_redemption.add": PointRewardRedemptionWebhookSchema,
     "webhook_callback_verification": TwitchChallengeSchema,
+    "channel.chat.message": ChatMessageSchema,
 }
 
 async def parse_eventsub_payload(

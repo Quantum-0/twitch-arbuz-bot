@@ -1,5 +1,7 @@
 import asyncio
 import logging.config
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from time import time
 
 from sqlalchemy.orm import selectinload
@@ -9,6 +11,7 @@ from twitchAPI.types import ChatEvent
 
 from database.database import AsyncSessionLocal
 from database.models import User, TwitchUserSettings
+from exceptions import UserNotFoundInDatabase, NotInBetaTest
 from twitch.command import BiteCommand, LickCommand, BananaCommand, BoopCommand, CmdlistCommand, PatCommand, HugCommand, \
     LurkCommand
 from twitch.command_manager import CommandsManager
@@ -35,10 +38,12 @@ class ChatBot:
         self._user_list_manager = UserListManager()
         self._handler_manager: MessagesHandlerManager = MessagesHandlerManager(get_state_manager(), self.send_message)
         self._command_manager = CommandsManager(get_state_manager(), self.send_message)
+        self._twitch: Twitch = None  # type: ignore
 
     async def startup(self, twitch: Twitch, event_loop: asyncio.AbstractEventLoop):
         self._main_event_loop = event_loop
         chat = await twitch.build_chat_client()
+        self._twitch = twitch
 
         async def on_message(msg: ChatMessage):
             asyncio.run_coroutine_threadsafe(self.on_message(msg), event_loop)
@@ -64,7 +69,7 @@ class ChatBot:
 
     async def send_message(self, chat: User | str, message: str) -> None:
         """
-        Send message to twitch chat.
+        Send message to twitch chat via IRC.
 
         :param chat: Модель пользователя в БД или логин твича.
         :param message: Текст сообщения.
@@ -79,31 +84,83 @@ class ChatBot:
         logger.info(f"Sending message `{message}` to channel `{chat}`")
         await self._chat.send_message(chat.lower(), message)
 
-    async def on_message(self, message):
+    # async def send_message_via_api(self, chat: User | str, message: str) -> None:
+    #     """
+    #     Send message to twitch chat via API.
+    #
+    #     :param chat: Модель пользователя в БД или логин твича.
+    #     :param message: Текст сообщения.
+    #     """
+#        bot_id = await twitch.get_user_id(await twitch.get_authenticated_user())
+    #     try:
+    #         await self._twitch.send_chat_message(
+    #             broadcaster_id=await self._twitch.get_user_id(chat),
+    #             sender_id=await self._twitch._twitch.get_user_id("имя_бота"),  # ID бота
+    #             message=message
+    #         )
+    #     except Exception:
+    #         logger.error("Failed to send message", exc_info=True)
+
+    @staticmethod
+    @asynccontextmanager
+    async def _get_user_with_settings(channel_name: str) -> AsyncIterator[User]:
+        channel_name = channel_name.lower()
+        async with AsyncSessionLocal() as session:
+            result = await session.execute(sa.select(User).options(selectinload(User.settings)).filter_by(login_name=channel_name))
+            user = result.scalar_one_or_none()
+            if not user:
+                logger.error(f"User {channel_name} not found")
+                raise UserNotFoundInDatabase
+            if not user.in_beta_test:
+                logger.error(f"User {channel_name} not in beta test")
+                raise NotInBetaTest
+            yield user
+
+    async def on_message(self, message: ChatMessage):
         channel = message.room.name  # Имя канала
 
         logger.debug(f"Got message `{message.text}` from channel `{channel}`")
 
-        async with AsyncSessionLocal() as session:
-            result = await session.execute(sa.select(User).options(selectinload(User.settings)).filter_by(login_name=channel.lower()))
-            user = result.scalar_one_or_none()
-            if not user:
-                logger.error(f"User {channel.lower()} not found")
-                return
-            if not user.in_beta_test:
-                logger.error(f"User {channel.lower()} not in beta test")
-                return
-
+        async with self._get_user_with_settings(channel) as user:
             user_settings: TwitchUserSettings = user.settings
             await self._user_list_manager.handle(channel, message)
             await self._command_manager.handle(user_settings, channel, message)
             await self._handler_manager.handle(user_settings, channel, message)
-            #if any(message.text.startswith(x) for x in ['!hug', '!обнять', '!обнимашки']) and user_settings.enable_hug:
-            #    await cmd_hug_handler(self, channel, message)
-            # if any(message.text.startswith(x) for x in ['!якто', '!ктоя', '!whoami']):
-            #     await cmd_whoami_handler(self, channel, message)
-            # if any(message.text.startswith(x) for x in ['!horny', '!хорни']):
-            #     await cmd_horny_handler(self, channel, message)
+
+    # async def update_bot_channels(self, twitch: Twitch):
+    #     """
+    #     Вместо join/leave в IRC — управление EventSub подписками на channel.chat.message
+    #     """
+    #     async with AsyncSessionLocal() as session:
+    #         users_result = await session.execute(
+    #             sa.select(User)
+    #             .join(TwitchUserSettings)
+    #             .filter(TwitchUserSettings.enable_chat_bot == True)
+    #         )
+    #         users = users_result.scalars().all()
+    #         desired_channels = {user.login_name.lower() for user in users}
+    #
+    #     # Получаем текущие подписки
+    #     subs = await twitch.get_eventsub_subscriptions()
+    #     current_channels = {
+    #         sub.condition.get("broadcaster_user_id")
+    #         for sub in subs
+    #         if sub.type == "channel.chat.message"
+    #     }
+    #
+    #     # Присоединяемся к новым каналам
+    #     for channel in desired_channels:
+    #         user_id = await twitch.get_user_id(channel)
+    #         if user_id not in current_channels:
+    #             await twitch.subscribe_channel_chat_message(user_id)
+    #             logger.info(f"Subscribed to EventSub chat messages for {channel}")
+    #
+    #     # Отписываемся от ненужных каналов
+    #     for sub in subs:
+    #         if sub.type == "channel.chat.message" and sub.condition.get(
+    #                 "broadcaster_user_login") not in desired_channels:
+    #             await twitch.unsubscribe_eventsub(sub.id)
+    #             logger.info(f"Unsubscribed from {sub.condition}")
 
     async def update_bot_channels(self):
         if not self._chat:
