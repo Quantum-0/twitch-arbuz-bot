@@ -186,7 +186,7 @@ class HelloHandler(CommonMessagesHandler):
                     f"@{message.user.display_name}, кваствуй! >w<",
                     f"Кваствуй, @{message.user.display_name}! <3",
                 ]
-            if channel.lower() in ('glumarkoj'):
+            if channel.lower() == 'glumarkoj':
                 replies = [
                     f"@{message.user.display_name}, здорова, брат!",
                 ]
