@@ -175,7 +175,7 @@ class HelloHandler(CommonMessagesHandler):
     async def handle(self, channel: str, message: ChatMessage) -> HandlerResult:
         if message.reply_parent_user_login == "quantum075bot":
             message.text = "@quantum075bot " + message.text
-        if '@quantum075bot' in message.text.lower() and any(hello_word in message.text.lower() for hello_word in {"привет", "дарова", "здравствуй", "кваствуй"}):
+        if '@quantum075bot' in message.text.lower() and any(hello_word in message.text.lower() for hello_word in {"привет", "дарова", "здравствуй", "кваствуй", "здорова"}):
             replies = [
                 f"@{message.user.display_name}, и тебе привет!",
                 f"@{message.user.display_name}, здравствуй-здравствуй!",
@@ -185,6 +185,10 @@ class HelloHandler(CommonMessagesHandler):
                 replies = [
                     f"@{message.user.display_name}, кваствуй! >w<",
                     f"Кваствуй, @{message.user.display_name}! <3",
+                ]
+            if channel.lower() in ('glumarkoj'):
+                replies = [
+                    f"@{message.user.display_name}, здорова, брат!",
                 ]
             await self.send_response(chat=channel, message=random.choice(replies))
             return HandlerResult.HANDLED
