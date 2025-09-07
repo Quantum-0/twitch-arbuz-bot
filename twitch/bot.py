@@ -5,15 +5,14 @@ from contextlib import asynccontextmanager
 from time import time
 
 from sqlalchemy.orm import selectinload
-from twitchAPI import Chat
-from twitchAPI.chat import ChatMessage
-from twitchAPI.types import ChatEvent
+from twitchAPI.chat import ChatMessage, Chat
+from twitchAPI.type import ChatEvent
 
 from database.database import AsyncSessionLocal
 from database.models import User, TwitchUserSettings
 from exceptions import UserNotFoundInDatabase, NotInBetaTest
 from twitch.command import BiteCommand, LickCommand, BananaCommand, BoopCommand, CmdlistCommand, PatCommand, HugCommand, \
-    LurkCommand
+    LurkCommand, PantsCommand
 from twitch.command_manager import CommandsManager
 from twitch.handlers import MessagesHandlerManager, PyramidHandler, UnlurkHandler, HelloHandler, IAmBotHandler
 from twitch.state_manager import get_state_manager
@@ -60,6 +59,7 @@ class ChatBot:
         self._command_manager.register(PatCommand)
         self._command_manager.register(HugCommand)
         self._command_manager.register(LurkCommand)
+        self._command_manager.register(PantsCommand)
 
         chat.register_event(ChatEvent.MESSAGE, on_message)
         logger.debug("On_message handler registered")
@@ -196,10 +196,10 @@ class ChatBot:
     async def get_commands(self, user: User) -> list[tuple[str, str, str]]:
         return await self._command_manager.get_commands_of_user(user)
 
-    async def get_last_active_users(self, user: User) -> list[tuple[str, str]]:
+    async def get_last_active_users(self, user: User | str) -> list[tuple[str, str]]:
         result = []
         dt = time()
-        for name, last_active in self._user_list_manager.get_active_users(user.login_name):
+        for name, last_active in self._user_list_manager.get_active_users(user.login_name if isinstance(user, User) else user):
             result.append((name, delay_to_seconds(dt - last_active) + " назад"))
         return result
 

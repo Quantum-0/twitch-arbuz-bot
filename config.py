@@ -1,7 +1,6 @@
 from pydantic import SecretStr, AnyHttpUrl
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from twitchAPI.types import AuthScope
-
+from twitchAPI.type import AuthScope
 
 user_scope = [
     AuthScope.MODERATOR_READ_FOLLOWERS,

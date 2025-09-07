@@ -2,14 +2,15 @@ from collections.abc import AsyncGenerator
 from uuid import UUID
 
 import httpx
-from twitchAPI import Twitch as TwitchClient, Chat
-from twitchAPI.object import CustomReward, TwitchUser, ChannelFollowersResult, Moderator
-from twitchAPI.types import AuthScope, CustomRewardRedemptionStatus
+from twitchAPI.object.api import Stream, Moderator, ChannelFollowersResult, TwitchUser, CustomReward, \
+    GetEventSubSubscriptionResult
+from twitchAPI.twitch import Twitch as TwitchClient
+from twitchAPI.chat import Chat
+from twitchAPI.type import AuthScope, CustomRewardRedemptionStatus
 
 from config import settings, user_scope, bot_scope
 from database.models import User
 from utils.singleton import singleton
-
 
 @singleton
 class Twitch():
@@ -23,11 +24,12 @@ class Twitch():
         await twitch.set_user_authentication(settings.bot_access_token, bot_scope,
                                              settings.bot_refresh_token)
         self._twitch = twitch
+        # await self.get_subscriptions()
 
     async def build_chat_client(self) -> Chat:
         return await Chat(self._twitch)
 
-    async def shoutout(self, user: User, shoutout_to: int) -> bool:
+    async def shoutout(self, user: User, shoutout_to: int) -> None:
         await self._twitch.send_a_shoutout(from_broadcaster_id=user.twitch_id, to_broadcaster_id=str(shoutout_to), moderator_id='957818216')
 
     @staticmethod
@@ -37,11 +39,19 @@ class Twitch():
         reward = await twitch_user.create_custom_reward(user.twitch_id, reward_title, reward_cost, reward_description, is_user_input_required=is_user_input_required)
         return reward
 
+    async def get_streams(self, users: list[User]) -> dict[User, Stream | None]:
+        streams = {x.user_login: x async for x in self._twitch.get_streams(user_login=[user.login_name for user in users])}
+        return {user: streams.get(user.login_name) for user in users}
+
     @staticmethod
     async def delete_reward(user, reward_id: UUID | str):
         twitch_user = await TwitchClient(settings.twitch_client_id, settings.twitch_client_secret)
         await twitch_user.set_user_authentication(user.access_token, user_scope, user.refresh_token)
         await twitch_user.delete_custom_reward(user.twitch_id, str(reward_id))
+
+    async def get_subscriptions(self) -> GetEventSubSubscriptionResult:
+        result = await self._twitch.get_eventsub_subscriptions()
+        return result
 
     @staticmethod
     async def subscribe_reward(user, reward_id: UUID | str):
@@ -76,10 +86,23 @@ class Twitch():
                     }
                 }
             )
+            response.raise_for_status()
             return response.json()
 
-    @staticmethod
-    async def subscribe_raid(user: User):
+    async def subscribe_raid(self, user: User):
+        # result = await self._twitch.create_eventsub_subscription(
+        #     "channel.raid",
+        #     version="1",
+        #     condition={
+        #         "to_broadcaster_user_id": user.twitch_id,
+        #     },
+        #     transport={
+        #         "method": "webhook",
+        #         "callback": str(settings.reward_redemption_webhook) + f"/{user.twitch_id}",
+        #         "secret": settings.twitch_webhook_secret.get_secret_value(),
+        #     },
+        # )
+        # return result
         async with httpx.AsyncClient() as client:
             response = await client.post(
                 "https://id.twitch.tv/oauth2/token",
@@ -110,32 +133,43 @@ class Twitch():
                     }
                 }
             )
+            response.raise_for_status()
             return response.json()
 
-    @staticmethod
-    async def unsubscribe_raid(subscription_id: UUID):
-        async with httpx.AsyncClient() as client:
-            response = await client.post(
-                "https://id.twitch.tv/oauth2/token",
-                params={
-                    "client_id": settings.twitch_client_id,
-                    "client_secret": settings.twitch_client_secret,
-                    "grant_type": 'client_credentials'
-                }
-            )
-            app_token = response.json()["access_token"]
-            response = await client.delete(
-                "https://api.twitch.tv/helix/eventsub/subscriptions",
-                headers={
-                    "Authorization": "Bearer " + app_token,
-                    "Client-Id": settings.twitch_client_id,
-                    "Content-Type": "application/json"
-                },
-                params={
-                    "id": str(subscription_id),
-                }
-            )
-            return response.json()
+    async def unsubscribe_raid(self, *, user: User = None, subscription_id: UUID = None):
+        if user:
+            subscriptions = await self.get_subscriptions()
+            for sub in subscriptions.data:
+                if sub.type == 'channel.raid' and sub.condition["to_broadcaster_user_id"] == str(user.twitch_id):
+                    await self._twitch.delete_eventsub_subscription(subscription_id=sub.id)
+                    return True
+            return False
+        elif subscription_id:
+            await self._twitch.delete_eventsub_subscription(subscription_id=str(subscription_id))
+            return True
+        # async with httpx.AsyncClient() as client:
+        #     response = await client.post(
+        #         "https://id.twitch.tv/oauth2/token",
+        #         params={
+        #             "client_id": settings.twitch_client_id,
+        #             "client_secret": settings.twitch_client_secret,
+        #             "grant_type": 'client_credentials'
+        #         }
+        #     )
+        #     app_token = response.json()["access_token"]
+        #     response = await client.delete(
+        #         "https://api.twitch.tv/helix/eventsub/subscriptions",
+        #         headers={
+        #             "Authorization": "Bearer " + app_token,
+        #             "Client-Id": settings.twitch_client_id,
+        #             "Content-Type": "application/json"
+        #         },
+        #         params={
+        #             "id": str(subscription_id),
+        #         }
+        #     )
+        #     response.raise_for_status()
+        #     return response.json()
 
     @staticmethod
     async def get_user_access_refresh_tokens_by_authorization_code(authorization_code: str) -> tuple[str, str]:
