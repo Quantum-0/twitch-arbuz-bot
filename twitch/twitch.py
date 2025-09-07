@@ -2,14 +2,14 @@ from collections.abc import AsyncGenerator
 from uuid import UUID
 
 import httpx
-from twitchAPI import Twitch as TwitchClient, Chat
-from twitchAPI.object import CustomReward, TwitchUser, ChannelFollowersResult, Moderator, Stream
-from twitchAPI.types import AuthScope, CustomRewardRedemptionStatus
+from twitchAPI.object.api import Stream, Moderator, ChannelFollowersResult, TwitchUser, CustomReward
+from twitchAPI.twitch import Twitch as TwitchClient
+from twitchAPI.chat import Chat
+from twitchAPI.type import AuthScope, CustomRewardRedemptionStatus
 
 from config import settings, user_scope, bot_scope
 from database.models import User
 from utils.singleton import singleton
-
 
 @singleton
 class Twitch():

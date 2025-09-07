@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, Path
 from memealerts.types.exceptions import MATokenExpiredError
 from sqlalchemy.orm import selectinload
 from starlette.responses import PlainTextResponse, Response
-from twitchAPI.types import TwitchResourceNotFound
+from twitchAPI.type import TwitchResourceNotFound
 
 from database.database import AsyncSessionLocal
 from database.models import User, TwitchUserSettings

@@ -5,7 +5,7 @@ from jwt import DecodeError
 from memealerts.types.exceptions import MATokenExpiredError
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.responses import JSONResponse
-from twitchAPI.types import TwitchResourceNotFound
+from twitchAPI.type import TwitchResourceNotFound, TwitchAPIException
 
 from dependencies import get_db, get_chat_bot, get_twitch
 from routers.schemas import UpdateSettingsForm, UpdateMemealertsCoinsSchema

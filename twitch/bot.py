@@ -3,9 +3,8 @@ import logging.config
 from time import time
 
 from sqlalchemy.orm import selectinload
-from twitchAPI import Chat
-from twitchAPI.chat import ChatMessage
-from twitchAPI.types import ChatEvent
+from twitchAPI.chat import ChatMessage, Chat
+from twitchAPI.type import ChatEvent
 
 from database.database import AsyncSessionLocal
 from database.models import User, TwitchUserSettings
