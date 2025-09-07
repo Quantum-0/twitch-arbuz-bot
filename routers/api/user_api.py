@@ -52,9 +52,8 @@ async def update_settings(
                     return JSONResponse({"title": "Ошибка", "message": f"Подписка на уведомления о рейдах уже существует."}, 409)
                 else:
                     raise
-        # else:
-        #     await twitch.unsubscribe_raid(user)
-        # TODO: unsubscribe
+        elif data.enable_shoutout_on_raid is False:
+            await twitch.unsubscribe_raid(user=user)
 
     return JSONResponse({"title": "Сохранено", "message": f"Настройки успешно обновлены."}, 200)
 
