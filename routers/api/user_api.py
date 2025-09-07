@@ -101,13 +101,20 @@ async def setup_memealert(
             await db.refresh(user.memealerts)
             return JSONResponse({"title": "Успешно", "message": "Токен обновлён."}, 200)
 
-        reward = await twitch.create_reward(
-            user,
-            "Memecoins",
-            500,
-            "Награда начисляется автомагически. В комментарии к награде обязательно укажи свой полный ник или ID на мемалёрте. По нику выдача ТОЛЬКО после получения приветственного бонуса.",
-            is_user_input_required=True,
-        )
+        try:
+            reward = await twitch.create_reward(
+                user,
+                "Memecoins",
+                500,
+                "Награда начисляется автомагически. В комментарии к награде обязательно укажи свой полный ник или ID на мемалёрте. По нику выдача ТОЛЬКО после получения приветственного бонуса.",
+                is_user_input_required=True,
+            )
+        except TwitchAPIException as exc:
+            if 'CREATE_CUSTOM_REWARD_DUPLICATE_REWARD' in str(exc):
+                return JSONResponse({"title": "Ошибка", "message": "Награда уже существует."}, 400)
+            if 'CREATE_CUSTOM_REWARD_TOO_MANY_REWARDS' in str(exc):
+                return JSONResponse({"title": "Ошибка", "message": "Слишком много наград на канале."}, 400)
+
         user.memealerts.memealerts_reward = reward.id
         user.memealerts.memealerts_token = memealerts_token
         await db.commit()
