@@ -1,6 +1,7 @@
 from typing import Any, Annotated
 
 from fastapi import APIRouter, Depends, Security, Form, Query
+from httpx import HTTPStatusError
 from jwt import DecodeError
 from memealerts.types.exceptions import MATokenExpiredError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -44,7 +45,13 @@ async def update_settings(
 
     if data.enable_shoutout_on_raid is not None:
         if data.enable_shoutout_on_raid is True:
-            await twitch.subscribe_raid(user)
+            try:
+                await twitch.subscribe_raid(user)
+            except HTTPStatusError as exc:
+                if exc.response.status_code == 409:
+                    return JSONResponse({"title": "Ошибка", "message": f"Подписка на уведомления о рейдах уже существует."}, 409)
+                else:
+                    raise
         # else:
         #     await twitch.unsubscribe_raid(user)
         # TODO: unsubscribe
