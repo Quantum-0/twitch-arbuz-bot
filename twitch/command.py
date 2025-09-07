@@ -300,7 +300,7 @@ class LurkCommand(SimpleCDCommand):
     command_description = "Сообщить стримеру и чатику, что вы уходите в лурк или возвращаетесь из него"
 
     def is_enabled(self, streamer_settings: TwitchUserSettings) -> bool:
-        return True or streamer_settings.enable_lurk
+        return streamer_settings.enable_lurk
 
     async def _handle(self, channel: str, user: str, message: str) -> str:
         state: bool = not ('unlurk' in message or 'анлурк' in message)
