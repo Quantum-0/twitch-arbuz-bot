@@ -3,7 +3,7 @@ from uuid import UUID
 
 import httpx
 from twitchAPI import Twitch as TwitchClient, Chat
-from twitchAPI.object import CustomReward, TwitchUser, ChannelFollowersResult, Moderator
+from twitchAPI.object import CustomReward, TwitchUser, ChannelFollowersResult, Moderator, Stream
 from twitchAPI.types import AuthScope, CustomRewardRedemptionStatus
 
 from config import settings, user_scope, bot_scope
@@ -27,7 +27,7 @@ class Twitch():
     async def build_chat_client(self) -> Chat:
         return await Chat(self._twitch)
 
-    async def shoutout(self, user: User, shoutout_to: int) -> bool:
+    async def shoutout(self, user: User, shoutout_to: int) -> None:
         await self._twitch.send_a_shoutout(from_broadcaster_id=user.twitch_id, to_broadcaster_id=str(shoutout_to), moderator_id='957818216')
 
     @staticmethod
@@ -36,6 +36,10 @@ class Twitch():
         await twitch_user.set_user_authentication(user.access_token, user_scope, user.refresh_token)
         reward = await twitch_user.create_custom_reward(user.twitch_id, reward_title, reward_cost, reward_description, is_user_input_required=is_user_input_required)
         return reward
+
+    async def get_streams(self, users: list[User]) -> dict[User, Stream | None]:
+        streams = {x.user_login: x async for x in self._twitch.get_streams(user_login=[user.login_name for user in users])}
+        return {user: streams.get(user.login_name) for user in users}
 
     @staticmethod
     async def delete_reward(user, reward_id: UUID | str):

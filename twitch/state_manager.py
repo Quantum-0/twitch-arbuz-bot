@@ -19,6 +19,9 @@ class SMParam(StrEnum):
     HEIGHT = auto()
     DIRECTION = auto()
 
+    # Pants
+    TARGET_COOLDOWN = auto()
+
 
 COMMAND_TYPE = str
 CHANNEL_TYPE = str
