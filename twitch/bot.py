@@ -46,6 +46,7 @@ class ChatBot:
 
         async def on_message(msg: ChatMessage):
             asyncio.run_coroutine_threadsafe(self.on_message(msg), event_loop)
+            # await self.on_message(msg)  # можно будет вернуть когда уйдём от IRC
 
         self._handler_manager.register(PyramidHandler)
         self._handler_manager.register(UnlurkHandler)
@@ -69,6 +70,15 @@ class ChatBot:
 
     async def send_message(self, chat: User | str, message: str) -> None:
         """
+        Send message to twitch chat.
+
+        :param chat: Модель пользователя в БД или логин твича.
+        :param message: Текст сообщения.
+        """
+        await self.send_message_via_api(chat, message)
+
+    async def send_message_via_irc(self, chat: User | str, message: str) -> None:
+        """
         Send message to twitch chat via IRC.
 
         :param chat: Модель пользователя в БД или логин твича.
@@ -84,22 +94,15 @@ class ChatBot:
         logger.info(f"Sending message `{message}` to channel `{chat}`")
         await self._chat.send_message(chat.lower(), message)
 
-    # async def send_message_via_api(self, chat: User | str, message: str) -> None:
-    #     """
-    #     Send message to twitch chat via API.
-    #
-    #     :param chat: Модель пользователя в БД или логин твича.
-    #     :param message: Текст сообщения.
-    #     """
-#        bot_id = await twitch.get_user_id(await twitch.get_authenticated_user())
-    #     try:
-    #         await self._twitch.send_chat_message(
-    #             broadcaster_id=await self._twitch.get_user_id(chat),
-    #             sender_id=await self._twitch._twitch.get_user_id("имя_бота"),  # ID бота
-    #             message=message
-    #         )
-    #     except Exception:
-    #         logger.error("Failed to send message", exc_info=True)
+    async def send_message_via_api(self, chat: User, message: str) -> None:
+        """
+        Send message to twitch chat via API.
+
+        :param chat: Модель пользователя в БД.
+        :param message: Текст сообщения.
+        """
+
+        await self._twitch.send_chat_message(stream_channel=chat, message=message, reply_parent_message_id=None)
 
     @staticmethod
     @asynccontextmanager
@@ -124,8 +127,8 @@ class ChatBot:
         async with self._get_user_with_settings(channel) as user:
             user_settings: TwitchUserSettings = user.settings
             await self._user_list_manager.handle(channel, message)
-            await self._command_manager.handle(user_settings, channel, message)
-            await self._handler_manager.handle(user_settings, channel, message)
+            await self._command_manager.handle(user_settings, user, message)
+            await self._handler_manager.handle(user_settings, user, message)
 
     # async def update_bot_channels(self, twitch: Twitch):
     #     """

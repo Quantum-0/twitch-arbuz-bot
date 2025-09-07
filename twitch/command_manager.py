@@ -4,7 +4,7 @@ from typing import Awaitable
 
 from twitchAPI.chat import ChatMessage
 
-from database.models import TwitchUserSettings
+from database.models import TwitchUserSettings, User
 from twitch.base_commands import Command
 from twitch.state_manager import StateManager
 
@@ -22,7 +22,7 @@ class CommandsManager:
         self.commands.append(command(self._sm, self._send_message))
         logger.info(f"Command {command} was registered")
 
-    async def handle(self, user_settings: TwitchUserSettings, channel: str, message: ChatMessage):
+    async def handle(self, user_settings: TwitchUserSettings, streamer: User, message: ChatMessage):
         logger.debug(f"Handling message with {self}")
         for cmd in self.commands:
             if not cmd.is_enabled(user_settings):
@@ -33,7 +33,7 @@ class CommandsManager:
 
             if any(message.text.lower().startswith(x) for x in ["!" + alias for alias in cmd.command_aliases]):
                 logger.debug(f"Handler for command was found: {cmd}")
-                await cmd.handle(channel, message)
+                await cmd.handle(streamer, message)
 
     async def get_commands_of_user(self, user) -> list[tuple[str, str, str]]:
         user_settings: TwitchUserSettings = user.settings

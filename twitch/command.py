@@ -2,7 +2,7 @@ import random
 from collections.abc import Callable, Awaitable
 from time import time
 
-from database.models import TwitchUserSettings
+from database.models import TwitchUserSettings, User
 from twitch.base_commands import SimpleTargetCommand, SavingResultCommand, SimpleCDCommand
 from twitch.state_manager import SMParam, StateManager
 from twitch.utils import join_targets, delay_to_seconds, extract_targets
@@ -20,7 +20,7 @@ class BiteCommand(SimpleTargetCommand):
     def is_enabled(self, streamer_settings: TwitchUserSettings) -> bool:
         return streamer_settings.enable_bite
 
-    async def _handle(self, channel: str, user: str, message: str, targets: list[str]) -> str:
+    async def _handle(self, streamer: User, user: str, message: str, targets: list[str]) -> str:
         kind_of_bite = ["злобный", "приятный", "мягкий", "нежный", "аккуратный", "агрессивный", "коварный"]
         target_to_bite = ["левое ухо", "правое ухо", "пятку", "хвост", "ногу", "пэрсики", "нос", "плечо", "жёпку"]
         target = join_targets(targets)
@@ -56,7 +56,7 @@ class LickCommand(SimpleTargetCommand):
     def is_enabled(self, streamer_settings: TwitchUserSettings) -> bool:
         return streamer_settings.enable_bite
 
-    async def _handle(self, channel: str, user: str, message: str, targets: list[str]) -> str:
+    async def _handle(self, streamer: User, user: str, message: str, targets: list[str]) -> str:
         target = join_targets(targets)
         random_variants = [
             f'{user} вылизывает всё лицо {target}',
@@ -104,7 +104,7 @@ class BananaCommand(SavingResultCommand):
     async def _cooldown_reply(self, user: str, delay: int) -> str | None:
         return random.choice([f"Мы уже смотрели на твой банан, @{user}. Давай попозже!", "Мы же несколько секунд назад проверяли твой банан, что за нетерпеливость!"])
 
-    async def _handle_new(self, channel: str, user: str, text: str, new_value: str):
+    async def _handle_new(self, streamer: User, user: str, text: str, new_value: str):
         if new_value == "nsfw":
             return f"@{user}, спрячь свой банан обратно, это же неприлично! Трясет тут своим бананом при всех, ну шо такое, ни стыда ни совести!"
         if new_value == "зелёный":
@@ -119,7 +119,7 @@ class BananaCommand(SavingResultCommand):
         ]
         return random.choice(variants)
 
-    async def _handle_old(self, channel: str, user: str, text: str, old_value: str, seconds_spend: str):
+    async def _handle_old(self, streamer: User, user: str, text: str, old_value: str, seconds_spend: str):
         if old_value == "nsfw":
             return f"Говоришь спрячь свой банан, это неприлично - нет, блин, не слушает, снова достаёт и хвастается перед всеми своим бананом! >_<"
         variants = [
@@ -146,7 +146,7 @@ class BoopCommand(SimpleTargetCommand):
     def is_enabled(self, streamer_settings: TwitchUserSettings) -> bool:
         return streamer_settings.enable_boop
 
-    async def _handle(self, channel: str, user: str, message: str, targets: list[str]) -> str:
+    async def _handle(self, streamer: User, user: str, message: str, targets: list[str]) -> str:
         target = join_targets(targets)
         if len(targets) == 1 and random.random() < 0.1:
             return f"@{user} делает буп в нось {target}, но {target} внезапно чихает от этого. @{user}, кажется тебе стоит пойти помыть руку.."
@@ -171,8 +171,8 @@ class CmdlistCommand(SimpleCDCommand):
     cooldown_timer_per_chat = 120
     cooldown_timer_per_user = 600
 
-    async def _handle(self, channel: str, user: str, message: str) -> str:
-        return f"Список команд в чате для этого бота: https://bot.quantum0.ru/cmdlist?streamer={channel}"
+    async def _handle(self, streamer: User, user: str, message: str) -> str:
+        return f"Список команд в чате для этого бота: https://bot.quantum0.ru/cmdlist?streamer={streamer.login_name}"
 
     async def _cooldown_reply(self, user: str, delay: int) -> str | None:
         return None
@@ -196,7 +196,7 @@ class PatCommand(SimpleTargetCommand):
     def is_enabled(self, streamer_settings: TwitchUserSettings) -> bool:
         return streamer_settings.enable_pat
 
-    async def _handle(self, channel: str, user: str, message: str, targets: list[str]) -> str:
+    async def _handle(self, streamer: User, user: str, message: str, targets: list[str]) -> str:
         target = join_targets(targets)
         how_pat = random.choice(["мягко", "аккуратно", "приятно", "нежно", "ласково"])
         how_stroke = random.choice(["легонько", "мягко", "аккуратно", "приятно"])
@@ -249,11 +249,11 @@ class HugCommand(SimpleTargetCommand):
     def is_enabled(self, streamer_settings: TwitchUserSettings) -> bool:
         return streamer_settings.enable_hug
 
-    async def _handle(self, channel: str, user: str, message: str, targets: list[str]) -> str:
+    async def _handle(self, streamer: User, user: str, message: str, targets: list[str]) -> str:
         target = join_targets(targets)
         join_to_hugs_str = ""
         if len(targets) == 1:
-            last_hug_target = await self._state_manager.get_state(channel=channel, user=target[1:].lower(), command=self.command_name, param=SMParam.LAST_APPLY)
+            last_hug_target = await self._state_manager.get_state(channel=streamer.login_name, user=target[1:].lower(), command=self.command_name, param=SMParam.LAST_APPLY)
             if last_hug_target and time() - last_hug_target < 20:
                 join_to_hugs_str = "присоединяется к обнимашкам и "
         variants = [
@@ -303,15 +303,15 @@ class LurkCommand(SimpleCDCommand):
     def is_enabled(self, streamer_settings: TwitchUserSettings) -> bool:
         return streamer_settings.enable_lurk
 
-    async def _handle(self, channel: str, user: str, message: str) -> str:
+    async def _handle(self, streamer: User, user: str, message: str) -> str:
         state: bool = not ('unlurk' in message or 'анлурк' in message)
-        previous_state: bool = await self._state_manager.get_state(channel=channel, user=user.lower(), command=self.command_name) is not None
+        previous_state: bool = await self._state_manager.get_state(channel=streamer.login_name, user=user.lower(), command=self.command_name) is not None
 
         if state == previous_state and state is True:
             return f"@{user}, ты и так уже в лурке"
 
         if state and not previous_state:
-            await self._state_manager.set_state(channel=channel, user=user.lower(), command=self.command_name, value=time())
+            await self._state_manager.set_state(channel=streamer.login_name, user=user.lower(), command=self.command_name, value=time())
             variants = [
                 f"@{user} прячется за холодильник и наблюдает за стримом оттуда. Спасибо за лурк!",
                 f"@{user} спотыкается об камушек, падает и проваливается в лурк",
@@ -321,7 +321,7 @@ class LurkCommand(SimpleCDCommand):
             return random.choice(variants)
 
         if previous_state and not state:
-            await self._state_manager.set_state(channel=channel, user=user.lower(), command=self.command_name, value=None)
+            await self._state_manager.set_state(channel=streamer.login_name, user=user.lower(), command=self.command_name, value=None)
             return f"@{user} выпылывает из лурка. С возвращением!"
 
 
@@ -342,26 +342,26 @@ class PantsCommand(SimpleCDCommand):
     def is_enabled(self, streamer_settings: TwitchUserSettings) -> bool:
         return streamer_settings.enable_pants
 
-    async def _handle(self, channel: str, user: str, message: str) -> str:
+    async def _handle(self, streamer: User, user: str, message: str) -> str:
         # Проверка — идёт ли уже розыгрыш
-        pants_user = await self._state_manager.get_state(channel=channel, command=self.command_name, param=SMParam.USER)
+        pants_user = await self._state_manager.get_state(channel=streamer.login_name, command=self.command_name, param=SMParam.USER)
         if pants_user:
             return f"Невозможно начать новый розыгрыш трусов, пока не разыграли трусы @{pants_user}"
 
         # Выбор цели
         target: str | None = None
         if message.startswith("!трусы @"):
-            targets = extract_targets(message, channel)
+            targets = extract_targets(message, streamer.login_name)  # TODO replace with display name
             if len(targets) > 1:
                 return "Для розыгрыша трусов нужно выбрать только одну цель!"
             target = targets[0][1:]
 
         if not target:
-            targets = [x for x,y in await self.chat_bot.get_last_active_users(channel)]
+            targets = [x for x,y in await self.chat_bot.get_last_active_users(streamer.login_name)]
             target = random.choice(targets)
 
         # Проверяем кулдаун для цели
-        last_ts = await self._state_manager.get_state(channel=channel, command=self.command_name, user=target, param=SMParam.TARGET_COOLDOWN)
+        last_ts = await self._state_manager.get_state(channel=streamer.login_name, command=self.command_name, user=target, param=SMParam.TARGET_COOLDOWN)
         if last_ts and time() - last_ts < self.cooldown_timer_per_target:
             return f"Трусы @{target} уже недавно разыгрывались. Подождём немного!"
 

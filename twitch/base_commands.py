@@ -5,7 +5,7 @@ from time import time
 
 from twitchAPI.chat import ChatMessage
 
-from database.models import TwitchUserSettings
+from database.models import TwitchUserSettings, User
 from twitch.state_manager import StateManager, SMParam
 from twitch.utils import extract_targets
 
@@ -39,7 +39,7 @@ class Command(ABC):
             raise RuntimeError("Command has no trigger aliases")
 
     @abstractmethod
-    async def handle(self, channel: str, message: ChatMessage):
+    async def handle(self, streamer: User, message: ChatMessage):
         raise NotImplementedError
 
 class SimpleTargetCommand(Command, ABC):
@@ -57,26 +57,26 @@ class SimpleTargetCommand(Command, ABC):
     def cooldown_count(self) -> int:
         return 1
 
-    async def handle(self, channel: str, message: ChatMessage):
+    async def handle(self, streamer: User, message: ChatMessage):
         targets = [f"@{message.reply_parent_display_name}"] if message.reply_parent_display_name else []
         user: str = message.user.display_name
         user_id: int = int(message.user.id)
 
         if self.need_target:
-            targets.extend(extract_targets(message.text, channel))
+            targets.extend(extract_targets(message.text, streamer.login_name))  # TODO: display name
             if len(targets) == 0 and self.need_target:
                 response = await self._no_target_reply(user)
-                await self.send_response(chat=channel, message=response)
+                await self.send_response(chat=streamer, message=response)
                 return
 
         last_command_call = await self._state_manager.get_state(
-            channel=channel,
+            channel=streamer.login_name,
             user=user_id,
             command=self.command_name,
             param=SMParam.COOLDOWN
         )
         command_calls_count = await self._state_manager.get_state(
-            channel=channel,
+            channel=streamer.login_name,
             user=user_id,
             command=self.command_name,
             param=SMParam.CALL_COUNT
@@ -86,34 +86,34 @@ class SimpleTargetCommand(Command, ABC):
             if self.cooldown_count == 1 or (command_calls_count or 1) >= self.cooldown_count:
                 delay = self.cooldown_timer - int(time() - last_command_call)
                 response = await self._cooldown_reply(user, delay)
-                await self.send_response(chat=channel, message=response)
+                await self.send_response(chat=streamer, message=response)
                 return
             if self.cooldown_count > 1:
-                await self._state_manager.set_state(channel=channel, user=user_id, command=self.command_name, param=SMParam.CALL_COUNT, value=command_calls_count + 1)
+                await self._state_manager.set_state(channel=streamer.login_name, user=user_id, command=self.command_name, param=SMParam.CALL_COUNT, value=command_calls_count + 1)
         else:
             if self.cooldown_timer:
-                await self._state_manager.set_state(channel=channel, user=user_id, command=self.command_name, param=SMParam.COOLDOWN, value=time())
+                await self._state_manager.set_state(channel=streamer.login_name, user=user_id, command=self.command_name, param=SMParam.COOLDOWN, value=time())
                 if self.cooldown_count > 1:
-                    await self._state_manager.set_state(channel=channel, user=user_id, command=self.command_name, param=SMParam.CALL_COUNT, value=1)
+                    await self._state_manager.set_state(channel=streamer.login_name, user=user_id, command=self.command_name, param=SMParam.CALL_COUNT, value=1)
 
         if len(targets) == 1 and user.lower() == targets[0][1:].lower():
             response = await self._self_call_reply(user)
             if response:
-                await self.send_response(chat=channel, message=response)
+                await self.send_response(chat=streamer, message=response)
                 return
         if len(targets) == 1 and targets[0].lower() in {"@streamelements", "@wisebot", "@alurarin", "@nightbot", "@botrixoficial", "@dustyfox_bot", "@moobot", "@jeetbot", "@fossabot"}:
             response = await self._bot_call_reply(user, target=targets[0])
             if response:
-                await self.send_response(chat=channel, message=response)
+                await self.send_response(chat=streamer, message=response)
                 return
         if len(targets) == 1 and targets[0].lower() == "@quantum075bot":
             response = await self._this_bot_call_reply(user)
             if response:
-                await self.send_response(chat=channel, message=response)
+                await self.send_response(chat=streamer, message=response)
                 return
 
-        response = await self._handle(channel, user, message.text, targets)
-        await self.send_response(chat=channel, message=response)
+        response = await self._handle(streamer, user, message.text, targets)
+        await self.send_response(chat=streamer, message=response)
 
         for target in targets:
             if target.startswith('@'):
@@ -121,7 +121,7 @@ class SimpleTargetCommand(Command, ABC):
             else:
                 continue
             # TODO: сюда б айди писать а не строку, но не оч понятно где б его взять
-            await self._state_manager.set_state(channel=channel, user=target, command=self.command_name, param=SMParam.LAST_APPLY, value=time())
+            await self._state_manager.set_state(channel=streamer.login_name, user=target, command=self.command_name, param=SMParam.LAST_APPLY, value=time())
 
     @abstractmethod
     async def _no_target_reply(self, user: str) -> str | None:
@@ -143,7 +143,7 @@ class SimpleTargetCommand(Command, ABC):
         return await self._bot_call_reply(user, "@Quantum075Bot")
 
     @abstractmethod
-    async def _handle(self, channel: str, user: str, message: str, targets: list[str]) -> str:
+    async def _handle(self, streamer: User, user: str, message: str, targets: list[str]) -> str:
         raise NotImplementedError
 
 class SimpleCDCommand(Command):
@@ -157,18 +157,18 @@ class SimpleCDCommand(Command):
     def cooldown_timer_per_user(self) -> int | None:
         return None
 
-    async def handle(self, channel: str, message: ChatMessage):
+    async def handle(self, streamer: User, message: ChatMessage):
         user: str = message.user.display_name
         user_id: int = int(message.user.id)
 
         last_command_call_user = await self._state_manager.get_state(
-            channel=channel,
+            channel=streamer.login_name,
             user=user_id,
             command=self.command_name,
             param=SMParam.COOLDOWN
         )
         last_command_call_channel = await self._state_manager.get_state(
-            channel=channel,
+            channel=streamer.login_name,
             command=self.command_name,
             param=SMParam.COOLDOWN
         )
@@ -177,28 +177,28 @@ class SimpleCDCommand(Command):
             logger.debug(f"Skip command {self.command_name} because of per-user cooldown")
             delay = self.cooldown_timer_per_user - int(time() - last_command_call_user)
             response = await self._cooldown_reply(user, delay)
-            await self.send_response(chat=channel, message=response)
+            await self.send_response(chat=streamer, message=response)
             return
 
         if last_command_call_channel and self.cooldown_timer_per_chat and time() - last_command_call_channel < self.cooldown_timer_per_chat:
             logger.debug(f"Skip command {self.command_name} because of per-channel cooldown")
             delay = self.cooldown_timer_per_chat - int(time() - last_command_call_channel)
             response = await self._cooldown_reply(user, delay)
-            await self.send_response(chat=channel, message=response)
+            await self.send_response(chat=streamer, message=response)
             return
 
         if self.cooldown_timer_per_chat:
-            await self._state_manager.set_state(channel=channel, command=self.command_name, param=SMParam.COOLDOWN, value=time())
+            await self._state_manager.set_state(channel=streamer.login_name, command=self.command_name, param=SMParam.COOLDOWN, value=time())
         if self.cooldown_timer_per_user:
-            await self._state_manager.set_state(channel=channel, user=user_id, command=self.command_name, param=SMParam.COOLDOWN, value=time())
+            await self._state_manager.set_state(channel=streamer.login_name, user=user_id, command=self.command_name, param=SMParam.COOLDOWN, value=time())
 
         logger.debug(f"Handling with command handler")
-        response = await self._handle(channel, user, message.text)
-        await self.send_response(chat=channel, message=response)
+        response = await self._handle(streamer, user, message.text)
+        await self.send_response(chat=streamer, message=response)
         return
 
     @abstractmethod
-    async def _handle(self, channel: str, user: str, message: str) -> str:
+    async def _handle(self, streamer: User, user: str, message: str) -> str:
         raise NotImplementedError
 
     @abstractmethod
@@ -220,12 +220,12 @@ class SavingResultCommand(Command):
     async def result_generator(self) -> str:
         raise NotImplementedError
 
-    async def handle(self, channel: str, message: ChatMessage):
+    async def handle(self, streamer: User, message: ChatMessage):
         user: str = message.user.display_name
         user_id: int = int(message.user.id)
 
         last_command_call = await self._state_manager.get_state(
-            channel=channel,
+            channel=streamer.login_name,
             user=user_id,
             command=self.command_name,
             param=SMParam.COOLDOWN
@@ -241,29 +241,29 @@ class SavingResultCommand(Command):
             param=SMParam.PREVIOUS_VALUE_TIME,
         )
 
-        targets = extract_targets(message.text, channel)
+        targets = extract_targets(message.text, streamer.login_name)  # FIXME
         if targets:
             response = await self._target_selected(user, targets)
-            await self.send_response(chat=channel, message=response)
+            await self.send_response(chat=streamer, message=response)
             return
 
         if last_command_call and self.cooldown_timer and time() - last_command_call < self.cooldown_timer:
             delay = self.cooldown_timer - int(time() - last_command_call)
             response = await self._cooldown_reply(user, delay)
-            await self.send_response(chat=channel, message=response)
+            await self.send_response(chat=streamer, message=response)
             return
         else:
             if self.cooldown_timer:
-                await self._state_manager.set_state(channel=channel, user=user_id, command=self.command_name, param=SMParam.COOLDOWN, value=time())
+                await self._state_manager.set_state(channel=streamer.login_name, user=user_id, command=self.command_name, param=SMParam.COOLDOWN, value=time())
 
         if self.refresh_result_timer and last_result_time and time() - last_result_time < self.refresh_result_timer:
-            response = await self._handle_old(channel, user, message.text, last_result_value, time() - last_result_time)
+            response = await self._handle_old(streamer, user, message.text, last_result_value, time() - last_result_time)
         else:
             new_value = await self.result_generator()
             await self._state_manager.set_state(user=user_id, command=self.command_name, param=SMParam.PREVIOUS_VALUE, value=new_value)
             await self._state_manager.set_state(user=user_id, command=self.command_name, param=SMParam.PREVIOUS_VALUE_TIME, value=time())
-            response = await self._handle_new(channel, user, message.text, new_value)
-        await self.send_response(chat=channel, message=response)
+            response = await self._handle_new(streamer, user, message.text, new_value)
+        await self.send_response(chat=streamer, message=response)
         return
 
     @abstractmethod
@@ -271,11 +271,11 @@ class SavingResultCommand(Command):
         raise NotImplementedError
 
     @abstractmethod
-    async def _handle_new(self, channel: str, user: str, text: str, new_value: str):
+    async def _handle_new(self, streamer: User, user: str, text: str, new_value: str):
         raise NotImplementedError
 
     @abstractmethod
-    async def _handle_old(self, channel: str, user: str, text: str, old_value: str, seconds_spend: str):
+    async def _handle_old(self, streamer: User, user: str, text: str, old_value: str, seconds_spend: str):
         raise NotImplementedError
 
     @abstractmethod

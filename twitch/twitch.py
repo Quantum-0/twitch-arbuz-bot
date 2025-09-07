@@ -3,7 +3,7 @@ from uuid import UUID
 
 import httpx
 from twitchAPI.object.api import Stream, Moderator, ChannelFollowersResult, TwitchUser, CustomReward, \
-    GetEventSubSubscriptionResult
+    GetEventSubSubscriptionResult, SendMessageResponse
 from twitchAPI.twitch import Twitch as TwitchClient
 from twitchAPI.chat import Chat
 from twitchAPI.type import AuthScope, CustomRewardRedemptionStatus
@@ -48,6 +48,16 @@ class Twitch():
         twitch_user = await TwitchClient(settings.twitch_client_id, settings.twitch_client_secret)
         await twitch_user.set_user_authentication(user.access_token, user_scope, user.refresh_token)
         await twitch_user.delete_custom_reward(user.twitch_id, str(reward_id))
+
+    async def send_chat_message(self, stream_channel: User, message: str, reply_parent_message_id: str | None = None, for_source_only: bool | None = None) -> SendMessageResponse:
+        result = await self._twitch.send_chat_message(
+            broadcaster_id=stream_channel.twitch_id,
+            sender_id="957818216",
+            message=message,
+            reply_parent_message_id=reply_parent_message_id,
+            for_source_only=for_source_only,
+        )
+        return result
 
     async def get_subscriptions(self) -> GetEventSubSubscriptionResult:
         result = await self._twitch.get_eventsub_subscriptions()
