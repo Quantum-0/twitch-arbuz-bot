@@ -1,5 +1,5 @@
 import random
-from typing import Any
+from typing import Any, Annotated
 
 from fastapi import APIRouter, Security, HTTPException, Query
 from fastapi.params import Depends
@@ -85,8 +85,8 @@ async def meme_tutorial_page(
 @router.get("/debug")
 async def debug_page(
     request: Request,
+    chat_bot: Annotated[ChatBot, Depends(get_chat_bot)],
     user: Any = Security(user_auth),
-    chat_bot: ChatBot = Depends(get_chat_bot)
 ):
     if not user.in_beta_test:
         raise HTTPException(status_code=403, detail="No access to debug")
@@ -125,11 +125,11 @@ async def admin_page(
 @router.get("/cmdlist")
 async def command_list_page(
     request: Request,
+    streamer: Annotated[str, Query(...)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    chat_bot: Annotated[ChatBot, Depends(get_chat_bot)],
     # streamer_id: int = Query(...),
-    streamer: str = Query(...),
     user: User | None = Security(user_auth_optional),
-    db: AsyncSession = Depends(get_db),
-    chat_bot: ChatBot = Depends(get_chat_bot),
 ):
     result = await db.execute(
         # sa.select(User).options(selectinload(User.settings)).filter_by(twitch_id=str(streamer_id))
@@ -153,7 +153,7 @@ async def command_list_page(
 @router.get("/streamers")
 async def get_streamers(
     request: Request,
-    db: AsyncSession = Depends(get_db),
+    db: Annotated[AsyncSession, Depends(get_db)],
     user: User | None = Security(user_auth_optional),
 ):
     q = (
@@ -225,8 +225,8 @@ async def roadmap_page(
 async def callback(
     request: Request,
     code: str,
-    db: AsyncSession = Depends(get_db),
-    twitch: Twitch = Depends(get_twitch),
+    db: Annotated[AsyncSession, Depends(get_db)],
+    twitch: Annotated[Twitch, Depends(get_twitch)],
 ):
     access_token, refresh_token = await twitch.get_user_access_refresh_tokens_by_authorization_code(code)
     user_info = await twitch.get_self(access_token, refresh_token)

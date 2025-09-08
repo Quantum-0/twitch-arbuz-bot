@@ -1,3 +1,5 @@
+from typing import Annotated
+
 import sqlalchemy as sa
 from fastapi import APIRouter, Security, Depends, Query, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -11,9 +13,9 @@ router = APIRouter(prefix="/admin", tags=["Admin API"])
 
 @router.post("/add_to_beta_test")
 async def update_settings(
+    db: Annotated[AsyncSession, Depends(get_db)],
     _: None = Security(admin_auth),
     twitch_login: str = Query(...),
-    db: AsyncSession = Depends(get_db),
 ):
     q = sa.update(User).values(in_beta_test=True).where(User.login_name == twitch_login)
     res = await db.execute(q)
@@ -22,12 +24,12 @@ async def update_settings(
 
 
 @router.post("/send_message")
-async def update_settings(
+async def send_message(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    twitch: Annotated[Twitch, Depends(get_twitch)],
     _: None = Security(admin_auth),
     channel: str = Query(...),
     message: str = Query(...),
-    db: AsyncSession = Depends(get_db),
-    twitch: Twitch = Depends(get_twitch),
 ):
     q = sa.select(User).where(User.login_name == channel)
     res: User | None = await db.scalar(q)

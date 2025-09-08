@@ -1,7 +1,7 @@
 import logging
 
 from fastapi import Request, HTTPException, Security, Header
-from pydantic import ValidationError
+from pydantic import ValidationError, BaseModel
 
 from routers.schemas import RaidWebhookSchema, TwitchChallengeSchema, PointRewardRedemptionWebhookSchema, \
     ChatMessageSchema
@@ -10,7 +10,7 @@ from routers.security_helpers import verify_eventsub_signature
 logger = logging.getLogger(__name__)
 
 # 👇 маппинг типов события -> схема
-SCHEMA_BY_TYPE: dict[str, type] = {
+SCHEMA_BY_TYPE: dict[str, type[BaseModel]] = {
     "channel.raid": RaidWebhookSchema,
     "channel.channel_points_custom_reward_redemption.add": PointRewardRedemptionWebhookSchema,
     "webhook_callback_verification": TwitchChallengeSchema,
@@ -30,10 +30,7 @@ async def parse_eventsub_payload(
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid JSON body")
 
-    if eventsub_message_type == "webhook_callback_verification":
-        schema_cls = TwitchChallengeSchema
-    else:
-        schema_cls = SCHEMA_BY_TYPE.get(eventsub_subscription_type)
+    schema_cls: BaseModel | None = TwitchChallengeSchema if eventsub_message_type == "webhook_callback_verification" else SCHEMA_BY_TYPE.get(eventsub_subscription_type)
 
     if not schema_cls:
         logger.warning(f"Determine schema {schema_cls} by eventsub_subscription_type: {eventsub_subscription_type}")

@@ -35,9 +35,9 @@ async def eventsub_handler(
         PointRewardRedemptionWebhookSchema | RaidWebhookSchema | TwitchChallengeSchema | ChatMessageSchema,
         Depends(parse_eventsub_payload)
     ],
+    twitch: Annotated[Twitch, Depends(get_twitch)],
+    chat_bot: Annotated[ChatBot, Depends(get_chat_bot)],
     streamer_id: int = Path(...),
-    twitch: Twitch = Depends(get_twitch),
-    chat_bot: ChatBot = Depends(get_chat_bot),
 ):
     # Ответ на challenge сразу
     if isinstance(payload, TwitchChallengeSchema):
@@ -75,7 +75,7 @@ async def handle_raid(payload: RaidWebhookSchema, twitch: Twitch):
             user_settings: TwitchUserSettings = user.settings
 
             if not user_settings.enable_shoutout_on_raid:
-                await twitch.unsubscribe_raid(payload.subscription.subscription_id)
+                await twitch.unsubscribe_raid(subscription_id=payload.subscription.subscription_id)
                 return
 
             await twitch.shoutout(user=user, shoutout_to=payload.event.from_broadcaster_user_id)

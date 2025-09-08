@@ -37,7 +37,7 @@ class User(Base):
 
     @property
     def access_token(self) -> str:
-        return decrypt_value(self._access_token)
+        return decrypt_value(self._access_token)  # type: ignore
 
     @access_token.setter
     def access_token(self, value: str) -> None:
@@ -45,7 +45,7 @@ class User(Base):
 
     @property
     def refresh_token(self) -> str:
-        return decrypt_value(self._refresh_token)
+        return decrypt_value(self._refresh_token)  # type: ignore
 
     @refresh_token.setter
     def refresh_token(self, value: str) -> None:
@@ -95,11 +95,11 @@ class MemealertsSettings(Base):
 
     @property
     def memealerts_token(self) -> str:
-        return decrypt_value(self._memealerts_token)
+        return decrypt_value(self._memealerts_token)  # type: ignore
 
     @memealerts_token.setter
     def memealerts_token(self, value: str) -> None:
-        self._memealerts_token = encrypt_value(value)
+        self._memealerts_token = encrypt_value(value)  # type: ignore
 
 
 class MemealertsSupporters(Base):

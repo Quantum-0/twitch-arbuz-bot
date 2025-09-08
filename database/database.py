@@ -11,7 +11,7 @@ async_engine = create_async_engine(
     echo=False,
 )
 
-AsyncSessionLocal = sessionmaker(
+AsyncSessionLocal = sessionmaker(  # type: ignore
     bind=async_engine,
     class_=AsyncSession,
     # autocommit=False,

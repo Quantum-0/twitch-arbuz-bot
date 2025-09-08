@@ -20,10 +20,10 @@ router = APIRouter(prefix="/user", tags=["User API"])
 @router.post("/update_settings")
 async def update_settings(
     data: Annotated[UpdateSettingsForm, Form()],
+    chat_bot: Annotated[ChatBot, Depends(get_chat_bot)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    twitch: Annotated[Twitch, Depends(get_twitch)],
     user: Any = Security(user_auth),
-    db: AsyncSession = Depends(get_db),
-    chat_bot: ChatBot = Depends(get_chat_bot),
-    twitch: Twitch = Depends(get_twitch),
 ):
     # user.settings: TwitchUserSettings
     # if data.enable_bite is not None:
@@ -41,7 +41,7 @@ async def update_settings(
     await db.commit()
     await db.refresh(user.settings)
 
-    await chat_bot.update_bot_channels()
+    await chat_bot.update_bot_channels(twitch)
 
     if data.enable_shoutout_on_raid is not None:
         if data.enable_shoutout_on_raid is True:
@@ -60,9 +60,9 @@ async def update_settings(
 
 @router.post("/memealerts/coins")
 async def update_memealert_coins(
+    db: Annotated[AsyncSession, Depends(get_db)],
     data: UpdateMemealertsCoinsSchema,
     user: Any = Security(user_auth),
-    db: AsyncSession = Depends(get_db),
 ):
     user.memealerts.coins_for_reward = data.count
     await db.commit()
@@ -71,12 +71,12 @@ async def update_memealert_coins(
 
 @router.post("/memealerts")
 async def setup_memealert(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    twitch: Annotated[Twitch, Depends(get_twitch)],
     user: Any = Security(user_auth),
     enable: bool = Query(...),
     memealerts_token: str | None = Form(None, alias="key"),
     refresh: bool = Query(False),
-    db: AsyncSession = Depends(get_db),
-    twitch: Twitch = Depends(get_twitch),
 ):
     reward_id = user.memealerts.memealerts_reward
 

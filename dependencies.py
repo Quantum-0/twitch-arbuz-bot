@@ -1,4 +1,5 @@
 import asyncio
+from collections.abc import Generator
 
 from twitch.bot import ChatBot
 from database.database import AsyncSessionLocal
@@ -19,15 +20,15 @@ async def init_and_startup():
     await singletons["chat_bot"].startup(singletons["twitch"], loop)
     await singletons["chat_bot"].update_bot_channels()
 
-def get_twitch() -> Twitch:
-    tw = singletons["twitch"]
+def get_twitch() -> Generator[Twitch]:
+    tw: Twitch = singletons["twitch"]  # type: ignore
     if tw:
         yield tw
     else:
         raise RuntimeError("Twitch wasn't initialized")
 
-def get_chat_bot() -> ChatBot:
-    cb = singletons["chat_bot"]
+def get_chat_bot() -> Generator[ChatBot]:
+    cb: ChatBot = singletons["chat_bot"]  # type: ignore
     if cb:
         yield cb
     else:

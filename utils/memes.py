@@ -85,7 +85,7 @@ async def find_user_in_supporters(cli: MemealertsAsyncClient, username: str) -> 
     username = username.lower().strip()
     # TODO: link and name both - 2 supporters???
     for user in users:
-        if user.supporter_link.lower() == username or user.supporter_name.lower() == username:
+        if (user.supporter_link and user.supporter_link.lower() == username) or user.supporter_name.lower() == username:
             return user
     logger.info(f"Failed to search {username} in supporters")
     return None
