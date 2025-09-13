@@ -130,7 +130,7 @@ class ChatBot:
             await self._command_manager.handle(user_settings, user, message)
             await self._handler_manager.handle(user_settings, user, message)
 
-    async def update_bot_channels(self, twitch: Twitch):
+    async def update_bot_channels(self):
         logger.info("Updating bot channels")
         async with AsyncSessionLocal() as session:
             users_result = await session.execute(
@@ -142,7 +142,7 @@ class ChatBot:
             desired_channels: set[User] = {user for user in users}
 
             # Получаем текущие подписки
-            subs = await twitch.get_subscriptions()
+            subs = await self._twitch.get_subscriptions()
             current_channels = {
                 sub.condition.get("broadcaster_user_id")
                 for sub in subs.data
@@ -152,46 +152,15 @@ class ChatBot:
             # Присоединяемся к новым каналам
             for channel in desired_channels:
                 if channel not in current_channels:
-                    await twitch.subscribe_chat_messages(channel)
+                    await self._twitch.subscribe_chat_messages(channel)
                     logger.info(f"Subscribed to EventSub chat messages for {channel.login_name}")
 
             # Отписываемся от ненужных каналов
             for sub in subs.data:
                 if sub.type == "channel.chat.message" and sub.condition.get(
                         "broadcaster_user_login") not in desired_channels:
-                    await twitch.unsubscribe_event_sub(sub.id)
+                    await self._twitch.unsubscribe_event_sub(sub.id)
                     logger.info(f"Unsubscribed from {sub.condition.get('broadcaster_user_login')}")
-
-    # async def update_bot_channels(self):
-    #     if not self._chat:
-    #         return
-    #     async with AsyncSessionLocal() as session:
-    #         users_result = await session.execute(
-    #             sa.select(User)
-    #             .join(TwitchUserSettings)
-    #             .filter(
-    #                 sa.or_(
-    #                     TwitchUserSettings.enable_chat_bot == True,
-    #                 )
-    #             )
-    #         )
-    #
-    #         users = users_result.scalars().all()
-    #         desired_channels = {user.login_name.lower() for user in users}
-    #         current_channels = {ch.lower() for ch in self._joined_channels}
-    #
-    #         # Присоединяемся к новым каналам
-    #         for channel in desired_channels - current_channels:
-    #             await self._chat.join_room(channel)
-    #             self._joined_channels.append(channel)
-    #         if desired_channels - current_channels:
-    #             logger.info(f"Joined to channels: {desired_channels - current_channels}")
-    #         # Покидаем ненужные каналы
-    #         for channel in current_channels - desired_channels:
-    #             await self._chat.leave_room(channel)
-    #             self._joined_channels.remove(channel)
-    #         if current_channels - desired_channels:
-    #             logger.info(f"Left channels: {current_channels - desired_channels}")
 
     async def get_commands(self, user: User) -> list[tuple[str, str, str]]:
         return await self._command_manager.get_commands_of_user(user)
