@@ -39,6 +39,8 @@ async def eventsub_handler(
     chat_bot: Annotated[ChatBot, Depends(get_chat_bot)],
     streamer_id: int = Path(...),
 ):
+    logger.info(f"Got eventsub. Type: {type(payload)}")
+
     # Ответ на challenge сразу
     if isinstance(payload, TwitchChallengeSchema):
         return PlainTextResponse(content=payload.challenge, media_type="text/plain")

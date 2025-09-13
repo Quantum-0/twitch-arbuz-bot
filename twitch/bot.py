@@ -131,6 +131,7 @@ class ChatBot:
             await self._handler_manager.handle(user_settings, user, message)
 
     async def update_bot_channels(self, twitch: Twitch):
+        logger.info("Updating bot channels")
         async with AsyncSessionLocal() as session:
             users_result = await session.execute(
                 sa.select(User)
