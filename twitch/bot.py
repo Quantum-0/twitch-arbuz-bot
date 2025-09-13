@@ -152,8 +152,8 @@ class ChatBot:
             # Присоединяемся к новым каналам
             for channel in desired_channels:
                 if channel.twitch_id not in current_channels:
-                    await self._twitch.subscribe_chat_messages(channel)
-                    logger.info(f"Subscribed to EventSub chat messages for {channel.login_name}")
+                    async for _ in self._twitch.subscribe_chat_messages(channel):
+                        logger.info(f"Subscribed to EventSub chat messages for {channel.login_name}")
 
             # Отписываемся от ненужных каналов
             for sub in subs.data:
