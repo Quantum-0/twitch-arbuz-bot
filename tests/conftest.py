@@ -1,12 +1,14 @@
+import pytest
 from pytest import fixture
+from pytest_asyncio import is_async_test
 
 # !!! ORDER IS IMPORTANT !!!
 from fixtures.auto_use_fixtures import event_loop  # noqa
-from fixtures.database_fixtures import postgres_container, async_session_maker, test_engine, test_user  # noqa
-from fixtures.client_fixtures import override_get_session, client, auth_client  # noqa
+from fixtures.twitch_message import twitch_message_event_raw, twitch_message_event_model  # noqa
+from fixtures.database_fixtures import postgres_container, migrations, test_engine, db_session, test_user  # noqa
+from fixtures.client_fixtures import session_override, client, user_auth_mock, test_user_cookie  # noqa
 
 from database.models import User
-from fixtures.ttt import *  # noqa
 from twitch.state_manager import InMemoryStateManager
 
 
@@ -55,3 +57,9 @@ def send_message_mock():
 #     ) as ac:
 #         yield ac
 #     settings.DEVELOPMENT = settings_development
+
+def pytest_collection_modifyitems(items):
+    pytest_asyncio_tests = (item for item in items if is_async_test(item))
+    session_scope_marker = pytest.mark.asyncio(loop_scope="session")
+    for async_test in pytest_asyncio_tests:
+        async_test.add_marker(session_scope_marker, append=False)

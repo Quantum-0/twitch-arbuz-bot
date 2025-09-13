@@ -1,57 +1,43 @@
+import json
+from base64 import b64encode
 from typing import AsyncGenerator
 
+import itsdangerous
 import pytest
 from httpx import AsyncClient, ASGITransport
-from itsdangerous import URLSafeSerializer
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from dependencies import get_db as get_session
+from dependencies import get_db
 from main import app
+from routers.security_helpers import user_auth, user_auth_optional
 
 
-@pytest.fixture
-async def override_get_session(async_session_maker, event_loop):
-    """Переопределяем зависимость get_session на тестовую."""
-    async def _get_session():
-        async with async_session_maker() as session:
-            yield session
+@pytest.fixture(scope="function", autouse=True)
+def session_override(db_session):
 
-    app.dependency_overrides[get_session] = _get_session
-    yield
-    app.dependency_overrides.clear()
+    async def get_session_override() -> AsyncGenerator[AsyncSession, None]:
+        yield db_session
+
+    app.dependency_overrides[get_db] = get_session_override
 
 
-@pytest.fixture
-async def client(test_engine, override_get_session) -> AsyncGenerator[AsyncClient, None]:
+@pytest.fixture(scope="function")
+def user_auth_mock(db_session, test_user):
+    app.dependency_overrides[user_auth] = lambda : test_user
+    app.dependency_overrides[user_auth_optional] = lambda : test_user
+
+
+@pytest.fixture(scope="function")
+def test_user_cookie(test_user) -> dict[str, str]:
+    k = app.user_middleware[0].kwargs['secret_key']
+    signer = itsdangerous.TimestampSigner(str(k))
+    cookie = signer.sign(b64encode(json.dumps({"user_id": test_user.twitch_id}).encode('utf-8')))
+    return {"session": cookie.decode('utf-8')}
+
+
+@pytest.fixture(scope="function")
+async def client(session_override) -> AsyncGenerator[AsyncClient, None]:
     """HTTPX клиент для тестов."""
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
         yield ac
-
-
-# def make_session_cookie(data: dict, secret_key: str) -> str:
-#     # сериализуем как делает Starlette
-#     payload = pickle.dumps(data, pickle.HIGHEST_PROTOCOL)
-#     base64_payload = base64.b64encode(payload)
-#     signer = Signer(secret_key, salt="starlette.sessions")
-#     return signer.sign(base64_payload).decode()
-#
-#
-# @pytest.fixture
-# async def auth_client(client: AsyncClient, test_user):
-#     """HTTPX клиент уже с авторизацией (через SessionMiddleware cookie)."""
-#     # cookie_val = make_session_cookie({"user_id": str(test_user.twitch_id)}, "some-secret-key")
-#     # client.cookies.set("session", cookie_val)
-#     mock_session_data = {"user_id": test_user.twitch_id}
-#     mocker.dict("starlette.requests.Request.session", mock_session_data, clear=True)
-#     return client
-
-
-def make_session_cookie(data: dict) -> str:
-    s = URLSafeSerializer("some-secret-key", salt="cookie-session")
-    return s.dumps(data)
-
-@pytest.fixture
-async def auth_client(client: AsyncClient, test_user):
-    cookie_value = make_session_cookie({"user_id": test_user.twitch_id})
-    client.cookies.set("some-secret-key", cookie_value)
-    return client

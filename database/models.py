@@ -41,7 +41,9 @@ class User(Base):
 
     @access_token.setter
     def access_token(self, value: str) -> None:
-        self._access_token = encrypt_value(value)
+        encrypted_value = encrypt_value(value)
+        assert encrypted_value
+        self._access_token = encrypted_value
 
     @property
     def refresh_token(self) -> str:
@@ -49,7 +51,9 @@ class User(Base):
 
     @refresh_token.setter
     def refresh_token(self, value: str) -> None:
-        self._refresh_token = encrypt_value(value)
+        encrypted_value = encrypt_value(value)
+        assert encrypted_value
+        self._refresh_token = encrypted_value
 
 
 class TwitchUserSettings(Base):

@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from database.models import User
 from dependencies import get_db, get_twitch
-from routers.security_helpers import admin_auth
+from routers.security_helpers import admin_auth, user_auth
 from twitch.twitch import Twitch
 
 router = APIRouter(prefix="/admin", tags=["Admin API"])
@@ -15,6 +15,7 @@ router = APIRouter(prefix="/admin", tags=["Admin API"])
 async def update_settings(
     db: Annotated[AsyncSession, Depends(get_db)],
     _: None = Security(admin_auth),
+    __: None = Security(user_auth),
     twitch_login: str = Query(...),
 ):
     q = sa.update(User).values(in_beta_test=True).where(User.login_name == twitch_login)
