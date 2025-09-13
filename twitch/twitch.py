@@ -254,8 +254,11 @@ class Twitch():
                 }
             )
             tokens = response.json()
-            access_token = tokens["access_token"]
-            refresh_token = tokens["refresh_token"]
+            try:
+                access_token = tokens["access_token"]
+                refresh_token = tokens["refresh_token"]
+            except KeyError:
+                logger.error(f"Error getting tokens from oauth. Resp: {tokens}")
             return access_token, refresh_token
 
     @staticmethod

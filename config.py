@@ -9,7 +9,8 @@ user_scope = [
     AuthScope.MODERATOR_READ_CHATTERS,
     AuthScope.CHANNEL_MANAGE_MODERATORS,
     AuthScope.MODERATION_READ,
-    AuthScope.CHANNEL_BOT
+    # AuthScope.CHANNEL_BOT
+    # user:read:chat?
 ]
 bot_scope = [
     # AuthScope.USER_CHAT_READ,
@@ -20,6 +21,8 @@ bot_scope = [
     AuthScope.MODERATOR_MANAGE_SHOUTOUTS,
     AuthScope.USER_BOT,
     AuthScope.USER_WRITE_CHAT,
+    AuthScope.USER_READ_CHAT,
+    AuthScope.CHANNEL_BOT,
 ]
 
 
