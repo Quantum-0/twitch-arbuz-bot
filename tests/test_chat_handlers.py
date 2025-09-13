@@ -4,6 +4,7 @@ import random
 import pytest
 from twitchAPI.chat import ChatMessage
 
+from routers.schemas import ChatMessageSchema
 from twitch.handlers import HelloHandler
 
 
@@ -36,5 +37,11 @@ async def test_hello_negative(state_manager, send_message_mock, user_message):
     random.seed(42)
     handler = HelloHandler(sm=state_manager, send_message=send_message_mock)
     msg = ChatMessage(chat={}, parsed={'source': {'nick': 'vasya'}, 'parameters': user_message, 'tags': {'display-name': 'Vasya', 'tmi-sent-ts': datetime.datetime.now().timestamp()}})
+    await handler.handle('TestStreamer', msg)
+    send_message_mock.assert_not_sent()
+
+async def test_new_message(state_manager, send_message_mock, twitch_message_event_model: ChatMessageSchema, test_user):
+    msg = twitch_message_event_model.event
+    handler = HelloHandler(sm=state_manager, send_message=send_message_mock)
     await handler.handle('TestStreamer', msg)
     send_message_mock.assert_not_sent()

@@ -2,9 +2,28 @@ from pydantic import SecretStr, AnyHttpUrl
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from twitchAPI.type import AuthScope
 
-user_scope = [AuthScope.MODERATOR_READ_FOLLOWERS, AuthScope.CHANNEL_READ_REDEMPTIONS, AuthScope.CHANNEL_MANAGE_REDEMPTIONS, AuthScope.MODERATOR_READ_CHATTERS, AuthScope.CHANNEL_MANAGE_MODERATORS, AuthScope.MODERATION_READ]
-bot_scope = [AuthScope.CHAT_READ, AuthScope.CHAT_EDIT, AuthScope.CHANNEL_READ_REDEMPTIONS, AuthScope.CHANNEL_MANAGE_REDEMPTIONS, AuthScope.MODERATOR_MANAGE_SHOUTOUTS]
-
+user_scope = [
+    AuthScope.MODERATOR_READ_FOLLOWERS,
+    AuthScope.CHANNEL_READ_REDEMPTIONS,
+    AuthScope.CHANNEL_MANAGE_REDEMPTIONS,
+    AuthScope.MODERATOR_READ_CHATTERS,
+    AuthScope.CHANNEL_MANAGE_MODERATORS,
+    AuthScope.MODERATION_READ,
+    # AuthScope.CHANNEL_BOT
+    # user:read:chat?
+]
+bot_scope = [
+    # AuthScope.USER_CHAT_READ,
+    AuthScope.CHAT_READ,
+    AuthScope.CHAT_EDIT,
+    AuthScope.CHANNEL_READ_REDEMPTIONS,
+    AuthScope.CHANNEL_MANAGE_REDEMPTIONS,
+    AuthScope.MODERATOR_MANAGE_SHOUTOUTS,
+    AuthScope.USER_BOT,
+    AuthScope.USER_WRITE_CHAT,
+    AuthScope.USER_READ_CHAT,
+    AuthScope.CHANNEL_BOT,
+]
 
 
 # TODO: use SecretStr

@@ -15,7 +15,8 @@ from database.database import AsyncSessionLocal
 from database.models import User, TwitchUserSettings
 from dependencies import get_twitch, get_chat_bot
 from routers.helpers import parse_eventsub_payload
-from routers.schemas import PointRewardRedemptionWebhookSchema, TwitchChallengeSchema, RaidWebhookSchema
+from routers.schemas import PointRewardRedemptionWebhookSchema, TwitchChallengeSchema, RaidWebhookSchema, \
+    ChatMessageSchema
 from twitch.bot import ChatBot
 from twitch.twitch import Twitch
 from utils.logging_conf import LOGGING_CONFIG
@@ -31,40 +32,14 @@ local_duplicates_cache: deque[UUID] = deque(maxlen=50)
 @router.post("/eventsub/{streamer_id}")
 async def eventsub_handler(
     payload: Annotated[
-        PointRewardRedemptionWebhookSchema | RaidWebhookSchema | TwitchChallengeSchema,
+        PointRewardRedemptionWebhookSchema | RaidWebhookSchema | TwitchChallengeSchema | ChatMessageSchema,
         Depends(parse_eventsub_payload)
     ],
+    twitch: Annotated[Twitch, Depends(get_twitch)],
+    chat_bot: Annotated[ChatBot, Depends(get_chat_bot)],
     streamer_id: int = Path(...),
-    twitch: Twitch = Depends(get_twitch),
-    chat_bot: ChatBot = Depends(get_chat_bot),
 ):
-    # body = await request.json()
-    # schema_cls = SCHEMA_BY_TYPE.get(eventsub_subscription_type)
-    # if schema_cls is None:
-    #     logger.warning(f"Couldn't determine schema by eventsub_subscription_type: {eventsub_subscription_type}")
-    #     # если тип неожиданный — можно попытаться угадать по содержимому.
-    #     last_err = None
-    #     for candidate in SCHEMA_BY_TYPE.values():
-    #         try:
-    #             payload = candidate.model_validate(body)
-    #             break
-    #         except ValidationError as e:
-    #             last_err = e
-    #     else:
-    #         logger.error(f"Couldn't validate: {body}")
-    #         raise HTTPException(
-    #             status_code=400,
-    #             detail=f"Unknown eventsub_subscription_type '{eventsub_subscription_type}' "
-    #                    f"and body did not match any expected schema. "
-    #                    f"Last validation error: {last_err.errors() if last_err else 'none'}",
-    #         )
-    # else:
-    #     logger.info(f"Determine schema {schema_cls} by eventsub_subscription_type: {eventsub_subscription_type}")
-    #     try:
-    #         payload = schema_cls.model_validate(body)
-    #     except ValidationError as e:
-    #         # явное падение по ожидаемой схеме — покажем ошибку валидации
-    #         raise HTTPException(status_code=422, detail=e.errors())
+    logger.info(f"Got eventsub. Type: {type(payload)}")
 
     # Ответ на challenge сразу
     if isinstance(payload, TwitchChallengeSchema):
@@ -81,6 +56,9 @@ async def eventsub_handler(
     elif isinstance(payload, RaidWebhookSchema):
         logger.info("Handling raid")
         asyncio.create_task(handle_raid(payload, twitch))
+    elif isinstance(payload, ChatMessageSchema):
+        logger.info("Handling message webhook")
+        asyncio.create_task(chat_bot.on_message(payload.event))
     return Response(status_code=204)
 
 
@@ -99,7 +77,7 @@ async def handle_raid(payload: RaidWebhookSchema, twitch: Twitch):
             user_settings: TwitchUserSettings = user.settings
 
             if not user_settings.enable_shoutout_on_raid:
-                await twitch.unsubscribe_raid(payload.subscription.subscription_id)
+                await twitch.unsubscribe_raid(subscription_id=payload.subscription.subscription_id)
                 return
 
             await twitch.shoutout(user=user, shoutout_to=payload.event.from_broadcaster_user_id)

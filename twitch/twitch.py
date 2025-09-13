@@ -1,9 +1,11 @@
+import logging
 from collections.abc import AsyncGenerator
+from typing import Any
 from uuid import UUID
 
 import httpx
 from twitchAPI.object.api import Stream, Moderator, ChannelFollowersResult, TwitchUser, CustomReward, \
-    GetEventSubSubscriptionResult
+    GetEventSubSubscriptionResult, SendMessageResponse
 from twitchAPI.twitch import Twitch as TwitchClient
 from twitchAPI.chat import Chat
 from twitchAPI.type import AuthScope, CustomRewardRedemptionStatus
@@ -12,9 +14,11 @@ from config import settings, user_scope, bot_scope
 from database.models import User
 from utils.singleton import singleton
 
+logger = logging.getLogger(__name__)
+
 @singleton
 class Twitch():
-    _twitch: TwitchClient = None
+    _twitch: TwitchClient = None  # type: ignore
 
     def __init__(self):
         pass
@@ -49,9 +53,61 @@ class Twitch():
         await twitch_user.set_user_authentication(user.access_token, user_scope, user.refresh_token)
         await twitch_user.delete_custom_reward(user.twitch_id, str(reward_id))
 
+    async def send_chat_message(self, stream_channel: User, message: str, reply_parent_message_id: str | None = None, for_source_only: bool | None = None) -> SendMessageResponse:
+        result = await self._twitch.send_chat_message(
+            broadcaster_id=stream_channel.twitch_id,
+            sender_id="957818216",
+            message=message,
+            reply_parent_message_id=reply_parent_message_id,
+            for_source_only=for_source_only,
+        )
+        return result
+
     async def get_subscriptions(self) -> GetEventSubSubscriptionResult:
         result = await self._twitch.get_eventsub_subscriptions()
         return result
+
+    async def subscribe_chat_messages(self, *users: User) -> AsyncGenerator[dict[str, Any]]:
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                "https://id.twitch.tv/oauth2/token",
+                params={
+                    "client_id": settings.twitch_client_id,
+                    "client_secret": settings.twitch_client_secret,
+                    "grant_type": 'client_credentials'
+                }
+            )
+            app_token = response.json()["access_token"]
+            for user in users:
+                logger.info(f"Subscribing to messages to channel `{user.login_name}`...")
+                response = await client.post(
+                    "https://api.twitch.tv/helix/eventsub/subscriptions",
+                    headers={
+                        "Authorization": "Bearer " + app_token,
+                        "Client-Id": settings.twitch_client_id,
+                        "Content-Type": "application/json"
+                    },
+                    json={
+                        "type": "channel.chat.message",
+                        "version": "1",
+                        "condition": {
+                            "broadcaster_user_id": str(user.twitch_id),
+                            "user_id": "957818216",
+                        },
+                        "transport": {
+                            "method": "webhook",
+                            "callback": str(settings.reward_redemption_webhook) + f"/{user.twitch_id}",
+                            "secret": settings.twitch_webhook_secret.get_secret_value(),
+                        }
+                    }
+                )
+                if not response.is_success:
+                    logger.error(response.json())
+                response.raise_for_status()
+                yield response.json()
+
+    async def unsubscribe_event_sub(self, sub_id: UUID | str):
+        await self._twitch.delete_eventsub_subscription(str(sub_id))
 
     @staticmethod
     async def subscribe_reward(user, reward_id: UUID | str):
@@ -137,6 +193,7 @@ class Twitch():
             return response.json()
 
     async def unsubscribe_raid(self, *, user: User = None, subscription_id: UUID = None):
+        assert bool(user) != bool(subscription_id)
         if user:
             subscriptions = await self.get_subscriptions()
             for sub in subscriptions.data:
@@ -185,8 +242,11 @@ class Twitch():
                 }
             )
             tokens = response.json()
-            access_token = tokens["access_token"]
-            refresh_token = tokens["refresh_token"]
+            try:
+                access_token = tokens["access_token"]
+                refresh_token = tokens["refresh_token"]
+            except KeyError:
+                logger.error(f"Error getting tokens from oauth. Resp: {tokens}")
             return access_token, refresh_token
 
     @staticmethod

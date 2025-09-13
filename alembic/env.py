@@ -12,7 +12,9 @@ load_dotenv()
 # access to the values within the .ini file in use.
 config = context.config
 
-config.set_main_option("sqlalchemy.url", os.getenv("DB_SYNC_URL"))
+db_sync_url = os.getenv("DB_SYNC_URL")
+assert db_sync_url
+config.set_main_option("sqlalchemy.url", db_sync_url)
 
 # Interpret the config file for Python logging.
 fileConfig(config.config_file_name)

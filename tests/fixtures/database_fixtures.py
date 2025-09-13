@@ -5,8 +5,7 @@ import pytest
 from alembic import command
 from alembic.config import Config as AlembicConfig
 from docker.errors import DockerException
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, AsyncEngine
 from testcontainers.postgres import PostgresContainer
 
 from database.models import User
@@ -32,28 +31,40 @@ def postgres_container():
 
 
 @pytest.fixture(scope="session")
-async def test_engine(postgres_container) -> AsyncGenerator:
-    """Создаём движок к тестовой БД и накатываем миграции через Alembic."""
-    url = postgres_container.get_connection_url().replace("postgresql+psycopg2://", "postgresql+asyncpg://")
-    engine = create_async_engine(url, future=True, echo=False)
-
-    # запускаем alembic upgrade head
+def migrations(postgres_container):
     alembic_cfg = AlembicConfig("alembic.ini")
     alembic_cfg.set_main_option("sqlalchemy.url", postgres_container.get_connection_url())
     command.upgrade(alembic_cfg, "head")
 
-    yield engine
-    await engine.dispose()
 
+@pytest.fixture(scope="function")
+async def test_engine(postgres_container, migrations) -> AsyncGenerator:
+    """Создаём движок к тестовой БД и накатываем миграции через Alembic."""
+    url = postgres_container.get_connection_url().replace("postgresql+psycopg2://", "postgresql+asyncpg://")
+    engine = create_async_engine(url, future=True, echo=False)
+    try:
+        yield engine
+    finally:
+        await engine.dispose()
 
-@pytest.fixture(scope="session")
-async def async_session_maker(test_engine, event_loop):
-    """Sessionmaker для тестов."""
-    return sessionmaker(test_engine, expire_on_commit=False, class_=AsyncSession)
+@pytest.fixture
+async def db_session(test_engine: AsyncEngine) -> AsyncGenerator[AsyncSession, None]:
+    async with test_engine.connect() as connection:
+        transaction = await connection.begin()
+        session = AsyncSession(bind=connection, join_transaction_mode="create_savepoint", expire_on_commit=False)
+        try:
+            yield session
+        except Exception:
+            await session.rollback()
+            raise
+        finally:
+            await session.close()
+            await transaction.rollback()
+            await connection.close()
 
 
 @pytest.fixture
-async def test_user(async_session_maker):
+async def test_user(db_session):
     """Создаём тестового пользователя в БД с моком Twitch API."""
 
     # тестовые данные
@@ -64,16 +75,15 @@ async def test_user(async_session_maker):
     refresh_token = "test-refresh-token"
     followers_count = 142
 
-    async with async_session_maker() as db:
-        user = User(
-            twitch_id=twitch_id,
-            login_name=login_name,
-            profile_image_url=profile_image_url,
-            access_token=access_token,
-            refresh_token=refresh_token,
-            followers_count=followers_count,
-        )
-        db.add(user)
-        await db.commit()
-        await db.refresh(user)
-        return user
+    user = User(
+        twitch_id=twitch_id,
+        login_name=login_name,
+        profile_image_url=profile_image_url,
+        access_token=access_token,
+        refresh_token=refresh_token,
+        followers_count=followers_count,
+    )
+    db_session.add(user)
+    await db_session.commit()
+    await db_session.refresh(user)
+    return user
