@@ -161,9 +161,9 @@ class ChatBot:
         # Отписываемся от ненужных каналов
         for sub in subs.data:
             if sub.type == "channel.chat.message" and sub.condition.get(
-                    "broadcaster_user_login") not in desired_channels:
+                    "broadcaster_user_id") not in {channel.twitch_id for channel in desired_channels}:
                 await self._twitch.unsubscribe_event_sub(sub.id)
-                logger.info(f"Unsubscribed from {sub.condition.get('broadcaster_user_login')}")
+                logger.info(f"Unsubscribed from {sub.condition}")
 
     async def get_commands(self, user: User) -> list[tuple[str, str, str]]:
         return await self._command_manager.get_commands_of_user(user)
