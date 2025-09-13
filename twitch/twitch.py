@@ -1,3 +1,4 @@
+import logging
 from collections.abc import AsyncGenerator
 from uuid import UUID
 
@@ -11,6 +12,8 @@ from twitchAPI.type import AuthScope, CustomRewardRedemptionStatus
 from config import settings, user_scope, bot_scope
 from database.models import User
 from utils.singleton import singleton
+
+logger = logging.getLogger(__name__)
 
 @singleton
 class Twitch():
@@ -96,6 +99,8 @@ class Twitch():
                         }
                     }
                 )
+                if not response.is_success:
+                    logger.error(response.json())
                 response.raise_for_status()
             return response.json()  # FIXME: yield
         # await self._twitch.create_eventsub_subscription(
