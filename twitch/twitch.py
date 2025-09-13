@@ -1,5 +1,6 @@
 import logging
 from collections.abc import AsyncGenerator
+from typing import Any
 from uuid import UUID
 
 import httpx
@@ -66,7 +67,7 @@ class Twitch():
         result = await self._twitch.get_eventsub_subscriptions()
         return result
 
-    async def subscribe_chat_messages(self, *users: User):
+    async def subscribe_chat_messages(self, *users: User) -> AsyncGenerator[dict[str, Any]]:
         async with httpx.AsyncClient() as client:
             response = await client.post(
                 "https://id.twitch.tv/oauth2/token",
@@ -78,6 +79,7 @@ class Twitch():
             )
             app_token = response.json()["access_token"]
             for user in users:
+                logger.info(f"Subscribing to messages to channel `{user.login_name}`...")
                 response = await client.post(
                     "https://api.twitch.tv/helix/eventsub/subscriptions",
                     headers={
@@ -102,21 +104,7 @@ class Twitch():
                 if not response.is_success:
                     logger.error(response.json())
                 response.raise_for_status()
-            return response.json()  # FIXME: yield
-        # await self._twitch.create_eventsub_subscription(
-        #     subscription_type="channel.chat.message",
-        #     version="1",
-        #     condition={
-        #         "broadcaster_user_id": str(user.twitch_id),
-        #         "user_id": "957818216",
-        #     },
-        #     transport={
-        #         "method": "webhook",
-        #         "callback": str(settings.reward_redemption_webhook) + f"/{user.twitch_id}",
-        #         "secret": settings.twitch_webhook_secret.get_secret_value(),
-        #     }
-        # )
-        # response.raise_for_status()
+                yield response.json()
 
     async def unsubscribe_event_sub(self, sub_id: UUID | str):
         await self._twitch.delete_eventsub_subscription(str(sub_id))
