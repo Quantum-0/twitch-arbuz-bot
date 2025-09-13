@@ -42,7 +42,7 @@ class CommonMessagesHandler:
 class PyramidHandler(CommonMessagesHandler):
     COMMAND_NAME = "pyramid_handler"
     def is_enabled(self, streamer_settings: TwitchUserSettings) -> bool:
-        return streamer_settings.enable_pyramid or streamer_settings.enable_pyramid_breaker
+        return False  # streamer_settings.enable_pyramid or streamer_settings.enable_pyramid_breaker
 
     async def handle(self, streamer: User, message: ChatMessageWebhookEventSchema) -> HandlerResult:
         # Check if pyramid part
