@@ -1,7 +1,7 @@
 from collections import defaultdict
 from time import time
 
-from twitchAPI.chat import ChatMessage
+from routers.schemas import ChatMessageWebhookEventSchema
 
 
 class UserListManager:
@@ -11,7 +11,7 @@ class UserListManager:
         self._forget_timeout: float = forget_timeout
         self._max_users_per_channel: int = max_users_per_channel
 
-    def cleanup(self):
+    def cleanup(self) -> None:
         q: list[tuple[str, float]]
         dt = time()
         for q in self._last_messages.values():
@@ -22,8 +22,8 @@ class UserListManager:
                     break
         self._last_cleanup = dt
 
-    async def handle(self, channel: str, message: ChatMessage):
-        user = message.user.display_name.lower()
+    async def handle(self, channel: str, message: ChatMessageWebhookEventSchema):
+        user = message.broadcaster_user_login
         dt = time()
         q = self._last_messages[channel.lower()]
 

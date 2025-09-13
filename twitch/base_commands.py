@@ -3,9 +3,8 @@ from abc import ABC, abstractmethod
 from collections.abc import Callable, Awaitable
 from time import time
 
-from twitchAPI.chat import ChatMessage
-
 from database.models import TwitchUserSettings, User
+from routers.schemas import ChatMessageWebhookEventSchema
 from twitch.state_manager import StateManager, SMParam
 from twitch.utils import extract_targets
 
@@ -39,7 +38,7 @@ class Command(ABC):
             raise RuntimeError("Command has no trigger aliases")
 
     @abstractmethod
-    async def handle(self, streamer: User, message: ChatMessage):
+    async def handle(self, streamer: User, message: ChatMessageWebhookEventSchema):
         raise NotImplementedError
 
 class SimpleTargetCommand(Command, ABC):
@@ -57,13 +56,13 @@ class SimpleTargetCommand(Command, ABC):
     def cooldown_count(self) -> int:
         return 1
 
-    async def handle(self, streamer: User, message: ChatMessage):
-        targets = [f"@{message.reply_parent_display_name}"] if message.reply_parent_display_name else []
-        user: str = message.user.display_name
-        user_id: int = int(message.user.id)
+    async def handle(self, streamer: User, message: ChatMessageWebhookEventSchema):
+        targets = [f"@{message.reply.parent_user_name}"] if message.reply and message.reply.parent_user_name else []
+        user: str = message.chatter_user_name
+        user_id: int = int(message.chatter_user_id)
 
         if self.need_target:
-            targets.extend(extract_targets(message.text, streamer.login_name))  # TODO: display name
+            targets.extend(extract_targets(message.message.text, message.broadcaster_user_name))
             if len(targets) == 0 and self.need_target:
                 response = await self._no_target_reply(user)
                 await self.send_response(chat=streamer, message=response)
@@ -112,7 +111,7 @@ class SimpleTargetCommand(Command, ABC):
                 await self.send_response(chat=streamer, message=response)
                 return
 
-        response = await self._handle(streamer, user, message.text, targets)
+        response = await self._handle(streamer, user, message.message.text, targets)
         await self.send_response(chat=streamer, message=response)
 
         for target in targets:
@@ -157,9 +156,9 @@ class SimpleCDCommand(Command):
     def cooldown_timer_per_user(self) -> int | None:
         return None
 
-    async def handle(self, streamer: User, message: ChatMessage):
-        user: str = message.user.display_name
-        user_id: int = int(message.user.id)
+    async def handle(self, streamer: User, message: ChatMessageWebhookEventSchema):
+        user: str = message.chatter_user_name
+        user_id: int = message.chatter_user_id
 
         last_command_call_user = await self._state_manager.get_state(
             channel=streamer.login_name,
@@ -193,7 +192,7 @@ class SimpleCDCommand(Command):
             await self._state_manager.set_state(channel=streamer.login_name, user=user_id, command=self.command_name, param=SMParam.COOLDOWN, value=time())
 
         logger.debug(f"Handling with command handler")
-        response = await self._handle(streamer, user, message.text)
+        response = await self._handle(streamer, user, message.message.text)
         await self.send_response(chat=streamer, message=response)
         return
 
@@ -220,9 +219,9 @@ class SavingResultCommand(Command):
     async def result_generator(self) -> str:
         raise NotImplementedError
 
-    async def handle(self, streamer: User, message: ChatMessage):
-        user: str = message.user.display_name
-        user_id: int = int(message.user.id)
+    async def handle(self, streamer: User, message: ChatMessageWebhookEventSchema):
+        user: str = message.chatter_user_name
+        user_id: int = message.chatter_user_id
 
         last_command_call = await self._state_manager.get_state(
             channel=streamer.login_name,
@@ -241,7 +240,7 @@ class SavingResultCommand(Command):
             param=SMParam.PREVIOUS_VALUE_TIME,
         )
 
-        targets = extract_targets(message.text, streamer.login_name)  # FIXME
+        targets = extract_targets(message.message.text, message.broadcaster_user_name)
         if targets:
             response = await self._target_selected(user, targets)
             await self.send_response(chat=streamer, message=response)
@@ -257,12 +256,12 @@ class SavingResultCommand(Command):
                 await self._state_manager.set_state(channel=streamer.login_name, user=user_id, command=self.command_name, param=SMParam.COOLDOWN, value=time())
 
         if self.refresh_result_timer and last_result_time and time() - last_result_time < self.refresh_result_timer:
-            response = await self._handle_old(streamer, user, message.text, last_result_value, time() - last_result_time)
+            response = await self._handle_old(streamer, user, message.message.text, last_result_value, time() - last_result_time)
         else:
             new_value = await self.result_generator()
             await self._state_manager.set_state(user=user_id, command=self.command_name, param=SMParam.PREVIOUS_VALUE, value=new_value)
             await self._state_manager.set_state(user=user_id, command=self.command_name, param=SMParam.PREVIOUS_VALUE_TIME, value=time())
-            response = await self._handle_new(streamer, user, message.text, new_value)
+            response = await self._handle_new(streamer, user, message.message.text, new_value)
         await self.send_response(chat=streamer, message=response)
         return
 

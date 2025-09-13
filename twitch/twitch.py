@@ -14,7 +14,7 @@ from utils.singleton import singleton
 
 @singleton
 class Twitch():
-    _twitch: TwitchClient = None
+    _twitch: TwitchClient = None  # type: ignore
 
     def __init__(self):
         pass
@@ -62,6 +62,25 @@ class Twitch():
     async def get_subscriptions(self) -> GetEventSubSubscriptionResult:
         result = await self._twitch.get_eventsub_subscriptions()
         return result
+
+    async def subscribe_chat_messages(self, user: User):
+        response = await self._twitch.create_eventsub_subscription(
+            subscription_type="channel.chat.message",
+            version="1",
+            condition={
+                "broadcaster_user_id": str(user.twitch_id),
+                "user_id": "957818216",
+            },
+            transport={
+                "method": "webhook",
+                "callback": str(settings.reward_redemption_webhook) + f"/{user.twitch_id}",
+                "secret": settings.twitch_webhook_secret.get_secret_value(),
+            }
+        )
+        response.raise_for_status()
+
+    async def unsubscribe_event_sub(self, sub_id: UUID | str):
+        await self._twitch.delete_eventsub_subscription(str(sub_id))
 
     @staticmethod
     async def subscribe_reward(user, reward_id: UUID | str):
@@ -147,6 +166,7 @@ class Twitch():
             return response.json()
 
     async def unsubscribe_raid(self, *, user: User = None, subscription_id: UUID = None):
+        assert bool(user) != bool(subscription_id)
         if user:
             subscriptions = await self.get_subscriptions()
             for sub in subscriptions.data:

@@ -253,6 +253,7 @@ class HugCommand(SimpleTargetCommand):
         target = join_targets(targets)
         join_to_hugs_str = ""
         if len(targets) == 1:
+            assert isinstance(target, str)
             last_hug_target = await self._state_manager.get_state(channel=streamer.login_name, user=target[1:].lower(), command=self.command_name, param=SMParam.LAST_APPLY)
             if last_hug_target and time() - last_hug_target < 20:
                 join_to_hugs_str = "присоединяется к обнимашкам и "
@@ -365,6 +366,7 @@ class PantsCommand(SimpleCDCommand):
         if last_ts and time() - last_ts < self.cooldown_timer_per_target:
             return f"Трусы @{target} уже недавно разыгрывались. Подождём немного!"
 
+        return "WiP"
         # # Запускаем розыгрыш
         # await self._state_manager.set_state(channel, self.command_name, SMParam.USER, target)
         # await self._state_manager.set_state(channel, self.command_name, SMParam.PARTICIPANTS, set())

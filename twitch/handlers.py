@@ -10,6 +10,7 @@ from time import time
 from twitchAPI.chat import ChatMessage
 
 from database.models import TwitchUserSettings, User
+from routers.schemas import ChatMessageWebhookEventSchema
 from twitch.state_manager import StateManager, SMParam
 
 
@@ -34,7 +35,7 @@ class CommonMessagesHandler:
         self.send_response = send_message
 
     @abstractmethod
-    async def handle(self, streamer: User, message: ChatMessage) -> HandlerResult:
+    async def handle(self, streamer: User, message: ChatMessageWebhookEventSchema) -> HandlerResult:
         raise NotImplementedError
 
 
@@ -43,19 +44,19 @@ class PyramidHandler(CommonMessagesHandler):
     def is_enabled(self, streamer_settings: TwitchUserSettings) -> bool:
         return streamer_settings.enable_pyramid or streamer_settings.enable_pyramid_breaker
 
-    async def handle(self, streamer: User, message: ChatMessage) -> HandlerResult:
+    async def handle(self, streamer: User, message: ChatMessageWebhookEventSchema) -> HandlerResult:
         # Check if pyramid part
-        user = message.user.display_name
+        user = message.chatter_user_name
         if isinstance(message.emotes, dict) and len(message.emotes.keys()) == 1:
             emote = list(message.emotes.keys())[0]
             emote_count = len(list(message.emotes.items())[0][1])
             ranges = [(int(x["start_position"]), int(x["end_position"])) for x in list(message.emotes.items())[0][1]]
             cutted = 0
             for rng in ranges:
-                message.text = message.text[: rng[0] - cutted] + message.text[1 + rng[1] - cutted:]
+                message.message.text = message.message.text[: rng[0] - cutted] + message.message.text[1 + rng[1] - cutted:]
                 cutted += 1 + rng[1] - rng[0]
-            message.text = message.text.strip()
-            if message.text != "":
+            message.message.text = message.message.text.strip()
+            if message.message.text != "":
                 emote = None
                 emote_count = 0
         else:
@@ -131,7 +132,7 @@ class MessagesHandlerManager:
     def register(self, command: type[CommonMessagesHandler]):
         self.handlers.append(command(self._sm, self._send_message))
 
-    async def handle(self, user_settings: TwitchUserSettings, streamer: User, message: ChatMessage):
+    async def handle(self, user_settings: TwitchUserSettings, streamer: User, message: ChatMessageWebhookEventSchema):
         logger.debug(f"Handling message with {self}")
         for handler in self.handlers:
             if not handler.is_enabled(user_settings):
@@ -153,11 +154,11 @@ class UnlurkHandler(CommonMessagesHandler):
     def is_enabled(self, streamer_settings: TwitchUserSettings) -> bool:
         return True or streamer_settings.enable_lurk
 
-    async def handle(self, streamer: User, message: ChatMessage) -> HandlerResult:
-        if any(x in message.text for x in ("!lurk", "!unlurk", "!лурк", "!анлурк")):
+    async def handle(self, streamer: User, message: ChatMessageWebhookEventSchema) -> HandlerResult:
+        if any(x in message.message.text for x in ("!lurk", "!unlurk", "!лурк", "!анлурк")):
             return HandlerResult.SKIPED
 
-        user = message.user.display_name.lower()
+        user = message.chatter_user_login
 
         previous_state: float = await self._state_manager.get_state(channel=streamer.login_name, user=user, command=self.COMMAND_NAME)
         if previous_state is not None and time() - previous_state > self.UNLURK_AFTER:
@@ -173,23 +174,23 @@ class HelloHandler(CommonMessagesHandler):
     def is_enabled(self, streamer_settings: TwitchUserSettings) -> bool:
         return True
 
-    async def handle(self, streamer: User, message: ChatMessage) -> HandlerResult:
-        if message.reply_parent_user_login == "quantum075bot":
-            message.text = "@quantum075bot " + message.text
-        if '@quantum075bot' in message.text.lower() and any(hello_word in message.text.lower() for hello_word in {"привет", "дарова", "здравствуй", "кваствуй", "здорова"}):
+    async def handle(self, streamer: User, message: ChatMessageWebhookEventSchema) -> HandlerResult:
+        if message.reply and message.reply.parent_user_name == "quantum075bot":
+            message.message.text = "@quantum075bot " + message.message.text
+        if '@quantum075bot' in message.message.text.lower() and any(hello_word in message.message.text.lower() for hello_word in {"привет", "дарова", "здравствуй", "кваствуй", "здорова"}):
             replies = [
-                f"@{message.user.display_name}, и тебе привет!",
-                f"@{message.user.display_name}, здравствуй-здравствуй!",
-                f"@{message.user.display_name}, дарова! >w<",
+                f"@{message.chatter_user_name}, и тебе привет!",
+                f"@{message.chatter_user_name}, здравствуй-здравствуй!",
+                f"@{message.chatter_user_name}, дарова! >w<",
             ]
             if streamer.login_name in ('anna_toad', 'toad_anna'):
                 replies = [
-                    f"@{message.user.display_name}, кваствуй! >w<",
-                    f"Кваствуй, @{message.user.display_name}! <3",
+                    f"@{message.chatter_user_name}, кваствуй! >w<",
+                    f"Кваствуй, @{message.chatter_user_name}! <3",
                 ]
             if streamer.login_name == 'glumarkoj':
                 replies = [
-                    f"@{message.user.display_name}, здорова, брат!",
+                    f"@{message.chatter_user_name}, здорова, брат!",
                 ]
             await self.send_response(chat=streamer, message=random.choice(replies))
             return HandlerResult.HANDLED
@@ -200,8 +201,8 @@ class IAmBotHandler(CommonMessagesHandler):
     def is_enabled(self, streamer_settings: TwitchUserSettings) -> bool:
         return True
 
-    async def handle(self, streamer: User, message: ChatMessage) -> HandlerResult:
-        if re.match(r"@quantum075bot .{0,5}бот\?", message.text.lower()):
+    async def handle(self, streamer: User, message: ChatMessageWebhookEventSchema) -> HandlerResult:
+        if re.match(r"@quantum075bot .{0,5}бот\?", message.message.text.lower()):
             if random.random() < 0.1:
                 await asyncio.sleep(0.5)
                 await self.send_response(chat=streamer, message=f"Конеяно я бот!")
@@ -209,16 +210,16 @@ class IAmBotHandler(CommonMessagesHandler):
                 await self.send_response(chat=streamer, message=f"конечно* 👀")
             else:
                 replies = [
-                    f"@{message.user.display_name}, конечно я бот! Какие могут быть сомнения?",
-                    f"@{message.user.display_name}, да, я бот, и я горжусь этим!",
-                    f"@{message.user.display_name}, почему ты так думаешь?",
-                    f"@{message.user.display_name}, нет, я настоящий живой человек, @Quantum075 держит меня в подвале и заставляет отвечать на сообщения Т_Т",
-                    f"@{message.user.display_name}, MrDestructoid !",
+                    f"@{message.chatter_user_name}, конечно я бот! Какие могут быть сомнения?",
+                    f"@{message.chatter_user_name}, да, я бот, и я горжусь этим!",
+                    f"@{message.chatter_user_name}, почему ты так думаешь?",
+                    f"@{message.chatter_user_name}, нет, я настоящий живой человек, @Quantum075 держит меня в подвале и заставляет отвечать на сообщения Т_Т",
+                    f"@{message.chatter_user_name}, MrDestructoid !",
                 ]
                 await self.send_response(chat=streamer, message=random.choice(replies))
             return HandlerResult.HANDLED
 
-        if re.match(r"(кто )?боты? (- )?(плюс|плюсик|плюсики|плюсаните|\+)( в ча[тч])", message.text.lower()):
+        if re.match(r"(кто )?боты? (- )?(плюс|плюсик|плюсики|плюсаните|\+)( в ча[тч])", message.message.text.lower()):
             await self.send_response(chat=streamer, message="+")
             return HandlerResult.HANDLED
 

@@ -56,7 +56,7 @@ async def eventsub_handler(
         asyncio.create_task(handle_raid(payload, twitch))
     elif isinstance(payload, ChatMessageSchema):
         logger.info("Handling message webhook")
-        asyncio.create_task(chat_bot.on_message())
+        asyncio.create_task(chat_bot.on_message(payload.event))
     return Response(status_code=204)
 
 

@@ -2,9 +2,8 @@ import logging
 from collections.abc import Callable
 from typing import Awaitable
 
-from twitchAPI.chat import ChatMessage
-
 from database.models import TwitchUserSettings, User
+from routers.schemas import ChatMessageWebhookEventSchema
 from twitch.base_commands import Command
 from twitch.state_manager import StateManager
 
@@ -22,16 +21,16 @@ class CommandsManager:
         self.commands.append(command(self._sm, self._send_message))
         logger.info(f"Command {command} was registered")
 
-    async def handle(self, user_settings: TwitchUserSettings, streamer: User, message: ChatMessage):
+    async def handle(self, user_settings: TwitchUserSettings, streamer: User, message: ChatMessageWebhookEventSchema):
         logger.debug(f"Handling message with {self}")
         for cmd in self.commands:
             if not cmd.is_enabled(user_settings):
                 continue
             # Обработка реплаев
-            if message.reply_parent_display_name and message.text.startswith(f"@{message.reply_parent_display_name} "):
-                message.text = message.text[len(message.reply_parent_display_name) + 2:]
+            if message.reply and message.reply.parent_user_name and message.message.text.startswith(f"@{message.reply.parent_user_name} "):
+                message.message.text = message.message.text[len(message.reply.parent_user_name) + 2:]
 
-            if any(message.text.lower().startswith(x) for x in ["!" + alias for alias in cmd.command_aliases]):
+            if any(message.message.text.lower().startswith(x) for x in ["!" + alias for alias in cmd.command_aliases]):
                 logger.debug(f"Handler for command was found: {cmd}")
                 await cmd.handle(streamer, message)
 
