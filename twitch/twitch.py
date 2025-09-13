@@ -63,20 +63,54 @@ class Twitch():
         result = await self._twitch.get_eventsub_subscriptions()
         return result
 
-    async def subscribe_chat_messages(self, user: User):
-        await self._twitch.create_eventsub_subscription(
-            subscription_type="channel.chat.message",
-            version="1",
-            condition={
-                "broadcaster_user_id": str(user.twitch_id),
-                "user_id": "957818216",
-            },
-            transport={
-                "method": "webhook",
-                "callback": str(settings.reward_redemption_webhook) + f"/{user.twitch_id}",
-                "secret": settings.twitch_webhook_secret.get_secret_value(),
-            }
-        )
+    async def subscribe_chat_messages(self, *users: User):
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                "https://id.twitch.tv/oauth2/token",
+                params={
+                    "client_id": settings.twitch_client_id,
+                    "client_secret": settings.twitch_client_secret,
+                    "grant_type": 'client_credentials'
+                }
+            )
+            app_token = response.json()["access_token"]
+            for user in users:
+                response = await client.post(
+                    "https://api.twitch.tv/helix/eventsub/subscriptions",
+                    headers={
+                        "Authorization": "Bearer " + app_token,
+                        "Client-Id": settings.twitch_client_id,
+                        "Content-Type": "application/json"
+                    },
+                    json={
+                        "type": "channel.chat.message",
+                        "version": "1",
+                        "condition": {
+                            "broadcaster_user_id": str(user.twitch_id),
+                            "user_id": "957818216",
+                        },
+                        "transport": {
+                            "method": "webhook",
+                            "callback": str(settings.reward_redemption_webhook) + f"/{user.twitch_id}",
+                            "secret": settings.twitch_webhook_secret.get_secret_value(),
+                        }
+                    }
+                )
+                response.raise_for_status()
+            return response.json()  # FIXME: yield
+        # await self._twitch.create_eventsub_subscription(
+        #     subscription_type="channel.chat.message",
+        #     version="1",
+        #     condition={
+        #         "broadcaster_user_id": str(user.twitch_id),
+        #         "user_id": "957818216",
+        #     },
+        #     transport={
+        #         "method": "webhook",
+        #         "callback": str(settings.reward_redemption_webhook) + f"/{user.twitch_id}",
+        #         "secret": settings.twitch_webhook_secret.get_secret_value(),
+        #     }
+        # )
         # response.raise_for_status()
 
     async def unsubscribe_event_sub(self, sub_id: UUID | str):
