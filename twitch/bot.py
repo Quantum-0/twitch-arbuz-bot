@@ -4,6 +4,7 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from time import time
 
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from twitchAPI.chat import ChatMessage, Chat
 from twitchAPI.type import ChatEvent
@@ -130,40 +131,39 @@ class ChatBot:
             await self._command_manager.handle(user_settings, user, message)
             await self._handler_manager.handle(user_settings, user, message)
 
-    async def update_bot_channels(self):
+    async def update_bot_channels(self, session: AsyncSession):
         logger.info("Updating bot channels")
-        async with AsyncSessionLocal() as session:
-            users_result = await session.execute(
-                sa.select(User)
-                .join(TwitchUserSettings)
-                .filter(TwitchUserSettings.enable_chat_bot == True)
-            )
-            users = users_result.scalars().all()
-            desired_channels: set[User] = {user for user in users}
+        users_result = await session.execute(
+            sa.select(User)
+            .join(TwitchUserSettings)
+            .filter(TwitchUserSettings.enable_chat_bot == True)
+        )
+        users = users_result.scalars().all()
+        desired_channels: set[User] = {user for user in users}
 
-            # Получаем текущие подписки
-            subs = await self._twitch.get_subscriptions()
-            current_channels = {
-                sub.condition.get("broadcaster_user_id")
-                for sub in subs.data
-                if sub.type == "channel.chat.message"
-            }
+        # Получаем текущие подписки
+        subs = await self._twitch.get_subscriptions()
+        current_channels = {
+            sub.condition.get("broadcaster_user_id")
+            for sub in subs.data
+            if sub.type == "channel.chat.message"
+        }
 
-            # Присоединяемся к новым каналам
-            for channel in desired_channels:
-                if channel.twitch_id not in current_channels:
-                    try:
-                        async for _ in self._twitch.subscribe_chat_messages(channel):
-                            logger.info(f"Subscribed to EventSub chat messages for {channel.login_name}")
-                    except:
-                        logger.error(f"Error to join user's channel as chat bot. User: `{channel.login_name}`")
+        # Присоединяемся к новым каналам
+        for channel in desired_channels:
+            if channel.twitch_id not in current_channels:
+                try:
+                    async for _ in self._twitch.subscribe_chat_messages(channel):
+                        logger.info(f"Subscribed to EventSub chat messages for {channel.login_name}")
+                except:
+                    logger.error(f"Error to join user's channel as chat bot. User: `{channel.login_name}`")
 
-            # Отписываемся от ненужных каналов
-            for sub in subs.data:
-                if sub.type == "channel.chat.message" and sub.condition.get(
-                        "broadcaster_user_login") not in desired_channels:
-                    await self._twitch.unsubscribe_event_sub(sub.id)
-                    logger.info(f"Unsubscribed from {sub.condition.get('broadcaster_user_login')}")
+        # Отписываемся от ненужных каналов
+        for sub in subs.data:
+            if sub.type == "channel.chat.message" and sub.condition.get(
+                    "broadcaster_user_login") not in desired_channels:
+                await self._twitch.unsubscribe_event_sub(sub.id)
+                logger.info(f"Unsubscribed from {sub.condition.get('broadcaster_user_login')}")
 
     async def get_commands(self, user: User) -> list[tuple[str, str, str]]:
         return await self._command_manager.get_commands_of_user(user)

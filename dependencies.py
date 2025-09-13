@@ -17,7 +17,8 @@ async def init_and_startup():
     singletons["chat_bot"] = ChatBot()
     await singletons["twitch"].startup()
     await singletons["chat_bot"].startup(singletons["twitch"])
-    await singletons["chat_bot"].update_bot_channels()
+    async with AsyncSessionLocal() as session:
+        await singletons["chat_bot"].update_bot_channels(session)
 
 def get_twitch() -> Generator[Twitch]:
     tw: Twitch = singletons["twitch"]  # type: ignore
