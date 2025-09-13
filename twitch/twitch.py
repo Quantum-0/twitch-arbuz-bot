@@ -64,7 +64,7 @@ class Twitch():
         return result
 
     async def subscribe_chat_messages(self, user: User):
-        response = await self._twitch.create_eventsub_subscription(
+        await self._twitch.create_eventsub_subscription(
             subscription_type="channel.chat.message",
             version="1",
             condition={
@@ -77,7 +77,7 @@ class Twitch():
                 "secret": settings.twitch_webhook_secret.get_secret_value(),
             }
         )
-        response.raise_for_status()
+        # response.raise_for_status()
 
     async def unsubscribe_event_sub(self, sub_id: UUID | str):
         await self._twitch.delete_eventsub_subscription(str(sub_id))
