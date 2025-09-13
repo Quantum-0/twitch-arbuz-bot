@@ -41,7 +41,7 @@ async def update_settings(
     await db.commit()
     await db.refresh(user.settings)
 
-    await chat_bot.update_bot_channels(db)
+    await chat_bot.update_bot_channels()
 
     if data.enable_shoutout_on_raid is not None:
         if data.enable_shoutout_on_raid is True:

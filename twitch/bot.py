@@ -131,14 +131,15 @@ class ChatBot:
             await self._command_manager.handle(user_settings, user, message)
             await self._handler_manager.handle(user_settings, user, message)
 
-    async def update_bot_channels(self, session: AsyncSession):
+    async def update_bot_channels(self):
         logger.info("Updating bot channels")
-        users_result = await session.execute(
-            sa.select(User)
-            .join(TwitchUserSettings)
-            .filter(TwitchUserSettings.enable_chat_bot == True)
-        )
-        users = users_result.scalars().all()
+        async with AsyncSessionLocal() as session:
+            users_result = await session.execute(
+                sa.select(User)
+                .join(TwitchUserSettings)
+                .filter(TwitchUserSettings.enable_chat_bot == True)
+            )
+            users = users_result.scalars().all()
         desired_channels: set[User] = {user for user in users}
 
         # Получаем текущие подписки
