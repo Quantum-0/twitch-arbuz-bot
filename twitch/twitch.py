@@ -67,7 +67,7 @@ class Twitch():
         result = await self._twitch.get_eventsub_subscriptions()
         return result
 
-    async def subscribe_chat_messages(self, *users: User) -> AsyncGenerator[dict[str, Any]]:
+    async def subscribe_chat_messages(self, *users: tuple[User, ...]) -> AsyncGenerator[tuple[User, bool, dict[str, Any]]]:
         async with httpx.AsyncClient() as client:
             response = await client.post(
                 "https://id.twitch.tv/oauth2/token",
@@ -103,8 +103,7 @@ class Twitch():
                 )
                 if not response.is_success:
                     logger.error(response.json())
-                response.raise_for_status()
-                yield response.json()
+                yield user, response.is_success, response.json()
 
     async def unsubscribe_event_sub(self, sub_id: UUID | str):
         await self._twitch.delete_eventsub_subscription(str(sub_id))
