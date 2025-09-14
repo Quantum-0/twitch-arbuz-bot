@@ -22,10 +22,13 @@ from sentry_sdk.integrations.fastapi import FastApiIntegration
 
 from utils.logging_conf import LOGGING_CONFIG
 
-sentry_sdk.init(
-    dsn=str(settings.sentry_dsn),
-    integrations=[StarletteIntegration(), FastApiIntegration()],
-)
+if settings.sentry_dsn:
+    sentry_sdk.init(
+        dsn=str(settings.sentry_dsn),
+        integrations=[StarletteIntegration(), FastApiIntegration()],
+    )
+else:
+    print("Sentry DSN is not defined!")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):

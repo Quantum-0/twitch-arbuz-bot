@@ -38,7 +38,7 @@ class Settings(BaseSettings):
     db_url: str
     db_sync_url: str
     fernet_key: SecretStr
-    sentry_dsn: AnyHttpUrl
+    sentry_dsn: AnyHttpUrl | None = None
     admin_api_login: str
     admin_api_password: str
     # github_token: SecretStr
