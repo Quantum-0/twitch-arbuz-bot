@@ -1,4 +1,5 @@
 import logging.config
+import uuid
 from contextlib import asynccontextmanager
 
 import uvicorn
@@ -52,7 +53,7 @@ async def sentry_request_validation_handler(request: Request, exc: RequestValida
         sentry_sdk.capture_exception(exc)
     return await request_validation_exception_handler(request, exc)
 
-app.add_middleware(SessionMiddleware, secret_key="some-secret-key")  # FIXME secret_key
+app.add_middleware(SessionMiddleware, secret_key=str(uuid.uuid4()))  # FIXME secret_key
 app.include_router(router=api_router)
 app.include_router(router=user_router)
 app.mount("/static", StaticFiles(directory="static"), name="static")
