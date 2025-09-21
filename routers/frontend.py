@@ -159,7 +159,7 @@ async def get_streamers(
     q = (
         sa.select(User.login_name.label("username"), User.profile_image_url.label("avatar_url"), User.followers_count.label("followers"), User.in_beta_test.label("is_beta_tester"))
         .where(User.followers_count > 10)
-        .limit(50)
+        .limit(400)
     )
     res = list((await db.execute(q)).fetchall())
     random.shuffle(res)
