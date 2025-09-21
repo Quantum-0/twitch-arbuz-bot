@@ -7,19 +7,19 @@ services:
       - "8000:8000"
     env_file:
       - .env
-    depends_on:
-      - db
+#    depends_on:
+#      - db
 
-  db:
-    image: postgres:13
-    ports:
-      - "45432:5432"
-    environment:
-      - POSTGRES_USER=user
-      - POSTGRES_PASSWORD=password
-      - POSTGRES_DB=twitch_bot
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
+#  db:
+#    image: postgres:13
+#    ports:
+#      - "45432:5432"
+#    environment:
+#      - POSTGRES_USER=user
+#      - POSTGRES_PASSWORD=password
+#      - POSTGRES_DB=twitch_bot
+#    volumes:
+#      - postgres_data:/var/lib/postgresql/data
 
 volumes:
   postgres_data:
