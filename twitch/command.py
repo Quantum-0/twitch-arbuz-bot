@@ -14,8 +14,8 @@ class BiteCommand(SimpleTargetCommand):
     command_description = "Укусить пользователя чата"
 
     need_target = True
-    cooldown_timer = 60
-    cooldown_count = 3
+    cooldown_timer = 45
+    cooldown_count = 2
 
     def is_enabled(self, streamer_settings: TwitchUserSettings) -> bool:
         return streamer_settings.enable_bite
@@ -94,11 +94,10 @@ class BananaCommand(SavingResultCommand):
     command_description = "Проанализировать состояние вашего банана"
 
     cooldown_timer = 10
-    cooldown_count = 3
 
     refresh_result_timer = 5 * 60
 
-    async def result_generator(self) -> str:
+    async def result_generator(self, old_value: str | None) -> str:
         return random.choice(["зелёный", "жёлтый", "мягкий", "nsfw", "длинный", "сгнивший", "заплесневел", "спелый", "сочный", "сладкий"])
 
     async def _cooldown_reply(self, user: str, delay: int) -> str | None:

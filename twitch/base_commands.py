@@ -216,7 +216,7 @@ class SavingResultCommand(Command):
         return None
 
     @abstractmethod
-    async def result_generator(self) -> str:
+    async def result_generator(self, old_value: str | None) -> str:
         raise NotImplementedError
 
     async def handle(self, streamer: User, message: ChatMessageWebhookEventSchema):
@@ -258,7 +258,7 @@ class SavingResultCommand(Command):
         if self.refresh_result_timer and last_result_time and time() - last_result_time < self.refresh_result_timer:
             response = await self._handle_old(streamer, user, message.message.text, last_result_value, time() - last_result_time)
         else:
-            new_value = await self.result_generator()
+            new_value = await self.result_generator(last_result_value)
             await self._state_manager.set_state(user=user_id, command=self.command_name, param=SMParam.PREVIOUS_VALUE, value=new_value)
             await self._state_manager.set_state(user=user_id, command=self.command_name, param=SMParam.PREVIOUS_VALUE_TIME, value=time())
             response = await self._handle_new(streamer, user, message.message.text, new_value)
