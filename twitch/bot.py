@@ -14,7 +14,7 @@ from database.models import User, TwitchUserSettings
 from exceptions import UserNotFoundInDatabase, NotInBetaTest
 from routers.schemas import ChatMessageWebhookEventSchema
 from twitch.command import BiteCommand, LickCommand, BananaCommand, BoopCommand, CmdlistCommand, PatCommand, HugCommand, \
-    LurkCommand, PantsCommand, BushCommand
+    LurkCommand, PantsCommand, BushCommand, HornyGoodCommand, TailCommand
 from twitch.command_manager import CommandsManager
 from twitch.handlers import MessagesHandlerManager, PyramidHandler, UnlurkHandler, HelloHandler, IAmBotHandler
 from twitch.state_manager import get_state_manager
@@ -58,6 +58,8 @@ class ChatBot:
         self._command_manager.register(BushCommand)
         self._command_manager.register(LickCommand)
         self._command_manager.register(BananaCommand)
+        self._command_manager.register(TailCommand)
+        self._command_manager.register(HornyGoodCommand)
         self._command_manager.register(BoopCommand)
         self._command_manager.register(PatCommand)
         self._command_manager.register(HugCommand)

@@ -227,6 +227,14 @@ button[disabled] { opacity: 0.6; cursor: not-allowed; }
             <span>Включить !lurk</span>
             <div class="toggle-switch {% if settings.enable_lurk %}active{% endif %}" data-name="enable_lurk"></div>
         </div>
+        <div class="toggle-label {% if not settings.enable_chat_bot %}disabled{% endif %}">
+            <span>Включить !хорни</span>
+            <div class="toggle-switch {% if settings.enable_horny_good %}active{% endif %}" data-name="enable_horny_good"></div>
+        </div>
+        <div class="toggle-label {% if not settings.enable_chat_bot %}disabled{% endif %}">
+            <span>Включить !хвост</span>
+            <div class="toggle-switch {% if settings.enable_tail %}active{% endif %}" data-name="enable_tail"></div>
+        </div>
         <!--
         <div class="toggle-label {% if not settings.enable_chat_bot %}disabled{% endif %}">
             <span>Включить !якто</span>
@@ -241,10 +249,12 @@ button[disabled] { opacity: 0.6; cursor: not-allowed; }
             <div class="toggle-switch {% if settings.enable_pants %}active{% endif %}" data-name="enable_pants"></div>
         </div>
         -->
+        <!--
         <div class="toggle-label {% if not settings.enable_chat_bot %}disabled{% endif %}">
             <span>Включить обработчик пирамидок (пока работает криво о.О)</span>
             <div class="toggle-switch {% if settings.enable_pyramid %}active{% endif %}" data-name="enable_pyramid"></div>
         </div>
+        -->
         <!--
         <div class="toggle-label {% if not settings.enable_chat_bot %}disabled{% endif %}">
             <span>Включить ломатель пирамидок</span>

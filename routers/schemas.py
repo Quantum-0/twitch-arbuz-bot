@@ -20,6 +20,9 @@ class UpdateSettingsForm(BaseModel):
     enable_banana: bool | None = Field(None)
     enable_whoami: bool | None = Field(None)
     enable_lurk: bool | None = Field(None)
+    enable_horny_good: bool | None = Field(None)
+    enable_horny_bad: bool | None = Field(None)
+    enable_tail: bool | None = Field(None)
 
     enable_riot: bool | None = Field(None)
     enable_pants: bool | None = Field(None)

@@ -71,11 +71,15 @@ class TwitchUserSettings(Base):
     enable_hug: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false(), nullable=False)
 
     enable_banana: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false(), nullable=False)
+    enable_tail: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false(), nullable=False)
     enable_whoami: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false(), nullable=False)
     enable_lurk: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false(), nullable=False)
 
     enable_riot: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false(), nullable=False)
     enable_pants: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false(), nullable=False)
+
+    enable_horny_good: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false(), nullable=False)
+    enable_horny_bad: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false(), nullable=False)
 
     enable_pyramid: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false(), nullable=False)
     enable_pyramid_breaker: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false(), nullable=False)
