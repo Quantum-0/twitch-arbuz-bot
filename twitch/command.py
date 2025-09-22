@@ -162,6 +162,9 @@ class TailCommand(SavingResultCommand):
     async def _cooldown_reply(self, user: str, delay: int) -> str | None:
         return random.choice([f"Боюсь, пока рано измерять твой хвост. Он не растёт так быстро!"])
 
+    async def _target_selected(self, user: str, targets: list[str]):
+        return None
+
     async def _handle_new(self, streamer: User, user: str, text: str, new_value: str):
         change = new_value[0] if new_value[0] in ["+", "-"] else None
         value = int(new_value[1:]) if new_value[0] in ["+", "-"] else int(new_value)
