@@ -219,6 +219,7 @@ class TailCommand(SavingResultCommand):
                 result += " Подрос :з"
             elif change == "-":
                 result += " Укоротился >.<"
+        return result
 
 
     async def _handle_old(self, streamer: User, user: str, text: str, old_value: str, seconds_spend: str):
@@ -296,7 +297,7 @@ class HornyGoodCommand(SavingResultCommand):
             return str(random.randint(0, 100))
         if old_value[0] in ['+', '-']:
             old_value = old_value[1:]
-        if random.random() < 0.5:
+        if random.random() < 0.65 - 0.3 * int(old_value) / 100:
             new_value = min(100, int(old_value) + random.randint(10, 50))
             return f"+{new_value}"
         else:
