@@ -156,7 +156,7 @@ class TailCommand(SavingResultCommand):
             return f"{value} мм"
         elif value < 100:
             return f"{value / 10} см"
-        else #if value < 1000:
+        else: #if value < 1000:
             return f"{value // 100 / 10} м"
 
     async def _cooldown_reply(self, user: str, delay: int) -> str | None:
