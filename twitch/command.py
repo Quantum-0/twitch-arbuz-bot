@@ -95,7 +95,7 @@ class LickCommand(SimpleTargetCommand):
     cooldown_count = 3
 
     def is_enabled(self, streamer_settings: TwitchUserSettings) -> bool:
-        return streamer_settings.enable_bite
+        return streamer_settings.enable_lick
 
     async def _handle(self, streamer: User, user: str, message: str, targets: list[str]) -> str:
         target = join_targets(targets)
