@@ -22,7 +22,7 @@ class BiteCommand(SimpleTargetCommand):
 
     async def _handle(self, streamer: User, user: str, message: str, targets: list[str]) -> str:
         kind_of_bite = ["злобный", "приятный", "мягкий", "нежный", "аккуратный", "агрессивный", "коварный"]
-        target_to_bite = ["левое ухо", "правое ухо", "пятку", "хвост", "ногу", "пэрсики", "нос", "плечо", "жёпку"]
+        target_to_bite = ["левое ухо", "правое ухо", "пятку", "хвост", "ногу", "пэрсики", "нос", "плечо", "жёпку", "палец", "животик"]
         target = join_targets(targets)
         # TODO: кусает, делает кусь, кусявкает, покусывает?
         return f"@{user} делает {random.choice(kind_of_bite)} кусь {target} за {random.choice(target_to_bite)}"
