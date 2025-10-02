@@ -25,12 +25,15 @@ async def verify_eventsub_signature(
     msg_sig: str = Header(..., alias="Twitch-Eventsub-Message-Signature"),
 ) -> str:
     body = await request.body()
-    hmac_msg = msg_id + msg_ts + body.decode('utf-8')
-    expected = "sha256=" + hmac.new(
-        key=settings.twitch_webhook_secret.get_secret_value().encode(),
-        msg=hmac_msg.encode(),
-        digestmod=hashlib.sha256,
-    ).hexdigest()
+    hmac_msg = msg_id + msg_ts + body.decode("utf-8")
+    expected = (
+        "sha256="
+        + hmac.new(
+            key=settings.twitch_webhook_secret.get_secret_value().encode(),
+            msg=hmac_msg.encode(),
+            digestmod=hashlib.sha256,
+        ).hexdigest()
+    )
     if not hmac.compare_digest(expected, msg_sig):
         raise HTTPException(status_code=403, detail="Invalid signature")
     return msg_type

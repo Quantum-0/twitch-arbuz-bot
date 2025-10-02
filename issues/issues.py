@@ -18,7 +18,7 @@ try:
     g = Github(auth=auth)
 
     # Get the repository
-    repo = g.get_user().get_repo(REPO_NAME) # For user-owned repo
+    repo = g.get_user().get_repo(REPO_NAME)  # For user-owned repo
     # Or for organization-owned repo:
     # org = g.get_organization(REPO_OWNER)
     # repo = org.get_repo(REPO_NAME)

@@ -21,7 +21,11 @@ logger = logging.getLogger(__name__)
 async def save_all_supporters_into_db(supporters: list[Supporter]) -> None:
     unique_data = {sup.supporter_id.root: sup for sup in supporters}.values()
     data = [
-        {"id": sup.supporter_id.root, "link": sup.supporter_link, "name": sup.supporter_name}
+        {
+            "id": sup.supporter_id.root,
+            "link": sup.supporter_link,
+            "name": sup.supporter_name,
+        }
         for sup in unique_data
     ]
     q = pg_insert(MemealertsSupporters).values(data)
@@ -60,10 +64,7 @@ async def load_supporters(cli: MemealertsAsyncClient) -> list[Supporter]:
 
     # Подготовка остальных запросов
     remaining_skips = list(range(limit, total_count, limit))
-    tasks = [
-        cli.get_supporters(limit=limit, skip=skip)
-        for skip in remaining_skips
-    ]
+    tasks = [cli.get_supporters(limit=limit, skip=skip) for skip in remaining_skips]
     results = await asyncio.gather(*tasks)
 
     # Сборка всех данных
@@ -80,18 +81,24 @@ def is_id(id_: str) -> bool:
     return bool(re.fullmatch("[0-9a-f]{24}", id_))
 
 
-async def find_user_in_supporters(cli: MemealertsAsyncClient, username: str) -> Supporter | None:
+async def find_user_in_supporters(
+    cli: MemealertsAsyncClient, username: str
+) -> Supporter | None:
     users = await load_supporters(cli)
     username = username.lower().strip()
     # TODO: link and name both - 2 supporters???
     for user in users:
-        if (user.supporter_link and user.supporter_link.lower() == username) or user.supporter_name.lower() == username:
+        if (
+            user.supporter_link and user.supporter_link.lower() == username
+        ) or user.supporter_name.lower() == username:
             return user
     logger.info(f"Failed to search {username} in supporters")
     return None
 
 
-async def find_and_give_bonus(cli: MemealertsAsyncClient, username: str, amount: int = 2) -> bool:
+async def find_and_give_bonus(
+    cli: MemealertsAsyncClient, username: str, amount: int = 2
+) -> bool:
     if is_id(username):
         logger.info(f"Giving memecoins by user_id=`{username}`")
         await cli.give_bonus(UserID(username), amount)

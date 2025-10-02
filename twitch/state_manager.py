@@ -29,9 +29,9 @@ USER_TYPE = int
 VALUE_TYPE = str | int | float | None
 PARAM_TYPE = SMParam
 
-COMMON_CHANNEL:CHANNEL_TYPE = "COMMON"
-COMMON_USER:USER_TYPE = -1
-COMMON_COMMAND:COMMAND_TYPE = "ALL_COMMANDS"
+COMMON_CHANNEL: CHANNEL_TYPE = "COMMON"
+COMMON_USER: USER_TYPE = -1
+COMMON_COMMAND: COMMAND_TYPE = "ALL_COMMANDS"
 
 
 class StateManager(ABC):
@@ -39,10 +39,10 @@ class StateManager(ABC):
     async def get_state(
         self,
         *,
-        channel:str=COMMON_CHANNEL,
-        user:int=COMMON_USER,
-        command:str=COMMON_COMMAND,
-        param:PARAM_TYPE=PARAM_TYPE.DEFAULT,
+        channel: str = COMMON_CHANNEL,
+        user: int = COMMON_USER,
+        command: str = COMMON_COMMAND,
+        param: PARAM_TYPE = PARAM_TYPE.DEFAULT,
     ):
         raise NotImplementedError
 
@@ -51,10 +51,10 @@ class StateManager(ABC):
         self,
         value: VALUE_TYPE,
         *,
-        channel:str=COMMON_CHANNEL,
-        user:int=COMMON_USER,
-        command:str=COMMON_COMMAND,
-        param:PARAM_TYPE=PARAM_TYPE.DEFAULT,
+        channel: str = COMMON_CHANNEL,
+        user: int = COMMON_USER,
+        command: str = COMMON_COMMAND,
+        param: PARAM_TYPE = PARAM_TYPE.DEFAULT,
     ):
         raise NotImplementedError
 
@@ -81,19 +81,24 @@ class StateManager(ABC):
     async def cleanup(self):
         raise NotImplementedError
 
-class InMemoryStateManager(StateManager):
 
+class InMemoryStateManager(StateManager):
     async def get_all_from_channel(
-            self,
-            *,
-            channel: str = COMMON_CHANNEL,
+        self,
+        *,
+        channel: str = COMMON_CHANNEL,
     ) -> AsyncIterator[tuple[USER_TYPE, COMMAND_TYPE, PARAM_TYPE, VALUE_TYPE]]:
         if channel not in self._storage:
             return
         for user in self._storage[channel]:
             for command in self._storage[channel][user]:
                 for param in self._storage[channel][user][command]:
-                    yield user, command, param, self._storage[channel][user][command][param]
+                    yield (
+                        user,
+                        command,
+                        param,
+                        self._storage[channel][user][command][param],
+                    )
 
     async def del_state(
         self,
@@ -103,12 +108,26 @@ class InMemoryStateManager(StateManager):
         command: str = COMMON_COMMAND,
         param: PARAM_TYPE = PARAM_TYPE.DEFAULT,
     ):
-        await self.set_state(value=None, channel=channel, user=user, command=command, param=param)
+        await self.set_state(
+            value=None, channel=channel, user=user, command=command, param=param
+        )
 
     def __init__(self, channels_size: int = 30, users_size: int = 100):
         self.channels_size = channels_size
         self.users_size = users_size
-        self._storage: OrderedDict[CHANNEL_TYPE, OrderedDict[USER_TYPE, OrderedDict[COMMAND_TYPE, OrderedDict[PARAM_TYPE, VALUE_TYPE]]]] = OrderedDict[CHANNEL_TYPE, OrderedDict[USER_TYPE, OrderedDict[COMMAND_TYPE, OrderedDict[PARAM_TYPE, VALUE_TYPE]]]]()
+        self._storage: OrderedDict[
+            CHANNEL_TYPE,
+            OrderedDict[
+                USER_TYPE,
+                OrderedDict[COMMAND_TYPE, OrderedDict[PARAM_TYPE, VALUE_TYPE]],
+            ],
+        ] = OrderedDict[
+            CHANNEL_TYPE,
+            OrderedDict[
+                USER_TYPE,
+                OrderedDict[COMMAND_TYPE, OrderedDict[PARAM_TYPE, VALUE_TYPE]],
+            ],
+        ]()
 
     async def get_state(
         self,
@@ -130,7 +149,6 @@ class InMemoryStateManager(StateManager):
                         return self._storage[channel][user][command][param]
         return None
 
-
     async def set_state(
         self,
         value: VALUE_TYPE,
@@ -146,9 +164,13 @@ class InMemoryStateManager(StateManager):
         if isinstance(user, str):
             user = user.lower()
         if channel not in self._storage:
-            self._storage[channel] = OrderedDict[int, OrderedDict[str, OrderedDict[SMParam, VALUE_TYPE]]]()
+            self._storage[channel] = OrderedDict[
+                int, OrderedDict[str, OrderedDict[SMParam, VALUE_TYPE]]
+            ]()
         if user not in self._storage[channel]:
-            self._storage[channel][user] = OrderedDict[str, OrderedDict[SMParam, VALUE_TYPE]]()
+            self._storage[channel][user] = OrderedDict[
+                str, OrderedDict[SMParam, VALUE_TYPE]
+            ]()
         if command not in self._storage[channel][user]:
             self._storage[channel][user][command] = OrderedDict[SMParam, VALUE_TYPE]()
         if value is None:
@@ -164,7 +186,9 @@ class InMemoryStateManager(StateManager):
                     for param, value in param_dict.items():
                         pass  # TODO: придумать чота
 
+
 _sm: StateManager = InMemoryStateManager()
+
 
 def get_state_manager():
     return _sm

@@ -33,9 +33,11 @@ LOGGING_CONFIG = {
     "loggers": {
         "uvicorn": {"handlers": ["uvicorn"], "level": "INFO", "propagate": False},
         "uvicorn.error": {"level": "INFO", "propagate": True},
-        "uvicorn.access": {"handlers": ["uvicorn"], "level": "INFO", "propagate": False},
-
-
+        "uvicorn.access": {
+            "handlers": ["uvicorn"],
+            "level": "INFO",
+            "propagate": False,
+        },
         "twitchAPI": {"level": "INFO", "propagate": False},
         "python_multipart.multipart": {"level": "WARN", "propagate": False},
         "asyncio": {"level": "WARN", "propagate": False},

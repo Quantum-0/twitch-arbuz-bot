@@ -11,6 +11,7 @@ from twitch.twitch import Twitch
 
 router = APIRouter(prefix="/admin", tags=["Admin API"])
 
+
 @router.post("/add_to_beta_test")
 async def update_settings(
     db: Annotated[AsyncSession, Depends(get_db)],

@@ -31,16 +31,21 @@ if settings.sentry_dsn:
 else:
     print("Sentry DSN is not defined!")
 
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await init_and_startup()
     yield
     await async_engine.dispose()
 
+
 app = FastAPI(lifespan=lifespan)
 
+
 @app.exception_handler(RequestValidationError)
-async def sentry_request_validation_handler(request: Request, exc: RequestValidationError):
+async def sentry_request_validation_handler(
+    request: Request, exc: RequestValidationError
+):
     with sentry_sdk.new_scope() as scope:
         scope.set_tag("type", "request_validation_error")
         scope.set_extra("path", str(request.url))
@@ -52,6 +57,7 @@ async def sentry_request_validation_handler(request: Request, exc: RequestValida
             pass
         sentry_sdk.capture_exception(exc)
     return await request_validation_exception_handler(request, exc)
+
 
 app.add_middleware(SessionMiddleware, secret_key=str(uuid.uuid4()))  # FIXME secret_key
 app.include_router(router=api_router)
@@ -68,7 +74,8 @@ async def http_exception_handler(request: Request, exc: Exception):
         return JSONResponse(
             content={
                 "title": "Простите, но всё сломалося",
-                "message": "Создатель сервиса дурачок и не обработал ошибку:<br>" + str(exc)
+                "message": "Создатель сервиса дурачок и не обработал ошибку:<br>"
+                + str(exc),
             },
             status_code=500,
         )
@@ -76,6 +83,7 @@ async def http_exception_handler(request: Request, exc: Exception):
         if exc.status_code in (status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN):
             return RedirectResponse(url="/login")
     raise
+
 
 if __name__ == "__main__":
     uvicorn.run(

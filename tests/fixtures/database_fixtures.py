@@ -18,7 +18,9 @@ def postgres_container():
         with PostgresContainer("postgres:15") as postgres:
             postgres.start()
             sync_url = postgres.get_connection_url()
-            async_url = sync_url.replace("postgresql+psycopg2://", "postgresql+asyncpg://")
+            async_url = sync_url.replace(
+                "postgresql+psycopg2://", "postgresql+asyncpg://"
+            )
             old_sync_url = os.environ.get("DB_SYNC_URL")
             old_async_url = os.environ.get("DB_URL")
             os.environ["DB_SYNC_URL"] = sync_url
@@ -33,25 +35,34 @@ def postgres_container():
 @pytest.fixture(scope="session")
 def migrations(postgres_container):
     alembic_cfg = AlembicConfig("alembic.ini")
-    alembic_cfg.set_main_option("sqlalchemy.url", postgres_container.get_connection_url())
+    alembic_cfg.set_main_option(
+        "sqlalchemy.url", postgres_container.get_connection_url()
+    )
     command.upgrade(alembic_cfg, "head")
 
 
 @pytest.fixture(scope="function")
 async def test_engine(postgres_container, migrations) -> AsyncGenerator:
     """Создаём движок к тестовой БД и накатываем миграции через Alembic."""
-    url = postgres_container.get_connection_url().replace("postgresql+psycopg2://", "postgresql+asyncpg://")
+    url = postgres_container.get_connection_url().replace(
+        "postgresql+psycopg2://", "postgresql+asyncpg://"
+    )
     engine = create_async_engine(url, future=True, echo=False)
     try:
         yield engine
     finally:
         await engine.dispose()
 
+
 @pytest.fixture
 async def db_session(test_engine: AsyncEngine) -> AsyncGenerator[AsyncSession, None]:
     async with test_engine.connect() as connection:
         transaction = await connection.begin()
-        session = AsyncSession(bind=connection, join_transaction_mode="create_savepoint", expire_on_commit=False)
+        session = AsyncSession(
+            bind=connection,
+            join_transaction_mode="create_savepoint",
+            expire_on_commit=False,
+        )
         try:
             yield session
         except Exception:

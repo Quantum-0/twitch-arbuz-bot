@@ -22,5 +22,6 @@ async def generate_bot_tokens():
 
     await twitch.close()
 
+
 if __name__ == "__main__":
     asyncio.run(generate_bot_tokens())

@@ -13,10 +13,28 @@ from database.database import AsyncSessionLocal
 from database.models import User, TwitchUserSettings
 from exceptions import UserNotFoundInDatabase, NotInBetaTest
 from routers.schemas import ChatMessageWebhookEventSchema
-from twitch.command import BiteCommand, LickCommand, BananaCommand, BoopCommand, CmdlistCommand, PatCommand, HugCommand, \
-    LurkCommand, PantsCommand, BushCommand, HornyGoodCommand, TailCommand
+from twitch.command import (
+    BiteCommand,
+    LickCommand,
+    BananaCommand,
+    BoopCommand,
+    CmdlistCommand,
+    PatCommand,
+    HugCommand,
+    LurkCommand,
+    PantsCommand,
+    BushCommand,
+    HornyGoodCommand,
+    TailCommand,
+)
 from twitch.command_manager import CommandsManager
-from twitch.handlers import MessagesHandlerManager, PyramidHandler, UnlurkHandler, HelloHandler, IAmBotHandler
+from twitch.handlers import (
+    MessagesHandlerManager,
+    PyramidHandler,
+    UnlurkHandler,
+    HelloHandler,
+    IAmBotHandler,
+)
 from twitch.state_manager import get_state_manager
 from twitch.twitch import Twitch
 from twitch.user_list_manager import UserListManager
@@ -37,7 +55,9 @@ class ChatBot:
 
     def __init__(self) -> None:
         self._user_list_manager = UserListManager()
-        self._handler_manager: MessagesHandlerManager = MessagesHandlerManager(get_state_manager(), self.send_message)
+        self._handler_manager: MessagesHandlerManager = MessagesHandlerManager(
+            get_state_manager(), self.send_message
+        )
         self._command_manager = CommandsManager(get_state_manager(), self.send_message)
         self._twitch: Twitch = None  # type: ignore
 
@@ -106,14 +126,20 @@ class ChatBot:
         :param message: Текст сообщения.
         """
 
-        await self._twitch.send_chat_message(stream_channel=chat, message=message, reply_parent_message_id=None)
+        await self._twitch.send_chat_message(
+            stream_channel=chat, message=message, reply_parent_message_id=None
+        )
 
     @staticmethod
     @asynccontextmanager
     async def _get_user_with_settings(channel_name: str) -> AsyncIterator[User]:
         channel_name = channel_name.lower()
         async with AsyncSessionLocal() as session:
-            result = await session.execute(sa.select(User).options(selectinload(User.settings)).filter_by(login_name=channel_name))
+            result = await session.execute(
+                sa.select(User)
+                .options(selectinload(User.settings))
+                .filter_by(login_name=channel_name)
+            )
             user = result.scalar_one_or_none()
             if not user:
                 logger.error(f"User {channel_name} not found")
@@ -155,17 +181,26 @@ class ChatBot:
 
         # Присоединяемся к новым каналам
         async for channel, success, response in self._twitch.subscribe_chat_messages(
-            *(channel for channel in desired_channels if channel.twitch_id not in current_channels)
+            *(
+                channel
+                for channel in desired_channels
+                if channel.twitch_id not in current_channels
+            )
         ):
             if success:
-                logger.info(f"Subscribed to EventSub chat messages for {channel.login_name}")
+                logger.info(
+                    f"Subscribed to EventSub chat messages for {channel.login_name}"
+                )
             else:
-                logger.error(f"Error to join user's channel as chat bot. User: `{channel.login_name}`")
+                logger.error(
+                    f"Error to join user's channel as chat bot. User: `{channel.login_name}`"
+                )
 
         # Отписываемся от ненужных каналов
         for sub in subs.data:
             if sub.type == "channel.chat.message" and sub.condition.get(
-                    "broadcaster_user_id") not in {channel.twitch_id for channel in desired_channels}:
+                "broadcaster_user_id"
+            ) not in {channel.twitch_id for channel in desired_channels}:
                 await self._twitch.unsubscribe_event_sub(sub.id)
                 logger.info(f"Unsubscribed from {sub.condition}")
 
@@ -175,7 +210,9 @@ class ChatBot:
     async def get_last_active_users(self, user: User | str) -> list[tuple[str, str]]:
         result = []
         dt = time()
-        for name, last_active in self._user_list_manager.get_active_users(user.login_name if isinstance(user, User) else user):
+        for name, last_active in self._user_list_manager.get_active_users(
+            user.login_name if isinstance(user, User) else user
+        ):
             result.append((name, delay_to_seconds(dt - last_active) + " назад"))
         return result
 

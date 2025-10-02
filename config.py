@@ -45,15 +45,16 @@ class Settings(BaseSettings):
     # github_repo_owner: str = "Quantum-0"
     # github_repo_name: str
 
-    model_config = SettingsConfigDict(env_prefix='', env_file='.env')
+    model_config = SettingsConfigDict(env_prefix="", env_file=".env")
 
     @property
     def login_twitch_url(self) -> str:
-        scope:str = "+".join(sp.value for sp in user_scope)
+        scope: str = "+".join(sp.value for sp in user_scope)
         url = (
-                f"https://id.twitch.tv/oauth2/authorize?client_id={settings.twitch_client_id}"
-                f"&redirect_uri={settings.login_redirect_url}&response_type=code&scope={scope}"
+            f"https://id.twitch.tv/oauth2/authorize?client_id={settings.twitch_client_id}"
+            f"&redirect_uri={settings.login_redirect_url}&response_type=code&scope={scope}"
         )
         return url
+
 
 settings = Settings()

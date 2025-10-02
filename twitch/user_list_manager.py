@@ -6,7 +6,9 @@ from routers.schemas import ChatMessageWebhookEventSchema
 
 class UserListManager:
     def __init__(self, max_users_per_channel: int = 300, forget_timeout: float = 3600):
-        self._last_messages: dict[str, list[tuple[str, float]]] = defaultdict(list)  # TODO: replace with Queue or Deque?
+        self._last_messages: dict[str, list[tuple[str, float]]] = defaultdict(
+            list
+        )  # TODO: replace with Queue or Deque?
         self._last_cleanup: float = time()
         self._forget_timeout: float = forget_timeout
         self._max_users_per_channel: int = max_users_per_channel
@@ -45,13 +47,17 @@ class UserListManager:
         if len(q) > self._max_users_per_channel:
             del q[0]
 
-    def is_user_active(self, channel: str, user: str, timeout: float | None = None) -> bool:
+    def is_user_active(
+        self, channel: str, user: str, timeout: float | None = None
+    ) -> bool:
         for item in self._last_messages[channel.lower()]:
             if item[0] == user.lower():
                 return timeout is None or time() - item[1] < timeout
         return False
 
-    def get_last_active(self, channel: str, user: str, timeout: float | None = None) -> float | None:
+    def get_last_active(
+        self, channel: str, user: str, timeout: float | None = None
+    ) -> float | None:
         for item in self._last_messages[channel.lower()]:
             if item[0] == user.lower():
                 if timeout is not None and time() - item[1] > timeout:
@@ -59,7 +65,9 @@ class UserListManager:
                 return item[1]
         return False
 
-    def get_active_users(self, channel: str, timeout: float | None = None) -> list[tuple[str, float]]:
+    def get_active_users(
+        self, channel: str, timeout: float | None = None
+    ) -> list[tuple[str, float]]:
         result = []
         for item in self._last_messages[channel.lower()][::-1]:
             if timeout is not None and time() - item[1] > timeout:

@@ -12,6 +12,7 @@ async def get_db():
     async with AsyncSessionLocal() as session:
         yield session
 
+
 async def init_and_startup():
     singletons["twitch"] = Twitch()
     singletons["chat_bot"] = ChatBot()
@@ -19,12 +20,14 @@ async def init_and_startup():
     await singletons["chat_bot"].startup(singletons["twitch"])
     await singletons["chat_bot"].update_bot_channels()
 
+
 def get_twitch() -> Generator[Twitch]:
     tw: Twitch = singletons["twitch"]  # type: ignore
     if tw:
         yield tw
     else:
         raise RuntimeError("Twitch wasn't initialized")
+
 
 def get_chat_bot() -> Generator[ChatBot]:
     cb: ChatBot = singletons["chat_bot"]  # type: ignore

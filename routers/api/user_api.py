@@ -17,6 +17,7 @@ from utils.memes import token_expires_in_days
 
 router = APIRouter(prefix="/user", tags=["User API"])
 
+
 @router.post("/update_settings")
 async def update_settings(
     data: Annotated[UpdateSettingsForm, Form()],
@@ -49,13 +50,21 @@ async def update_settings(
                 await twitch.subscribe_raid(user)
             except HTTPStatusError as exc:
                 if exc.response.status_code == 409:
-                    return JSONResponse({"title": "Ошибка", "message": f"Подписка на уведомления о рейдах уже существует."}, 409)
+                    return JSONResponse(
+                        {
+                            "title": "Ошибка",
+                            "message": f"Подписка на уведомления о рейдах уже существует.",
+                        },
+                        409,
+                    )
                 else:
                     raise
         elif data.enable_shoutout_on_raid is False:
             await twitch.unsubscribe_raid(user=user)
 
-    return JSONResponse({"title": "Сохранено", "message": f"Настройки успешно обновлены."}, 200)
+    return JSONResponse(
+        {"title": "Сохранено", "message": f"Настройки успешно обновлены."}, 200
+    )
 
 
 @router.post("/memealerts/coins")
@@ -66,7 +75,13 @@ async def update_memealert_coins(
 ):
     user.memealerts.coins_for_reward = data.count
     await db.commit()
-    return JSONResponse({"title": "Сохранено", "message": f"Количество выдаваемых мемкоинов за награду обновлено."}, 200)
+    return JSONResponse(
+        {
+            "title": "Сохранено",
+            "message": f"Количество выдаваемых мемкоинов за награду обновлено.",
+        },
+        200,
+    )
 
 
 @router.post("/memealerts")
@@ -81,7 +96,13 @@ async def setup_memealert(
     reward_id = user.memealerts.memealerts_reward
 
     if not refresh and enable == bool(reward_id):
-        return JSONResponse({"title": "Без изменений", "message": f"Уже {'включено' if enable else 'выключено'}."}, 208)
+        return JSONResponse(
+            {
+                "title": "Без изменений",
+                "message": f"Уже {'включено' if enable else 'выключено'}.",
+            },
+            208,
+        )
 
     if enable:
         if not memealerts_token:
@@ -90,9 +111,13 @@ async def setup_memealert(
         try:
             await token_expires_in_days(memealerts_token)
         except (MATokenExpiredError, DecodeError):
-            return JSONResponse({"title": "Невалидный токен",
-                                 "message": "Токен, который вы используете - не является валидным. Попробуйте скопировать токен заново."},
-                                400)
+            return JSONResponse(
+                {
+                    "title": "Невалидный токен",
+                    "message": "Токен, который вы используете - не является валидным. Попробуйте скопировать токен заново.",
+                },
+                400,
+            )
 
         if refresh:
             user.memealerts.memealerts_token = memealerts_token
@@ -109,10 +134,15 @@ async def setup_memealert(
                 is_user_input_required=True,
             )
         except TwitchAPIException as exc:
-            if 'CREATE_CUSTOM_REWARD_DUPLICATE_REWARD' in str(exc):
-                return JSONResponse({"title": "Ошибка", "message": "Награда уже существует."}, 400)
-            if 'CREATE_CUSTOM_REWARD_TOO_MANY_REWARDS' in str(exc):
-                return JSONResponse({"title": "Ошибка", "message": "Слишком много наград на канале."}, 400)
+            if "CREATE_CUSTOM_REWARD_DUPLICATE_REWARD" in str(exc):
+                return JSONResponse(
+                    {"title": "Ошибка", "message": "Награда уже существует."}, 400
+                )
+            if "CREATE_CUSTOM_REWARD_TOO_MANY_REWARDS" in str(exc):
+                return JSONResponse(
+                    {"title": "Ошибка", "message": "Слишком много наград на канале."},
+                    400,
+                )
 
         user.memealerts.memealerts_reward = reward.id
         user.memealerts.memealerts_token = memealerts_token

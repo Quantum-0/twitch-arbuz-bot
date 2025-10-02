@@ -5,8 +5,19 @@ from pytest_asyncio import is_async_test
 # !!! ORDER IS IMPORTANT !!!
 from fixtures.auto_use_fixtures import event_loop  # noqa
 from fixtures.twitch_message import twitch_message_event_raw, twitch_message_event_model  # noqa
-from fixtures.database_fixtures import postgres_container, migrations, test_engine, db_session, test_user  # noqa
-from fixtures.client_fixtures import session_override, client, user_auth_mock, test_user_cookie  # noqa
+from fixtures.database_fixtures import (
+    postgres_container,
+    migrations,
+    test_engine,
+    db_session,
+    test_user,
+)  # noqa
+from fixtures.client_fixtures import (
+    session_override,
+    client,
+    user_auth_mock,
+    test_user_cookie,
+)  # noqa
 
 from database.models import User
 from twitch.state_manager import InMemoryStateManager
@@ -15,6 +26,7 @@ from twitch.state_manager import InMemoryStateManager
 @fixture
 def state_manager():
     return InMemoryStateManager()
+
 
 @fixture
 def send_message_mock():
@@ -27,7 +39,9 @@ def send_message_mock():
 
         def assert_sent(self, message: str, chat: str = None):
             if chat:
-                assert any(call[1] == message and call[0] == chat for call in self._calls), self._calls
+                assert any(
+                    call[1] == message and call[0] == chat for call in self._calls
+                ), self._calls
             else:
                 assert any(call[1] == message for call in self._calls), self._calls
 
@@ -36,11 +50,15 @@ def send_message_mock():
                 assert len(self._calls) == 0
                 return
             if chat:
-                assert not any(call[1] == message and call[0] == chat for call in self._calls), self._calls
+                assert not any(
+                    call[1] == message and call[0] == chat for call in self._calls
+                ), self._calls
             else:
                 assert not any(call[1] == message for call in self._calls), self._calls
 
     return SendMessageMock()
+
+
 #
 #
 # @pytest.mark.asyncio
@@ -57,6 +75,7 @@ def send_message_mock():
 #     ) as ac:
 #         yield ac
 #     settings.DEVELOPMENT = settings_development
+
 
 def pytest_collection_modifyitems(items):
     pytest_asyncio_tests = (item for item in items if is_async_test(item))

@@ -14,7 +14,6 @@ from routers.security_helpers import user_auth, user_auth_optional
 
 @pytest.fixture(scope="function", autouse=True)
 def session_override(db_session):
-
     async def get_session_override() -> AsyncGenerator[AsyncSession, None]:
         yield db_session
 
@@ -23,16 +22,18 @@ def session_override(db_session):
 
 @pytest.fixture(scope="function")
 def user_auth_mock(db_session, test_user):
-    app.dependency_overrides[user_auth] = lambda : test_user
-    app.dependency_overrides[user_auth_optional] = lambda : test_user
+    app.dependency_overrides[user_auth] = lambda: test_user
+    app.dependency_overrides[user_auth_optional] = lambda: test_user
 
 
 @pytest.fixture(scope="function")
 def test_user_cookie(test_user) -> dict[str, str]:
-    k = app.user_middleware[0].kwargs['secret_key']
+    k = app.user_middleware[0].kwargs["secret_key"]
     signer = itsdangerous.TimestampSigner(str(k))
-    cookie = signer.sign(b64encode(json.dumps({"user_id": test_user.twitch_id}).encode('utf-8')))
-    return {"session": cookie.decode('utf-8')}
+    cookie = signer.sign(
+        b64encode(json.dumps({"user_id": test_user.twitch_id}).encode("utf-8"))
+    )
+    return {"session": cookie.decode("utf-8")}
 
 
 @pytest.fixture(scope="function")

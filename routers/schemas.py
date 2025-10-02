@@ -33,7 +33,6 @@ class UpdateSettingsForm(BaseModel):
     enable_shoutout_on_raid: bool | None = Field(None)
 
 
-
 class UpdateMemealertsCoinsSchema(BaseModel):
     count: int = Field(..., ge=1, le=100)
 
@@ -55,6 +54,7 @@ class WebhookSubscriptionRewardRedemptionConditionSchema(BaseModel):
     reward_id: UUID = Field(...)
     broadcaster_user_id: int = Field(...)
 
+
 class WebhookSubscriptionRaidConditionSchema(BaseModel):
     from_broadcaster_user_id: int | Literal[""] = Field(...)
     to_broadcaster_user_id: int | Literal[""] = Field(...)
@@ -62,14 +62,24 @@ class WebhookSubscriptionRaidConditionSchema(BaseModel):
 
 class WebhookTransportSchema(BaseModel):
     method: str = Field(..., examples=["webhook"])
-    callback: AnyHttpUrl = Field(..., examples=[str(settings.reward_redemption_webhook) + "/123"])
+    callback: AnyHttpUrl = Field(
+        ..., examples=[str(settings.reward_redemption_webhook) + "/123"]
+    )
 
 
 T = TypeVar("T", bound=BaseModel)
+
+
 class WebhookSubscriptionSchema(BaseModel, Generic[T]):
     subscription_id: UUID = Field(..., alias="id")
     cost: int = Field(...)
-    type: str = Field(..., examples=["channel.channel_points_custom_reward_redemption.add", "channel.raid"])
+    type: str = Field(
+        ...,
+        examples=[
+            "channel.channel_points_custom_reward_redemption.add",
+            "channel.raid",
+        ],
+    )
     status: str = Field(..., examples=["enabled"])
     version: int = Field(..., examples=[1])
     condition: T
@@ -79,10 +89,14 @@ class WebhookSubscriptionSchema(BaseModel, Generic[T]):
 
 class PointRewardRedemptionWebhookSchema(BaseModel):
     event: PointRewardRedemptionWebhookEventSchema
-    subscription: WebhookSubscriptionSchema[WebhookSubscriptionRewardRedemptionConditionSchema]
+    subscription: WebhookSubscriptionSchema[
+        WebhookSubscriptionRewardRedemptionConditionSchema
+    ]
+
 
 class TwitchChallengeSchema(BaseModel):
     challenge: str
+
 
 class RaidWebhookEventSchema(BaseModel):
     from_broadcaster_user_id: int = Field(...)
@@ -93,14 +107,17 @@ class RaidWebhookEventSchema(BaseModel):
     to_broadcaster_user_login: str = Field(..., examples=["quantum075"])
     viewers: int = Field(...)
 
+
 class RaidWebhookSchema(BaseModel):
     subscription: WebhookSubscriptionSchema[WebhookSubscriptionRaidConditionSchema]
     event: RaidWebhookEventSchema
+
 
 class MessageFragmentCheermoteSchema(BaseModel):
     prefix: str
     bits: int
     tier: int
+
 
 class MessageFragmentEmoteSchema(BaseModel):
     id: str
@@ -108,10 +125,12 @@ class MessageFragmentEmoteSchema(BaseModel):
     owner_id: str
     format: list[str]
 
+
 class MessageFragmentMentionSchema(BaseModel):
     user_id: str
     user_name: str
     user_login: str
+
 
 class MessageFragmentSchema(BaseModel):
     type: str
@@ -120,17 +139,21 @@ class MessageFragmentSchema(BaseModel):
     emote: MessageFragmentEmoteSchema | None
     mention: MessageFragmentMentionSchema | None
 
+
 class ChatMessageInnerSchema(BaseModel):
     text: str
     fragments: list[MessageFragmentSchema]
+
 
 class ChatMessageBadge(BaseModel):
     set_id: str
     id: str
     info: str
 
+
 class ChatMessageCheerMetadata(BaseModel):
     bits: int
+
 
 class ChatMessageReplyMetadata(BaseModel):
     parent_message_id: str
@@ -142,6 +165,7 @@ class ChatMessageReplyMetadata(BaseModel):
     thread_user_id: str
     thread_user_name: str
     thread_user_login: str
+
 
 class ChatMessageWebhookEventSchema(BaseModel):
     broadcaster_user_id: int = Field(...)
@@ -165,10 +189,14 @@ class ChatMessageWebhookEventSchema(BaseModel):
     source_badges: list[ChatMessageBadge] | None = Field(None)
     is_source_only: bool | None = Field(None)
 
+
 class WebhookSubscriptionChatMessageConditionSchema(BaseModel):
     broadcaster_user_id: int = Field(...)
     user_id: int = Field(...)
 
+
 class ChatMessageSchema(BaseModel):
-    subscription: WebhookSubscriptionSchema[WebhookSubscriptionChatMessageConditionSchema]
+    subscription: WebhookSubscriptionSchema[
+        WebhookSubscriptionChatMessageConditionSchema
+    ]
     event: ChatMessageWebhookEventSchema

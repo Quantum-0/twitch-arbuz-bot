@@ -23,6 +23,7 @@ templates = Jinja2Templates(directory="templates")
 
 router = APIRouter()
 
+
 @router.get("/", response_class=HTMLResponse)
 async def index_page(request: Request):
     if request.session.get("user_id"):
@@ -30,10 +31,12 @@ async def index_page(request: Request):
     else:
         return RedirectResponse(url="/login")
 
+
 @router.get("/login")
 async def login():
     # TODO: Добавить страничку с кнопочкой "авторизоваться через твич
     return RedirectResponse(settings.login_twitch_url)
+
 
 @router.get("/panel")
 async def main_page(
@@ -50,11 +53,16 @@ async def main_page(
             "settings": user.settings,
             "memealerts": {
                 "enabled": user.memealerts.memealerts_reward is not None,
-                "expires_in": await token_expires_in_days(user.memealerts.memealerts_token) if user.memealerts.memealerts_token else None,
-                "coins_for_reward": user.memealerts.coins_for_reward
+                "expires_in": await token_expires_in_days(
+                    user.memealerts.memealerts_token
+                )
+                if user.memealerts.memealerts_token
+                else None,
+                "coins_for_reward": user.memealerts.coins_for_reward,
             },
-        }
+        },
     )
+
 
 @router.get("/about")
 async def about_page(
@@ -66,8 +74,9 @@ async def about_page(
         {
             "request": request,
             "user": user,
-        }
+        },
     )
+
 
 @router.get("/memealerts-tutorial")
 async def meme_tutorial_page(
@@ -79,8 +88,9 @@ async def meme_tutorial_page(
         {
             "request": request,
             "user": user,
-        }
+        },
     )
+
 
 @router.get("/debug")
 async def debug_page(
@@ -102,7 +112,7 @@ async def debug_page(
             "request": request,
             "state_manager_data": state_manager_data,
             "last_active": await chat_bot.get_last_active_users(user),
-        }
+        },
     )
 
 
@@ -119,8 +129,9 @@ async def admin_page(
         {
             "request": request,
             "user": user,
-        }
+        },
     )
+
 
 @router.get("/cmdlist")
 async def command_list_page(
@@ -133,7 +144,9 @@ async def command_list_page(
 ):
     result = await db.execute(
         # sa.select(User).options(selectinload(User.settings)).filter_by(twitch_id=str(streamer_id))
-        sa.select(User).options(selectinload(User.settings)).filter_by(login_name=streamer)
+        sa.select(User)
+        .options(selectinload(User.settings))
+        .filter_by(login_name=streamer)
     )
     streamer_user = result.scalar_one_or_none()
     if not streamer_user:
@@ -146,9 +159,10 @@ async def command_list_page(
             "request": request,
             "streamer_name": streamer_user.login_name,
             "streamer_pic": streamer_user.profile_image_url,
-            "commands": await chat_bot.get_commands(streamer_user)
-        }
+            "commands": await chat_bot.get_commands(streamer_user),
+        },
     )
+
 
 @router.get("/streamers")
 async def get_streamers(
@@ -157,7 +171,12 @@ async def get_streamers(
     user: User | None = Security(user_auth_optional),
 ):
     q = (
-        sa.select(User.login_name.label("username"), User.profile_image_url.label("avatar_url"), User.followers_count.label("followers"), User.in_beta_test.label("is_beta_tester"))
+        sa.select(
+            User.login_name.label("username"),
+            User.profile_image_url.label("avatar_url"),
+            User.followers_count.label("followers"),
+            User.in_beta_test.label("is_beta_tester"),
+        )
         .where(User.followers_count > 10)
         .limit(400)
     )
@@ -182,7 +201,9 @@ async def get_streamers(
         row["role"] = "beta" if row["is_beta_tester"] else None
         if row["username"] == "quantum075":
             row["role"] = "dev"
-    return templates.TemplateResponse("streamers.html", {"request": request, "streamers": res, "user": user})
+    return templates.TemplateResponse(
+        "streamers.html", {"request": request, "streamers": res, "user": user}
+    )
 
 
 @router.get("/kinda_roadmap")
@@ -194,21 +215,54 @@ async def roadmap_page(
         "roadmap.html",
         {
             "roadmap": [
-                {"date": "Апрель-Май 2025", "text": "Идея об интеграции Memealerts в Twitch, добавление награды для начисления мемкоинов через баллы канала через Mix It Up." },
-                {"date": "Июнь-Июль 2025", "text": "Создание библиотечки для Python для взаимодействия с Memealerts." },
-                {"date": "Начало июля 2025", "text": "Идея о переносе команд чат-бота из Mix It Up и Stream Elements в собственный сервис и интеграция туда Memealerts для бóльшей стабильности."},
-                {"date": "13 июля 2025", "text": "Первая версия сервиса. Реализована авторизация через Twitch, интеграция бота в чат с 3 простыми командами и база данных для их включения/выключения."},
-                {"date": "17-19 июля 2025", "text": "Получение данных от Twitch о срабатывании наград на канале. Переработка скрипта из Mix It Up, подключение ранее реализованной библиотеки memealerts. Обновление дизайна сайта, переработка моделей, мониторинг ошибок."},
-                {"date": "20 июля 2025", "text": "Переработка взаимодействия с БД, ускорение обработки ответов. Отображение времени жизни токена Memealerts, автоматическое подтверждение или отклонение награды для возврата баллов. Исправление ошибок."},
-                {"date": "27-31 июля 2025", "text": "Полная переработка логики обработки команд в чате. Инструкция по подключению Memealerts. Добавление списка стримеров, использующих бота. Добавление новых команд в чат бота."},
-                {"date": "27-31 июля 2025", "text": "Больше команд. Админка. Авто-шаутаут на рейды. Исправление ошибок"},
-                {"date": "16 августа 2025", "text": "Добавление роадмапа. Уже 20 пользователей - бета-тестеров."},
-                {"date": "23 августа 2025", "text": "Бот научился видеть реплаи и отвечать на пару сообщений адресованых ему."},
-                {"date": "Сентябрь 2025", "text": "Полная переработка системы сообщений на новый API твича. Интеграция тестов в проект."},
+                {
+                    "date": "Апрель-Май 2025",
+                    "text": "Идея об интеграции Memealerts в Twitch, добавление награды для начисления мемкоинов через баллы канала через Mix It Up.",
+                },
+                {
+                    "date": "Июнь-Июль 2025",
+                    "text": "Создание библиотечки для Python для взаимодействия с Memealerts.",
+                },
+                {
+                    "date": "Начало июля 2025",
+                    "text": "Идея о переносе команд чат-бота из Mix It Up и Stream Elements в собственный сервис и интеграция туда Memealerts для бóльшей стабильности.",
+                },
+                {
+                    "date": "13 июля 2025",
+                    "text": "Первая версия сервиса. Реализована авторизация через Twitch, интеграция бота в чат с 3 простыми командами и база данных для их включения/выключения.",
+                },
+                {
+                    "date": "17-19 июля 2025",
+                    "text": "Получение данных от Twitch о срабатывании наград на канале. Переработка скрипта из Mix It Up, подключение ранее реализованной библиотеки memealerts. Обновление дизайна сайта, переработка моделей, мониторинг ошибок.",
+                },
+                {
+                    "date": "20 июля 2025",
+                    "text": "Переработка взаимодействия с БД, ускорение обработки ответов. Отображение времени жизни токена Memealerts, автоматическое подтверждение или отклонение награды для возврата баллов. Исправление ошибок.",
+                },
+                {
+                    "date": "27-31 июля 2025",
+                    "text": "Полная переработка логики обработки команд в чате. Инструкция по подключению Memealerts. Добавление списка стримеров, использующих бота. Добавление новых команд в чат бота.",
+                },
+                {
+                    "date": "27-31 июля 2025",
+                    "text": "Больше команд. Админка. Авто-шаутаут на рейды. Исправление ошибок",
+                },
+                {
+                    "date": "16 августа 2025",
+                    "text": "Добавление роадмапа. Уже 20 пользователей - бета-тестеров.",
+                },
+                {
+                    "date": "23 августа 2025",
+                    "text": "Бот научился видеть реплаи и отвечать на пару сообщений адресованых ему.",
+                },
+                {
+                    "date": "Сентябрь 2025",
+                    "text": "Полная переработка системы сообщений на новый API твича. Интеграция тестов в проект.",
+                },
             ],
             "todos": [
                 "Добавить свою команду !трусы из Mix It Up",
-                "Для команды !трусы сделать возможность отказаться, если пользователь пишет минус, предлагаем: \"!отказаться сейчас/тут/везде\" - конкретный розыгрыш, канал или все каналы",
+                'Для команды !трусы сделать возможность отказаться, если пользователь пишет минус, предлагаем: "!отказаться сейчас/тут/везде" - конкретный розыгрыш, канал или все каналы',
                 "Сделать ручку для оверлеев и возможность их настройки",
                 "Добавить !куст в !кусь",
                 "В список стримеров добавить роли: разраб, донатер, бета-тестер, остальные",
@@ -218,7 +272,7 @@ async def roadmap_page(
             ],
             "request": request,
             "user": user,
-        }
+        },
     )
 
 
@@ -229,7 +283,10 @@ async def callback(
     db: Annotated[AsyncSession, Depends(get_db)],
     twitch: Annotated[Twitch, Depends(get_twitch)],
 ):
-    access_token, refresh_token = await twitch.get_user_access_refresh_tokens_by_authorization_code(code)
+    (
+        access_token,
+        refresh_token,
+    ) = await twitch.get_user_access_refresh_tokens_by_authorization_code(code)
     user_info = await twitch.get_self(access_token, refresh_token)
 
     user_id = user_info.id
