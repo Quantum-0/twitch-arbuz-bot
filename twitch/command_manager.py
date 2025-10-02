@@ -30,7 +30,14 @@ class CommandsManager:
             if message.reply and message.reply.parent_user_name and message.message.text.startswith(f"@{message.reply.parent_user_name} "):
                 message.message.text = message.message.text[len(message.reply.parent_user_name) + 2:]
 
-            if any(message.message.text.lower().startswith(x) for x in ["!" + alias for alias in cmd.command_aliases]):
+            if (
+                any(
+                    # текст сообщения начинается с "!cmd " или = "!cmd"
+                    (message.message.text.lower().startswith(x + " ") or message.message.text.lower() == x)
+                    for x
+                    in [f"!{alias}" for alias in cmd.command_aliases]
+                )
+            ):
                 logger.debug(f"Handler for command was found: {cmd}")
                 await cmd.handle(streamer, message)
 
