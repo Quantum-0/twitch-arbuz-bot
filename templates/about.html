@@ -46,6 +46,42 @@
         word-break: break-word;
     }
 
+    .tester-card {
+        flex: 1 1 236px;
+        max-width: 236px;
+        box-sizing: border-box;
+        padding: 15px;
+        border: 1px solid #ccc;
+        border-radius: 12px;
+        background-color: #fdfdfd;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    }
+
+    .tester-card img {
+        width: 192px;
+        height: 192px;
+        object-fit: cover;
+        border-radius: 12px;
+        display: block;
+        margin: 0 auto 10px auto;
+    }
+
+    .tester-card h4 {
+        margin: 10px 0 8px 0;
+        text-align: center;
+        font-size: 1.1em;
+    }
+
+    .tester-card p {
+        margin: 5px 0;
+        font-size: 0.95em;
+        text-align: left;
+    }
+
+    .tester-card a {
+        word-break: break-word;
+    }
+
     @media (max-width: 768px) {
         .author-card {
             flex: 1 1 100%;
@@ -105,15 +141,46 @@
         </div>
     </div>
 
-    <h3>Тестирование</h3>
+    <h3>Бета-тестирование</h3>
     <div class="designers-container">
-        <div class="author-card">
+        <div class="tester-card">
             <img src="https://static-cdn.jtvnw.net/jtv_user_pictures/521a421e-c258-41cc-b1c7-cea6a7687dee-profile_image-300x300.png">
             <h4>Жабанна</h4>
             <p>При участии в бета-тестировании нашла несколько важных багов</p>
             <p><a href="https://www.twitch.tv/toad_anna" target="_blank">Twitch - Основной</a></p>
             <p><a href="https://www.twitch.tv/anna_toad" target="_blank">Twitch - Второй канал</a></p>
         </div>
+        <div class="tester-card">
+            <img src="https://static-cdn.jtvnw.net/jtv_user_pictures/29679b2d-12d5-47f2-8a28-09b483996e0e-profile_image-300x300.png">
+            <h4>Сильва</h4>
+            <p>Помогла найти баг в настройках доступности команд</p>
+            <p><a href="https://www.twitch.tv/silverosemary" target="_blank">Twitch</a></p>
+        </div>
+        <div class="tester-card">
+            <img src="https://static-cdn.jtvnw.net/jtv_user_pictures/f61e1159-0c59-433b-95f3-d3caaacb1be9-profile_image-300x300.png">
+            <h4>Лерч</h4>
+            <p>Помогла найти ошибку в обработке чат-команд</p>
+            <p><a href="https://www.twitch.tv/lerch_i" target="_blank">Twitch</a></p>
+            <p><a href="https://www.twitch.tv/ya_krevetko" target="_blank">Канал, на котором нашли баг</a></p>
+        </div>
+        <div class="tester-card">
+            <img src="https://static-cdn.jtvnw.net/jtv_user_pictures/a06e6167-a1aa-4974-9a07-3f1efaf334e8-profile_image-300x300.png">
+            <h4>Artel</h4>
+            <p>Вместе выявили проблему с начислением мемкоинов</p>
+            <p><a href="https://www.twitch.tv/artel_vt" target="_blank">Twitch</a></p>
+        </div>
+        <div class="tester-card">
+            <img src="https://static-cdn.jtvnw.net/jtv_user_pictures/8b873e03-82fd-47a1-9f90-4b9c258eca4c-profile_image-300x300.png">
+            <h4>Кир</h4>
+            <p>Обнаружил проблему с ошибкой созданий награды на твиче</p>
+            <p><a href="https://www.twitch.tv/kir_lucky" target="_blank">Twitch</a></p>
+        </div>
+
+        Кроме перечисленных выше людей я благодарен всем и каждому,
+        кто принял какое-либо участие в бета-тесте,
+        подключая бота на своём канале,
+        помогая тем самым обнаружить возникающие проблемы
+        и сообщал мне о них <3
     </div>
 
     <hr>
