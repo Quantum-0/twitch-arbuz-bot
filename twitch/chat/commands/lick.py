@@ -1,6 +1,7 @@
 import random
 
 from database.models import TwitchUserSettings, User
+from twitch.chat.base.target_command import SimpleTargetCommand
 from twitch.utils import join_targets, delay_to_seconds
 
 

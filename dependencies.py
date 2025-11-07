@@ -1,5 +1,6 @@
 from collections.abc import Generator
 
+from config import settings
 from database.database import AsyncSessionLocal
 from twitch.chat.bot import ChatBot
 from twitch.client.twitch import Twitch
@@ -17,7 +18,8 @@ async def init_and_startup():
     singletons["chat_bot"] = ChatBot()
     await singletons["twitch"].startup()
     await singletons["chat_bot"].startup(singletons["twitch"])
-    await singletons["chat_bot"].update_bot_channels()
+    if settings.update_bot_channels_on_startup:
+        await singletons["chat_bot"].update_bot_channels()
 
 
 def get_twitch() -> Generator[Twitch]:

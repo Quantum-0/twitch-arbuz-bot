@@ -41,6 +41,7 @@ class Settings(BaseSettings):
     sentry_dsn: AnyHttpUrl | None = None
     admin_api_login: str
     admin_api_password: str
+    update_bot_channels_on_startup: bool = True
     # github_token: SecretStr
     # github_repo_owner: str = "Quantum-0"
     # github_repo_name: str
