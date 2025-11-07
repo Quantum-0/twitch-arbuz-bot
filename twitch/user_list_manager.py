@@ -42,6 +42,8 @@ class UserListManager:
             if item[0] == user:
                 del q[i]
                 q.append((user, dt))
+                self._last_messages[channel.lower()] = q
+                logger.info(f"Handled msg. Current list: {self._last_messages[channel.lower()]}")
                 return
 
         # Раз не нашли: просто добавляем в начало
@@ -51,6 +53,7 @@ class UserListManager:
         if len(q) > self._max_users_per_channel:
             del q[0]
 
+        self._last_messages[channel.lower()] = q
         logger.info(f"Handled msg. Current list: {self._last_messages[channel.lower()]}")
 
     def is_user_active(
