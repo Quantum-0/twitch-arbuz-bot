@@ -1,47 +1,33 @@
 import asyncio
 import logging.config
+import random
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from time import time
 
-from sqlalchemy.ext.asyncio import AsyncSession
+import sqlalchemy as sa
 from sqlalchemy.orm import selectinload
-from twitchAPI.chat import ChatMessage, Chat
-from twitchAPI.type import ChatEvent
+from twitchAPI.chat import Chat
 
 from database.database import AsyncSessionLocal
-from database.models import User, TwitchUserSettings
-from exceptions import UserNotFoundInDatabase, NotInBetaTest
+from database.models import TwitchUserSettings, User
+from exceptions import NotInBetaTest, UserNotFoundInDatabase
 from routers.schemas import ChatMessageWebhookEventSchema
-from twitch.command import (
-    BiteCommand,
-    LickCommand,
-    BananaCommand,
-    BoopCommand,
-    CmdlistCommand,
-    PatCommand,
-    HugCommand,
-    LurkCommand,
-    PantsCommand,
-    BushCommand,
-    HornyGoodCommand,
-    TailCommand,
-)
-from twitch.command_manager import CommandsManager
-from twitch.handlers import (
+from twitch.chat.command_manager import CommandsManager
+from twitch.chat.commands import *
+from twitch.chat.handlers.handlers import (
+    HelloHandler,
+    IAmBotHandler,
     MessagesHandlerManager,
     PyramidHandler,
     UnlurkHandler,
-    HelloHandler,
-    IAmBotHandler,
 )
+from twitch.client.twitch import Twitch
 from twitch.state_manager import get_state_manager
-from twitch.twitch import Twitch
 from twitch.user_list_manager import UserListManager
 from twitch.utils import delay_to_seconds
 from utils.logging_conf import LOGGING_CONFIG
 from utils.singleton import singleton
-import sqlalchemy as sa
 
 logging.config.dictConfig(LOGGING_CONFIG)
 logger = logging.getLogger(__name__)

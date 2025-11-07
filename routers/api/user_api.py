@@ -1,18 +1,18 @@
-from typing import Any, Annotated
+from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, Security, Form, Query
+from fastapi import APIRouter, Depends, Form, Query, Security
 from httpx import HTTPStatusError
 from jwt import DecodeError
 from memealerts.types.exceptions import MATokenExpiredError
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.responses import JSONResponse
-from twitchAPI.type import TwitchResourceNotFound, TwitchAPIException
+from twitchAPI.type import TwitchAPIException, TwitchResourceNotFound
 
-from dependencies import get_db, get_chat_bot, get_twitch
-from routers.schemas import UpdateSettingsForm, UpdateMemealertsCoinsSchema
+from dependencies import get_chat_bot, get_db, get_twitch
+from routers.schemas import UpdateMemealertsCoinsSchema, UpdateSettingsForm
 from routers.security_helpers import user_auth
-from twitch.bot import ChatBot
-from twitch.twitch import Twitch
+from twitch.chat.bot import ChatBot
+from twitch.client.twitch import Twitch
 from utils.memes import token_expires_in_days
 
 router = APIRouter(prefix="/user", tags=["User API"])

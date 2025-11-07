@@ -1,22 +1,22 @@
 import random
-from typing import Any, Annotated
+from typing import Annotated, Any
 
-from fastapi import APIRouter, Security, HTTPException, Query
+import sqlalchemy as sa
+from fastapi import APIRouter, HTTPException, Query, Security
 from fastapi.params import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
-import sqlalchemy as sa
 from sqlalchemy.orm import selectinload
 from starlette.requests import Request
-from starlette.responses import RedirectResponse, HTMLResponse
+from starlette.responses import HTMLResponse, RedirectResponse
 from starlette.templating import Jinja2Templates
 
 from config import settings
-from dependencies import get_twitch, get_db, get_chat_bot
-from database.models import User, TwitchUserSettings
-from routers.security_helpers import user_auth, admin_auth, user_auth_optional
-from twitch.bot import ChatBot
+from database.models import TwitchUserSettings, User
+from dependencies import get_chat_bot, get_db, get_twitch
+from routers.security_helpers import admin_auth, user_auth, user_auth_optional
+from twitch.chat.bot import ChatBot
+from twitch.client.twitch import Twitch
 from twitch.state_manager import get_state_manager
-from twitch.twitch import Twitch
 from utils.memes import token_expires_in_days
 
 templates = Jinja2Templates(directory="templates")

@@ -2,17 +2,17 @@ import uuid
 from datetime import datetime
 
 from sqlalchemy import (
-    String,
     Boolean,
+    DateTime,
     ForeignKey,
     Integer,
+    String,
     event,
     false,
     func,
-    DateTime,
 )
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import relationship, DeclarativeBase, Mapped, mapped_column
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 from utils.cryptography import decrypt_value, encrypt_value
 
@@ -182,5 +182,5 @@ class MemealertsSupporters(Base):
 
 @event.listens_for(User, "after_insert")
 def create_settings(mapper, connection, target):
-    connection.execute(TwitchUserSettings.__table__.insert().values(user_id=target.id))
-    connection.execute(MemealertsSettings.__table__.insert().values(user_id=target.id))
+    connection.execute(TwitchUserSettings.__table__.insert().values(user_id=target.id))  # noqa
+    connection.execute(MemealertsSettings.__table__.insert().values(user_id=target.id))  # noqa

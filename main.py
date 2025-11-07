@@ -2,10 +2,13 @@ import logging.config
 import uuid
 from contextlib import asynccontextmanager
 
+import sentry_sdk
 import uvicorn
 from fastapi import FastAPI, HTTPException
 from fastapi.exception_handlers import request_validation_exception_handler
 from fastapi.exceptions import RequestValidationError
+from sentry_sdk.integrations.fastapi import FastApiIntegration
+from sentry_sdk.integrations.starlette import StarletteIntegration
 from starlette import status
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.requests import Request
@@ -16,11 +19,6 @@ from config import settings
 from database.database import async_engine
 from dependencies import init_and_startup
 from routers.routers import api_router, user_router
-
-import sentry_sdk
-from sentry_sdk.integrations.starlette import StarletteIntegration
-from sentry_sdk.integrations.fastapi import FastApiIntegration
-
 from utils.logging_conf import LOGGING_CONFIG
 
 if settings.sentry_dsn:

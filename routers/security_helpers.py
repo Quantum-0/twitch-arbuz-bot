@@ -4,7 +4,8 @@ import secrets
 from typing import Annotated
 
 import sqlalchemy as sa
-from fastapi import Header, HTTPException, Depends
+from fastapi import Depends, Header, HTTPException
+from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from starlette import status
@@ -13,8 +14,6 @@ from starlette.requests import Request
 from config import settings
 from database.models import User
 from dependencies import get_db
-
-from fastapi.security import HTTPBasicCredentials, HTTPBasic
 
 
 async def verify_eventsub_signature(

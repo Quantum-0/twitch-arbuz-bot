@@ -1,5 +1,4 @@
-from github import Github
-from github import Auth
+from github import Auth, Github
 
 # PyGithub-2.7.0
 

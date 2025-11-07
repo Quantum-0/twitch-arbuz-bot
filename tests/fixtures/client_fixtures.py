@@ -4,7 +4,7 @@ from typing import AsyncGenerator
 
 import itsdangerous
 import pytest
-from httpx import AsyncClient, ASGITransport
+from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dependencies import get_db

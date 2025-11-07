@@ -1,13 +1,13 @@
 import logging
 
-from fastapi import Request, HTTPException, Security, Header
-from pydantic import ValidationError, BaseModel
+from fastapi import Header, HTTPException, Request, Security
+from pydantic import BaseModel, ValidationError
 
 from routers.schemas import (
+    ChatMessageSchema,
+    PointRewardRedemptionWebhookSchema,
     RaidWebhookSchema,
     TwitchChallengeSchema,
-    PointRewardRedemptionWebhookSchema,
-    ChatMessageSchema,
 )
 from routers.security_helpers import verify_eventsub_signature
 

@@ -4,9 +4,8 @@ from typing import Awaitable
 
 from database.models import TwitchUserSettings, User
 from routers.schemas import ChatMessageWebhookEventSchema
-from twitch.base_commands import Command
+from twitch.chat.base.base_command import Command
 from twitch.state_manager import StateManager
-
 
 logger = logging.getLogger(__name__)
 

@@ -4,20 +4,20 @@ from typing import Any
 from uuid import UUID
 
 import httpx
+from twitchAPI.chat import Chat
 from twitchAPI.object.api import (
-    Stream,
-    Moderator,
     ChannelFollowersResult,
-    TwitchUser,
     CustomReward,
     GetEventSubSubscriptionResult,
+    Moderator,
     SendMessageResponse,
+    Stream,
+    TwitchUser,
 )
 from twitchAPI.twitch import Twitch as TwitchClient
-from twitchAPI.chat import Chat
 from twitchAPI.type import AuthScope, CustomRewardRedemptionStatus
 
-from config import settings, user_scope, bot_scope
+from config import bot_scope, settings, user_scope
 from database.models import User
 from utils.singleton import singleton
 

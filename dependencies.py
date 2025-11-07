@@ -1,9 +1,8 @@
-import asyncio
 from collections.abc import Generator
 
-from twitch.bot import ChatBot
 from database.database import AsyncSessionLocal
-from twitch.twitch import Twitch
+from twitch.chat.bot import ChatBot
+from twitch.client.twitch import Twitch
 
 singletons: dict[str, None | Twitch | ChatBot] = {"twitch": None, "chat_bot": None}
 

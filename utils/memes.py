@@ -1,10 +1,10 @@
 import asyncio
 import logging.config
 import re
-from datetime import datetime, UTC
+from datetime import UTC, datetime
 
 from memealerts import MemealertsAsyncClient
-from memealerts.types.exceptions import MAUserNotFoundError, MATokenExpiredError
+from memealerts.types.exceptions import MATokenExpiredError, MAUserNotFoundError
 from memealerts.types.models import Supporter, User
 from memealerts.types.user_id import UserID
 from sqlalchemy.dialects.postgresql import insert as pg_insert

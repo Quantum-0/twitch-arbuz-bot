@@ -3,7 +3,7 @@ import asyncio
 from twitchAPI.oauth import UserAuthenticator
 from twitchAPI.twitch import Twitch
 
-from config import settings, bot_scope
+from config import bot_scope, settings
 
 
 async def generate_bot_tokens():

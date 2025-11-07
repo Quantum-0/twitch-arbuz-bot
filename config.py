@@ -1,4 +1,4 @@
-from pydantic import SecretStr, AnyHttpUrl
+from pydantic import AnyHttpUrl, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from twitchAPI.type import AuthScope
 

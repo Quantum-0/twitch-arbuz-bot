@@ -5,7 +5,7 @@ import pytest
 from twitchAPI.chat import ChatMessage
 
 from routers.schemas import ChatMessageSchema
-from twitch.handlers import HelloHandler
+from twitch.chat.handlers.handlers import HelloHandler
 
 
 @pytest.mark.parametrize(

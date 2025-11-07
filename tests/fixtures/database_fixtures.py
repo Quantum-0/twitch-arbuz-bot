@@ -2,12 +2,12 @@ import os
 from typing import AsyncGenerator
 
 import pytest
-from alembic import command
 from alembic.config import Config as AlembicConfig
 from docker.errors import DockerException
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, AsyncEngine
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, create_async_engine
 from testcontainers.postgres import PostgresContainer
 
+from alembic import command
 from database.models import User
 
 

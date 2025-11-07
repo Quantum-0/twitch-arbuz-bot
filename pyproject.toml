@@ -1,8 +1,8 @@
 [tool.poetry]
 name = "twitch-bot-panel"
-version = "0.1.0"
+version = "1.0.0"
 description = "A control panel for a Twitch chatbot"
-authors = ["Your Name <your.email@example.com>"]
+authors = ["Quantum0 <quantum0@mail.ru>"]
 
 [tool.poetry.dependencies]
 python = "^3.11"
@@ -46,3 +46,32 @@ mypy_path = "."
 plugins = ["pydantic.mypy"]
 follow_untyped_imports = true
 exclude = ["tests/"]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 120
+
+[tool.ruff.lint]
+select = [
+    "A", # flake8-builtins
+    # "ANN", # flake8-annotations # TODO enable later
+    "ARG", # flake8-unused-arguments
+    "B", # flake8-bugbear
+    "C4", # flake8-comprehensions
+    "C90", # maccabe
+    # "D", # pydocstyle
+    "E", # pycodestyle
+    "F", # pyflakes
+    "FAST", # fastapi
+    "I", # isort
+    "N", # pep8-naming
+    "PT", # flake8-pytest-style
+    "PTH", # flake8-use-pathlib
+    "Q", # flake8-quotes
+    "RET", # flake8-return
+    "S", # flake8-bandit
+    "T10", # flake8-debugger
+    "T20", # flake8-print
+    "UP", # pyupgrade
+    "W", # pycodestyle
+]

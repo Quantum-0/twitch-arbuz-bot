@@ -1,13 +1,13 @@
 from typing import Annotated
 
 import sqlalchemy as sa
-from fastapi import APIRouter, Security, Depends, Query, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query, Security
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database.models import User
 from dependencies import get_db, get_twitch
 from routers.security_helpers import admin_auth, user_auth
-from twitch.twitch import Twitch
+from twitch.client.twitch import Twitch
 
 router = APIRouter(prefix="/admin", tags=["Admin API"])
 

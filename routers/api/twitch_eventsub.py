@@ -12,17 +12,17 @@ from starlette.responses import PlainTextResponse, Response
 from twitchAPI.type import TwitchResourceNotFound
 
 from database.database import AsyncSessionLocal
-from database.models import User, TwitchUserSettings
-from dependencies import get_twitch, get_chat_bot
+from database.models import TwitchUserSettings, User
+from dependencies import get_chat_bot, get_twitch
 from routers.helpers import parse_eventsub_payload
 from routers.schemas import (
-    PointRewardRedemptionWebhookSchema,
-    TwitchChallengeSchema,
-    RaidWebhookSchema,
     ChatMessageSchema,
+    PointRewardRedemptionWebhookSchema,
+    RaidWebhookSchema,
+    TwitchChallengeSchema,
 )
-from twitch.bot import ChatBot
-from twitch.twitch import Twitch
+from twitch.chat.bot import ChatBot
+from twitch.client.twitch import Twitch
 from utils.logging_conf import LOGGING_CONFIG
 from utils.memes import give_bonus
 

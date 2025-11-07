@@ -2,7 +2,6 @@ from cryptography.fernet import Fernet
 
 from config import settings
 
-
 fernet = Fernet(settings.fernet_key.get_secret_value().encode())
 
 

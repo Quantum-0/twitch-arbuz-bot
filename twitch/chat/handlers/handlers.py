@@ -3,16 +3,15 @@ import logging
 import random
 import re
 from abc import abstractmethod
-from collections.abc import Callable, Awaitable
-from enum import auto, Enum
+from collections.abc import Awaitable, Callable
+from enum import Enum, auto
 from time import time
 
 from twitchAPI.chat import ChatMessage
 
 from database.models import TwitchUserSettings, User
 from routers.schemas import ChatMessageWebhookEventSchema
-from twitch.state_manager import StateManager, SMParam
-
+from twitch.state_manager import SMParam, StateManager
 
 logger = logging.getLogger(__name__)
 
