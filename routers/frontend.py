@@ -34,7 +34,7 @@ async def index_page(request: Request):
 
 @router.get("/favicon.ico")
 async def favicon():
-    return FileResponse("favicon.ico")
+    return FileResponse("static/favicon.ico")
 
 
 @router.get("/login")
