@@ -51,11 +51,13 @@ class UserListManager:
         if len(q) > self._max_users_per_channel:
             del q[0]
 
+        logger.info(f"Handled msg. Current list: {self._last_messages[channel.lower()]}")
+
     def is_user_active(
         self, channel: str, user: str, timeout: float | None = None
     ) -> bool:
         for item in self._last_messages[channel.lower()]:
-            if item[0] == user.lower():
+            if item[0].lower() == user.lower():
                 return timeout is None or time() - item[1] < timeout
         return False
 
@@ -63,7 +65,7 @@ class UserListManager:
         self, channel: str, user: str, timeout: float | None = None
     ) -> float | None:
         for item in self._last_messages[channel.lower()]:
-            if item[0] == user.lower():
+            if item[0].lower() == user.lower():
                 if timeout is not None and time() - item[1] > timeout:
                     return None
                 return item[1]
@@ -74,6 +76,7 @@ class UserListManager:
     ) -> list[tuple[str, float]]:
         result = []
         logger.info(f"Generating list of active users with timeout {timeout}")
+        logger.info(f"Usrs: {self._last_messages[channel.lower()]}")
         for item in self._last_messages[channel.lower()][::-1]:
             logger.info(f"Check {item}")
             if timeout is not None and time() - item[1] > timeout:
