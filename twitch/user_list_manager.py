@@ -1,7 +1,11 @@
+import logging
 from collections import defaultdict
 from time import time
 
 from routers.schemas import ChatMessageWebhookEventSchema
+
+
+logger = logging.getLogger(__name__)
 
 
 class UserListManager:
@@ -69,8 +73,12 @@ class UserListManager:
         self, channel: str, timeout: float | None = None
     ) -> list[tuple[str, float]]:
         result = []
+        logger.info(f"Generating list of active users with timeout {timeout}")
         for item in self._last_messages[channel.lower()][::-1]:
+            logger.info(f"Check {item}")
             if timeout is not None and time() - item[1] > timeout:
+                logger.info("Stop!")
                 break
             result.append((item[0], item[1]))
+            logger.info("Added")
         return result

@@ -210,4 +210,5 @@ class ChatBot:
             channel.login_name if isinstance(channel, User) else channel,
             timeout=max_period_sec,
         )
+        logger.info(f"active users: {users}")
         return random.choice(users)[0]
