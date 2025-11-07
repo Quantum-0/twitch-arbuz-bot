@@ -1,9 +1,23 @@
-def extract_targets(text: str, streamer_name: str) -> list[str]:
+from collections.abc import Callable
+from typing import Awaitable
+
+
+async def extract_targets(text: str, streamer_name: str, func_get_random_user: Callable[..., Awaitable[str]]) -> list[str]:
     # m = re.match("!\\w+ @.*[ $]", text)
     # if m:
     #     return m.lastgroup
     # else:
     #     return None
+    streamer_alias = {
+        "стримера", "стримлера", "стримеру", "стример", "стримлера",
+        "стримлеру", "стримлера", "стримлер", "стримерша", "стримершу",
+        "стримерши", "стримерка", "стримерку", "стримлерка", "стримлерша",
+    }
+    random_user = {
+        "когото", "кого-то", "кого-нибудь", "когонибудь",
+        "когонибуть", "кавота", "каво-та", "каво-то",
+        "каво-нибудь", "рандом", "рандома", "рандому",
+    }
     command, *other = text.split()
     other = [
         o
@@ -15,23 +29,22 @@ def extract_targets(text: str, streamer_name: str) -> list[str]:
             "всех",
             "all",
             "всем",
-            "кого-то",
-            "стримера",
-            "стримлера",
-            "стример",
-            "стримлер",
+            *list(random_user),
             "чат",
             "чатик",
             "чаттерсы",
             "чаттерсов",
             "чач",
+            *list(streamer_alias),
         ]
     ]
 
     result = []
     for o in other:
-        if o in {"стримера", "стримлера", "стример", "стримлер"}:
+        if o in streamer_alias:
             o = "@" + streamer_name
+        if o in random_user:
+            o = await func_get_random_user()
         if o not in result:
             result.append(o)
 
