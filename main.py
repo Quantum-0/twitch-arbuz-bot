@@ -57,7 +57,7 @@ async def sentry_request_validation_handler(
     return await request_validation_exception_handler(request, exc)
 
 
-app.add_middleware(SessionMiddleware, secret_key=str(uuid.uuid4()))  # FIXME secret_key
+app.add_middleware(SessionMiddleware, secret_key=settings.middleware_secret_key)
 app.include_router(router=api_router)
 app.include_router(router=user_router)
 app.mount("/static", StaticFiles(directory="static"), name="static")
