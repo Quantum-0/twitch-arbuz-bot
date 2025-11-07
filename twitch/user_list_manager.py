@@ -43,7 +43,6 @@ class UserListManager:
                 del q[i]
                 q.append((user, dt))
                 self._last_messages[channel.lower()] = q
-                logger.info(f"Handled msg. Current list: {self._last_messages[channel.lower()]}")
                 return
 
         # Раз не нашли: просто добавляем в начало
@@ -54,7 +53,6 @@ class UserListManager:
             del q[0]
 
         self._last_messages[channel.lower()] = q
-        logger.info(f"Handled msg. Current list: {self._last_messages[channel.lower()]}")
 
     def is_user_active(
         self, channel: str, user: str, timeout: float | None = None
@@ -78,13 +76,8 @@ class UserListManager:
         self, channel: str, timeout: float | None = None
     ) -> list[tuple[str, float]]:
         result = []
-        logger.info(f"Generating list of active users with timeout {timeout}")
-        logger.info(f"Usrs: {self._last_messages[channel.lower()]}")
         for item in self._last_messages[channel.lower()][::-1]:
-            logger.info(f"Check {item}")
             if timeout is not None and time() - item[1] > timeout:
-                logger.info("Stop!")
                 break
             result.append((item[0], item[1]))
-            logger.info("Added")
         return result
