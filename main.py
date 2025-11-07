@@ -12,7 +12,7 @@ from sentry_sdk.integrations.starlette import StarletteIntegration
 from starlette import status
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.requests import Request
-from starlette.responses import JSONResponse, RedirectResponse
+from starlette.responses import JSONResponse, RedirectResponse, FileResponse
 from starlette.staticfiles import StaticFiles
 
 from config import settings
@@ -80,7 +80,8 @@ async def http_exception_handler(request: Request, exc: Exception):
     if request.url.path == "/panel" and isinstance(exc, HTTPException):
         if exc.status_code in (status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN):
             return RedirectResponse(url="/login")
-    raise
+    sentry_sdk.capture_exception(exc)
+    return FileResponse("static/500.html")
 
 
 if __name__ == "__main__":

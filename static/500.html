@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Sowwy q-q</title>
+  <style>
+    html, body {
+      height: 100%;
+      width: 100%;
+      margin: 0;
+    }
+
+    .page {
+      position: relative;
+      height: 100vh;
+      width: 100vw;
+      overflow: visible;
+    }
+
+    .half {
+      height: 50vh;
+      width: 100%;
+    }
+    .top {
+      background: #d3c3b5;
+    }
+    .bottom {
+      background: #7b6961;
+    }
+
+    .center-image {
+      position: absolute;
+      left: 50%;
+      top: calc(50% + 19px); /* сдвиг вниз на 30px */
+      transform: translate(-50%, -50%) scale(0.5); /* уменьшение до 50% */
+      transform-origin: center center;
+      width: auto;
+      height: auto;
+      max-width: none;
+      max-height: none;
+      image-rendering: auto;
+      display: block;
+    }
+
+    img.center-image { user-select: none; -webkit-user-drag: none; }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div class="half top" aria-hidden="true"></div>
+    <div class="half bottom" aria-hidden="true"></div>
+    <img class="center-image" src="/static/images/500.png" alt="Centered image" />
+  </div>
+</body>
+</html>

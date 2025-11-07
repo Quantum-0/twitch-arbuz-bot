@@ -7,7 +7,7 @@ from fastapi.params import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from starlette.requests import Request
-from starlette.responses import HTMLResponse, RedirectResponse
+from starlette.responses import HTMLResponse, RedirectResponse, FileResponse
 from starlette.templating import Jinja2Templates
 
 from config import settings
@@ -30,6 +30,11 @@ async def index_page(request: Request):
         return RedirectResponse(url="/panel")
     else:
         return RedirectResponse(url="/login")
+
+
+@router.get("/favicon.ico")
+async def favicon():
+    return FileResponse("favicon.ico")
 
 
 @router.get("/login")
