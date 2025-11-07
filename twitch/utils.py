@@ -1,5 +1,9 @@
+import logging
 from collections.abc import Callable
 from typing import Awaitable
+
+
+logger = logging.getLogger(__name__)
 
 
 async def extract_targets(text: str, streamer_name: str, func_get_random_user: Callable[..., Awaitable[str]]) -> list[str]:
@@ -41,10 +45,12 @@ async def extract_targets(text: str, streamer_name: str, func_get_random_user: C
 
     result = []
     for o in other:
+        logger.info(f"Handle target `{o}`")
         if o in streamer_alias:
             o = "@" + streamer_name
         if o in random_user:
             o = await func_get_random_user()
+            logger.info(f"`o` replaces to `{o}`")
         if o not in result:
             result.append(o)
 
