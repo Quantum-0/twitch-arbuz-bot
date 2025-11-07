@@ -29,7 +29,7 @@ class UserListManager:
         self._last_cleanup = dt
 
     async def handle(self, channel: str, message: ChatMessageWebhookEventSchema):
-        user = message.broadcaster_user_name
+        user = message.chatter_user_name
         dt = time()
         q = self._last_messages[channel.lower()]
 
