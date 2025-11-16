@@ -21,13 +21,13 @@ class HornyGoodCommand(SavingResultCommand):
         if old_value is None:
             return str(random.randint(0, 100))
         if old_value[0] in ["+", "-"]:
-            old_value = old_value[1:]
-        if random.random() < 0.65 - 0.3 * int(old_value) / 100:
-            new_value = min(100, int(old_value) + random.randint(10, 50))
+            old_value = int(old_value[1:])
+        new_value = random.randint(0, 100)
+        if new_value == old_value:
+            return str(new_value)
+        if new_value > old_value:
             return f"+{new_value}"
-        else:
-            new_value = max(0, int(old_value) - random.randint(10, 50))
-            return f"-{new_value}"
+        return f"-{new_value}"
 
     async def _cooldown_reply(self, user: str, delay: int) -> str | None:
         return random.choice(

@@ -14,23 +14,30 @@ class TailCommand(SavingResultCommand):
     refresh_result_timer = 10 * 60
 
     async def result_generator(self, old_value: str | None) -> str:
+        # WFA: y = x * 775 + x*x * 65 ** 2 chart x from 0 to 1
+        formula = lambda x: int(x * 775 + (x * 65) ** 2)
         if old_value is None:
-            return str(random.randint(0, 5000))
+            return str(formula(random.random()))
         if old_value[0] in ["+", "-"]:
-            old_value = old_value[1:]
-        if random.random() < 0.5:
-            new_value = min(5000, int(old_value) + random.randint(1, 250))
+            old_value = int(old_value[1:])
+        new_value = formula(random.random())
+        new_value = int(new_value * 775 + (new_value * 65) ** 2)
+        if new_value == old_value:
+            return f"{new_value}"
+        if new_value > old_value:
             return f"+{new_value}"
-        else:
-            new_value = max(0, int(old_value) - random.randint(1, 250))
-            return f"-{new_value}"
+        return f"-{new_value}"
 
     def convert_tail(self, value: int) -> str:
-        if value < 10:
+        if value < 100 and value % 10 != 0:
             return f"{value} мм"
-        elif value < 100:
+        elif value < 750:
+            if value % 10 == 0:
+                return f"{int(value // 10)} см"
             return f"{value / 10} см"
-        else:  # if value < 1000:
+        else:
+            if value % 1000 == 0:
+                return f"{int(value // 1000)} м"
             return f"{value // 100 / 10} м"
 
     async def _cooldown_reply(self, user: str, delay: int) -> str | None:
@@ -45,6 +52,8 @@ class TailCommand(SavingResultCommand):
         change = new_value[0] if new_value[0] in ["+", "-"] else None
         value = int(new_value[1:]) if new_value[0] in ["+", "-"] else int(new_value)
 
+        if value < 2:
+            result = f"@{user}, у тебя НЕТ ХВОСТА О__О"
         if value < 10:
             result = f"@{user} твой хвост.. стоп.. а где он? А, вот же! Коротенький, всего-лишь {self.convert_tail(int(value))}"
         elif value < 100:
