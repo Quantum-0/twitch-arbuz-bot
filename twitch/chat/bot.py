@@ -60,6 +60,7 @@ class ChatBot:
         self._handler_manager.register(HelloHandler)
         self._handler_manager.register(IAmBotHandler)
         self._command_manager.register(CmdlistCommand)
+        self._command_manager.register(DiceCommand)
         self._command_manager.register(BiteCommand)
         self._command_manager.register(BushCommand)
         self._command_manager.register(LickCommand)

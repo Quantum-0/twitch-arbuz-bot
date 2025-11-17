@@ -16,6 +16,8 @@ class UpdateSettingsForm(BaseModel):
     enable_pat: bool | None = Field(None)
     enable_hug: bool | None = Field(None)
 
+    enable_dice: bool | None = Field(None)
+
     enable_banana: bool | None = Field(None)
     enable_whoami: bool | None = Field(None)
     enable_lurk: bool | None = Field(None)

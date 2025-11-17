@@ -112,6 +112,9 @@ class TwitchUserSettings(Base):
     enable_banana: Mapped[bool] = mapped_column(
         Boolean, default=False, server_default=false(), nullable=False
     )
+    enable_dice: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default=false(), nullable=False
+    )
     enable_tail: Mapped[bool] = mapped_column(
         Boolean, default=False, server_default=false(), nullable=False
     )

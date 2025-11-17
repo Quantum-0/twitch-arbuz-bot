@@ -3,6 +3,7 @@ from .bite import BiteCommand
 from .boop import BoopCommand
 from .bush import BushCommand
 from .cmdlist import CmdlistCommand
+from .dice import DiceCommand
 from .horny_good import HornyGoodCommand
 from .hug import HugCommand
 from .lick import LickCommand
@@ -17,6 +18,7 @@ __all__ = [
     "BoopCommand",
     "BushCommand",
     "CmdlistCommand",
+    "DiceCommand",
     "HornyGoodCommand",
     "HugCommand",
     "LickCommand",

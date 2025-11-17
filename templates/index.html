@@ -235,6 +235,10 @@ button[disabled] { opacity: 0.6; cursor: not-allowed; }
             <span>Включить !хвост</span>
             <div class="toggle-switch {% if settings.enable_tail %}active{% endif %}" data-name="enable_tail"></div>
         </div>
+        <div class="toggle-label {% if not settings.enable_chat_bot %}disabled{% endif %}">
+            <span>Включить !dice</span>
+            <div class="toggle-switch {% if settings.enable_dice %}active{% endif %}" data-name="enable_dice"></div>
+        </div>
         <!--
         <div class="toggle-label {% if not settings.enable_chat_bot %}disabled{% endif %}">
             <span>Включить !якто</span>
