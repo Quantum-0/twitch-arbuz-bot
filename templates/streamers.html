@@ -76,6 +76,21 @@
                               fill="white" font-size="11.5" font-weight="bold" font-family="sans-serif">DEV</text>
                     </svg>
                 </div>
+            {% elif streamer.role == "donater" %}
+                <div class="streamer-badge" title="Донатер">
+                    <!-- DONATER SVG -->
+                    <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <defs>
+                            <linearGradient id="devGradientSunset" x1="0" y1="0" x2="48" y2="48" gradientUnits="userSpaceOnUse">
+                                <stop stop-color="#FF8A00"/>
+                                <stop offset="1" stop-color="#E52E71"/>
+                            </linearGradient>
+                        </defs>
+                        <circle cx="24" cy="24" r="14" fill="url(#devGradientSunset)" stroke="white" stroke-width="2"/>
+                        <text x="24" y="25.5" text-anchor="middle" dominant-baseline="middle"
+                              fill="white" font-size="11.5" font-weight="bold" font-family="sans-serif">DONATER</text>
+                    </svg>
+                </div>
             {% endif %}
         </div>
     {% endfor %}

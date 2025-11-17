@@ -181,6 +181,7 @@ async def get_streamers(
             User.profile_image_url.label("avatar_url"),
             User.followers_count.label("followers"),
             User.in_beta_test.label("is_beta_tester"),
+            User.in_beta_test.label("donated"),
         )
         .where(User.followers_count > 10)
         .limit(400)
@@ -206,6 +207,8 @@ async def get_streamers(
         row["role"] = "beta" if row["is_beta_tester"] else None
         if row["username"] == "quantum075":
             row["role"] = "dev"
+        if row["donated"] > 0:
+            row["role"] = "donater"
     return templates.TemplateResponse(
         "streamers.html", {"request": request, "streamers": res, "user": user}
     )
