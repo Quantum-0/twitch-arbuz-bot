@@ -32,6 +32,12 @@ class User(Base):
     in_beta_test: Mapped[bool] = mapped_column(
         Boolean, default=False, server_default=false(), nullable=False
     )
+    # role: Mapped[str] = mapped_column(
+    #     String, default=None, nullable=True,
+    # ) # default, beta-tester, owner, donater
+    donated: Mapped[int] = mapped_column(
+        Integer, default=0, server_default="0", nullable=False
+    )
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), nullable=False
