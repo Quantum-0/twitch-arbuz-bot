@@ -8,11 +8,11 @@ from twitch.state_manager import SMParam
 
 class DiceCommand(SimpleTargetCommand):
     command_name = "dice"
-    command_aliases = ["d6", "d8", "d12", "d20", "!d100", "!поднять"]
+    command_aliases = ["d6", "d8", "d12", "d20", "d100", "поднять"]
     command_description = "Кинуть кубик"
 
     need_target = False
-    cooldown_timer = 10
+    cooldown_timer = 3
     cooldown_count = 1
 
     def is_enabled(self, streamer_settings: TwitchUserSettings) -> bool:
@@ -52,7 +52,7 @@ class DiceCommand(SimpleTargetCommand):
                     param=SMParam.PREVIOUS_VALUE,
                     value=True,
                 )
-                return f"@{user} кидает кубик, но тот во время падения падает со стола! Oh noo 😱 Теперь нужно поднять кубик, используя команду !поднять"
+                return f"@{user} кидает кубик, но тот падает на пол! Oh noo 😱 Теперь нужно поднять кубик, используя команду !поднять"
             random_value = random.randint(1, max_value)
             return f"@{user} кидает кубик и на нём выпадаёт число {random_value}"
         elif max_value and is_fallen and not to_grab:

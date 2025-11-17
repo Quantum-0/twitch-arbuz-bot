@@ -113,6 +113,8 @@ class ChatBot:
         :param message: Текст сообщения.
         """
 
+        if not message:
+            return
         await self._twitch.send_chat_message(
             stream_channel=chat, message=message, reply_parent_message_id=None
         )
