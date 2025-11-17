@@ -181,7 +181,7 @@ async def get_streamers(
             User.profile_image_url.label("avatar_url"),
             User.followers_count.label("followers"),
             User.in_beta_test.label("is_beta_tester"),
-            User.in_beta_test.label("donated"),
+            User.donated.label("donated"),
         )
         .where(User.followers_count > 10)
         .limit(400)
