@@ -20,6 +20,8 @@ class TailCommand(SavingResultCommand):
             return str(formula(random.random()))
         if old_value[0] in ["+", "-"]:
             old_value = int(old_value[1:])
+        else:
+            old_value = int(old_value)
         new_value = formula(random.random())
         new_value = int(new_value * 775 + (new_value * 65) ** 2)
         if new_value == old_value:

@@ -22,6 +22,8 @@ class HornyGoodCommand(SavingResultCommand):
             return str(random.randint(0, 100))
         if old_value[0] in ["+", "-"]:
             old_value = int(old_value[1:])
+        else:
+            old_value = int(old_value)
         new_value = random.randint(0, 100)
         if new_value == old_value:
             return str(new_value)
