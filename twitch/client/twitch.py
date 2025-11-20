@@ -15,7 +15,7 @@ from twitchAPI.object.api import (
     TwitchUser,
 )
 from twitchAPI.twitch import Twitch as TwitchClient
-from twitchAPI.type import AuthScope, CustomRewardRedemptionStatus
+from twitchAPI.type import AuthScope, CustomRewardRedemptionStatus, UnauthorizedException
 
 from config import bot_scope, settings, user_scope
 from database.models import User
@@ -110,7 +110,18 @@ class Twitch:
         return result
 
     async def get_subscriptions(self) -> GetEventSubSubscriptionResult:
-        result = await self._twitch.get_eventsub_subscriptions()
+        try:
+            result = await self._twitch.get_eventsub_subscriptions()
+        except UnauthorizedException:
+            # await self._twitch.refresh_used_token() ???
+            twitch = await TwitchClient(
+                settings.twitch_client_id, settings.twitch_client_secret
+            )
+            await twitch.set_user_authentication(
+                settings.bot_access_token, bot_scope, settings.bot_refresh_token
+            )
+            self._twitch = twitch
+            result = await self._twitch.get_eventsub_subscriptions()
         return result
 
     async def subscribe_chat_messages(
