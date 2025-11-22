@@ -86,6 +86,7 @@ class PantsCommand(SimpleCDCommand):
         return ""
 
     async def finish_raffle(self, channel: User, target: str):
+        await asyncio.sleep(60)
         logger.info(f"Finishing raffle for channel {channel.login_name}")
         #target_from_sm = self._state_manager.get_state(channel=streamer.login_name, command=self.command_name, param=SMParam.USER)
         participants: set[str] = await self._state_manager.get_state(channel=channel.login_name, command=self.command_name, param=SMParam.PARTICIPANTS)
