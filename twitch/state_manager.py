@@ -21,6 +21,7 @@ class SMParam(StrEnum):
 
     # Pants
     TARGET_COOLDOWN = auto()
+    PARTICIPANTS = auto()
 
 
 COMMAND_TYPE = str

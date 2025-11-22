@@ -15,6 +15,7 @@ from exceptions import NotInBetaTest, UserNotFoundInDatabase
 from routers.schemas import ChatMessageWebhookEventSchema
 from twitch.chat.command_manager import CommandsManager
 from twitch.chat.commands import *
+from twitch.chat.handlers import PantsRaffleHandler
 from twitch.chat.handlers.handlers import (
     HelloHandler,
     IAmBotHandler,
@@ -56,6 +57,7 @@ class ChatBot:
             await self.on_message(msg)  # можно будет вернуть когда уйдём от IRC
 
         self._handler_manager.register(PyramidHandler)
+        self._handler_manager.register(PantsRaffleHandler)
         self._handler_manager.register(UnlurkHandler)
         self._handler_manager.register(HelloHandler)
         self._handler_manager.register(IAmBotHandler)
