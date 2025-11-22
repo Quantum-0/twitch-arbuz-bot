@@ -70,7 +70,7 @@ class PantsCommand(SimpleCDCommand):
             user=target,
             param=SMParam.TARGET_COOLDOWN,
         )
-        logger.info(f"last_ts for target = {last_ts}, time = {time()}, delta = {time() - last_ts}")
+        logger.info(f"last_ts for target = {last_ts}, time = {time()}, delta = {(time() - last_ts) if last_ts else None}")
         if last_ts and time() - last_ts < self.cooldown_timer_per_target:
             return f"Трусы @{target} уже недавно разыгрывались. Подождём немного!"
 
