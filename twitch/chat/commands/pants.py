@@ -19,9 +19,13 @@ class PantsCommand(SimpleCDCommand):
     command_aliases = ["трусы", "pants"]
     command_description = "Запустить розыгрыш трусов"
 
-    cooldown_timer_per_chat = 120
-    cooldown_timer_per_user = 300
-    cooldown_timer_per_target = 600
+    cooldown_timer_per_chat = 5
+    cooldown_timer_per_user = 10
+    cooldown_timer_per_target = 120
+
+    # cooldown_timer_per_chat = 120
+    # cooldown_timer_per_user = 300
+    # cooldown_timer_per_target = 600
 
     def __init__(
         self, sm: StateManager, send_message: Callable[..., Awaitable[None]]

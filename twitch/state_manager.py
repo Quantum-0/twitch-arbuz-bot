@@ -174,7 +174,7 @@ class InMemoryStateManager(StateManager):
             ]()
         if command not in self._storage[channel][user]:
             self._storage[channel][user][command] = OrderedDict[SMParam, VALUE_TYPE]()
-        if value is None:
+        if value is None and param in self._storage[channel][user][command]:
             del self._storage[channel][user][command][param]
         else:
             self._storage[channel][user][command][param] = value
