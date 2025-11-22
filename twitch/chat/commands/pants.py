@@ -77,7 +77,7 @@ class PantsCommand(SimpleCDCommand):
         # Запускаем розыгрыш
         await self._state_manager.set_state(channel=streamer.login_name, command=self.command_name, param=SMParam.USER, value=target)
         await self._state_manager.set_state(channel=streamer.login_name, command=self.command_name, param=SMParam.PARTICIPANTS, value=set())
-        await self.send_response(chat=streamer.login_name, message=f"Внимание, объявляется розыгрыш трусов @{target}! Ставьте '+' в чат, чтобы принять участие в розыгрыше!")
+        await self.send_response(chat=streamer, message=f"Внимание, объявляется розыгрыш трусов @{target}! Ставьте '+' в чат, чтобы принять участие в розыгрыше!")
 
         # Запускаем асинхронный таймер
         asyncio.create_task(self.finish_raffle(streamer, target))
