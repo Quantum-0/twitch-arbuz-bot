@@ -8,7 +8,7 @@ from twitch.state_manager import SMParam
 
 class DiceCommand(SimpleTargetCommand):
     command_name = "dice"
-    command_aliases = ["d6", "d8", "d12", "d20", "d100", "поднять"]
+    command_aliases = ["dice", "d6", "d8", "d12", "d20", "d100", "поднять"]
     command_description = "Кинуть кубик"
 
     need_target = False
@@ -23,6 +23,8 @@ class DiceCommand(SimpleTargetCommand):
     ) -> str:
         max_value = 0
         to_grab = False
+        if "dice" in message:
+            return "Нужно указать, какой именно кубик кидаешь :з Варианты: !d2 !d6 !d8 !d12 !d20 и !d100"
         if "d6" in message:
             max_value = 6
         elif "d8" in message:
@@ -33,6 +35,8 @@ class DiceCommand(SimpleTargetCommand):
             max_value = 20
         elif "d100" in message:
             max_value = 100
+        if "d2" in message:
+            max_value = 2
         elif "!поднять" in message:
             to_grab = True
 
@@ -43,6 +47,8 @@ class DiceCommand(SimpleTargetCommand):
             param=SMParam.PREVIOUS_VALUE,
         ))
 
+        if max_value == 2:
+            return f"@{user} кидает монетку и выпадает {'орёл' if random.random() < 0.5 else 'решка'}"
         if max_value and not is_fallen and not to_grab:
             if random.random() < 0.05:
                 await self._state_manager.set_state(
