@@ -72,7 +72,7 @@ class BananaCommand(SavingResultCommand):
             ])
         if new_value == "зелёный":
             return random.choice([
-                *f"@{user}, твой банан ещё совсем зелёный"*3,
+                *[f"@{user}, твой банан ещё совсем зелёный"]*3,
                 f"@{user}, твой банан ещё совсем зелёный, даже хрустит.",
                 # f"@{user}, банану явно рановато… подожди ещё чуть-чуть.",
                 f"@{user}, зелёный банан — это стиль. Но есть такое можно только смелым.",
@@ -81,7 +81,7 @@ class BananaCommand(SavingResultCommand):
             return f"Вау, поздравляю, @{user}, ты выбиваешь легендарку! Твой банан - {new_value}!"
 
         return random.choice([
-            *f"@{user}, твой банан — {new_value}"*3,
+            *[f"@{user}, твой банан — {new_value}"]*3,
             #f"@{user}, изучив банан под микроскопом… Вердикт: он {new_value}",
             f"@{user}, банановая комиссия постановила: банан {new_value}",
             f"@{user}, честно говоря, я бы таким бананом гордился. Ведь он - {new_value}",

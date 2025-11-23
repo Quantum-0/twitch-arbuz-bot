@@ -76,7 +76,7 @@ class PatCommand(SimpleTargetCommand):
 
     async def _cooldown_reply(self, user: str, delay: int) -> str | None:
         return random.choice([
-            *f"@{user}, подожди, пожалуйста, {delay_to_seconds(delay)}, а то сейчас кому-нибудь лысину сделаешь своими поглаживаниями о:"*3,
+            *[f"@{user}, подожди, пожалуйста, {delay_to_seconds(delay)}, а то сейчас кому-нибудь лысину сделаешь своими поглаживаниями о:"]*3,
             f"@{user}, осторожнее! Частые пат-паты могут вызвать эффект *супергладкой головы*!",
         ])
 
