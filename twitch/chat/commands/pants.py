@@ -126,6 +126,15 @@ class PantsCommand(SimpleCDCommand):
         # Запускаем асинхронный таймер
         asyncio.create_task(self.finish_raffle(streamer, target))
 
+        # Ставим кулдаун
+        await self._state_manager.set_state(
+            value=time(),
+            channel=streamer.login_name,
+            command=self.command_name,
+            user=target,
+            param=SMParam.TARGET_COOLDOWN,
+        )
+
     async def _cooldown_reply(self, user: str, delay: int) -> str | None:
         return ""
 
@@ -141,6 +150,11 @@ class PantsCommand(SimpleCDCommand):
         if len(participants) == 0:
             logger.info("Nobody entered")
             await self.send_response(chat=channel, message=f"Розыгрыш окончен! Но, к сожалению, никто не принял участие в розыгрыше твоих трусов, @{target}, поэтому они остаются при тебе :с")
+            await self._state_manager.del_state(channel=channel.login_name, command=self.command_name,
+                                                param=SMParam.USER)
+            await self._state_manager.del_state(channel=channel.login_name, command=self.command_name,
+                                                param=SMParam.PARTICIPANTS)
+            return
 
         winner: str = random.choice(list(participants))
         logger.info(f"winner = {winner}")
