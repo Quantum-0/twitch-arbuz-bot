@@ -66,7 +66,7 @@ class PantsCommand(SimpleCDCommand):
                 return "Для розыгрыша трусов нужно выбрать только одну цель! Нельзя утаскивать трусы у людей массово, это неприлично!"
             target = targets[0][1:]
 
-        if target and target.lower() not in active_users:
+        if target and target.lower() not in {usr.lower() for usr in active_users}:
             return "Не вижу такого пользователя :< Разыгрывать трусы можно только тех людей, кто писал в чатик ^^\""
 
         # TODO: BLACK-LIST
@@ -154,11 +154,13 @@ class PantsCommand(SimpleCDCommand):
             msg += f"приняло участие аж целых {participants_count} человека!"
         elif participants_count >= 5:
             msg += f"приняло участие аж целых {participants_count} человек!"
-        msg += f"Время объявлять победителя! Итак.. Трусы @{target} сегодня получааааает... *барабанная дробь*"
+        msg += f" Время объявлять победителя! Итак.. Трусы @{target} сегодня получааааает... *барабанная дробь*"
         await self.send_response(
             chat=channel,
             message=msg
         )
+
+        await asyncio.sleep(3)
 
         # Объявляем победителя
         type1 = {"красные", "чёрные", "белые", "чистые", "ношенные"}  # TODO
