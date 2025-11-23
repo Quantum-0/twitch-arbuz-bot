@@ -90,7 +90,7 @@ class PantsCommand(SimpleCDCommand):
                 ) for usr in active_users
             }
             # Фильтруем
-            targets = [usr for usr in active_users if time() - users_last_ts[usr] > self.cooldown_timer_per_target]
+            targets = [usr for usr in active_users if (users_last_ts[usr] is None) or (time() - users_last_ts[usr] > self.cooldown_timer_per_target)]
             # TODO: FILTER BLACK-LIST
             min_item: tuple[str, int] = min(targets.items(), key=itemgetter(1))
             min_delta = time() - min_item[1]
