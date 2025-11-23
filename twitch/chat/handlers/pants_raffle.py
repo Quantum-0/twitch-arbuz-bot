@@ -33,7 +33,7 @@ class PantsRaffleHandler(CommonMessagesHandler):
 
         if message.message.text.strip() == '-':
             if message.chatter_user_login == target.lower():
-                self.send_response(
+                await self.send_response(
                     chat=streamer,
                     message=f'@{message.chatter_user_name} не хочет отдавать свои трусы, поэтому розыгрыш отменяется. Простите, ребят :<'
                 )
@@ -59,7 +59,7 @@ class PantsRaffleHandler(CommonMessagesHandler):
         logger.info("Added to raffle!")
 
         if len(participants) == 5:
-            self.send_response(
+            await self.send_response(
                 chat=streamer,
                 message=f'Уже целых 5 человек хотят заполучить трусы @{target}! Ничего себе! А ты пользуешься популярностью ;)'
             )
