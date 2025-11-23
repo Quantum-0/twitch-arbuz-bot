@@ -47,4 +47,10 @@ class PantsRaffleHandler(CommonMessagesHandler):
             param=SMParam.PARTICIPANTS,
         )
         logger.info("Added to raffle!")
+
+        if len(participants) == 5:
+            self.send_response(
+                chat=streamer,
+                message=f'Уже целых 5 человек хотят заполучить трусы @{target}! Ничего себе! А ты пользуешься популярностью ;)'
+            )
         return HandlerResult.HANDLED

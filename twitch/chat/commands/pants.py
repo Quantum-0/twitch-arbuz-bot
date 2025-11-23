@@ -3,6 +3,7 @@ import logging
 import random
 from collections.abc import Awaitable, Callable
 from functools import partial
+from operator import itemgetter
 from time import time
 
 from database.models import TwitchUserSettings, User
@@ -37,6 +38,7 @@ class PantsCommand(SimpleCDCommand):
 
     async def _handle(self, streamer: User, user: str, message: str) -> str | None:
         logger.info("Handle pants raffle")
+
         # Проверка — идёт ли уже розыгрыш
         pants_user = await self._state_manager.get_state(
             channel=streamer.login_name, command=self.command_name, param=SMParam.USER
@@ -44,6 +46,14 @@ class PantsCommand(SimpleCDCommand):
         if pants_user:
             logger.info("Cancel, because raffle is active on channel")
             return f"Невозможно начать новый розыгрыш трусов, пока не разыграли трусы @{pants_user}"
+
+        # Берём активных чаттерсов
+        active_users: list[str] = [
+            x
+            for x, y in await self.chat_bot.get_last_active_users(
+                streamer.login_name
+            )
+        ]
 
         # Выбор цели
         target: str | None = None
@@ -53,19 +63,49 @@ class PantsCommand(SimpleCDCommand):
             )  # TODO replace with display name
             logger.info(f"Target = {targets}")
             if len(targets) > 1:
-                return "Для розыгрыша трусов нужно выбрать только одну цель!"
+                return "Для розыгрыша трусов нужно выбрать только одну цель! Нельзя утаскивать трусы у людей массово, это неприлично!"
             target = targets[0][1:]
 
+        if target and target.lower() not in active_users:
+            return "Не вижу такого пользователя :< Разыгрывать трусы можно только тех людей, кто писал в чатик ^^\""
+
+        # TODO: BLACK-LIST
+        #  !запреттрусов
+        #  pg table
+        #  if in table - error
+        #  in random - skip
+        #  in + - К сожалению, вы не можете принимать участие в розыгрыше трусов, т.к. запретили разыгрывать свои :<
+
         logger.info(f"Parsed target: {target}")
-        # if not target:
-        #     targets = [
-        #         x
-        #         for x, y in await self.chat_bot.get_last_active_users(
-        #             streamer.login_name
-        #         )
-        #     ]
-        #     target = random.choice(targets)
-        #     logger.info(f"Chosen random target: {target}")
+
+        # Выбор рандомной цели
+        if not target:
+            # Проверяем для каждого КД
+            users_last_ts: dict[str, float | None] = {
+                usr: await self._state_manager.get_state(
+                    channel=streamer.login_name,
+                    command=self.command_name,
+                    user=usr,
+                    param=SMParam.TARGET_COOLDOWN,
+                ) for usr in active_users
+            }
+            # Фильтруем
+            targets = [usr for usr in active_users if time() - users_last_ts[usr] > self.cooldown_timer_per_target]
+            # TODO: FILTER BLACK-LIST
+            min_item: tuple[str, int] = min(targets.items(), key=itemgetter(1))
+            min_delta = time() - min_item[1]
+            # Проверяем что есть такие
+            if len(targets) == 0:
+                logger.info(f"No targets")
+                return (
+                    f"К сожалению, все трусы текущих чатерсов были разыграны"
+                    f" за последние {self.cooldown_timer_per_target / 60} минут,"
+                    f" поэтому пока нет трусов для розыгрыша :<"
+                    f" Трусы @{min_item[0]} разыграть можно будет через ${min_delta} секунд!"
+                )
+            # Берём рандомного
+            target = random.choice(targets)
+            logger.info(f"Chosen random target: {target}")
 
         # Проверяем кулдаун для цели
         last_ts = await self._state_manager.get_state(
@@ -76,7 +116,7 @@ class PantsCommand(SimpleCDCommand):
         )
         logger.info(f"last_ts for target = {last_ts}, time = {time()}, delta = {(time() - last_ts) if last_ts else None}")
         if last_ts and time() - last_ts < self.cooldown_timer_per_target:
-            return f"Трусы @{target} уже недавно разыгрывались. Подождём немного!"
+            return f"Трусы @{target} уже были недавно разыграны. Давайте позволим @{target} сперва найти и надеть новые трусы, а потом уже разыграем их"
 
         # Запускаем розыгрыш
         await self._state_manager.set_state(channel=streamer.login_name, command=self.command_name, param=SMParam.USER, value=target)
@@ -100,20 +140,34 @@ class PantsCommand(SimpleCDCommand):
 
         if len(participants) == 0:
             logger.info("Nobody entered")
-            await self.send_response(chat=channel, message="Никто не принял участия")
+            await self.send_response(chat=channel, message=f"Розыгрыш окончен! Но, к сожалению, никто не принял участие в розыгрыше твоих трусов, @{target}, поэтому они остаются при тебе :с")
 
         winner: str = random.choice(list(participants))
         logger.info(f"winner = {winner}")
 
-        await self.send_response(chat=channel, message="Розыгрыш окончен. Выбираем победителя")
+        # Информируем об окончании розыгрыша
+        participants_count = len(participants)
+        msg = "Розыгрыш трусов окончен! В нашей лотерее"
+        if participants_count == 1:
+            msg += f"принял участие аж целый {participants_count} человек!"
+        elif 1 < participants_count <= 4:
+            msg += f"В нашей лотерее приняло участие аж целых {participants_count} человека!"
+        elif participants_count >= 5:
+            msg += f"В нашей лотерее приняло участие аж целых {participants_count} человек!"
+        msg += "Время объявлять победителя! Итак.. Трусы @${pants_user} сегодня получааааает... *барабанная дробь*"
+        await self.send_response(
+            chat=channel,
+            message=msg
+        )
 
+        # Объявляем победителя
         type1 = {"красные", "чёрные", "белые", "чистые", "ношенные"}  # TODO
         type2 = {"с сердечками", "кружевные", "семейные", "эротичные"}  # TODO
         if winner.lower() == target.lower():
             logger.info("Winner = self")
-            await self.send_response(chat=channel, message=f"@{target} забирает собственные трусы")
+            await self.send_response(chat=channel, message=f"@{winner}! Поздравляем, сегодня ты становишься счастливым обладателем собственных трусов! Надевай их скорее обратно! И больше не снимай!")
         else:
-            await self.send_response(chat=channel, message=f"Розыгрыш окончен. Трусы @{target} забирает @{winner}")
+            await self.send_response(chat=channel, message=f"@{winner}! Поздравляем, сегодня ты становишься счастливым обладателем трусов @{target}!")
 
         await self._state_manager.del_state(channel=channel.login_name, command=self.command_name, param=SMParam.USER)
         await self._state_manager.del_state(channel=channel.login_name, command=self.command_name, param=SMParam.PARTICIPANTS)
