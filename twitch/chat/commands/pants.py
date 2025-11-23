@@ -92,11 +92,11 @@ class PantsCommand(SimpleCDCommand):
             # Фильтруем
             targets = [usr for usr in active_users if (users_last_ts[usr] is None) or (time() - users_last_ts[usr] > self.cooldown_timer_per_target)]
             # TODO: FILTER BLACK-LIST
-            min_item: tuple[str, int] = min(active_users.items(), key=itemgetter(1))
-            min_delta = time() - min_item[1]
             # Проверяем что есть такие
             if len(targets) == 0:
                 logger.info(f"No targets")
+                min_item: tuple[str, float] = min(users_last_ts.items(), key=itemgetter(1))
+                min_delta = time() - min_item[1]
                 return (
                     f"К сожалению, все трусы текущих чатерсов были разыграны"
                     f" за последние {self.cooldown_timer_per_target / 60} минут,"
