@@ -151,10 +151,10 @@ class PantsCommand(SimpleCDCommand):
         if participants_count == 1:
             msg += f"принял участие аж целый {participants_count} человек!"
         elif 1 < participants_count <= 4:
-            msg += f"В нашей лотерее приняло участие аж целых {participants_count} человека!"
+            msg += f"приняло участие аж целых {participants_count} человека!"
         elif participants_count >= 5:
-            msg += f"В нашей лотерее приняло участие аж целых {participants_count} человек!"
-        msg += "Время объявлять победителя! Итак.. Трусы @${pants_user} сегодня получааааает... *барабанная дробь*"
+            msg += f"приняло участие аж целых {participants_count} человек!"
+        msg += f"Время объявлять победителя! Итак.. Трусы @{target} сегодня получааааает... *барабанная дробь*"
         await self.send_response(
             chat=channel,
             message=msg
