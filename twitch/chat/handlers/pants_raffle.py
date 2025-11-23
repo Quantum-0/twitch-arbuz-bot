@@ -37,6 +37,16 @@ class PantsRaffleHandler(CommonMessagesHandler):
                     chat=streamer,
                     message=f'@{message.chatter_user_name} не хочет отдавать свои трусы, поэтому розыгрыш отменяется. Простите, ребят :<'
                 )
+                await self._state_manager.del_state(
+                    channel=streamer.login_name,
+                    command=PantsCommand.command_name,
+                    param=SMParam.USER
+                )
+                await self._state_manager.del_state(
+                    channel=streamer.login_name,
+                    command=PantsCommand.command_name,
+                    param=SMParam.PARTICIPANTS
+                )
                 return HandlerResult.HANDLED
             else:
                 return HandlerResult.SKIPED
