@@ -16,14 +16,17 @@ class TailCommand(SavingResultCommand):
     async def result_generator(self, old_value: str | None) -> str:
         # WFA: y = x * 775 + x*x * 65 ** 2 chart x from 0 to 1
         formula = lambda x: int(x * 775 + (x * 65) ** 2)
+
         if old_value is None:
             return str(formula(random.random()))
+
         if old_value[0] in ["+", "-"]:
             old_value = int(old_value[1:])
         else:
             old_value = int(old_value)
+
         new_value = formula(random.random())
-        new_value = int(new_value * 775 + (new_value * 65) ** 2)
+
         if new_value == old_value:
             return f"{new_value}"
         if new_value > old_value:
