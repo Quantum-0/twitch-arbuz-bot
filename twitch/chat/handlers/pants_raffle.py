@@ -31,6 +31,16 @@ class PantsRaffleHandler(CommonMessagesHandler):
             param=SMParam.PARTICIPANTS
         )
 
+        if message.message.text.strip() == '-':
+            if message.chatter_user_login == target.lower():
+                self.send_response(
+                    chat=streamer,
+                    message=f'@{message.chatter_user_name} не хочет отдавать свои трусы, поэтому розыгрыш отменяется. Простите, ребят :<'
+                )
+                return HandlerResult.HANDLED
+            else:
+                return HandlerResult.SKIPED
+
         if target is None or participants is None:
             logger.info("Raffle was not ran on the channel")
             return HandlerResult.SKIPED
