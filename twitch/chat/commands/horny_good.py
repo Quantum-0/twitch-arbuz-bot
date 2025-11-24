@@ -12,7 +12,7 @@ class HornyGoodCommand(SavingResultCommand):
 
     cooldown_timer = 10
 
-    refresh_result_timer = 20  # 3 * 60
+    refresh_result_timer = 3 * 60
 
     def is_enabled(self, streamer_settings: TwitchUserSettings) -> bool:
         return streamer_settings.enable_horny_good
