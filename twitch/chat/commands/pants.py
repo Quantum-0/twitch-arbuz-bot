@@ -161,7 +161,7 @@ class PantsCommand(SimpleCDCommand):
 
         # Информируем об окончании розыгрыша
         participants_count = len(participants)
-        msg = "Розыгрыш трусов окончен! В нашей лотерее"
+        msg = "Розыгрыш трусов окончен! В нашей лотерее "
         if participants_count == 1:
             msg += f"принял участие аж целый {participants_count} человек!"
         elif 1 < participants_count <= 4:
