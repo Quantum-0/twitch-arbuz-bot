@@ -30,7 +30,7 @@ services:
     volumes:
       - ./vmagent.yml:/etc/prometheus/vmagent.yml:ro
     depends_on:
-      - fastapi
+      - app
 
   victoria-metrics:
     image: victoriametrics/victoria-metrics
