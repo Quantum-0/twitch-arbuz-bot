@@ -21,6 +21,8 @@ from dependencies import init_and_startup
 from routers.routers import api_router, user_router
 from utils.logging_conf import LOGGING_CONFIG
 
+from prometheus_fastapi_instrumentator import Instrumentator
+
 if settings.sentry_dsn:
     sentry_sdk.init(
         dsn=str(settings.sentry_dsn),
@@ -33,6 +35,7 @@ else:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await init_and_startup()
+    Instrumentator().instrument(app).expose(app)
     yield
     await async_engine.dispose()
 
