@@ -35,7 +35,6 @@ else:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await init_and_startup()
-    Instrumentator().instrument(app).expose(app)
     yield
     await async_engine.dispose()
 
@@ -60,6 +59,7 @@ async def sentry_request_validation_handler(
     return await request_validation_exception_handler(request, exc)
 
 
+Instrumentator().instrument(app).expose(app)
 app.add_middleware(SessionMiddleware, secret_key=settings.middleware_secret_key)
 app.include_router(router=api_router)
 app.include_router(router=user_router)
