@@ -21,27 +21,27 @@ services:
 #    volumes:
 #      - postgres_data:/var/lib/postgresql/data
 
-  vmagent:
-    image: victoriametrics/vmagent
-    container_name: vmagent
-    command:
-      - "--promscrape.config=/etc/prometheus/vmagent.yml"
-      - "--remoteWrite.url=http://victoria-metrics:8428/api/v1/write"
-    volumes:
-      - ./vmagent.yml:/etc/prometheus/vmagent.yml:ro
-    depends_on:
-      - app
+#  vmagent:
+#    image: victoriametrics/vmagent
+#    container_name: vmagent
+#    command:
+#      - "--promscrape.config=/etc/prometheus/vmagent.yml"
+#      - "--remoteWrite.url=http://victoria-metrics:8428/api/v1/write"
+#    volumes:
+#      - ./vmagent.yml:/etc/prometheus/vmagent.yml:ro
+#    depends_on:
+#      - app
 
-  victoria-metrics:
-    image: victoriametrics/victoria-metrics
-    container_name: victoria_metrics
-    ports:
-      - "8428:8428"
-    volumes:
-      - vmdata:/vmdata
-    command:
-      - "--storageDataPath=/vmdata"
-      - "--httpListenAddr=:8428"
+#  victoria-metrics:
+#    image: victoriametrics/victoria-metrics
+#    container_name: victoria_metrics
+#    ports:
+#      - "8428:8428"
+#    volumes:
+#      - vmdata:/vmdata
+#    command:
+#      - "--storageDataPath=/vmdata"
+#      - "--httpListenAddr=:8428"
 
 #  vmui:
 #    image: victoriametrics/vmui
