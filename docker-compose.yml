@@ -4,22 +4,55 @@ services:
   app:
     build: .
     ports:
-      - "8000:8000"
+      - "8015:8000"
     env_file:
       - .env
 #    depends_on:
 #      - db
 
-#  db:
-#    image: postgres:13
-#    ports:
-#      - "45432:5432"
-#    environment:
-#      - POSTGRES_USER=user
-#      - POSTGRES_PASSWORD=password
-#      - POSTGRES_DB=twitch_bot
-#    volumes:
-#      - postgres_data:/var/lib/postgresql/data
+  db:
+    image: postgres:13
+    ports:
+      - "45432:5432"
+    environment:
+      - POSTGRES_USER=user
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=twitch_bot
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  vmagent:
+    image: victoriametrics/vmagent
+    container_name: vmagent
+    command:
+      - "--promscrape.config=/etc/prometheus/vmagent.yml"
+      - "--remoteWrite.url=http://victoria-metrics:8428/api/v1/write"
+    volumes:
+      - ./vmagent.yml:/etc/prometheus/vmagent.yml:ro
+    depends_on:
+      - fastapi
+
+  victoria-metrics:
+    image: victoriametrics/victoria-metrics
+    container_name: victoria_metrics
+    ports:
+      - "8428:8428"
+    volumes:
+      - vmdata:/vmdata
+    command:
+      - "--storageDataPath=/vmdata"
+      - "--httpListenAddr=:8428"
+
+  vmui:
+    image: victoriametrics/vmui
+    container_name: vmui
+    depends_on:
+      - victoria-metrics
+    ports:
+      - "8481:8481"
+    command:
+      - "--vmui.defaultDatasourceUrl=http://localhost:8428"
 
 volumes:
-  postgres_data:
+#  postgres_data:
+  vmdata:
