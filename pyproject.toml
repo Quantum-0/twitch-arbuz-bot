@@ -22,6 +22,7 @@ pydantic-settings = "2.10.1"
 memealerts = "1.1.2"
 cryptography = "^45.0.5"
 sentry-sdk = "2.33.0"
+prometheus-fastapi-instrumentator = "7.1.0"
 
 [tool.poetry.group.dev.dependencies]
 coverage = "^7.10.6"
