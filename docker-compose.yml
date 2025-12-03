@@ -43,15 +43,15 @@ services:
       - "--storageDataPath=/vmdata"
       - "--httpListenAddr=:8428"
 
-  vmui:
-    image: victoriametrics/vmui
-    container_name: vmui
-    depends_on:
-      - victoria-metrics
-    ports:
-      - "8481:8481"
-    command:
-      - "--vmui.defaultDatasourceUrl=http://localhost:8428"
+#  vmui:
+#    image: victoriametrics/vmui
+#    container_name: vmui
+#    depends_on:
+#      - victoria-metrics
+#    ports:
+#      - "8481:8481"
+#    command:
+#      - "--vmui.defaultDatasourceUrl=http://localhost:8428"
 
 volumes:
 #  postgres_data:
