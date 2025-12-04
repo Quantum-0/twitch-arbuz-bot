@@ -141,11 +141,12 @@ class PantsCommand(SimpleCDCommand):
     async def finish_raffle(self, channel: User, target: str):
         await asyncio.sleep(60)
         logger.info(f"Finishing raffle for channel {channel.login_name}")
-        #target_from_sm = self._state_manager.get_state(channel=streamer.login_name, command=self.command_name, param=SMParam.USER)
+        target_from_sm = self._state_manager.get_state(channel=channel.login_name, command=self.command_name, param=SMParam.USER)
         participants: set[str] = await self._state_manager.get_state(channel=channel.login_name, command=self.command_name, param=SMParam.PARTICIPANTS)
         logger.info(f"Participants: {participants}")
-        if participants is None:
-            logger.info("Raffle was canceled?")
+        if participants is None or not target_from_sm:
+            logger.info("Raffle was canceled")
+            return
 
         if len(participants) == 0:
             logger.info("Nobody entered")

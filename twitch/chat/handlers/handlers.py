@@ -344,7 +344,7 @@ class IAmBotHandler(CommonMessagesHandler):
         if re.match(r"@quantum075bot .{0,5}бот\?", message.message.text.lower()):
             if random.random() < 0.1:
                 await asyncio.sleep(0.5)
-                await self.send_response(chat=streamer, message=f"Конеяно я бот!")
+                await self.send_response(chat=streamer, message=f"Конеяно я бот!") # опечатка намеренно
                 await asyncio.sleep(2)
                 await self.send_response(chat=streamer, message=f"конечно* 👀")
             else:
