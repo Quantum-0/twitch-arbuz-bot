@@ -25,9 +25,9 @@ class PantsCommand(SimpleCDCommand):
     command_aliases = ["трусы", "pants", "запретитьтрусы", "запреттрусов"]
     command_description = "Запустить розыгрыш трусов"
 
-    cooldown_timer_per_chat = 5
-    cooldown_timer_per_user = 10
-    cooldown_timer_per_target = 120
+    cooldown_timer_per_chat = 3
+    cooldown_timer_per_user = 5
+    cooldown_timer_per_target = 600
 
     # cooldown_timer_per_chat = 120
     # cooldown_timer_per_user = 300
@@ -117,7 +117,7 @@ class PantsCommand(SimpleCDCommand):
         if target and target.lower() not in {usr.lower() for usr in active_users}:
             return "Не вижу такого пользователя :< Разыгрывать трусы можно только тех людей, кто писал в чатик ^^\""
 
-        if await self.check_denied(target):
+        if target and await self.check_denied(target):
             return "К сожалению, данный пользователь запретил разыгрывать свои трусы :с Выбери другую жертву!"
 
         logger.info(f"Parsed target: {target}")
