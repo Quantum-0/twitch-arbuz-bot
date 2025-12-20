@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 class PantsCommand(SimpleCDCommand):
     command_name = "pants"
-    command_aliases = ["трусы", "pants"]
+    command_aliases = ["трусы", "pants", "запретитьтрусы", "запреттрусов"]
     command_description = "Запустить розыгрыш трусов"
 
     cooldown_timer_per_chat = 5
