@@ -140,7 +140,10 @@ class PantsCommand(SimpleCDCommand):
             # Проверяем что есть такие
             if len(targets) == 0:
                 logger.info(f"No targets")
-                min_item: tuple[str, float] = min([(k, v) for k, v in users_last_ts.items() if v is not None], key=itemgetter(1))
+                users_with_cd = [(k, v) for k, v in users_last_ts.items() if v is not None]
+                if not users_with_cd:
+                    return "К сожалению, в чате нет пользователей, чьи трусы можно было бы разыграть"
+                min_item: tuple[str, float] = min(users_with_cd, key=itemgetter(1))
                 min_delta = time() - min_item[1]
                 return (
                     f"К сожалению, все трусы текущих чатерсов были разыграны"
