@@ -6,6 +6,8 @@ from functools import partial
 from operator import itemgetter
 from time import time
 
+from sqlalchemy.dialects.postgresql import insert
+
 from database.database import AsyncSessionLocal
 from database.models import TwitchUserSettings, User, PantsDeny
 from twitch.chat.base.cooldown_command import SimpleCDCommand
@@ -47,7 +49,7 @@ class PantsCommand(SimpleCDCommand):
     async def add_to_denied(self, name: str):
         async with AsyncSessionLocal() as session:
             await session.execute(
-                sa.insert(PantsDeny)
+                insert(PantsDeny)
                 .values({"name": name.lower()})
             )
 
@@ -182,7 +184,7 @@ class PantsCommand(SimpleCDCommand):
     async def finish_raffle(self, channel: User, target: str):
         await asyncio.sleep(60)
         logger.info(f"Finishing raffle for channel {channel.login_name}")
-        target_from_sm = self._state_manager.get_state(channel=channel.login_name, command=self.command_name, param=SMParam.USER)
+        target_from_sm = await self._state_manager.get_state(channel=channel.login_name, command=self.command_name, param=SMParam.USER)
         participants: set[str] = await self._state_manager.get_state(channel=channel.login_name, command=self.command_name, param=SMParam.PARTICIPANTS)
         logger.info(f"Participants: {participants}")
         if participants is None or not target_from_sm or target_from_sm.lower() != target.lower():
