@@ -167,7 +167,7 @@ class ChatBot:
         # Получаем текущие подписки
         subs = await self._twitch.get_subscriptions()
         logger.debug(f"Subscriptions: {subs.total}")
-        for s in subs:
+        for s in subs.data:
             logger.debug(f"{s.id} | {s.type} | {s.status} | {s.condition}")
         logger.debug("")
         current_channels = {
