@@ -140,14 +140,13 @@ class PantsCommand(SimpleCDCommand):
             # Проверяем что есть такие
             if len(targets) == 0:
                 logger.info(f"No targets")
-                logger.info(f"USERS LAST TS = {users_last_ts}")
                 min_item: tuple[str, float] = min([(k, v) for k, v in users_last_ts.items() if v is not None], key=itemgetter(1))
                 min_delta = time() - min_item[1]
                 return (
                     f"К сожалению, все трусы текущих чатерсов были разыграны"
-                    f" за последние {self.cooldown_timer_per_target / 60} минут,"
+                    f" за последние {int(self.cooldown_timer_per_target / 60)} минут,"
                     f" поэтому пока нет трусов для розыгрыша :<"
-                    f" Трусы @{min_item[0]} разыграть можно будет через ${min_delta} секунд!"
+                    f" Трусы @{min_item[0]} разыграть можно будет через {int(min_delta)} секунд!"
                 )
             # Берём рандомного
             target = random.choice(targets)
