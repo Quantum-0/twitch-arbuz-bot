@@ -149,7 +149,7 @@ class PantsCommand(SimpleCDCommand):
                     f"К сожалению, все трусы текущих чатерсов были разыграны"
                     f" за последние {int(self.cooldown_timer_per_target / 60)} минут,"
                     f" поэтому пока нет трусов для розыгрыша :<"
-                    f" Трусы @{min_item[0]} разыграть можно будет через {int(min_delta)} секунд!"
+                    f" Трусы @{min_item[0]} разыграть можно будет через {self.cooldown_timer_per_target - int(min_delta)} секунд!"
                 )
             # Берём рандомного
             target = random.choice(targets)
