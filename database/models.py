@@ -108,6 +108,9 @@ class TwitchUserSettings(Base):
     enable_hug: Mapped[bool] = mapped_column(
         Boolean, default=False, server_default=false(), nullable=False
     )
+    enable_bonk: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default=false(), nullable=False
+    )
 
     enable_banana: Mapped[bool] = mapped_column(
         Boolean, default=False, server_default=false(), nullable=False
@@ -187,6 +190,13 @@ class MemealertsSupporters(Base):
     id: Mapped[str] = mapped_column(String, primary_key=True, index=True)
     name: Mapped[str] = mapped_column(String, index=True)
     link: Mapped[str] = mapped_column(String, index=True)
+
+
+class PantsDeny(Base):
+    __tablename__ = "pants_deny"
+
+    #id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(String, primary_key=True)  # in lower case
 
 
 @event.listens_for(User, "after_insert")

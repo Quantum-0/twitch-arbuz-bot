@@ -197,6 +197,8 @@ button[disabled] { opacity: 0.6; cursor: not-allowed; }
         <div class="toggle-switch {% if settings.enable_chat_bot %}active{% endif %}" data-name="enable_chat_bot"></div>
     </div>
 
+    <hr>
+
     <!-- Остальные переключатели -->
     <div id="dependent-toggles" class="toggles-grid">
         <div class="toggle-label {% if not settings.enable_chat_bot %}disabled{% endif %}">
@@ -239,18 +241,26 @@ button[disabled] { opacity: 0.6; cursor: not-allowed; }
             <span>Включить !dice</span>
             <div class="toggle-switch {% if settings.enable_dice %}active{% endif %}" data-name="enable_dice"></div>
         </div>
-        <!--
+        <div class="toggle-label {% if not settings.enable_chat_bot %}disabled{% endif %}">
+            <span>Включить !bonk</span>
+            <div class="toggle-switch {% if settings.enable_bonk %}active{% endif %}" data-name="enable_bonk"></div>
+        </div>
+        <div class="toggle-label {% if not settings.enable_chat_bot %}disabled{% endif %}">
+            <span>Включить !трусы</span>
+            <div class="toggle-switch {% if settings.enable_pants %}active{% endif %}" data-name="enable_pants"></div>
+        </div>
         <div class="toggle-label {% if not settings.enable_chat_bot %}disabled{% endif %}">
             <span>Включить !якто</span>
             <div class="toggle-switch {% if settings.enable_whoami %}active{% endif %}" data-name="enable_whoami"></div>
         </div>
         <div class="toggle-label {% if not settings.enable_chat_bot %}disabled{% endif %}">
+            <span>Включить !якто</span>
+            <div class="toggle-switch {% if settings.enable_whoami %}active{% endif %}" data-name="enable_whoami"></div>
+        </div>
+        <!--
+        <div class="toggle-label {% if not settings.enable_chat_bot %}disabled{% endif %}">
             <span>Включить !бунд</span>
             <div class="toggle-switch {% if settings.enable_riot %}active{% endif %}" data-name="enable_riot"></div>
-        </div>
-        <div class="toggle-label {% if not settings.enable_chat_bot %}disabled{% endif %}">
-            <span>Включить !трусы</span>
-            <div class="toggle-switch {% if settings.enable_pants %}active{% endif %}" data-name="enable_pants"></div>
         </div>
         -->
         <!--

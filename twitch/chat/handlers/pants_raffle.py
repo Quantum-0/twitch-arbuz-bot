@@ -1,10 +1,12 @@
 import logging
 
-from database.models import User, TwitchUserSettings
+from database.database import AsyncSessionLocal
+from database.models import User, TwitchUserSettings, PantsDeny
 from routers.schemas import ChatMessageWebhookEventSchema
 from twitch.chat.commands import PantsCommand
 from twitch.chat.handlers.handlers import CommonMessagesHandler, HandlerResult
 from twitch.state_manager import SMParam
+import sqlalchemy as sa
 
 logger = logging.getLogger(__name__)
 
@@ -12,6 +14,14 @@ logger = logging.getLogger(__name__)
 class PantsRaffleHandler(CommonMessagesHandler):
     def is_enabled(self, streamer_settings: TwitchUserSettings) -> bool:
         return streamer_settings.enable_pants
+
+    async def check_denied(self, *names: str) -> list[str]:
+        async with AsyncSessionLocal() as session:
+            result = await session.execute(
+                sa.select(PantsDeny)
+                .where(PantsDeny.name.in_([n.lower() for n in names]))
+            )
+            return result.scalars().all()
 
     async def handle(
         self, streamer: User, message: ChatMessageWebhookEventSchema
@@ -58,6 +68,10 @@ class PantsRaffleHandler(CommonMessagesHandler):
         if message.chatter_user_name in participants:
             logger.info("Already in participants. Skip.")
             return HandlerResult.SKIPED
+
+        if await self.check_denied(message.chatter_user_login):
+            logger.info("Skip because in DenyPants list")
+            return HandlerResult.HANDLED
 
         participants.add(message.chatter_user_name)
         await self._state_manager.set_state(

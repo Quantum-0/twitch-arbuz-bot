@@ -1,4 +1,5 @@
 import random
+from typing import Any
 
 from database.models import TwitchUserSettings, User
 from twitch.chat.base.saving_result_command import SavingResultCommand
@@ -13,7 +14,7 @@ class TailCommand(SavingResultCommand):
 
     refresh_result_timer = 10 * 60
 
-    async def result_generator(self, old_value: str | None) -> str:
+    async def result_generator(self, old_value: str | None, **kwargs: Any) -> str:
         # WFA: y = x * 775 + x*x * 65 ** 2 chart x from 0 to 1
         formula = lambda x: int(x * 775 + (x * 65) ** 2)
 

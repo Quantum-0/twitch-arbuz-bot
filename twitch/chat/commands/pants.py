@@ -6,17 +6,20 @@ from functools import partial
 from operator import itemgetter
 from time import time
 
-from database.models import TwitchUserSettings, User
+from database.database import AsyncSessionLocal
+from database.models import TwitchUserSettings, User, PantsDeny
 from twitch.chat.base.cooldown_command import SimpleCDCommand
 from twitch.state_manager import SMParam, StateManager
 from twitch.utils import extract_targets
+
+import sqlalchemy as sa
 
 
 logger = logging.getLogger(__name__)
 
 
 class PantsCommand(SimpleCDCommand):
-    command_name = "трусы"
+    command_name = "pants"
     command_aliases = ["трусы", "pants"]
     command_description = "Запустить розыгрыш трусов"
 
@@ -33,10 +36,51 @@ class PantsCommand(SimpleCDCommand):
     ) -> None:
         super().__init__(sm, send_message)
 
+    async def check_denied(self, *names: str) -> list[str]:
+        async with AsyncSessionLocal() as session:
+            result = await session.execute(
+                sa.select(PantsDeny)
+                .where(PantsDeny.name.in_([n.lower() for n in names]))
+            )
+            return result.scalars().all()
+
+    async def add_to_denied(self, name: str):
+        async with AsyncSessionLocal() as session:
+            await session.execute(
+                sa.insert(PantsDeny)
+                .values({"name": name.lower()})
+            )
+
+    async def remove_from_denied(self, name: str):
+        async with AsyncSessionLocal() as session:
+            await session.execute(
+                sa.delete(PantsDeny)
+                .where(PantsDeny.name == name.lower())
+            )
+
     def is_enabled(self, streamer_settings: TwitchUserSettings) -> bool:
         return streamer_settings.enable_pants
 
     async def _handle(self, streamer: User, user: str, message: str) -> str | None:
+        if "запретитьтрусы" in message or "запреттрусов" in message:
+            return await self._handle_deny(streamer, user, message)
+        return await self._handle_start_raffle(streamer, user, message)
+
+    async def _handle_deny(self, streamer: User, user: str, message: str) -> str | None:
+        logger.info("Handle deny raffle")
+        user_is_denied = bool(await self.check_denied(user))
+        logger.info(f"User denied = {user_is_denied}")
+
+        if not user_is_denied:
+            await self.add_to_denied(user)
+            logger.info(f"User {user} deny to raffle their pants")
+            return f"Отныне @{user} запрещает использовать свои трусы для розыгрыша!"
+
+        await self.remove_from_denied(user)
+        logger.info(f"User {user} allows to raffle their pants")
+        return f"@{user} вновь разрешает использовать свои трусы для розыгрыша!"
+
+    async def _handle_start_raffle(self, streamer: User, user: str, message: str) -> str | None:
         logger.info("Handle pants raffle")
 
         # Проверка — идёт ли уже розыгрыш
@@ -69,12 +113,8 @@ class PantsCommand(SimpleCDCommand):
         if target and target.lower() not in {usr.lower() for usr in active_users}:
             return "Не вижу такого пользователя :< Разыгрывать трусы можно только тех людей, кто писал в чатик ^^\""
 
-        # TODO: BLACK-LIST
-        #  !запреттрусов
-        #  pg table
-        #  if in table - error
-        #  in random - skip
-        #  in + - К сожалению, вы не можете принимать участие в розыгрыше трусов, т.к. запретили разыгрывать свои :<
+        if await self.check_denied(target):
+            return "К сожалению, данный пользователь запретил разыгрывать свои трусы :с Выбери другую жертву!"
 
         logger.info(f"Parsed target: {target}")
 
@@ -91,7 +131,8 @@ class PantsCommand(SimpleCDCommand):
             }
             # Фильтруем
             targets = [usr for usr in active_users if (users_last_ts[usr] is None) or (time() - users_last_ts[usr] > self.cooldown_timer_per_target)]
-            # TODO: FILTER BLACK-LIST
+            # Фильтруем запрещённые
+            targets = [usr for usr in targets if not (await self.check_denied(usr))]
             # Проверяем что есть такие
             if len(targets) == 0:
                 logger.info(f"No targets")
@@ -144,7 +185,7 @@ class PantsCommand(SimpleCDCommand):
         target_from_sm = self._state_manager.get_state(channel=channel.login_name, command=self.command_name, param=SMParam.USER)
         participants: set[str] = await self._state_manager.get_state(channel=channel.login_name, command=self.command_name, param=SMParam.PARTICIPANTS)
         logger.info(f"Participants: {participants}")
-        if participants is None or not target_from_sm:
+        if participants is None or not target_from_sm or target_from_sm.lower() != target.lower():
             logger.info("Raffle was canceled")
             return
 

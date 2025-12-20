@@ -1,4 +1,5 @@
 import random
+from typing import Any
 
 from database.models import TwitchUserSettings, User
 from twitch.chat.base.saving_result_command import SavingResultCommand
@@ -17,7 +18,7 @@ class HornyBadCommand(SavingResultCommand):
     def is_enabled(self, streamer_settings: TwitchUserSettings) -> bool:
         return streamer_settings.enable_horny_bad
 
-    async def result_generator(self, old_value: str | None) -> str:
+    async def result_generator(self, old_value: str | None, **kwargs: Any) -> str:
         if old_value is None:
             return str(random.randint(0, 100))
         if old_value[0] in ["+", "-"]:

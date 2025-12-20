@@ -1,6 +1,7 @@
 from .banana import BananaCommand
 from .bite import BiteCommand
 from .boop import BoopCommand
+from .bonk import BonkCommand
 from .bush import BushCommand
 from .cmdlist import CmdlistCommand
 from .dice import DiceCommand
@@ -12,11 +13,13 @@ from .lurk import LurkCommand
 from .pants import PantsCommand
 from .pat import PatCommand
 from .tail import TailCommand
+from .whoami import WhoAmICommand
 
 __all__ = [
     "BananaCommand",
     "BiteCommand",
     "BoopCommand",
+    "BonkCommand",
     "BushCommand",
     "CmdlistCommand",
     "DiceCommand",
@@ -28,4 +31,5 @@ __all__ = [
     "PantsCommand",
     "PatCommand",
     "TailCommand",
+    "WhoAmICommand",
 ]

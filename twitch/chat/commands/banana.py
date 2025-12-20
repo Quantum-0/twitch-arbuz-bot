@@ -1,4 +1,5 @@
 import random
+from typing import Any
 
 from database.models import TwitchUserSettings, User
 from twitch.chat.base.saving_result_command import SavingResultCommand
@@ -13,7 +14,7 @@ class BananaCommand(SavingResultCommand):
 
     refresh_result_timer = 5 * 60
 
-    async def result_generator(self, old_value: str | None) -> str:
+    async def result_generator(self, old_value: str | None, **kwargs: Any) -> str:
         # 0.1% chance for legendary
         if random.randint(1, 1000) == 1:
             return random.choice([

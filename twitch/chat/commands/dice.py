@@ -8,7 +8,7 @@ from twitch.state_manager import SMParam
 
 class DiceCommand(SimpleTargetCommand):
     command_name = "dice"
-    command_aliases = ["dice", "d6", "d8", "d12", "d20", "d100", "поднять"]
+    command_aliases = ["dice", "d6", "d8", "d12", "d20", "d100", "поднять", "монетка"]
     command_description = "Кинуть кубик"
 
     need_target = False
@@ -35,7 +35,7 @@ class DiceCommand(SimpleTargetCommand):
             max_value = 20
         elif "d100" in message:
             max_value = 100
-        if "d2" in message:
+        elif "d2" in message or "монетка" in message:
             max_value = 2
         elif "!поднять" in message:
             to_grab = True

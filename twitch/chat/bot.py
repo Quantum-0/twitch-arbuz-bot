@@ -64,6 +64,7 @@ class ChatBot:
         self._command_manager.register(CmdlistCommand)
         self._command_manager.register(DiceCommand)
         self._command_manager.register(BiteCommand)
+        self._command_manager.register(BonkCommand)
         self._command_manager.register(BushCommand)
         self._command_manager.register(LickCommand)
         self._command_manager.register(BananaCommand)
@@ -74,6 +75,7 @@ class ChatBot:
         self._command_manager.register(HugCommand)
         self._command_manager.register(LurkCommand)
         self._command_manager.register(PantsCommand)
+        self._command_manager.register(WhoAmICommand)
 
         # chat.register_event(ChatEvent.MESSAGE, on_message)
         logger.debug("On_message handler registered")
@@ -164,11 +166,17 @@ class ChatBot:
 
         # Получаем текущие подписки
         subs = await self._twitch.get_subscriptions()
+        logger.debug(f"Subscriptions: {subs.total}")
+        for s in subs:
+            logger.debug(f"{s.id} | {s.type} | {s.status} | {s.condition}")
+        logger.debug("")
         current_channels = {
             sub.condition.get("broadcaster_user_id")
             for sub in subs.data
             if sub.type == "channel.chat.message"
         }
+        logger.debug(f"desired_channels: {desired_channels}")
+        logger.debug(f"current_channels: {current_channels}")
 
         # Присоединяемся к новым каналам
         async for channel, success, response in self._twitch.subscribe_chat_messages(

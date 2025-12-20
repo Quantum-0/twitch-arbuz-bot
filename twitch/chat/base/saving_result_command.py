@@ -2,6 +2,7 @@ import logging
 from abc import abstractmethod
 from functools import partial
 from time import time
+from typing import Any
 
 from database.models import User
 from routers.schemas import ChatMessageWebhookEventSchema
@@ -24,7 +25,7 @@ class SavingResultCommand(Command):
         return None
 
     @abstractmethod
-    async def result_generator(self, old_value: str | None) -> str:
+    async def result_generator(self, old_value: str | None, **kwargs: Any) -> str:
         raise NotImplementedError
 
     async def handle(self, streamer: User, message: ChatMessageWebhookEventSchema):
@@ -90,7 +91,7 @@ class SavingResultCommand(Command):
                 time() - last_result_time,
             )
         else:
-            new_value = await self.result_generator(last_result_value)
+            new_value = await self.result_generator(last_result_value, user_id=user_id)
             await self._state_manager.set_state(
                 user=user_id,
                 command=self.command_name,
