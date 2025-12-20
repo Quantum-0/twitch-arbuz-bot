@@ -52,6 +52,7 @@ class PantsCommand(SimpleCDCommand):
                 insert(PantsDeny)
                 .values({"name": name.lower()})
             )
+            await session.commit()
 
     async def remove_from_denied(self, name: str):
         async with AsyncSessionLocal() as session:
@@ -59,6 +60,7 @@ class PantsCommand(SimpleCDCommand):
                 sa.delete(PantsDeny)
                 .where(PantsDeny.name == name.lower())
             )
+            await session.commit()
 
     def is_enabled(self, streamer_settings: TwitchUserSettings) -> bool:
         return streamer_settings.enable_pants
