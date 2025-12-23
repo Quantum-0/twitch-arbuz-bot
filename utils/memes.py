@@ -71,7 +71,8 @@ async def load_supporters(cli: MemealertsAsyncClient) -> list[Supporter]:
     for page in results:
         items.extend(page.data)
 
-    assert len(items) == total_count
+    if len(items) == total_count:
+        logger.warning("Total count = %s, items = %s", total_count, len(items))
     logger.info(f"Loaded {len(items)} supporters ({len(results) + 1} pages)")
     await save_all_supporters_into_db(items)
     return items
