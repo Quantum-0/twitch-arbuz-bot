@@ -37,6 +37,19 @@ async def favicon():
     return FileResponse("static/favicon.ico")
 
 
+@router.get("/overlay/pair")
+async def overlay_pair(
+    channel_id: int = Query(),
+):
+    return templates.TemplateResponse(
+        "overlays/pair.html",
+        {
+            "channel_id": channel_id,
+            "salt": "test-salt",
+        }
+    )
+
+
 @router.get("/login")
 async def login():
     # TODO: Добавить страничку с кнопочкой "авторизоваться через твич

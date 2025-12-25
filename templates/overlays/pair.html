@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>Pair Memory Heat Game</title>
+
+<style>
+html, body {
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  font-family: system-ui, sans-serif;
+}
+
+.wrapper {
+  position: absolute;
+  inset: 10% 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.game {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  grid-template-rows: repeat(4, 1fr);
+  gap: 24px;
+  width: 90%;
+  height: 100%;
+  perspective: 1400px;
+}
+
+.card {
+  position: relative;
+  border-radius: 22px;
+  transform-style: preserve-3d;
+  transition: transform 0.6s ease, box-shadow .4s ease;
+  cursor: pointer;
+}
+
+.card.flipped { transform: rotateY(180deg); }
+.card.matched { pointer-events: none; }
+
+.face {
+  position: absolute;
+  inset: 0;
+  border-radius: 22px;
+  backface-visibility: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.front {
+  background: linear-gradient(135deg,#ff8a00,#e52e71);
+}
+
+.back {
+  transform: rotateY(180deg);
+  background: linear-gradient(135deg,#4facfe,#00f2fe);
+  flex-direction: column;
+}
+
+.symbol { font-size: 72px; }
+.caption { font-size: 16px; margin-top: 8px; }
+
+.card.highlight {
+  box-shadow: 0 0 40px 8px var(--hl);
+}
+
+.cross {
+  position: fixed;
+  width: 40px;
+  height: 40px;
+  pointer-events: none;
+  animation: crossFade 1.2s ease forwards;
+}
+
+.cross::before,
+.cross::after {
+  content: "";
+  position: absolute;
+  inset: 18px 0;
+  background: red;
+}
+
+.cross::after { inset: 0 18px; }
+
+@keyframes crossFade {
+  from { opacity: 1; transform: scale(1); }
+  to   { opacity: 0; transform: scale(1.6); }
+}
+
+.toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0,0,0,.75);
+  color: #fff;
+  padding: 12px 20px;
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  opacity: 0;
+  transition: opacity .4s ease;
+}
+.toast.show { opacity: 1; }
+.toast img {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+}
+</style>
+</head>
+
+<body>
+
+<div class="wrapper">
+  <div class="game" id="game"></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ================= CONFIG ================= */
+
+const CHANNEL_ID = {{ channel_id }};
+const API_BASE_URL = "https://bot.quantum0.ru/api";
+const PUBLIC_SALT = "{{ salt }}";
+const COOLDOWN_MS = 5000;
+
+/* ========================================= */
+
+const SYMBOLS = ["🍉","🍋","🍓","🍇","🍒","🥝","🍍","🍑","🍎","🍌"];
+const CAPTIONS = ["Арбуз","Лимон","Клубника","Виноград","Вишня","Киви","Ананас","Персик","Яблоко","Банан"];
+
+const game = document.getElementById("game");
+const toast = document.getElementById("toast");
+
+let first=null, second=null, lock=false;
+let lastClickUser=null;
+const cooldowns=new Map();
+
+/* ---------- INIT GAME ---------- */
+
+const deck=[...SYMBOLS.map((s,i)=>({s,c:CAPTIONS[i]})),
+            ...SYMBOLS.map((s,i)=>({s,c:CAPTIONS[i]}))]
+            .sort(()=>Math.random()-0.5);
+
+deck.forEach(item=>{
+  const card=document.createElement("div");
+  card.className="card";
+  card.dataset.id=item.c;
+  card.innerHTML=`
+    <div class="face front"></div>
+    <div class="face back">
+      <div class="symbol">${item.s}</div>
+      <div class="caption">${item.c}</div>
+    </div>`;
+  card.onclick=()=>flip(card);
+  game.appendChild(card);
+});
+
+/* ---------- GAME LOGIC ---------- */
+
+function flip(card){
+  if(lock||card.classList.contains("flipped"))return;
+  card.classList.add("flipped");
+
+  if(!first){ first=card; return; }
+  second=card; lock=true;
+
+  if(first.dataset.id===second.dataset.id){
+    first.classList.add("matched");
+    second.classList.add("matched");
+    showToast(lastClickUser, first.dataset.id);
+    reset();
+  } else {
+    setTimeout(()=>{
+      first.classList.remove("flipped");
+      second.classList.remove("flipped");
+      reset();
+    },800);
+  }
+}
+
+function reset(){ first=second=null; lock=false; }
+
+/* ---------- HEAT ---------- */
+
+const ws=new WebSocket(`wss://heat-api.j38.net/channel/${CHANNEL_ID}`);
+
+ws.onmessage=e=>{
+  const d=JSON.parse(e.data);
+  if(d.type!=="click")return;
+
+  const user=d.id;
+  const now=Date.now();
+
+  if(cooldowns.get(user)>now){
+    showCross(d.x,d.y);
+    return;
+  }
+
+  cooldowns.set(user, now+COOLDOWN_MS);
+  lastClickUser=user;
+  simulateClick(d.x,d.y,user);
+};
+
+function simulateClick(nx,ny,user){
+  const x=nx*innerWidth;
+  const y=ny*innerHeight;
+  const el=document.elementFromPoint(x,y);
+  const card=el?.closest(".card");
+  if(card){
+    highlight(card,user);
+    card.click();
+  }
+}
+
+/* ---------- VISUALS ---------- */
+
+function showCross(nx,ny){
+  const c=document.createElement("div");
+  c.className="cross";
+  c.style.left=nx*innerWidth-20+"px";
+  c.style.top=ny*innerHeight-20+"px";
+  document.body.appendChild(c);
+  setTimeout(()=>c.remove(),1200);
+}
+
+function highlight(card,user){
+  const color=`hsl(${hash(user)%360},100%,60%)`;
+  card.style.setProperty("--hl",color);
+  card.classList.add("highlight");
+  setTimeout(()=>card.classList.remove("highlight"),800);
+}
+
+function hash(s){
+  let h=0; for(let c of s) h=(h<<5)-h+c.charCodeAt(0);
+  return Math.abs(h);
+}
+
+/* ---------- API ---------- */
+
+async function showToast(userId,pair){
+  const u=await fetchUser(userId.replace("U",""));
+  if(!u)return;
+  toast.innerHTML=`
+    <img src="${u.avatar}">
+    <span><b>${u.name}</b> отгадал пару <b>${pair}</b></span>`;
+  toast.classList.add("show");
+  setTimeout(()=>toast.classList.remove("show"),4000);
+}
+
+async function fetchUser(userId){
+  const ts=Date.now();
+  const nonce=Math.random().toString(36).slice(2);
+  const payload=`${userId}:${ts}:${nonce}`;
+  const sig=await sha256(payload+PUBLIC_SALT);
+
+  const r=await fetch(`${API_BASE_URL}/twitch/user/${userId}`,{
+    headers:{
+      "X-Timestamp":ts,
+      "X-Nonce":nonce,
+      "X-Signature":sig
+    }
+  });
+  return r.ok ? r.json() : null;
+}
+
+async function sha256(s){
+  const b=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(s));
+  return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,"0")).join("");
+}
+</script>
+
+</body>
+</html>
