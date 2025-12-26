@@ -39,11 +39,13 @@ async def favicon():
 
 @router.get("/overlay/pair")
 async def overlay_pair(
+    request: Request,
     channel_id: int = Query(),
 ):
     return templates.TemplateResponse(
         "overlays/pair.html",
         {
+            "request": request,
             "channel_id": channel_id,
             "salt": "test-salt",
         }
