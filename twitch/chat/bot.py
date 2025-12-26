@@ -166,13 +166,13 @@ class ChatBot:
 
         # Получаем текущие подписки
         subs = await self._twitch.get_subscriptions()
-        logger.debug(f"Subscriptions: {subs.total}")
-        for s in subs.data:
-            logger.debug(f"{s.id} | {s.type} | {s.status} | {s.condition}")
-        logger.debug("")
+        # logger.debug(f"Subscriptions: {subs.total}")
+        # for s in subs:
+        #     logger.debug(f"{s.id} | {s.type} | {s.status} | {s.condition}")
+        # logger.debug("")
         current_channels = {
             sub.condition.get("broadcaster_user_id")
-            for sub in subs.data
+            for sub in subs
             if sub.type == "channel.chat.message"
         }
         logger.debug(f"desired_channels: {desired_channels}")
@@ -194,9 +194,10 @@ class ChatBot:
                 logger.error(
                     f"Error to join user's channel as chat bot. User: `{channel.login_name}`"
                 )
+                # TODO: unsubscribe from blocked!
 
         # Отписываемся от ненужных каналов
-        for sub in subs.data:
+        for sub in subs:
             if sub.type == "channel.chat.message" and sub.condition.get(
                 "broadcaster_user_id"
             ) not in {channel.twitch_id for channel in desired_channels}:

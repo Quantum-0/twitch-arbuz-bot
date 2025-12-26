@@ -8,11 +8,11 @@ from twitchAPI.chat import Chat
 from twitchAPI.object.api import (
     ChannelFollowersResult,
     CustomReward,
-    GetEventSubSubscriptionResult,
     Moderator,
     SendMessageResponse,
     Stream,
     TwitchUser,
+    EventSubSubscription,
 )
 from twitchAPI.twitch import Twitch as TwitchClient
 from twitchAPI.type import AuthScope, CustomRewardRedemptionStatus, UnauthorizedException
@@ -109,9 +109,13 @@ class Twitch:
         )
         return result
 
-    async def get_subscriptions(self) -> GetEventSubSubscriptionResult:
+    async def get_subscriptions(self) -> list[EventSubSubscription]:
         try:
             result = await self._twitch.get_eventsub_subscriptions()
+            res = []
+            async for item in result:
+                res.append(item)
+            return res
         except UnauthorizedException:
             # await self._twitch.refresh_used_token() ???
             twitch = await TwitchClient(
@@ -122,7 +126,10 @@ class Twitch:
             )
             self._twitch = twitch
             result = await self._twitch.get_eventsub_subscriptions()
-        return result
+        res = []
+        async for item in result:
+            res.append(item)
+        return res
 
     async def subscribe_chat_messages(
         self, *users: tuple[User, ...]
@@ -261,7 +268,7 @@ class Twitch:
         assert bool(user) != bool(subscription_id)
         if user:
             subscriptions = await self.get_subscriptions()
-            for sub in subscriptions.data:
+            for sub in subscriptions:
                 if sub.type == "channel.raid" and sub.condition[
                     "to_broadcaster_user_id"
                 ] == str(user.twitch_id):
