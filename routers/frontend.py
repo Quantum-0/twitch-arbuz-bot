@@ -40,11 +40,25 @@ async def favicon():
 @router.get("/overlay/pair")
 async def overlay_pair(
     request: Request,
+    db: Annotated[AsyncSession, Depends(get_db)],
     channel_id: int = Query(),
 ):
+    result = await db.execute(
+        sa.select(
+            User.login_name.label("name"),
+            User.profile_image_url.label("img")
+        )
+        .order_by(sa.func.random())
+        .limit(10)
+    )
+    cards = [
+        {"id": row.name, "img": row.img, "caption": row.name}
+        for row in result.fetchall()
+    ]
     return templates.TemplateResponse(
         "overlays/pair.html",
         {
+            "cards": cards,
             "request": request,
             "channel_id": channel_id,
             "salt": "test-salt",
