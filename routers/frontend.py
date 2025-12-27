@@ -43,8 +43,9 @@ async def overlay_pair(
     db: Annotated[AsyncSession, Depends(get_db)],
     channel_id: int = Query(),
     use_twitch_emoji: bool = Query(default=False),
+    arbuz: bool = Query(default=False),
 ):
-    if not use_twitch_emoji:
+    if not use_twitch_emoji and not arbuz:
         result = await db.execute(
             sa.union_all(
                 sa.select(
@@ -67,18 +68,32 @@ async def overlay_pair(
             for row in result.fetchall()
         ]
     else:
-        items: list[tuple[str, str]] = [
-            ("CorgiDerp", "https://static-cdn.jtvnw.net/emoticons/v2/49106/default/dark/4.0"),
-            ("Kappa", "https://static-cdn.jtvnw.net/emoticons/v2/25/default/dark/4.0"),
-            ("KomodoHype", "https://static-cdn.jtvnw.net/emoticons/v2/81273/default/dark/4.0"),
-            ("KonCha", "https://static-cdn.jtvnw.net/emoticons/v2/160400/default/dark/4.0"),
-            ("LUL", "https://static-cdn.jtvnw.net/emoticons/v2/425618/default/dark/4.0"),
-            ("NotLikeThis", "https://static-cdn.jtvnw.net/emoticons/v2/58765/default/dark/4.0"),
-            ("TwitchConHYPE", "https://static-cdn.jtvnw.net/emoticons/v2/emotesv2_13b6dd7f3a3146ef8dc10f66d8b42a96/default/dark/4.0"),
-            ("SeemsGood", "https://static-cdn.jtvnw.net/emoticons/v2/64138/default/dark/4.0"),
-            ("PewPewPew", "https://static-cdn.jtvnw.net/emoticons/v2/emotesv2_587405136a8147148c77df74baaa1bf4/default/dark/4.0"),
-            ("OSFrog", "https://static-cdn.jtvnw.net/emoticons/v2/81248/default/dark/4.0"),
-        ]
+        if arbuz:
+            items: list[tuple[str, str]] = [
+                ("Вкусьни", "/static/images/stickers/1.webp"),
+                ("Цвяточк", "/static/images/stickers/2.webp"),
+                ("Жёпь", "/static/images/stickers/3.webp"),
+                ("Играц", "/static/images/stickers/4.webp"),
+                ("Лапк", "/static/images/stickers/5.webp"),
+                ("Смотритб", "/static/images/stickers/6.webp"),
+                ("Думаетб", "/static/images/stickers/7.webp"),
+                ("Кексик", "/static/images/stickers/8.png"),
+                ("Питса", "/static/images/stickers/9.webp"),
+                ("Хвостб", "/static/images/stickers/10.webp"),
+            ]
+        else:
+            items: list[tuple[str, str]] = [
+                ("CorgiDerp", "https://static-cdn.jtvnw.net/emoticons/v2/49106/default/dark/4.0"),
+                ("Kappa", "https://static-cdn.jtvnw.net/emoticons/v2/25/default/dark/4.0"),
+                ("KomodoHype", "https://static-cdn.jtvnw.net/emoticons/v2/81273/default/dark/4.0"),
+                ("KonCha", "https://static-cdn.jtvnw.net/emoticons/v2/160400/default/dark/4.0"),
+                ("LUL", "https://static-cdn.jtvnw.net/emoticons/v2/425618/default/dark/4.0"),
+                ("NotLikeThis", "https://static-cdn.jtvnw.net/emoticons/v2/58765/default/dark/4.0"),
+                ("TwitchConHYPE", "https://static-cdn.jtvnw.net/emoticons/v2/emotesv2_13b6dd7f3a3146ef8dc10f66d8b42a96/default/dark/4.0"),
+                ("SeemsGood", "https://static-cdn.jtvnw.net/emoticons/v2/64138/default/dark/4.0"),
+                ("PewPewPew", "https://static-cdn.jtvnw.net/emoticons/v2/emotesv2_587405136a8147148c77df74baaa1bf4/default/dark/4.0"),
+                ("OSFrog", "https://static-cdn.jtvnw.net/emoticons/v2/81248/default/dark/4.0"),
+            ]
         cards = [
             {"id": item[0], "img": item[1], "caption": item[0]}
             for item in items
