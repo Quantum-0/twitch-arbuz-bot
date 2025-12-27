@@ -42,7 +42,7 @@ async def overlay_pair(
     request: Request,
     db: Annotated[AsyncSession, Depends(get_db)],
     channel_id: int = Query(),
-    use_twitch_emoji: bool = Query(default=True),
+    use_twitch_emoji: bool = Query(default=False),
 ):
     if not use_twitch_emoji:
         result = await db.execute(
