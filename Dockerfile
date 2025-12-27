@@ -19,4 +19,4 @@ COPY . .
 RUN alembic upgrade head
 
 # Запускаем Uvicorn
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--ws", "websockets", "--timeout-keep-alive", "600"]

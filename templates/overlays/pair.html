@@ -174,7 +174,8 @@ function reset() {
 
 /* ================= HEAT ================= */
 
-const ws = new WebSocket(`wss://heat-api.j38.net/channel/${CHANNEL_ID}`);
+const ws = new WebSocket(`wss://bot.quantum0.ru/ws/heat/${CHANNEL_ID}`);
+// const ws = new WebSocket(`ws://0.0.0.0:8000/ws/heat/${CHANNEL_ID}`);
 
 ws.onmessage = e => {
   const data = JSON.parse(e.data);

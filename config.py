@@ -43,6 +43,7 @@ class Settings(BaseSettings):
     admin_api_password: str
     update_bot_channels_on_startup: bool = True
     middleware_secret_key: str
+    heat_url: str = "wss://heat-api.j38.net/channel/"
     # github_token: SecretStr
     # github_repo_owner: str = "Quantum-0"
     # github_repo_name: str
