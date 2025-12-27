@@ -42,19 +42,47 @@ async def overlay_pair(
     request: Request,
     db: Annotated[AsyncSession, Depends(get_db)],
     channel_id: int = Query(),
+    use_twitch_emoji: bool = Query(default=True),
 ):
-    result = await db.execute(
-        sa.select(
-            User.login_name.label("name"),
-            User.profile_image_url.label("img")
+    if not use_twitch_emoji:
+        result = await db.execute(
+            sa.union_all(
+                sa.select(
+                    User.login_name.label("name"),
+                    User.profile_image_url.label("img")
+                )
+                .where(User.twitch_id != str(channel_id))
+                .where(User.followers_count > 50)
+                .order_by(sa.func.random())
+                .limit(9),
+                sa.select(
+                    User.login_name.label("name"),
+                    User.profile_image_url.label("img")
+                )
+                .where(User.twitch_id == str(channel_id))
+            )
         )
-        .order_by(sa.func.random())
-        .limit(10)
-    )
-    cards = [
-        {"id": row.name, "img": row.img, "caption": row.name}
-        for row in result.fetchall()
-    ]
+        cards = [
+            {"id": row.name, "img": row.img, "caption": row.name}
+            for row in result.fetchall()
+        ]
+    else:
+        items: list[tuple[str, str]] = [
+            ("CorgiDerp", "https://static-cdn.jtvnw.net/emoticons/v2/49106/default/dark/4.0"),
+            ("Kappa", "https://static-cdn.jtvnw.net/emoticons/v2/25/default/dark/4.0"),
+            ("KomodoHype", "https://static-cdn.jtvnw.net/emoticons/v2/81273/default/dark/4.0"),
+            ("KonCha", "https://static-cdn.jtvnw.net/emoticons/v2/160400/default/dark/4.0"),
+            ("LUL", "https://static-cdn.jtvnw.net/emoticons/v2/425618/default/dark/4.0"),
+            ("NotLikeThis", "https://static-cdn.jtvnw.net/emoticons/v2/58765/default/dark/4.0"),
+            ("TwitchConHYPE", "https://static-cdn.jtvnw.net/emoticons/v2/emotesv2_13b6dd7f3a3146ef8dc10f66d8b42a96/default/dark/4.0"),
+            ("SeemsGood", "https://static-cdn.jtvnw.net/emoticons/v2/64138/default/dark/4.0"),
+            ("PewPewPew", "https://static-cdn.jtvnw.net/emoticons/v2/emotesv2_587405136a8147148c77df74baaa1bf4/default/dark/4.0"),
+            ("OSFrog", "https://static-cdn.jtvnw.net/emoticons/v2/81248/default/dark/4.0"),
+        ]
+        cards = [
+            {"id": item[0], "img": item[1], "caption": item[0]}
+            for item in items
+        ]
     return templates.TemplateResponse(
         "overlays/pair.html",
         {
