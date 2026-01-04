@@ -70,7 +70,8 @@ class WhoAmICommand(SavingResultCommand):
             "Плесневелый мандарин",
             "Новогодний салатик",
             "Загадочный фикус",
-            "Странное пятно на ковре"
+            "Странное пятно на ковре",
+            "Маленький абобик"
         ]
         result_id = (datetime.date.today().toordinal() + user_id) % len(variants)
         return variants[result_id]
