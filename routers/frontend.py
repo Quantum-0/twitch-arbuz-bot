@@ -37,6 +37,18 @@ async def favicon():
     return FileResponse("static/favicon.ico")
 
 
+@router.get("/overlay/jumping-chibi")
+async def overlay_jumping_chibi(
+    request: Request,
+):
+    return templates.TemplateResponse(
+        "overlays/jumping-chibi.html",
+        {
+            "request": request,
+        }
+    )
+
+
 @router.get("/overlay/pair")
 async def overlay_pair(
     request: Request,
