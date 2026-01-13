@@ -49,6 +49,22 @@ async def overlay_jumping_chibi(
     )
 
 
+@router.get("/overlay/star")
+async def overlay_star(
+    request: Request,
+    channel_id: int = Query(),
+    pos: float = Query(default=0.5),
+):
+    return templates.TemplateResponse(
+        "overlays/star.html",
+        {
+            "request": request,
+            "channel_id": channel_id,
+            "position": pos,
+        }
+    )
+
+
 @router.get("/overlay/pair")
 async def overlay_pair(
     request: Request,
