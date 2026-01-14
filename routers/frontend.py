@@ -54,6 +54,7 @@ async def overlay_star(
     request: Request,
     channel_id: int = Query(),
     pos: float = Query(default=0.5),
+    size: int = Query(default=16),
 ):
     return templates.TemplateResponse(
         "overlays/star.html",
@@ -61,6 +62,7 @@ async def overlay_star(
             "request": request,
             "channel_id": channel_id,
             "position": pos,
+            "size": size,
         }
     )
 
