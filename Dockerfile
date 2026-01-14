@@ -41,7 +41,7 @@ RUN poetry config virtualenvs.create false \
 COPY . .
 
 # Подменяем JS
-# COPY --from=js-builder /app/static_dist/js /app/static/js
+COPY --from=js-builder /app/static_dist/js /app/static/js
 
 # Накатываем миграции
 RUN alembic upgrade head
