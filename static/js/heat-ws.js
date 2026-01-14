@@ -1,5 +1,6 @@
 (function () {
     const PRIMARY = `wss://heat-api.j38.net/channel/${CHANNEL_ID}`;
+    // const PRIMARY  = `wss://bot.quantum0.ru/ws/heat/${CHANNEL_ID}`;
     const BACKUP  = `wss://bot.quantum0.ru/ws/heat/${CHANNEL_ID}`;
 
     if (!PRIMARY) {
@@ -16,6 +17,7 @@
 
     const BASE_DELAY = 1000;
     const MAX_DELAY = 20000;
+    const CONNECT_TIMEOUT = 3000;
 
     function connect() {
         const url = URLS[urlIndex];
@@ -23,7 +25,13 @@
 
         ws = new WebSocket(url);
 
+        let connectTimer = setTimeout(() => {
+            console.warn("[HeatWS] connect timeout");
+            ws.close();
+        }, CONNECT_TIMEOUT);
+
         ws.onopen = () => {
+            clearTimeout(connectTimer);
             console.log("[HeatWS] connected");
             attempt = 0;
             emit("heat:open");
@@ -40,12 +48,17 @@
         };
 
         ws.onclose = (e) => {
+            clearTimeout(connectTimer);
             console.warn("[HeatWS] closed", e.code);
             emit("heat:close", e);
             reconnect();
         };
 
-        ws.onerror = () => ws.close();
+//          ws.onerror = () => {ws.close();};
+        ws.onerror = () => {
+            clearTimeout(connectTimer);
+            ws.close();
+        };
     }
 
     function reconnect() {
