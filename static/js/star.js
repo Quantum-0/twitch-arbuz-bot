@@ -183,7 +183,7 @@ function update() {
     ctx.stroke();
 
     /* Звёздочка */
-    drawStar(starPoint.x, starPoint.y, CHANNEL_ID);
+    drawStar(starPoint.x, starPoint.y, SIZE);
 
     requestAnimationFrame(update);
 }
