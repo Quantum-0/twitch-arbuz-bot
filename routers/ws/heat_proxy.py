@@ -106,7 +106,7 @@ async def heat_proxy(
             received = await client_ws.receive_text()
             try:
                 if json.loads(received) == {"type": "ping"}:
-                    return {"type": "pong"}
+                    await client_ws.send_json({"type": "pong"})
             except JSONDecodeError:
                 pass
     except WebSocketDisconnect:
