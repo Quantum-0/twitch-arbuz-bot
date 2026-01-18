@@ -155,8 +155,8 @@ async def control_panel(
     request: Request,
     user: User = Security(user_auth),
 ):
-    if not user.in_beta_test:
-        return templates.TemplateResponse("beta-test.html", {"request": request})
+    # if not user.in_beta_test:
+    #     return templates.TemplateResponse("beta-test.html", {"request": request})
     return templates.TemplateResponse(
         "panel.html",
         {

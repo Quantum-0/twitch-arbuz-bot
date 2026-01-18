@@ -137,9 +137,9 @@ class ChatBot:
             if not user:
                 logger.error(f"User {channel_name} not found")
                 raise UserNotFoundInDatabase
-            if not user.in_beta_test:
-                logger.error(f"User {channel_name} not in beta test")
-                raise NotInBetaTest
+            # if not user.in_beta_test:
+            #     logger.error(f"User {channel_name} not in beta test")
+            #     raise NotInBetaTest
             yield user
 
     async def on_message(self, message: ChatMessageWebhookEventSchema):
