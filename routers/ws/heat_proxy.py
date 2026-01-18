@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+from json import JSONDecodeError
 
 import websockets
 from fastapi import APIRouter
@@ -102,7 +103,12 @@ async def heat_proxy(
     try:
         while True:
             # если клиент шлёт данные — можно игнорировать
-            await client_ws.receive_text()
+            received = await client_ws.receive_text()
+            try:
+                if json.loads(received) == {"type": "ping"}:
+                    return {"type": "pong"}
+            except JSONDecodeError:
+                pass
     except WebSocketDisconnect:
         pass
     finally:
