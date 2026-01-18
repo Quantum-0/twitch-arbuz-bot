@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+
+{% block title %}Главная — Quantum0's Bot{% endblock %}
+
+{% block styles %}
+{{ super() }}
+
+.container {
+    max-width: min(60%, 1000px);
+    width: 100%;
+}
+@media (max-width: 900px) {
+    .container { max-width: 90%; }
+}
+button {
+    background-color: #4CAF50;
+    color: white;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    display: block;
+    margin: 20px auto;
+    transition: background-color 0.3s;
+}
+button:hover { background-color: #45a049; }
+button[disabled] { opacity: 0.6; cursor: not-allowed; }
+
+.twitch-login-button {
+    display: inline-flex;
+    align-items: center;
+    background-color: #9146FF; /* Twitch Purple */
+    color: #FFFFFF;
+    font-family: 'Inter', sans-serif;
+    font-weight: 600;
+    text-decoration: none;
+    padding: 10px 20px;
+    border-radius: 4px;
+    transition: background-color 0.2s ease, transform 0.1s ease;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.twitch-login-button:hover {
+    background-color: #772CE8; /* Darker Purple for Hover */
+}
+
+.twitch-login-button:active {
+    transform: translateY(1px);
+}
+
+.twitch-icon {
+    width: 20px;
+    height: 20px;
+    margin-right: 2px;
+}
+
+{% endblock %}
+
+{% block content %}
+<h1>Главная страница</h1>
+<h2>Добро пожаловать, пользователь!</h2>
+<p>
+    Это сайтик для управления ботом, созданным <a href="https://www.twitch.tv/quantum075">Quantum0</a>.
+</p><p>
+    Здесь вы можете подключить и настроить себе бота, созданного мной.
+</p><p>
+    Бот бесплатный и не монетизируется, функционал предоставляется по принципу AS IS,
+    поэтому могут быть ошибки и проблемы, которые я исправляю по возможности, когда есть свободное время и желание.
+</p><p>
+    Бот содержит готовый функционал для чат-бота, минимально настраиваемый, но с глубоко проработанными ответами.
+</p><p>
+    Так же бот позволяет создать награду, для автоматического начисления мемкоинов в сервисе memealerts за баллы канала,
+    позволяет делать автоматические shoutout на рейды, и предлагает вам парочку интерактивных оверлеев для твича.
+</p>
+<hr>
+<p>
+    Для авторизации и настройки бота, авторизуйтесь, жмякнув сюда:
+</p>
+<a href="/login"
+   class="twitch-login-button">
+    <i class="fa fa-twitch"></i>
+    Login with Twitch
+</a>
+<p>
+    Ознакомиться с ботом подробнее, можно здесь:
+</p>
+<button onclick="location.href='/about';">О сервисе</button>
+{% endblock %}

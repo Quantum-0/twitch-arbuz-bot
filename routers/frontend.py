@@ -29,7 +29,12 @@ async def index_page(request: Request):
     if request.session.get("user_id"):
         return RedirectResponse(url="/panel")
     else:
-        return RedirectResponse(url="/login")
+        return templates.TemplateResponse(
+            "main.html",
+            {
+                "request": request,
+            }
+        )
 
 
 @router.get("/favicon.ico")
@@ -146,14 +151,14 @@ async def login():
 
 
 @router.get("/panel")
-async def main_page(
+async def control_panel(
     request: Request,
     user: User = Security(user_auth),
 ):
     if not user.in_beta_test:
         return templates.TemplateResponse("beta-test.html", {"request": request})
     return templates.TemplateResponse(
-        "index.html",
+        "panel.html",
         {
             "request": request,
             "user": user,

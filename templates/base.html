@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Quantum0's Bot{% endblock %}</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
     <style>
         :root {
             --notif-in-duration: 0.25s;
@@ -84,7 +85,7 @@
     <header>
     <h1>Quantum0's Bot</h1>
     <nav>
-        <a href="/panel" style="color: white; text-decoration: none;">Главная</a>
+        <a href="/" style="color: white; text-decoration: none;">Главная</a>
         <a href="/streamers" style="color: white; text-decoration: none;">Стримеры</a>
         {% if user and user.in_beta_test %}
         <a href="/debug" style="color: white; text-decoration: none;">Отладка</a>
