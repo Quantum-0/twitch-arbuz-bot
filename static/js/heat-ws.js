@@ -115,8 +115,9 @@
 
         const delta = Date.now() - lastMessageAt;
         if (delta > HEARTBEAT_TIMEOUT) {
-            warn("heartbeat timeout", delta);
-            forceReconnect();
+            log("idle, but keeping connection");
+            // forceReconnect();
+            lastMessageAt = Date.now()
         }
     }
 
