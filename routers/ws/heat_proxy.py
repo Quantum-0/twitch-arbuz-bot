@@ -22,7 +22,9 @@ class HeatChannel:
 
         # upstream
         self.ws_upstream = None
-        self.reader_task: asyncio.Task | None = None
+        self.runner_task: asyncio.Task | None = None
+        self.stop_event = asyncio.Event()
+        self.reconnect_attempt = 0
 
         # downstream
         self.ws_clients: set[WebSocket] = set()
@@ -33,45 +35,80 @@ class HeatChannel:
     # ---------- lifecycle ----------
 
     async def start(self):
-        if self.reader_task:
+        if self.runner_task:
             return
 
+        logger.info("Heat upstream supervisor start: %s", self.channel_id)
+
+        self.stop_event.clear()
+        self.runner_task = asyncio.create_task(self._run())
+
+    async def stop(self):
+        logger.info("Heat upstream supervisor stop: %s", self.channel_id)
+
+        self.stop_event.set()
+
+        if self.runner_task:
+            self.runner_task.cancel()
+            self.runner_task = None
+
+        await self._close_upstream()
+
+    # ---------- supervisor ----------
+
+    async def _run(self):
+        backoff_base = 1
+        backoff_max = 30
+
+        while not self.stop_event.is_set():
+            try:
+                await self._connect_upstream()
+                self.reconnect_attempt = 0
+
+                async for msg in self.ws_upstream:
+                    if isinstance(msg, bytes):
+                        msg = msg.decode("utf-8", errors="ignore")
+
+                    await self.broadcast(msg)
+
+            except asyncio.CancelledError:
+                break
+
+            except Exception:
+                logger.exception("Heat upstream crashed")
+
+            finally:
+                await self._close_upstream()
+
+            # если клиентов больше нет — не реконнектимся
+            if not self.has_clients():
+                logger.info("No clients left, stopping upstream")
+                break
+
+            self.reconnect_attempt += 1
+            delay = min(backoff_base * 2 ** self.reconnect_attempt, backoff_max)
+            logger.warning("Reconnect upstream in %ss", delay)
+
+            await asyncio.sleep(delay)
+
+    # ---------- upstream ----------
+
+    async def _connect_upstream(self):
         logger.info("Heat upstream connect: %s", self.channel_id)
 
         self.ws_upstream = await websockets.connect(
             settings.heat_url + str(self.channel_id),
-            ping_interval=300,
+            ping_interval=20,
             ping_timeout=20,
         )
 
-        self.reader_task = asyncio.create_task(self._reader())
-
-    async def stop(self):
-        logger.info("Heat upstream stop: %s", self.channel_id)
-
-        if self.reader_task:
-            self.reader_task.cancel()
-            self.reader_task = None
-
+    async def _close_upstream(self):
         if self.ws_upstream:
-            await self.ws_upstream.close()
+            try:
+                await self.ws_upstream.close()
+            except Exception:
+                pass
             self.ws_upstream = None
-
-    # ---------- upstream reader ----------
-
-    async def _reader(self):
-        try:
-            async for msg in self.ws_upstream:
-                if isinstance(msg, bytes):
-                    msg = msg.decode("utf-8", errors="ignore")
-
-                await self.broadcast(msg)
-
-        except Exception as e:
-            logger.exception("Heat upstream error")
-            await self.broadcast(json.dumps({"error": str(e)}))
-        finally:
-            await self.stop()
 
     # ---------- broadcast ----------
 
@@ -99,11 +136,14 @@ class HeatChannel:
         for q in dead_sse:
             await self.remove_sse_client(q)
 
+    def has_clients(self) -> bool:
+        return bool(self.ws_clients or self.sse_clients)
+
     # ---------- WS clients ----------
 
     async def add_ws_client(self, ws: WebSocket):
         async with self.lock:
-            if not self.ws_clients and not self.sse_clients:
+            if not self.has_clients():
                 await self.start()
 
             self.ws_clients.add(ws)
@@ -111,7 +151,7 @@ class HeatChannel:
     async def remove_ws_client(self, ws: WebSocket):
         async with self.lock:
             self.ws_clients.discard(ws)
-            if not self.ws_clients and not self.sse_clients:
+            if not self.has_clients():
                 await self.stop()
 
     # ---------- SSE clients ----------
@@ -120,7 +160,7 @@ class HeatChannel:
         q = asyncio.Queue(maxsize=10)
 
         async with self.lock:
-            if not self.ws_clients and not self.sse_clients:
+            if not self.has_clients():
                 await self.start()
 
             self.sse_clients.add(q)
@@ -130,7 +170,7 @@ class HeatChannel:
     async def remove_sse_client(self, q: asyncio.Queue[str]):
         async with self.lock:
             self.sse_clients.discard(q)
-            if not self.ws_clients and not self.sse_clients:
+            if not self.has_clients():
                 await self.stop()
 
 
