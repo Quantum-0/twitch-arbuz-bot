@@ -343,6 +343,12 @@ button[disabled] { opacity: 0.6; cursor: not-allowed; }
 
 <section>
     <h3>Оверлеи</h3>
+    <small class="overlay-copy-hint">
+    <p>Интерактивные оверлеи для стрима, обрабатывающие взаимодействия зрителей как из чата, так и клики мышкой по самому стриму, с помощью плагина <a href="https://dashboard.twitch.tv/extensions/cr20njfkgll4okyrhag7xxph270sqk-2.1.1">Heat</a>.</p>
+    <p>Для использования - обязательно установите и активируйте <a href="https://dashboard.twitch.tv/extensions/cr20njfkgll4okyrhag7xxph270sqk-2.1.1">Heat</a>.</p>
+    <p>После его активации - вы и ваши зрители увидите красную точку при наведении мыши на стрим. После этого можно добавлять любые из перечисленных ниже оверлеев.</p>
+    <p>При добавлении оверлея нужно добавить браузерный источник в OBS, указать ссылку, выставить разрешение равное вашему разрешению трансляции и установить положение оверлея полностью под размер сцены, иначе клики будут обрабатываться некорректно.</p>
+    </small>
     <div class="overlay-section">
         <p class="overlay-title">
             <a href="https://dashboard.twitch.tv/extensions/cr20njfkgll4okyrhag7xxph270sqk-2.1.1">Heat</a> оверлей с игрой угадай пару
@@ -351,6 +357,60 @@ button[disabled] { opacity: 0.6; cursor: not-allowed; }
             class="overlay-copy-input"
             type="text"
             value="https://bot.quantum0.ru/overlay/pair?channel_id={{ user.twitch_id }}"
+            readonly
+            onclick="this.select(); navigator.clipboard.writeText(this.value); showNotification('Скопировано', 'Ссылка для OBS скопирована');"
+        >
+        <small class="overlay-copy-hint">
+            Нажмите, чтобы скопировать ссылку. Для использования требуется подключить <a href="https://dashboard.twitch.tv/extensions/cr20njfkgll4okyrhag7xxph270sqk-2.1.1">Heat</a>.
+        </small>
+    </div>
+    <div class="overlay-section">
+        <p class="overlay-title">
+            <a href="https://dashboard.twitch.tv/extensions/cr20njfkgll4okyrhag7xxph270sqk-2.1.1">Интерактивный</a> оверлей с висящей звёздочкой
+        </p>
+        <input
+            class="overlay-copy-input"
+            type="text"
+            value="https://bot.quantum0.ru/overlay/star?channel_id={{ user.twitch_id }}"
+            readonly
+            onclick="this.select(); navigator.clipboard.writeText(this.value); showNotification('Скопировано', 'Ссылка для OBS скопирована');"
+        >
+        <small class="overlay-copy-hint">
+            Нажмите, чтобы скопировать ссылку. Для использования требуется подключить <a href="https://dashboard.twitch.tv/extensions/cr20njfkgll4okyrhag7xxph270sqk-2.1.1">Heat</a>.
+        </small>
+        <!--
+        <div class="overlay-control">
+            <label>
+                Позиция (pos):
+                <span id="pos-value">—</span>
+            </label>
+            <input
+                type="range"
+                min="0"
+                max="1"
+                step="0.01"
+                value=""
+                oninput="updatePos(this.value)"
+            >
+        </div>
+        <div class="overlay-control">
+            <label>Размер звезды (size):</label>
+            <div class="memealert-coins">
+                <button type="button" class="coin-btn" onclick="changeStarSize(-1)">−</button>
+                <input type="number" id="star-size" min="1" max="100" value="20" oninput="updateUrl()">
+                <button type="button" class="coin-btn" onclick="changeStarSize(1)">+</button>
+            </div>
+        </div>
+        -->
+    </div>
+    <div class="overlay-section">
+        <p class="overlay-title">
+            Моя тестовая штука, НЕ ТРОГАЙТЕ
+        </p>
+        <input
+            class="overlay-copy-input"
+            type="text"
+            value="https://bot.quantum0.ru/overlay/imggen?channel_id={{ user.twitch_id }}"
             readonly
             onclick="this.select(); navigator.clipboard.writeText(this.value); showNotification('Скопировано', 'Ссылка для OBS скопирована');"
         >

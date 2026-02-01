@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>SSE PNG Overlay</title>
+    <style>
+        html, body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background: transparent;
+        }
+
+        .sprite {
+            position: absolute;
+            width: 100px;
+            height: 100px;
+            pointer-events: none;
+
+            opacity: 1;
+            transition: opacity 2s linear;
+
+            will-change: transform, left, top, opacity;
+        }
+
+        .fade-out {
+            opacity: 0;
+        }
+    </style>
+</head>
+<body>
+
+<script>
+    const SSE_URL = "http://0.0.0.0:8000/sse/img_gen/{{ channel_id }}";
+
+    const LIFE_TIME_MS = 60_000;
+    const FADE_OUT_MS = 2_000;
+
+    let zIndexCounter = 1;
+
+    const eventSource = new EventSource(SSE_URL);
+
+    eventSource.onmessage = (event) => {
+        try {
+            let base64;
+
+            if (event.data.startsWith("{")) {
+                base64 = JSON.parse(event.data).image;
+            } else {
+                base64 = event.data;
+            }
+
+            spawnImage(base64);
+        } catch (e) {
+            console.error("SSE parse error:", e);
+        }
+    };
+
+    eventSource.onerror = (e) => {
+        console.error("SSE error:", e);
+    };
+
+    function spawnImage(base64) {
+        const img = document.createElement("img");
+        img.className = "sprite";
+        img.src = `data:image/png;base64,${base64}`;
+        img.style.zIndex = zIndexCounter++;
+
+        const maxX = window.innerWidth - 100;
+        const maxY = window.innerHeight - 100;
+
+        const x = Math.random() * maxX;
+        const y = Math.random() * maxY;
+        const rotation = random(-45, 45);
+
+        img.style.left = `${x}px`;
+        img.style.top = `${y}px`;
+        img.style.transform = `rotate(${rotation}deg)`;
+
+        document.body.appendChild(img);
+
+        // запуск fade-out
+        setTimeout(() => {
+            img.classList.add("fade-out");
+        }, LIFE_TIME_MS - FADE_OUT_MS);
+
+        // полное удаление
+        setTimeout(() => {
+            img.remove();
+        }, LIFE_TIME_MS);
+    }
+
+    function random(min, max) {
+        return Math.random() * (max - min) + min;
+    }
+</script>
+
+</body>
+</html>

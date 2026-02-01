@@ -1,15 +1,19 @@
 import asyncio
 import json
 import logging
+import random
 from json import JSONDecodeError
+from typing import Annotated
 
 import websockets
-from fastapi import WebSocket, APIRouter
+from fastapi import WebSocket, APIRouter, Depends
 from starlette.requests import Request
 from starlette.responses import StreamingResponse
 from starlette.websockets import WebSocketDisconnect
 
 from config import settings
+from dependencies import get_ai
+from services.ai import OpenAIClient
 
 logger = logging.getLogger(__name__)
 
@@ -256,6 +260,63 @@ async def heat_sse(channel_id: int, request: Request):
     )
 
 
+@router_sse.get("/img_gen/{channel_id:int}")
+async def img_gen_sse(
+    channel_id: int,
+    ai: Annotated[OpenAIClient, Depends(get_ai)],
+    request: Request,
+):
+    channel = get_channel(channel_id)
+    # queue = await channel.add_sse_client()
+
+
+    async def event_generator():
+        try:
+            # yield sse_format(json.dumps({"type": "open"}))
+
+            while True:
+                if await request.is_disconnected():
+                    break
+
+                try:
+                    # msg = await asyncio.wait_for(queue.get(), timeout=15)
+                    # yield sse_format(msg)
+                    await asyncio.sleep(7)
+                    yield sse_format(
+                        await ai.get_sticker_or_cached(
+                            prompt=random.choice(["banana", "яблоко", "лисёнок", "кексик"]),
+                            channel=123,
+                            chatter="test",
+                        )
+                    )
+                    # yield sse_format(await generate_image(random.choice(["banana", "яблоко", "лисёнок", "кексик"])))
+                    # yield sse_format("iVBORw0KGgoAAAANSUhEUgAAABgAAAAYCAYAAADgdz34AAAABHNCSVQICAgIfAhkiAAAAAlwSFlzAAAApgAAAKYB3X3/OAAAABl0RVh0U29mdHdhcmUAd3d3Lmlua3NjYXBlLm9yZ5vuPBoAAANCSURBVEiJtZZPbBtFFMZ/M7ubXdtdb1xSFyeilBapySVU8h8OoFaooFSqiihIVIpQBKci6KEg9Q6H9kovIHoCIVQJJCKE1ENFjnAgcaSGC6rEnxBwA04Tx43t2FnvDAfjkNibxgHxnWb2e/u992bee7tCa00YFsffekFY+nUzFtjW0LrvjRXrCDIAaPLlW0nHL0SsZtVoaF98mLrx3pdhOqLtYPHChahZcYYO7KvPFxvRl5XPp1sN3adWiD1ZAqD6XYK1b/dvE5IWryTt2udLFedwc1+9kLp+vbbpoDh+6TklxBeAi9TL0taeWpdmZzQDry0AcO+jQ12RyohqqoYoo8RDwJrU+qXkjWtfi8Xxt58BdQuwQs9qC/afLwCw8tnQbqYAPsgxE1S6F3EAIXux2oQFKm0ihMsOF71dHYx+f3NND68ghCu1YIoePPQN1pGRABkJ6Bus96CutRZMydTl+TvuiRW1m3n0eDl0vRPcEysqdXn+jsQPsrHMquGeXEaY4Yk4wxWcY5V/9scqOMOVUFthatyTy8QyqwZ+kDURKoMWxNKr2EeqVKcTNOajqKoBgOE28U4tdQl5p5bwCw7BWquaZSzAPlwjlithJtp3pTImSqQRrb2Z8PHGigD4RZuNX6JYj6wj7O4TFLbCO/Mn/m8R+h6rYSUb3ekokRY6f/YukArN979jcW+V/S8g0eT/N3VN3kTqWbQ428m9/8k0P/1aIhF36PccEl6EhOcAUCrXKZXXWS3XKd2vc/TRBG9O5ELC17MmWubD2nKhUKZa26Ba2+D3P+4/MNCFwg59oWVeYhkzgN/JDR8deKBoD7Y+ljEjGZ0sosXVTvbc6RHirr2reNy1OXd6pJsQ+gqjk8VWFYmHrwBzW/n+uMPFiRwHB2I7ih8ciHFxIkd/3Omk5tCDV1t+2nNu5sxxpDFNx+huNhVT3/zMDz8usXC3ddaHBj1GHj/As08fwTS7Kt1HBTmyN29vdwAw+/wbwLVOJ3uAD1wi/dUH7Qei66PfyuRj4Ik9is+hglfbkbfR3cnZm7chlUWLdwmprtCohX4HUtlOcQjLYCu+fzGJH2QRKvP3UNz8bWk1qMxjGTOMThZ3kvgLI5AzFfo379UAAAAASUVORK5CYII=")
+
+                except asyncio.TimeoutError:
+                    pass
+                    # yield ": ping\n\n"
+
+        finally:
+            pass
+            # await channel.remove_sse_client(queue)
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+
+            # 🔥 CORS
+            "Access-Control-Allow-Origin": "http://0.0.0.0:8000",
+            "Access-Control-Allow-Credentials": "true",
+        },
+    )
+
+
 router = APIRouter()
 router.include_router(router_ws)
 router.include_router(router_sse)
+
+# TODO: REFACTOR ALL THIS SHIT

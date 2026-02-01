@@ -123,6 +123,8 @@ async def handle_reward_redemption(
                 return
 
             # Логика обработки вознаграждения
+            # TODO
+            # user.memealerts.memealerts_reward == payload.subscription.reward_id
             result = await give_bonus(
                 user.memealerts.memealerts_token,
                 user.login_name,

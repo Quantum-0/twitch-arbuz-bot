@@ -199,6 +199,22 @@ class PantsDeny(Base):
     name: Mapped[str] = mapped_column(String, primary_key=True)  # in lower case
 
 
+class GeneratedImage(Base):
+    __tablename__ = "generated_image"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(True), primary_key=True, default=uuid.uuid4)
+    prompt: Mapped[str] = mapped_column(String, index=True, nullable=False)
+
+    by_chatter: Mapped[str] = mapped_column(String)
+    on_channel: Mapped[int] = mapped_column(Integer)
+
+    image: Mapped[str] = mapped_column(String)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), nullable=False
+    )
+
+
 @event.listens_for(User, "after_insert")
 def create_settings(mapper, connection, target):
     connection.execute(TwitchUserSettings.__table__.insert().values(user_id=target.id))  # noqa

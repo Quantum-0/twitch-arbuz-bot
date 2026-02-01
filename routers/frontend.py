@@ -72,6 +72,20 @@ async def overlay_star(
     )
 
 
+@router.get("/overlay/imggen")
+async def overlay_img_gen(
+    request: Request,
+    channel_id: int = Query(),
+):
+    return templates.TemplateResponse(
+        "overlays/imggen.html",
+        {
+            "request": request,
+            "channel_id": channel_id,
+        }
+    )
+
+
 @router.get("/overlay/pair")
 async def overlay_pair(
     request: Request,

@@ -47,6 +47,8 @@ class Settings(BaseSettings):
     # github_token: SecretStr
     # github_repo_owner: str = "Quantum-0"
     # github_repo_name: str
+    openai_api_key: SecretStr
+    openai_base_url: str = "https://api.aitunnel.ru/v1/"
 
     model_config = SettingsConfigDict(env_prefix="", env_file=".env")
 
