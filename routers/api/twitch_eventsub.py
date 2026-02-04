@@ -72,7 +72,7 @@ async def eventsub_handler(
     elif isinstance(payload, ChatMessageSchema):
         logger.info("Handling message webhook")
         asyncio.create_task(chat_bot.on_message(payload.event))
-        await mqtt.publish(f"twitch/{payload.subscription.broadcaster_user_id}/message", payload.event)
+        await mqtt.publish(f"twitch/{payload.subscription.condition.broadcaster_user_id}/message", payload.event)
     return Response(status_code=204)
 
 
