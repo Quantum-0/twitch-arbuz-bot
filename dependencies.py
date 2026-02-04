@@ -1,29 +1,41 @@
 from collections.abc import Generator
+from contextlib import asynccontextmanager
 
 from config import settings
-from database.database import AsyncSessionLocal
+from database.database import AsyncSessionLocal, async_engine
 from services.ai import OpenAIClient
+from services.mqtt import MQTTClient
 from twitch.chat.bot import ChatBot
 from twitch.client.twitch import Twitch
 
-singletons: dict[str, None | Twitch | ChatBot | OpenAIClient] = {"twitch": None, "chat_bot": None, "ai": None}
+singletons: dict[str, None | Twitch | ChatBot | OpenAIClient | MQTTClient] = {
+    "twitch": None,
+    "chat_bot": None,
+    "ai": None,
+    "mqtt": None,
+}
 
 
 async def get_db():
     async with AsyncSessionLocal() as session:
         yield session
 
-
-async def init_and_startup():
+@asynccontextmanager
+async def lifespan():
     singletons["twitch"] = Twitch()
     singletons["chat_bot"] = ChatBot()
     singletons["ai"] = OpenAIClient()
+    singletons["mqtt"] = MQTTClient()
     await singletons["twitch"].startup()
     await singletons["chat_bot"].startup(singletons["twitch"])
     await singletons["ai"].startup()
     if settings.update_bot_channels_on_startup:
         await singletons["chat_bot"].update_bot_channels()
 
+    async with singletons["mqtt"].lifespan():
+        yield
+
+    await async_engine.dispose()
 
 def get_twitch() -> Generator[Twitch]:
     tw: Twitch = singletons["twitch"]  # type: ignore
@@ -46,3 +58,10 @@ def get_ai() -> Generator[OpenAIClient]:
         yield ai
     else:
         raise RuntimeError("OpenAI client wasn't initialized")
+
+def get_mqtt() -> Generator[MQTTClient]:
+    mqtt: MQTTClient = singletons["mqtt"]
+    if mqtt:
+        yield mqtt
+    else:
+        raise RuntimeError("MQTT client wasn't initialized")

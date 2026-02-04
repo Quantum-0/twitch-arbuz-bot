@@ -49,6 +49,9 @@ class Settings(BaseSettings):
     # github_repo_name: str
     openai_api_key: SecretStr
     openai_base_url: str = "https://api.aitunnel.ru/v1/"
+    mqtt_host: str = "emqx.msk.quantum0.ru"
+    mqtt_username: SecretStr
+    mqtt_password: SecretStr
 
     model_config = SettingsConfigDict(env_prefix="", env_file=".env")
 

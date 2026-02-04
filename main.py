@@ -1,5 +1,4 @@
 import logging.config
-import uuid
 from contextlib import asynccontextmanager
 
 import sentry_sdk
@@ -16,8 +15,7 @@ from starlette.responses import JSONResponse, RedirectResponse, FileResponse
 from starlette.staticfiles import StaticFiles
 
 from config import settings
-from database.database import async_engine
-from dependencies import init_and_startup
+from dependencies import lifespan as lifespan_dep
 from routers.routers import api_router, user_router
 from utils.logging_conf import LOGGING_CONFIG
 
@@ -34,9 +32,8 @@ else:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    await init_and_startup()
-    yield
-    await async_engine.dispose()
+    async with lifespan_dep():
+        yield
 
 
 app = FastAPI(lifespan=lifespan)

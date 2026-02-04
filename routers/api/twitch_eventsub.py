@@ -13,7 +13,7 @@ from twitchAPI.type import TwitchResourceNotFound
 
 from database.database import AsyncSessionLocal
 from database.models import TwitchUserSettings, User
-from dependencies import get_chat_bot, get_twitch
+from dependencies import get_chat_bot, get_twitch, get_mqtt
 from routers.helpers import parse_eventsub_payload
 from routers.schemas import (
     ChatMessageSchema,
@@ -21,6 +21,7 @@ from routers.schemas import (
     RaidWebhookSchema,
     TwitchChallengeSchema,
 )
+from services.mqtt import MQTTClient
 from twitch.chat.bot import ChatBot
 from twitch.client.twitch import Twitch
 from utils.logging_conf import LOGGING_CONFIG
@@ -44,6 +45,7 @@ async def eventsub_handler(
     ],
     twitch: Annotated[Twitch, Depends(get_twitch)],
     chat_bot: Annotated[ChatBot, Depends(get_chat_bot)],
+    mqtt: Annotated[MQTTClient, Depends(get_mqtt)],
     streamer_id: int = Path(...),
 ):
     logger.info(f"Got eventsub. Type: {type(payload)}")
@@ -70,6 +72,7 @@ async def eventsub_handler(
     elif isinstance(payload, ChatMessageSchema):
         logger.info("Handling message webhook")
         asyncio.create_task(chat_bot.on_message(payload.event))
+        await mqtt.publish(f"twitch/{payload.subscription.broadcaster_user_id}/message", payload.event)
     return Response(status_code=204)
 
 
