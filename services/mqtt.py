@@ -47,15 +47,16 @@ class MQTTClient:
             return
 
         try:
+            payload: str
             if isinstance(data, str):
                 payload = json.dumps({"message": data})
             elif isinstance(data, dict):
                 payload = json.dumps(data, indent=0, ensure_ascii=False)
             elif isinstance(data, BaseModel):
-                payload = data.model_dump(mode='json')
+                payload = json.dumps(data.model_dump(mode='json'))
             else:
                 raise TypeError("Invalid type of payload: %s", type(data))
-            await self._client.publish(self._prefix + "/" + topic, payload=json.dumps(data))
+            await self._client.publish(self._prefix + "/" + topic, payload=payload)
         except MqttCodeError:
             logger.error("Cannot publish MQTT message", exc_info=True)
             return
