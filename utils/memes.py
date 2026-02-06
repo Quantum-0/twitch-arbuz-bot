@@ -23,7 +23,7 @@ async def save_all_supporters_into_db(supporters: list[Supporter]) -> None:
     data = [
         {
             "id": sup.supporter_id.root,
-            "link": sup.supporter_link,
+            "link": sup.supporter_link or sup.supporter_name,
             "name": sup.supporter_name,
         }
         for sup in unique_data
