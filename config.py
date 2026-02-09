@@ -50,8 +50,10 @@ class Settings(BaseSettings):
     openai_api_key: SecretStr
     openai_base_url: str = "https://api.aitunnel.ru/v1/"
     mqtt_host: str = "emqx.msk.quantum0.ru"
+    mqtt_client_id: str = "twitch-bot"
     mqtt_username: SecretStr
     mqtt_password: SecretStr
+    direct_handle_messages: bool = True
 
     model_config = SettingsConfigDict(env_prefix="", env_file=".env")
 

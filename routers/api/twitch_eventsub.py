@@ -11,6 +11,7 @@ from sqlalchemy.orm import selectinload
 from starlette.responses import PlainTextResponse, Response
 from twitchAPI.type import TwitchResourceNotFound
 
+from config import settings
 from database.database import AsyncSessionLocal
 from database.models import TwitchUserSettings, User
 from dependencies import get_chat_bot, get_twitch, get_mqtt
@@ -71,7 +72,8 @@ async def eventsub_handler(
         asyncio.create_task(handle_raid(payload, twitch))
     elif isinstance(payload, ChatMessageSchema):
         logger.info("Handling message webhook")
-        asyncio.create_task(chat_bot.on_message(payload.event))
+        if settings.direct_handle_messages:
+            asyncio.create_task(chat_bot.on_message(payload.event))
         await mqtt.publish(f"twitch/{payload.subscription.condition.broadcaster_user_id}/message", payload.event)
     return Response(status_code=204)
 

@@ -32,6 +32,12 @@ async def lifespan():
     if settings.update_bot_channels_on_startup:
         await singletons["chat_bot"].update_bot_channels()
 
+    if not settings.direct_handle_messages:
+        singletons["mqtt"].subscribe(
+            "twitch/+/message",
+            singletons["chat_bot"].on_message,
+        )
+
     async with singletons["mqtt"].lifespan():
         yield
 

@@ -1,8 +1,9 @@
 import asyncio
 import json
 import logging
+from collections.abc import Callable
 from contextlib import asynccontextmanager
-from typing import Any
+from typing import Any, Awaitable
 
 from aiomqtt import Client, MqttError, MqttCodeError
 from pydantic import BaseModel
@@ -15,11 +16,13 @@ logger = logging.getLogger(__name__)
 class MQTTClient:
     def __init__(self):
         self._client: Client | None = None
-        self._client_id = "twitch-bot"
+        self._client_id = settings.mqtt_client_id
         self._host = settings.mqtt_host
         self._username = settings.mqtt_username.get_secret_value()
         self._password = settings.mqtt_password.get_secret_value()
         self._prefix = "twibot"
+
+        self._handlers: list[tuple[str, Callable[..., Awaitable[None]]]] = []
 
     @asynccontextmanager
     async def lifespan(self):
@@ -62,7 +65,49 @@ class MQTTClient:
             return
 
     @staticmethod
-    async def __listen(client):
+    def match_topic(pattern: str, topic: str) -> dict[str, str] | None:
+        p_parts = pattern.split("/")
+        t_parts = topic.split("/")
+
+        if len(p_parts) != len(t_parts):
+            return None
+
+        params = {}
+
+        for i, (p, t) in enumerate(zip(p_parts, t_parts)):
+            if p == "+":
+                params[str(i)] = t
+            elif p != t:
+                return None
+
+        return params
+    def subscribe(
+        self,
+        topic: str,
+        handler: Callable[[dict[str, Any]], Awaitable[None]],
+    ):
+        logger.info("Subscribed to topic `%s` with handler `%s`", topic, handler)
+        self._handlers.append((topic, handler))
+
+    async def __listen(self, client: Client):
         async for message in client.messages:
-            pass
-            # print(message.payload)
+            try:
+                topic = message.topic.value
+                payload = json.loads(message.payload.decode())
+
+                if not topic.startswith(self._prefix + "/"):
+                    continue
+
+                short_topic = topic[len(self._prefix) + 1:]
+
+                for pattern, handler in self._handlers:
+                    params = self.match_topic(pattern, short_topic)
+                    if params is not None:
+                        asyncio.create_task(
+                            handler(
+                                payload
+                            )
+                        )
+
+            except Exception:
+                logger.exception("Failed to handle MQTT message", exc_info=True)
