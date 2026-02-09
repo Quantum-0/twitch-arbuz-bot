@@ -5,14 +5,16 @@ from config import settings
 from database.database import AsyncSessionLocal, async_engine
 from services.ai import OpenAIClient
 from services.mqtt import MQTTClient
+from services.sse_manager import SSEManager
 from twitch.chat.bot import ChatBot
 from twitch.client.twitch import Twitch
 
-singletons: dict[str, None | Twitch | ChatBot | OpenAIClient | MQTTClient] = {
+singletons: dict[str, None | Twitch | ChatBot | OpenAIClient | MQTTClient | SSEManager] = {
     "twitch": None,
     "chat_bot": None,
     "ai": None,
     "mqtt": None,
+    "ssem": None,
 }
 
 
@@ -26,6 +28,7 @@ async def lifespan():
     singletons["chat_bot"] = ChatBot()
     singletons["ai"] = OpenAIClient()
     singletons["mqtt"] = MQTTClient()
+    singletons["ssem"] = SSEManager()
     await singletons["twitch"].startup()
     await singletons["chat_bot"].startup(singletons["twitch"])
     await singletons["ai"].startup()
@@ -71,3 +74,10 @@ def get_mqtt() -> Generator[MQTTClient]:
         yield mqtt
     else:
         raise RuntimeError("MQTT client wasn't initialized")
+
+def get_sse_manager() -> Generator[SSEManager]:
+    ssem: SSEManager = singletons["ssem"]
+    if ssem:
+        yield ssem
+    else:
+        raise RuntimeError("SSE Manager was not initialized")

@@ -167,6 +167,10 @@ class TwitchUserSettings(Base):
         String, default=None, nullable=True
     )
 
+    ai_sticker_reward_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), nullable=True, default=None
+    )
+
     user: Mapped["User"] = relationship("User", back_populates="settings")
 
 

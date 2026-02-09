@@ -14,7 +14,7 @@ from twitchAPI.type import TwitchResourceNotFound
 from config import settings
 from database.database import AsyncSessionLocal
 from database.models import TwitchUserSettings, User
-from dependencies import get_chat_bot, get_twitch, get_mqtt
+from dependencies import get_chat_bot, get_twitch, get_mqtt, get_ai, get_sse_manager
 from routers.helpers import parse_eventsub_payload
 from routers.schemas import (
     ChatMessageSchema,
@@ -22,9 +22,12 @@ from routers.schemas import (
     RaidWebhookSchema,
     TwitchChallengeSchema,
 )
+from services.ai import OpenAIClient
 from services.mqtt import MQTTClient
+from services.sse_manager import SSEManager
 from twitch.chat.bot import ChatBot
 from twitch.client.twitch import Twitch
+from utils.enums import SSEChannel
 from utils.logging_conf import LOGGING_CONFIG
 from utils.memes import give_bonus
 
@@ -57,19 +60,15 @@ async def eventsub_handler(
 
     # Мгновенно возвращаем 204, а обработку делаем в фоне
     if isinstance(payload, PointRewardRedemptionWebhookSchema):
-        # Отброс дубликатов
-        if payload.event.redemption_id in local_duplicates_cache:
-            logger.warning(
-                f"Duplicated eventsub with redemption={payload.event.redemption_id}"
-            )
-            return Response(status_code=204)
         logger.info("Handling reward redemption")
+        await mqtt.publish(f"twitch/{payload.subscription.condition.broadcaster_user_id}/reward-redemption", payload.event)
         asyncio.create_task(
             handle_reward_redemption(payload, streamer_id, twitch, chat_bot)
         )
     elif isinstance(payload, RaidWebhookSchema):
         logger.info("Handling raid")
         asyncio.create_task(handle_raid(payload, twitch))
+        await mqtt.publish(f"twitch/{payload.subscription.condition.broadcaster_user_id}/raid", payload.event)
     elif isinstance(payload, ChatMessageSchema):
         logger.info("Handling message webhook")
         if settings.direct_handle_messages:
@@ -114,58 +113,106 @@ async def handle_reward_redemption(
     chat_bot: ChatBot,
 ):
     async with AsyncSessionLocal() as db:
-        try:
-            result = await db.execute(
-                sa.select(User)
-                .options(selectinload(User.memealerts))
-                .filter_by(login_name=payload.event.broadcaster_user_login)
+        result = await db.execute(
+            sa.select(User)
+            .options(selectinload(User.memealerts))
+            .filter_by(login_name=payload.event.broadcaster_user_login)
+        )
+        user = result.scalar_one_or_none()
+        if user is None:
+            logger.error(
+                f"User not found for login: {payload.event.broadcaster_user_login}"
             )
-            user = result.scalar_one_or_none()
-            if user is None:
-                logger.error(
-                    f"User not found for login: {payload.event.broadcaster_user_login}"
-                )
-                return
+            return
 
-            # Логика обработки вознаграждения
-            # TODO
-            # user.memealerts.memealerts_reward == payload.subscription.reward_id
-            result = await give_bonus(
-                user.memealerts.memealerts_token,
-                user.login_name,
-                supporter=payload.event.user_input,
-                amount=user.memealerts.coins_for_reward,
-            )
+        # Логика обработки вознаграждения
+        if user.memealerts.memealerts_reward == payload.subscription.reward_id:
+            await reward_buy_memealerts(user=user, payload=payload, twitch=twitch, chat_bot=chat_bot)
+        elif user.settings.ai_sticker_reward_id == payload.subscription.reward_id:
+            # TODO: доп табличка где будет токен и всякое такое, чтоб могли себе тож настроить
+            await reward_ai_sticker(user=user, payload=payload)
 
-            if result:
-                await chat_bot.send_message(user, "Мемкоины начислены :з")
-                try:
-                    await twitch.fulfill_redemption(
-                        user,
-                        payload.subscription.condition.reward_id,
-                        payload.event.redemption_id,
-                    )
-                except TwitchResourceNotFound:
-                    logger.error("Cannot find redemption to fulfill", exc_info=True)
-            else:
-                await chat_bot.send_message(
+async def reward_ai_sticker(
+    user: User,
+    payload: PointRewardRedemptionWebhookSchema,
+):
+    # TODO: пока только для себя разрешаю:
+    if user.login_name != "quantum075":
+        return
+
+    if payload.event.user_input.strip() == "":
+        return
+
+    ai: OpenAIClient
+    ssem: SSEManager
+    async with get_ai() as ai, get_sse_manager() as ssem:
+        if not ssem.has_clients(user.twitch_id, SSEChannel.AI_STICKER):
+            logger.warning("No user connected to SSE")
+            return
+        image = await ai.get_sticker_or_cached(
+            prompt=payload.event.user_input,
+            chatter=payload.event.user_login,
+            channel=user.twitch_id,
+        )
+        await ssem.broadcast(user.twitch_id, SSEChannel.AI_STICKER, image)
+
+
+
+async def reward_buy_memealerts(
+    payload: PointRewardRedemptionWebhookSchema,
+    user: User,
+    twitch: Twitch,
+    chat_bot: ChatBot,
+):
+    try:
+        result = await give_bonus(
+            user.memealerts.memealerts_token,
+            user.login_name,
+            supporter=payload.event.user_input,
+            amount=user.memealerts.coins_for_reward,
+        )
+
+        if result:
+            await chat_bot.send_message(user, "Мемкоины начислены :з")
+            try:
+                await twitch.fulfill_redemption(
                     user,
-                    "Ошибка начисления >.< Баллы возвращены 👀. Проверьте имя пользователя на мемалёрте!",
+                    payload.subscription.condition.reward_id,
+                    payload.event.redemption_id,
                 )
-                try:
-                    await twitch.cancel_redemption(
-                        user,
-                        payload.subscription.condition.reward_id,
-                        payload.event.redemption_id,
-                    )
-                except TwitchResourceNotFound:
-                    logger.error("Cannot find redemption to cancel", exc_info=True)
-
-        except MATokenExpiredError:
-            logger.error("MA Token expired")
+            except TwitchResourceNotFound:
+                logger.error("Cannot find redemption to fulfill", exc_info=True)
+        else:
             await chat_bot.send_message(
                 user,
-                f"Ошибка начисления мемкоинов. @{user.login_name}, истёк срок действия токена. Пожалуйста, обновите токен в панели управления ботом.",
+                "Ошибка начисления >.< Баллы возвращены 👀. Проверьте имя пользователя на мемалёрте!",
+            )
+            try:
+                await twitch.cancel_redemption(
+                    user,
+                    payload.subscription.condition.reward_id,
+                    payload.event.redemption_id,
+                )
+            except TwitchResourceNotFound:
+                logger.error("Cannot find redemption to cancel", exc_info=True)
+
+    except MATokenExpiredError:
+        logger.error("MA Token expired")
+        await chat_bot.send_message(
+            user,
+            f"Ошибка начисления мемкоинов. @{user.login_name}, истёк срок действия токена. Пожалуйста, обновите токен в панели управления ботом.",
+        )
+        await twitch.cancel_redemption(
+            user,
+            payload.subscription.condition.reward_id,
+            payload.event.redemption_id,
+        )
+    except Exception:
+        logger.error("Error handling redemption", exc_info=True)
+        try:
+            await chat_bot.send_message(
+                user,
+                "Непредвиденная ошибка начисления мемкоинов! О.О Баллы возвращены!",
             )
             await twitch.cancel_redemption(
                 user,
@@ -173,22 +220,10 @@ async def handle_reward_redemption(
                 payload.event.redemption_id,
             )
         except Exception:
-            logger.error("Error handling redemption", exc_info=True)
-            try:
-                await chat_bot.send_message(
-                    user,
-                    "Непредвиденная ошибка начисления мемкоинов! О.О Баллы возвращены!",
-                )
-                await twitch.cancel_redemption(
-                    user,
-                    payload.subscription.condition.reward_id,
-                    payload.event.redemption_id,
-                )
-            except Exception:
-                logger.exception(
-                    "Failed to send error message or cancel redemption", exc_info=True
-                )
+            logger.exception(
+                "Failed to send error message or cancel redemption", exc_info=True
+            )
 
-        finally:
-            # Кешируем, чтобы не дублировать
-            local_duplicates_cache.append(payload.event.redemption_id)
+    finally:
+        # Кешируем, чтобы не дублировать
+        local_duplicates_cache.append(payload.event.redemption_id)

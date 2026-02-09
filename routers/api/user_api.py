@@ -151,3 +151,48 @@ async def setup_memealert(
         await db.commit()
         await db.refresh(user.memealerts)
         return JSONResponse({"title": "Успешно", "message": "Награда удалена."}, 200)
+
+
+@router.post("/setup-ai-stickers")
+async def setup_ai_stickers(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    twitch: Annotated[Twitch, Depends(get_twitch)],
+    user: Any = Security(user_auth),
+    enable: bool = Query(default=True),
+):
+    reward_id = user.settings.ai_sticker_reward_id
+
+    if enable:
+        try:
+            reward = await twitch.create_reward(
+                user,
+                "AI Sticker",
+                5000,
+                "Введи описание, по которому будет сгенерирован стикер и налеплен стримеру на экран :з",
+                is_user_input_required=True,
+            )
+        except TwitchAPIException as exc:
+            if "CREATE_CUSTOM_REWARD_DUPLICATE_REWARD" in str(exc):
+                return JSONResponse(
+                    {"title": "Ошибка", "message": "Награда уже существует."}, 400
+                )
+            if "CREATE_CUSTOM_REWARD_TOO_MANY_REWARDS" in str(exc):
+                return JSONResponse(
+                    {"title": "Ошибка", "message": "Слишком много наград на канале."},
+                    400,
+                )
+
+        user.settings.ai_sticker_reward_id = reward.id
+        await db.commit()
+        await db.refresh(user.settings)
+        await twitch.subscribe_reward(user, reward.id)
+        return JSONResponse({"title": "Успешно", "message": "Награда создана."}, 201)
+    else:
+        try:
+            await twitch.delete_reward(user, reward_id)
+        except TwitchResourceNotFound:
+            pass
+        user.settings.ai_sticker_reward_id = None
+        await db.commit()
+        await db.refresh(user.memealerts)
+        return JSONResponse({"title": "Успешно", "message": "Награда удалена."}, 200)

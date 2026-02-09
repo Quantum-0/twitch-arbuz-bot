@@ -72,7 +72,7 @@ async def overlay_star(
     )
 
 
-@router.get("/overlay/imggen")
+@router.get("/overlay/ai-sticker")
 async def overlay_img_gen(
     request: Request,
     channel_id: int = Query(),

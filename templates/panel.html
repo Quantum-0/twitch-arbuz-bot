@@ -415,6 +415,7 @@ button[disabled] { opacity: 0.6; cursor: not-allowed; }
         </div>
         -->
     </div>
+    {% if user and user.login_name == "quantum075" %}
     <div class="overlay-section">
         <p class="overlay-title">
             Моя тестовая штука, НЕ ТРОГАЙТЕ
@@ -422,14 +423,16 @@ button[disabled] { opacity: 0.6; cursor: not-allowed; }
         <input
             class="overlay-copy-input"
             type="text"
-            value="https://bot.quantum0.ru/overlay/imggen?channel_id={{ user.twitch_id }}"
+            value="https://bot.quantum0.ru/overlay/ai-sticker?channel_id={{ user.twitch_id }}"
             readonly
             onclick="this.select(); navigator.clipboard.writeText(this.value); showNotification('Скопировано', 'Ссылка для OBS скопирована');"
         >
         <small class="overlay-copy-hint">
             Нажмите, чтобы скопировать ссылку. Для использования требуется подключить <a href="https://dashboard.twitch.tv/extensions/cr20njfkgll4okyrhag7xxph270sqk-2.1.1">Heat</a>.
         </small>
+        <button id="setup-ai-sticker-btn" onclick="setupAiStickerReward()">Установить</button>
     </div>
+    {% endif %}
 </section>
 
 <div class="notification-container"></div>
@@ -463,6 +466,16 @@ button[disabled] { opacity: 0.6; cursor: not-allowed; }
             div.style.animation = 'fadeOutDown var(--notif-out-duration) forwards';
             setTimeout(() => div.remove(), 250);
         }, 4000);
+    }
+
+    function setupAiStickerReward(enabled) {
+        fetch('/api/user/setup-ai-stickers', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+        })
+        .then(res => res.json().then(data => ({ ok: res.ok, data })))
+        .then(({ok, data}) => showNotification(data.title || 'Настройки', data.message, !ok))
+        .catch(err => showNotification('Ошибка', err.message, true));
     }
 
     function toggleSetting(name, enabled) {
