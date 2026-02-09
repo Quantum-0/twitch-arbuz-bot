@@ -20,6 +20,9 @@ async def sse(
 ):
     conn = await ssem.connect(user_id, channel)
 
+    def sse_format(data: str) -> str:
+        return "".join(f"data: {line}\n" for line in data.splitlines()) + "\n"
+
     async def event_generator() -> AsyncGenerator[str, None]:
         try:
             while True:
@@ -27,7 +30,7 @@ async def sse(
                     break
 
                 data = await conn.queue.get()
-                yield data
+                yield sse_format(data)
         finally:
             await ssem.disconnect(user_id, channel, conn)
 

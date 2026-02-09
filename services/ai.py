@@ -1,3 +1,5 @@
+import logging
+
 from openai import AsyncOpenAI
 
 from config import settings
@@ -5,6 +7,8 @@ import sqlalchemy as sa
 
 from database.database import AsyncSessionLocal
 from database.models import GeneratedImage
+
+logger = logging.getLogger(__name__)
 
 
 class OpenAIClient:
@@ -22,6 +26,7 @@ class OpenAIClient:
             q = sa.select(GeneratedImage).where(GeneratedImage.prompt == prompt).limit(1)
             cached = (await session.execute(q)).scalar_one_or_none()
             if cached:
+                logger.info("Get cached image")
                 return cached.image
 
         image = await self.generate_sticker(prompt)
@@ -40,6 +45,7 @@ class OpenAIClient:
         return image
 
     async def generate_sticker(self, prompt: str) -> str:
+        logger.info("Start generating image")
         result = await self._client.images.generate(
             model="gpt-image-1-mini",
             prompt=f"Image of drawn `{prompt}` with transparent background",
