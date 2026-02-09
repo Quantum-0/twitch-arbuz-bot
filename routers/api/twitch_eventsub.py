@@ -116,6 +116,7 @@ async def handle_reward_redemption(
         result = await db.execute(
             sa.select(User)
             .options(selectinload(User.memealerts))
+            .options(selectinload(User.settings))
             .filter_by(login_name=payload.event.broadcaster_user_login)
         )
         user = result.scalar_one_or_none()
