@@ -146,7 +146,7 @@ async def reward_ai_sticker(
 
     ai: OpenAIClient
     ssem: SSEManager
-    async with get_ai() as ai, get_sse_manager() as ssem:
+    with get_ai() as ai, get_sse_manager() as ssem:
         if not ssem.has_clients(user.twitch_id, SSEChannel.AI_STICKER):
             logger.warning("No user connected to SSE")
             return
