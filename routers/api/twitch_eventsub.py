@@ -144,18 +144,18 @@ async def reward_ai_sticker(
     if payload.event.user_input.strip() == "":
         return
 
-    ai: OpenAIClient
-    ssem: SSEManager
-    with get_ai() as ai, get_sse_manager() as ssem:
-        if not ssem.has_clients(user.twitch_id, SSEChannel.AI_STICKER):
-            logger.warning("No user connected to SSE")
-            return
-        image = await ai.get_sticker_or_cached(
-            prompt=payload.event.user_input,
-            chatter=payload.event.user_login,
-            channel=user.twitch_id,
-        )
-        await ssem.broadcast(user.twitch_id, SSEChannel.AI_STICKER, image)
+    ai: OpenAIClient = get_ai()
+    ssem: SSEManager = get_sse_manager()
+
+    if not ssem.has_clients(user.twitch_id, SSEChannel.AI_STICKER):
+        logger.warning("No user connected to SSE")
+        return
+    image = await ai.get_sticker_or_cached(
+        prompt=payload.event.user_input,
+        chatter=payload.event.user_login,
+        channel=user.twitch_id,
+    )
+    await ssem.broadcast(user.twitch_id, SSEChannel.AI_STICKER, image)
 
 
 

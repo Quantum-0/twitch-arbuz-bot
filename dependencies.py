@@ -61,15 +61,11 @@ def get_chat_bot() -> Generator[ChatBot]:
     else:
         raise RuntimeError("ChatBot wasn't initialized")
 
-@contextmanager
 def get_ai():
     ai = singletons.get("ai")
     if not ai:
         raise RuntimeError("OpenAI client wasn't initialized")
-    try:
-        yield ai
-    finally:
-        pass
+    return ai
 
 def get_mqtt() -> Generator[MQTTClient]:
     mqtt: MQTTClient = singletons["mqtt"]
@@ -78,12 +74,8 @@ def get_mqtt() -> Generator[MQTTClient]:
     else:
         raise RuntimeError("MQTT client wasn't initialized")
 
-@contextmanager
 def get_sse_manager():
     ssem = singletons.get("ssem")
     if not ssem:
         raise RuntimeError("SSE Manager wasn't initialized")
-    try:
-        yield ssem
-    finally:
-        pass
+    return ssem
