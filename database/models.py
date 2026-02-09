@@ -93,10 +93,17 @@ class TwitchUserSettings(Base):
         Boolean, default=False, server_default=false(), nullable=False
     )
 
+    enable_pasta: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default=false(), nullable=False
+    )
+
     enable_bite: Mapped[bool] = mapped_column(
         Boolean, default=False, server_default=false(), nullable=False
     )
     enable_lick: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default=false(), nullable=False
+    )
+    enable_feed: Mapped[bool] = mapped_column(
         Boolean, default=False, server_default=false(), nullable=False
     )
     enable_boop: Mapped[bool] = mapped_column(
@@ -113,6 +120,9 @@ class TwitchUserSettings(Base):
     )
 
     enable_banana: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default=false(), nullable=False
+    )
+    enable_treat: Mapped[bool] = mapped_column(
         Boolean, default=False, server_default=false(), nullable=False
     )
     enable_dice: Mapped[bool] = mapped_column(
@@ -151,6 +161,10 @@ class TwitchUserSettings(Base):
 
     enable_shoutout_on_raid: Mapped[bool] = mapped_column(
         Boolean, default=False, server_default=false(), nullable=False
+    )
+
+    personal_pasta: Mapped[str] = mapped_column(
+        String, default=None, nullable=True
     )
 
     user: Mapped["User"] = relationship("User", back_populates="settings")
@@ -219,3 +233,14 @@ class GeneratedImage(Base):
 def create_settings(mapper, connection, target):
     connection.execute(TwitchUserSettings.__table__.insert().values(user_id=target.id))  # noqa
     connection.execute(MemealertsSettings.__table__.insert().values(user_id=target.id))  # noqa
+
+
+class RaidPasta(Base):
+    __tablename__ = "twitch_pasta"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(True), primary_key=True, default=uuid.uuid4)
+    text: Mapped[str] = mapped_column(String, nullable=False)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), nullable=False
+    )

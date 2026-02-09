@@ -279,6 +279,18 @@ button[disabled] { opacity: 0.6; cursor: not-allowed; }
             <span>Включить !якто</span>
             <div class="toggle-switch {% if settings.enable_whoami %}active{% endif %}" data-name="enable_whoami"></div>
         </div>
+        <div class="toggle-label {% if not settings.enable_chat_bot %}disabled{% endif %}">
+            <span>Включить !вкусняшка</span>
+            <div class="toggle-switch {% if settings.enable_treat %}active{% endif %}" data-name="enable_treat"></div>
+        </div>
+        <div class="toggle-label {% if not settings.enable_chat_bot %}disabled{% endif %}">
+            <span>Включить !покормить</span>
+            <div class="toggle-switch {% if settings.enable_feed %}active{% endif %}" data-name="enable_feed"></div>
+        </div>
+        <div class="toggle-label {% if not settings.enable_chat_bot %}disabled{% endif %}">
+            <span>Включить !паста</span>
+            <div class="toggle-switch {% if settings.enable_pasta %}active{% endif %}" data-name="enable_pasta"></div>
+        </div>
         <!--
         <div class="toggle-label {% if not settings.enable_chat_bot %}disabled{% endif %}">
             <span>Включить !бунд</span>

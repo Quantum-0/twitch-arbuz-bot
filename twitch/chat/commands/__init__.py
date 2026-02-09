@@ -11,9 +11,12 @@ from .hug import HugCommand
 from .lick import LickCommand
 from .lurk import LurkCommand
 from .pants import PantsCommand
+from .pasta import PastaCommand
 from .pat import PatCommand
 from .tail import TailCommand
 from .whoami import WhoAmICommand
+from .feed import FeedCommand
+from .treat import TreatCommand
 
 __all__ = [
     "BananaCommand",
@@ -23,13 +26,16 @@ __all__ = [
     "BushCommand",
     "CmdlistCommand",
     "DiceCommand",
+    "FeedCommand",
     "HornyGoodCommand",
     "HornyBadCommand",
     "HugCommand",
     "LickCommand",
     "LurkCommand",
     "PantsCommand",
+    "PastaCommand",
     "PatCommand",
     "TailCommand",
+    "TreatCommand",
     "WhoAmICommand",
 ]
