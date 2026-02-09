@@ -4,7 +4,6 @@ from database.models import TwitchUserSettings, User
 from twitch.chat.base.target_command import SimpleTargetCommand
 from twitch.utils import join_targets, delay_to_seconds
 
-
 class LickCommand(SimpleTargetCommand):
     command_name = "lick"
     command_aliases = ["lick", "лизь", "лизнуть", "облизать"]
@@ -30,14 +29,21 @@ class LickCommand(SimpleTargetCommand):
 
         random_variants = [
             f"@{user} медленно и {random.choice(['нежно', 'озорно', 'игриво'])} облизывает {target}",
-            # f"@{user} проводит языком по щёчке {target}",
-            # f"@{user} облизывает ухо {target} и довольно мурчит",
+            f"@{user} проводит языком по щёчке {target}",
+            f"@{user} облизывает ухо {target} и довольно хихикает",
             f"@{user} облизывает ухо {target}",
             f"@{user} вылизывает всё лицо {target} целиком",
             f"@{user} вылизывает всё лицо {target}",
-            # f"@{user} тычется своим тёплым языком в нос {target}",
+            f"@{user} тычется своим языком в нос {target}",
             f"@{user} лижет в нос {target}",
             f"@{user} пытается лизнуть {target}, но {target} успешно уворачива{'е' if len(targets) == 1 else 'ю'}тся от нападения языком!",
+            f"@{user} облизывает {target} с ног до головы, словно большой леденец!",
+            f"@{user} оставляет на {target} свой мокрый \"автограф\".",
+            f"@{user} лижет {target}, проверяя на вкус... Хм, интересно!",
+            f"@{user} проводит дегустацию вкусовых качеств {target}. Результат: {random.choice(['необычно', 'любопытно', 'аппетитно', 'вкусно', 'вполне сносно'])}!",
+            f"@{user} пробует {target} на вкус. Кажется, это вкус победы!",
+            f"@{user} лижет {target} так, что аж мурашки по коже!",
+            f"@{user} не удерживается и лижет {target}",
         ]
         return random.choice(random_variants)
 
