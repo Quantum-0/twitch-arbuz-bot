@@ -153,9 +153,9 @@ async def reward_ai_sticker(
     image = await ai.get_sticker_or_cached(
         prompt=payload.event.user_input,
         chatter=payload.event.user_login,
-        channel=user.twitch_id,
+        channel=int(user.twitch_id),
     )
-    await ssem.broadcast(user.twitch_id, SSEChannel.AI_STICKER, image)
+    await ssem.broadcast(int(user.twitch_id), SSEChannel.AI_STICKER, image)
 
 
 
