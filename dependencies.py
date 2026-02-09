@@ -1,5 +1,5 @@
 from collections.abc import Generator
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, contextmanager
 
 from config import settings
 from database.database import AsyncSessionLocal, async_engine
@@ -61,12 +61,15 @@ def get_chat_bot() -> Generator[ChatBot]:
     else:
         raise RuntimeError("ChatBot wasn't initialized")
 
-def get_ai() -> Generator[OpenAIClient]:
-    ai: OpenAIClient = singletons["ai"]
-    if ai:
-        yield ai
-    else:
+@contextmanager
+def get_ai():
+    ai = singletons.get("ai")
+    if not ai:
         raise RuntimeError("OpenAI client wasn't initialized")
+    try:
+        yield ai
+    finally:
+        pass
 
 def get_mqtt() -> Generator[MQTTClient]:
     mqtt: MQTTClient = singletons["mqtt"]
@@ -75,9 +78,12 @@ def get_mqtt() -> Generator[MQTTClient]:
     else:
         raise RuntimeError("MQTT client wasn't initialized")
 
-def get_sse_manager() -> Generator[SSEManager]:
-    ssem: SSEManager = singletons["ssem"]
-    if ssem:
+@contextmanager
+def get_sse_manager():
+    ssem = singletons.get("ssem")
+    if not ssem:
+        raise RuntimeError("SSE Manager wasn't initialized")
+    try:
         yield ssem
-    else:
-        raise RuntimeError("SSE Manager was not initialized")
+    finally:
+        pass
