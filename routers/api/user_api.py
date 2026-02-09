@@ -26,14 +26,6 @@ async def update_settings(
     twitch: Annotated[Twitch, Depends(get_twitch)],
     user: Any = Security(user_auth),
 ):
-    # user.settings: TwitchUserSettings
-    # if data.enable_bite is not None:
-    #     user.settings.enable_bite = data.enable_bite
-    # if data.enable_lick is not None:
-    #     user.settings.enable_lick = data.enable_lick
-    # if data.enable_boop is not None:
-    #     user.settings.enable_boop = data.enable_boop
-
     for field in data.model_fields_set:
         value = getattr(data, field)
         if value is not None:
