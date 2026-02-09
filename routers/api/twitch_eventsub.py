@@ -126,12 +126,12 @@ async def handle_reward_redemption(
             )
             return
 
-        # Логика обработки вознаграждения
-        if user.memealerts.memealerts_reward == payload.subscription.condition.reward_id:
-            await reward_buy_memealerts(user=user, payload=payload, twitch=twitch, chat_bot=chat_bot)
-        elif user.settings.ai_sticker_reward_id == payload.subscription.condition.reward_id:
-            # TODO: доп табличка где будет токен и всякое такое, чтоб могли себе тож настроить
-            await reward_ai_sticker(user=user, payload=payload)
+    # Логика обработки вознаграждения
+    if user.memealerts.memealerts_reward == payload.subscription.condition.reward_id:
+        await reward_buy_memealerts(user=user, payload=payload, twitch=twitch, chat_bot=chat_bot)
+    elif user.settings.ai_sticker_reward_id == payload.subscription.condition.reward_id:
+        # TODO: доп табличка где будет токен и всякое такое, чтоб могли себе тож настроить
+        await reward_ai_sticker(user=user, payload=payload)
 
 async def reward_ai_sticker(
     user: User,
