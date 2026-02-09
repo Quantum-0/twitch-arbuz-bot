@@ -27,6 +27,16 @@ jobs:
       - name: Ruff check
         uses: astral-sh/ruff-action@v3
 
+      - name: Run tests
+        uses: pavelzw/pytest-action@v2
+        with:
+          verbose: true
+          emoji: true
+          job-summary: true
+          custom-arguments: '-q'
+          click-to-expand: true
+          report-title: 'Test Report'
+
 #      - name: Run tests
 #        run: |
 #          pytest
