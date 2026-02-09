@@ -142,7 +142,12 @@ class ChatBot:
             #     raise NotInBetaTest
             yield user
 
-    async def on_message(self, message: ChatMessageWebhookEventSchema):
+    async def on_message(self, raw_message: ChatMessageWebhookEventSchema | dict[str, Any]):
+        if isinstance(raw_message, dict):
+            message = ChatMessageWebhookEventSchema.model_validate(raw_message)
+        else:
+            message = raw_message
+
         channel = message.broadcaster_user_login
 
         logger.debug(f"Got message `{message.message.text}` from channel `{channel}`")
