@@ -311,10 +311,10 @@ class HelloHandler(CommonMessagesHandler):
     ) -> HandlerResult:
         if message.reply and message.reply.parent_user_name == "quantum075bot":
             message.message.text = "@quantum075bot " + message.message.text
-        if "@quantum075bot" in message.message.text.lower() and any(
+        if any(
             hello_word in message.message.text.lower()
             for hello_word in {"привет", "дарова", "здравствуй", "кваствуй", "здорова"}
-        ):
+        ) and ("@quantum075bot" in message.message.text.lower() or ("всем" in message.message.text.lower() and random.random() < 0.25)):
             replies = [
                 f"@{message.chatter_user_name}, и тебе привет!",
                 f"@{message.chatter_user_name}, здравствуй-здравствуй!",
