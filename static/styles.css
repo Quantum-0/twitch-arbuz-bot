@@ -1,0 +1,531 @@
+/* Notification in right bottom corner */
+
+:root {
+    --notif-in-duration: 0.25s;
+    --notif-out-duration: 0.25s;
+    --notif-ttl: 4000ms;
+}
+.notification-container { position: fixed; bottom: 20px; right: 20px; z-index: 9999; }
+.notification {
+    padding: 0;
+    margin-top: 10px;
+    border-radius: 5px;
+    background: #fff;
+    border: 2px solid #4CAF50;
+    color: #333;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    opacity: 0;
+    transform: translateY(10px);
+    animation: fadeInUp var(--notif-in-duration) forwards;
+    overflow: hidden;
+}
+.notification.error { border-color: #e53935; }
+.notification-header { background: #d9f2d9; padding: 5px 10px; font-weight: bold; font-size: 14px; }
+.notification-body { padding: 10px; font-size: 14px; }
+@keyframes fadeInUp { to { opacity: 1; transform: translateY(0); } }
+@keyframes fadeOutDown { to { opacity: 0; transform: translateY(10px); } }
+
+/* Base page styles */
+
+body {
+    font-family: Arial, sans-serif;
+    margin: 0;
+    padding: 0;
+    background-color: #f4f4f4;
+    background-image: url("https://quantum-0.github.io/images/bg_leaves.png"),
+                      url("https://quantum-0.github.io/images/bg_leaves_mirror.png"),
+                      url("https://quantum-0.github.io/images/bg_leaves_dark2.png"),
+                      url("https://quantum-0.github.io/images/bg_leaves_dark_mirror2.png");
+    background-position: left top, right top, left top, right top;
+    background-repeat: repeat-y, repeat-y, repeat-y, repeat-y;
+    background-size: 75px, 60px, 120px, 110px;
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+}
+html, body {
+    height: 100%;
+}
+header {
+    background-color: #4CAF50;
+    color: white;
+    padding: 5px 20px;
+    display: flex;
+    align-items: center;
+}
+header h1 { flex: 1; margin: 0; font-size: 24px; }
+header nav {
+    display: flex;
+    gap: 15px;
+    align-items: center;
+    justify-content: center;
+}
+header nav a:hover {
+    text-decoration: underline;
+}
+.container {
+    padding: 20px;
+    padding-left: 120px;
+    padding-right: 120px;
+    max-width: 1400px; /* ???????? */
+    margin: 0 auto;
+}
+/*.container {
+    max-width: min(60%, 1000px);
+    width: 100%;
+}*/
+.container {
+    max-width: min(60%, 1000px);
+    width: 100%;
+}
+/*@media (max-width: 900px) {
+    .container { max-width: 90%; }
+}*/
+.site-footer {
+    margin: 0px auto 0px;
+    width: 100%;
+    padding: 0 20px;
+    font-size: 13px;
+    line-height: 1.4;
+    text-align: center;
+    color: #666;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    background: rgba(255, 255, 255, 0.5);
+}
+.site-footer a {
+    color: #4CAF50;
+    text-decoration: none;
+}
+.site-footer a:hover {
+    text-decoration: underline;
+}
+
+/* Icon in right top corner */
+
+.user-icon {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex: 1;
+    justify-content: flex-end;
+}
+.avatar {
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    border: 3px solid white;
+}
+
+/* UI */
+
+button {
+    background-color: #4CAF50;
+    color: white;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    display: block;
+    margin: 20px auto;
+    transition: background-color 0.3s;
+}
+button:hover { background-color: #45a049; }
+button[disabled] { opacity: 0.6; cursor: not-allowed; }
+
+.btn-danger { background-color: #e53935 !important; }
+.btn-danger:hover { background-color: #d32f2f !important; }
+
+.toggle-label {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin: 15px 0;
+    font-size: 16px;
+}
+.toggle-switch {
+    position: relative;
+    width: 50px;
+    height: 26px;
+    background-color: #ccc;
+    border-radius: 26px;
+    cursor: pointer;
+    transition: background-color 0.3s;
+}
+.toggle-switch::after {
+    content: "";
+    position: absolute;
+    width: 22px;
+    height: 22px;
+    background: white;
+    border-radius: 50%;
+    top: 2px;
+    left: 2px;
+    transition: transform 0.3s;
+}
+.toggle-switch.active { background-color: #4CAF50; }
+.toggle-switch.active::after { transform: translateX(24px); }
+
+.toggles-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px 40px;
+    margin-top: 20px;
+}
+@media (max-width: 600px) {
+    .toggles-grid {
+        grid-template-columns: 1fr;
+    }
+}
+.toggle-label.disabled {
+    opacity: 0.5;
+    pointer-events: none;
+}
+
+
+
+/* Specific UI */
+
+.twitch-login-button {
+    /* display: inline-flex; */
+    align-items: center;
+    background-color: #9146FF;
+    color: #FFFFFF;
+    font-family: 'Inter', sans-serif;
+    font-weight: 600;
+    text-decoration: none;
+    padding: 10px 20px;
+    border-radius: 4px;
+    transition: background-color 0.2s ease, transform 0.1s ease;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+.twitch-login-button:hover {
+    background-color: #772CE8;
+}
+.twitch-login-button:active {
+    transform: translateY(1px);
+}
+.twitch-icon {
+    width: 20px;
+    height: 20px;
+    margin-right: 2px;
+}
+
+/* About Page user's card */
+
+.authors-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+    justify-content: left;
+}
+
+.author-card {
+    flex: 1 1 300px;
+    max-width: 300px;
+    box-sizing: border-box;
+    padding: 15px;
+    border: 1px solid #ccc;
+    border-radius: 12px;
+    background-color: #fdfdfd;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+
+.author-card img {
+    width: 256px;
+    height: 256px;
+    object-fit: cover;
+    border-radius: 12px;
+    display: block;
+    margin: 0 auto 10px auto;
+}
+
+.author-card h4 {
+    margin: 10px 0 8px 0;
+    text-align: center;
+    font-size: 1.1em;
+}
+
+.author-card p {
+    margin: 5px 0;
+    font-size: 0.95em;
+    text-align: left;
+}
+
+.author-card a {
+    word-break: break-word;
+}
+
+.tester-card {
+    flex: 1 1 236px;
+    max-width: 236px;
+    box-sizing: border-box;
+    padding: 15px;
+    border: 1px solid #ccc;
+    border-radius: 12px;
+    background-color: #fdfdfd;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+
+.tester-card img {
+    width: 192px;
+    height: 192px;
+    object-fit: cover;
+    border-radius: 12px;
+    display: block;
+    margin: 0 auto 10px auto;
+}
+
+.tester-card h4 {
+    margin: 10px 0 8px 0;
+    text-align: center;
+    font-size: 1.1em;
+}
+
+.tester-card p {
+    margin: 5px 0;
+    font-size: 0.95em;
+    text-align: left;
+}
+
+.tester-card a {
+    word-break: break-word;
+}
+
+/* @media (max-width: 768px) {
+    .author-card {
+        flex: 1 1 100%;
+        max-width: 100%;
+    }
+} */
+
+
+/* Memealerts tutorial styles */
+
+.tutorial-container {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 20px;
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+.tutorial-step {
+    margin-bottom: 30px;
+}
+.tutorial-step img {
+    width: 100%;
+    height: auto;
+    border-radius: 5px;
+    border: 1px solid #ddd;
+    margin-bottom: 10px;
+}
+.tutorial-step h3 {
+    margin-bottom: 10px;
+    color: #4CAF50;
+}
+.tutorial-step p {
+    font-size: 15px;
+    color: #333;
+}
+
+/* Roadmap styles */
+
+.roadmap {
+  position: relative;
+  margin: 40px auto;
+  max-width: 900px;
+}
+
+.roadmap-item {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 120px 0; /* увеличил отступ, чтобы стрелка красиво влезала */
+  position: relative;
+}
+
+.roadmap-circle {
+  flex: 0 0 140px;
+  height: 140px;
+  border-radius: 50%;
+  background: #4CAF50;
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  font-size: 18px;
+  text-align: center;
+  line-height: 1.3;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+  position: relative;
+  z-index: 2;
+}
+
+.roadmap-text {
+  flex: 1;
+  padding: 20px;
+  background: white;
+  border-radius: 10px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  font-size: 16px;
+  max-width: 400px;
+  z-index: 2;
+}
+
+.roadmap-item.left {
+  flex-direction: row-reverse;
+  text-align: right;
+}
+
+/* SVG стрелки */
+.connector {
+  position: absolute;
+  top: 140px; /* ровно под кружком */
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  height: 120px;
+  z-index: 1;
+}
+
+.connector svg {
+  width: 100%;
+  height: 100%;
+}
+
+.connector path {
+  stroke: #4CAF50;
+  stroke-width: 4;
+  fill: none;
+  marker-end: url(#arrowhead);
+}
+
+.roadmap-todo {
+  margin: 80px auto;
+  max-width: 600px;
+  background: white;
+  border-radius: 12px;
+  padding: 30px 40px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.1);
+  text-align: left;
+}
+
+.roadmap-todo h3 {
+  text-align: center;
+  font-size: 24px;
+  color: #4CAF50;
+  margin-bottom: 20px;
+}
+
+.roadmap-todo ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.roadmap-todo li {
+  font-size: 24px;
+  margin: 12px 0;
+  padding-left: 30px;
+  position: relative;
+}
+
+.roadmap-todo li::before {
+  content: "•";
+  color: #4CAF50;
+  font-size: 26px;
+  position: absolute;
+  left: 0;
+  top: -2px;
+}
+
+/* Streamers page */
+
+.streamers-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+    gap: 20px;
+    justify-items: center;
+    margin-top: 20px;
+}
+.streamer-container {
+    position: relative;
+    width: 100px;
+    height: 100px;
+}
+.streamer-avatar {
+    width: 100px;
+    height: 100px;
+    border-radius: 50%;
+    border: 3px solid #4CAF50;
+    object-fit: cover;
+    transition: transform 0.3s;
+}
+.streamer-avatar:hover {
+    transform: scale(1.05);
+    border-color: #45a049;
+}
+.streamer-badge {
+    position: absolute;
+    bottom: -12px;
+    right: -12px;
+    width: 48px;
+    height: 48px;
+}
+
+/* Modal window */
+
+.modal {
+    display: none;
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    background-color: rgba(0,0,0,0.5);
+    z-index: 10000;
+    justify-content: center;
+    align-items: center;
+}
+.modal-content {
+    background: #fff;
+    padding: 20px;
+    border-radius: 10px;
+    text-align: center;
+    max-width: 320px;
+    width: 90%;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+}
+.modal-content input {
+    width: 100%;
+    padding: 8px;
+    margin: 10px 0;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    box-sizing: border-box;
+}
+.modal-content .modal-buttons {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    margin-top: 10px;
+}
+.modal-content .modal-buttons button {
+    flex: 1;
+    margin: 0;
+}
+.modal-content .btn-cancel {
+    background-color: #e53935;
+}
+.modal-content .btn-cancel:hover {
+    background-color: #d32f2f;
+}
+.modal-content .tutorial-link {
+    margin-top: 8px;
+    font-size: 12px;
+    display: block;
+    color: #4CAF50;
+    text-decoration: underline;
+    cursor: pointer;
+}

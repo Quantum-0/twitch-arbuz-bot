@@ -2,135 +2,13 @@
 
 {% block title %}Настройки — Quantum0's Bot{% endblock %}
 
-{% block styles %}
-{{ super() }}
+{% block styles %}{{ super() }}
 
-.container {
-    max-width: min(60%, 1000px);
-    width: 100%;
-}
-@media (max-width: 900px) {
-    .container { max-width: 90%; }
-}
+{% block head_scripts %}
+<script src="/static/js/panel-scripts.js"></script>
+{% endblock %}
 
-.toggle-label {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin: 15px 0;
-    font-size: 16px;
-}
-.toggle-switch {
-    position: relative;
-    width: 50px;
-    height: 26px;
-    background-color: #ccc;
-    border-radius: 26px;
-    cursor: pointer;
-    transition: background-color 0.3s;
-}
-.toggle-switch::after {
-    content: "";
-    position: absolute;
-    width: 22px;
-    height: 22px;
-    background: white;
-    border-radius: 50%;
-    top: 2px;
-    left: 2px;
-    transition: transform 0.3s;
-}
-.toggle-switch.active { background-color: #4CAF50; }
-.toggle-switch.active::after { transform: translateX(24px); }
-
-button {
-    background-color: #4CAF50;
-    color: white;
-    padding: 10px 20px;
-    border: none;
-    border-radius: 5px;
-    cursor: pointer;
-    display: block;
-    margin: 20px auto;
-    transition: background-color 0.3s;
-}
-button:hover { background-color: #45a049; }
-button[disabled] { opacity: 0.6; cursor: not-allowed; }
-.btn-danger { background-color: #e53935 !important; }
-.btn-danger:hover { background-color: #d32f2f !important; }
-
-.notification-container { position: fixed; bottom: 20px; right: 20px; z-index: 9999; }
-.notification {
-    padding: 0;
-    margin-top: 10px;
-    border-radius: 5px;
-    background: #fff;
-    border: 2px solid #4CAF50;
-    color: #333;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-    opacity: 0;
-    transform: translateY(10px);
-    animation: fadeInUp var(--notif-in-duration) forwards;
-    overflow: hidden;
-}
-.notification.error { border-color: #e53935; }
-.notification-header { background: #d9f2d9; padding: 5px 10px; font-weight: bold; font-size: 14px; }
-.notification-body { padding: 10px; font-size: 14px; }
-@keyframes fadeInUp { to { opacity: 1; transform: translateY(0); } }
-@keyframes fadeOutDown { to { opacity: 0; transform: translateY(10px); } }
-
-.modal {
-    display: none;
-    position: fixed;
-    top: 0; left: 0;
-    width: 100%; height: 100%;
-    background-color: rgba(0,0,0,0.5);
-    z-index: 10000;
-    justify-content: center;
-    align-items: center;
-}
-.modal-content {
-    background: #fff;
-    padding: 20px;
-    border-radius: 10px;
-    text-align: center;
-    max-width: 320px;
-    width: 90%;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.3);
-}
-.modal-content input {
-    width: 100%;
-    padding: 8px;
-    margin: 10px 0;
-    border: 1px solid #ccc;
-    border-radius: 5px;
-    box-sizing: border-box;
-}
-.modal-content .modal-buttons {
-    display: flex;
-    justify-content: space-between;
-    gap: 10px;
-    margin-top: 10px;
-}
-.modal-content .modal-buttons button {
-    flex: 1;
-    margin: 0;
-}
-.modal-content .btn-cancel {
-    background-color: #e53935;
-}
-.modal-content .btn-cancel:hover {
-    background-color: #d32f2f;
-}
-.modal-content .tutorial-link {
-    margin-top: 8px;
-    font-size: 12px;
-    display: block;
-    color: #4CAF50;
-    text-decoration: underline;
-    cursor: pointer;
-}
-
+/* TODO: Refactor!!! */
 .memealert-coins-wrapper {
     display: flex;
     align-items: center;
@@ -164,21 +42,6 @@ button[disabled] { opacity: 0.6; cursor: not-allowed; }
     background-color: #fff;
     font-size: 16px;
     margin: 0;
-}
-.toggles-grid {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 10px 40px;
-    margin-top: 20px;
-}
-@media (max-width: 600px) {
-    .toggles-grid {
-        grid-template-columns: 1fr;
-    }
-}
-.toggle-label.disabled {
-    opacity: 0.5;
-    pointer-events: none;
 }
 
 .overlay-section {
@@ -329,6 +192,7 @@ button[disabled] { opacity: 0.6; cursor: not-allowed; }
         <div class="memealert-coins-wrapper">
             <span>Количество мемкоинов за награду</span>
             <div class="memealert-coins">
+                <!-- TODO: REFACTOR -->
                 <button type="button" class="coin-btn" onclick="changeCoinCount(-1)">−</button>
                 <input type="number" id="coin-count" min="1" max="100" value="{{ memealerts.coins_for_reward }}">
                 <button type="button" class="coin-btn" onclick="changeCoinCount(1)">+</button>
@@ -449,155 +313,4 @@ button[disabled] { opacity: 0.6; cursor: not-allowed; }
         </div>
     </div>
 </div>
-{% endblock %}
-
-{% block body_scripts %}
-<script>
-    let coinSaveTimer = null;
-    let isRefresh = false;
-
-    function showNotification(title, message, isError=false) {
-        const container = document.querySelector('.notification-container');
-        const div = document.createElement('div');
-        div.className = 'notification' + (isError ? ' error' : '');
-        div.innerHTML = `<div class="notification-header">${title}</div><div class="notification-body">${message}</div>`;
-        container.appendChild(div);
-        setTimeout(() => {
-            div.style.animation = 'fadeOutDown var(--notif-out-duration) forwards';
-            setTimeout(() => div.remove(), 250);
-        }, 4000);
-    }
-
-    function setupAiStickerReward(enabled) {
-        fetch('/api/user/setup-ai-stickers', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-        })
-        .then(res => res.json().then(data => ({ ok: res.ok, data })))
-        .then(({ok, data}) => showNotification(data.title || 'Настройки', data.message, !ok))
-        .catch(err => showNotification('Ошибка', err.message, true));
-    }
-
-    function toggleSetting(name, enabled) {
-        fetch('/api/user/update_settings', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: `${name}=${enabled ? 'true' : 'false'}`
-        })
-        .then(res => res.json().then(data => ({ ok: res.ok, data })))
-        .then(({ok, data}) => showNotification(data.title || 'Настройки', data.message, !ok))
-        .catch(err => showNotification('Ошибка', err.message, true));
-    }
-
-    function initToggles() {
-        document.querySelectorAll('.toggle-switch').forEach(toggle => {
-            toggle.addEventListener('click', () => {
-                toggle.classList.toggle('active');
-                toggleSetting(toggle.dataset.name, toggle.classList.contains('active'));
-                if (toggle.dataset.name === 'enable_chat_bot') {
-                updateDependentTogglesState();
-            }
-            });
-        });
-    }
-
-    function updateDependentTogglesState() {
-        const isEnabled = document.querySelector('.toggle-switch[data-name="enable_chat_bot"]').classList.contains('active');
-        const container = document.getElementById('dependent-toggles');
-        if (!container) return;
-        container.querySelectorAll('.toggle-label').forEach(label => {
-            if (isEnabled) {
-                label.classList.remove('disabled');
-            } else {
-                label.classList.add('disabled');
-            }
-        });
-    }
-
-    function openActivateModal() {
-        isRefresh = false;
-        openModal();
-    }
-
-    function openRefreshModal() {
-        isRefresh = true;
-        openModal();
-    }
-
-    function openModal() { document.getElementById('memealert-modal').style.display = 'flex'; }
-    function closeModal() { document.getElementById('memealert-modal').style.display = 'none'; }
-    function saveMemealert() {
-        const key = document.getElementById('memealert-key').value.trim();
-        if (!key) return showNotification('Ошибка', 'Введите ключ', true);
-        closeModal();
-        toggleMemealerts(true, key, isRefresh);
-    }
-
-    function toggleMemealerts(enable, key='', refresh=false) {
-        const btn = document.getElementById('memealerts-btn');
-        if (btn) {
-            btn.disabled = true;
-            btn.textContent = 'Подождите...';
-        }
-        const url = `/api/user/memealerts?enable=${enable}${refresh ? '&refresh=true' : ''}`;
-        fetch(url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: enable ? `key=${encodeURIComponent(key)}` : ''
-        })
-        .then(res => res.json().then(data => ({ ok: res.ok, data })))
-        .then(({ok, data}) => {
-            showNotification(data.title || 'Мемалёрты', data.message, !ok);
-            setTimeout(() => location.reload(), 2000);
-        })
-        .catch(err => {
-            showNotification('Ошибка', err.message, true);
-            if (btn) {
-                btn.disabled = false;
-                btn.textContent = enable ? 'Включить мемалёрты' : 'Отключить мемалёрты';
-            }
-        });
-    }
-
-    function changeCoinCount(delta) {
-        const input = document.getElementById('coin-count');
-        if (!input) return;
-        let val = parseInt(input.value, 10);
-        if (isNaN(val)) val = 1;
-        val = Math.max(1, Math.min(100, val + delta));
-        input.value = val;
-        triggerCoinSave();
-    }
-
-    function triggerCoinSave() {
-        if (coinSaveTimer) clearTimeout(coinSaveTimer);
-        coinSaveTimer = setTimeout(updateCoins, 3000);
-    }
-
-    function updateCoins() {
-        const input = document.getElementById('coin-count');
-        if (!input) return;
-        const count = parseInt(input.value, 10);
-        if (isNaN(count) || count < 1 || count > 100) {
-            return showNotification('Ошибка', 'Введите число от 1 до 100', true);
-        }
-        fetch('/api/user/memealerts/coins', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ count: count })
-        })
-        .then(res => res.json().then(data => ({ ok: res.ok, data })))
-        .then(({ok, data}) => showNotification(data.title || 'Мемкоины', data.message, !ok))
-        .catch(err => showNotification('Ошибка', err.message, true));
-    }
-
-    document.addEventListener('DOMContentLoaded', () => {
-        initToggles();
-        updateDependentTogglesState();
-        const coinInput = document.getElementById('coin-count');
-        if (coinInput) {
-            coinInput.addEventListener('input', triggerCoinSave);
-        }
-    });
-</script>
 {% endblock %}
