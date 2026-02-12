@@ -54,6 +54,7 @@ class Settings(BaseSettings):
     mqtt_username: SecretStr
     mqtt_password: SecretStr
     direct_handle_messages: bool = True
+    direct_handle_rewards: bool = True
 
     model_config = SettingsConfigDict(env_prefix="", env_file=".env")
 
