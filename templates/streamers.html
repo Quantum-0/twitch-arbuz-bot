@@ -60,6 +60,11 @@
                     </svg>
                 </div>
             {% endif %}
+
+            {% if streamer.is_live %}
+                <div class="live-indicator" title="Сейчас в эфире"></div>
+            {% endif %}
+
         </div>
     {% endfor %}
 </div>

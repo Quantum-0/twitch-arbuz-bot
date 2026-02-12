@@ -475,6 +475,33 @@ button[disabled] { opacity: 0.6; cursor: not-allowed; }
     width: 48px;
     height: 48px;
 }
+.live-indicator {
+    position: absolute;
+    top: 8px;
+    right: 0px;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: #ff2d2d;
+    box-shadow: 0 0 0 0 rgba(255, 45, 45, 0.7);
+    animation: livePulse 1.6s infinite;
+    z-index: 2;
+}
+
+@keyframes livePulse {
+    0% {
+        box-shadow: 0 0 0 0 rgba(255, 45, 45, 0.8);
+        opacity: 1;
+    }
+    70% {
+        box-shadow: 0 0 0 8px rgba(255, 45, 45, 0);
+        opacity: 0.7;
+    }
+    100% {
+        box-shadow: 0 0 0 0 rgba(255, 45, 45, 0);
+        opacity: 1;
+    }
+}
 
 /* Modal window */
 

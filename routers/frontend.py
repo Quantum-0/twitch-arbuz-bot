@@ -1,3 +1,4 @@
+import math
 import random
 from typing import Annotated, Any
 
@@ -11,7 +12,7 @@ from starlette.responses import HTMLResponse, RedirectResponse, FileResponse
 from starlette.templating import Jinja2Templates
 
 from config import settings
-from database.models import TwitchUserSettings, User
+from database.models import TwitchUserSettings, User, MemealertsSettings
 from dependencies import get_chat_bot, get_db, get_twitch
 from routers.security_helpers import admin_auth, user_auth, user_auth_optional
 from twitch.chat.bot import ChatBot
@@ -294,6 +295,7 @@ async def command_list_page(
 async def get_streamers(
     request: Request,
     db: Annotated[AsyncSession, Depends(get_db)],
+    twitch: Annotated[Twitch, Depends(get_twitch)],
     user: User | None = Security(user_auth_optional),
 ):
     q = (
@@ -303,12 +305,36 @@ async def get_streamers(
             User.followers_count.label("followers"),
             User.in_beta_test.label("is_beta_tester"),
             User.donated.label("donated"),
+            TwitchUserSettings.enable_chat_bot.label("chat_bot_enabled"),
+            MemealertsSettings.memealerts_reward.is_not(None).label("memealerts_enabled")
         )
-        .where(User.followers_count > 10)
-        .limit(400)
+        .select_from(User)
+        .join(TwitchUserSettings)
+        .join(MemealertsSettings)
+        .where(User.followers_count > 2)
+        .limit(500)
     )
-    res = list((await db.execute(q)).fetchall())
-    random.shuffle(res)
+    res = (await db.execute(q)).all()
+
+    def cmp(usr):
+        return (
+            (10 * bool(usr["is_live"])) +
+            (0.6 * math.log10((usr.get("followers", 0) or 0) + 1)) +
+            (2 * (usr["username"] == "quantum075" or usr["donated"] > 0)) +
+            (1 * usr["is_beta_tester"]) +
+            (2 * usr["memealerts_enabled"]) +
+            (3 * usr["chat_bot_enabled"])
+            + (5 * random.random())
+        )
+
+    res = [row._asdict() for row in res]
+    streams = await twitch.get_streams([row["username"] for row in res])
+    for row in res:
+        row["is_live"] = streams.get(row["username"])
+        row["score"] = cmp(row)
+
+    res = sorted(res, key=cmp, reverse=True)
+
     # res = [row._asdict() for row in res] * 20
     # for row in res:
     #     row["followers"] = random.randint(30, 500)
@@ -323,7 +349,6 @@ async def get_streamers(
     #     ratio = s["followers"] / max_followers
     #     s["size"] = int(min_size + (max_size - min_size) * ratio)
 
-    res = [row._asdict() for row in res]
     for row in res:
         row["role"] = "beta" if row["is_beta_tester"] else None
         if row["username"] == "quantum075":

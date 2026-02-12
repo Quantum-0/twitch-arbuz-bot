@@ -80,6 +80,8 @@ class User(Base):
         assert encrypted_value
         self._refresh_token = encrypted_value
 
+    def __str__(self):
+        return f"<User:{self.twitch_id} db object '{self.login_name}'>"
 
 class TwitchUserSettings(Base):
     __tablename__ = "twitch_user_settings"

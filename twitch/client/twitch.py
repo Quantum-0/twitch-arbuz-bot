@@ -4,6 +4,7 @@ from typing import Any
 from uuid import UUID
 
 import httpx
+from more_itertools.recipes import batched
 from twitchAPI.chat import Chat
 from twitchAPI.object.api import (
     ChannelFollowersResult,
@@ -74,14 +75,16 @@ class Twitch:
         )
         return reward
 
-    async def get_streams(self, users: list[User]) -> dict[User, Stream | None]:
-        streams = {
-            x.user_login: x
-            async for x in self._twitch.get_streams(
-                user_login=[user.login_name for user in users]
-            )
-        }
-        return {user: streams.get(user.login_name) for user in users}
+    async def get_streams(self, users: list[User] | list[str]) -> dict[User, Stream | None]:
+        streams = {}
+        for batch in batched(users, 100):
+            streams.update({
+                x.user_login: x
+                async for x in self._twitch.get_streams(
+                    user_login=[(user if isinstance(user, str) else user.login_name) for user in batch]
+                )
+            })
+        return {user: streams.get(user if isinstance(user, str) else user.login_name) for user in users}
 
     @staticmethod
     async def delete_reward(user, reward_id: UUID | str):

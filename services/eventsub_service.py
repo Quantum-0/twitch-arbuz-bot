@@ -23,7 +23,6 @@ from utils.singleton import singleton
 logger = logging.getLogger(__name__)
 
 
-@singleton
 class TwitchEventSubService():
     # startup - subscribe topics if need
 
