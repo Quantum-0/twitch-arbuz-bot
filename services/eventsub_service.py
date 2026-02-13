@@ -102,7 +102,7 @@ class TwitchEventSubService():
         if isinstance(payload, dict):
             payload = PointRewardRedemptionWebhookSchema.model_validate(payload)
 
-        user = await self._get_user_by_id_or_login(payload.event.to_broadcaster_user_id)
+        user = await self._get_user_by_id_or_login(payload.event.broadcaster_user_id)
 
         if user.memealerts.memealerts_reward == payload.subscription.condition.reward_id:
             await self.reward_buy_memealerts(user=user, payload=payload)
