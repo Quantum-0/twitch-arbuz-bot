@@ -232,7 +232,7 @@
         <input
             class="overlay-copy-input"
             type="text"
-            value="https://bot.quantum0.ru/overlay/pair?channel_id={{ user.twitch_id }}"
+            value="{{ request.base_url }}overlay/pair?channel_id={{ user.twitch_id }}"
             readonly
             onclick="this.select(); navigator.clipboard.writeText(this.value); showNotification('Скопировано', 'Ссылка для OBS скопирована');"
         >
@@ -247,7 +247,7 @@
         <input
             class="overlay-copy-input"
             type="text"
-            value="https://bot.quantum0.ru/overlay/star?channel_id={{ user.twitch_id }}"
+            value="{{ request.base_url }}overlay/star?channel_id={{ user.twitch_id }}"
             readonly
             onclick="this.select(); navigator.clipboard.writeText(this.value); showNotification('Скопировано', 'Ссылка для OBS скопирована');"
         >
@@ -287,7 +287,7 @@
         <input
             class="overlay-copy-input"
             type="text"
-            value="https://bot.quantum0.ru/overlay/ai-sticker?channel_id={{ user.twitch_id }}"
+            value="{{ request.base_url }}overlay/ai-sticker?channel_id={{ user.twitch_id }}"
             readonly
             onclick="this.select(); navigator.clipboard.writeText(this.value); showNotification('Скопировано', 'Ссылка для OBS скопирована');"
         >
