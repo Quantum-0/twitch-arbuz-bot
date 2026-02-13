@@ -78,7 +78,7 @@ class TwitchEventSubService():
     @task_wrapper
     async def handle_raid(self, payload: RaidWebhookSchema | dict[str, Any]) -> None:
         if isinstance(payload, dict):
-            payload = RaidWebhookSchema.model_validate(payload)
+            payload = RaidWebhookSchema.model_validate(payload, by_name=True)
 
         user = await self._get_user_by_id_or_login(payload.event.to_broadcaster_user_id)
         user_settings: TwitchUserSettings = user.settings
@@ -100,7 +100,7 @@ class TwitchEventSubService():
         payload: PointRewardRedemptionWebhookSchema | dict[str, Any],
     ) -> None:
         if isinstance(payload, dict):
-            payload = PointRewardRedemptionWebhookSchema.model_validate(payload)
+            payload = PointRewardRedemptionWebhookSchema.model_validate(payload, by_name=True)
 
         user = await self._get_user_by_id_or_login(payload.event.broadcaster_user_id)
 
