@@ -29,6 +29,9 @@
               url("/static/images/bg_leaves_dark_mirror2.png");
     --bg-position: left top, right top, left top, right top;
     --bg-size: 75px, 60px, 120px, 110px;
+
+    --color-link: rgb(0, 0, 238);
+    --color-link-visited: rgb(85, 26, 139);
 }
 
 html[data-theme="dark"] {
@@ -57,6 +60,9 @@ html[data-theme="dark"] {
     --bg-url: url("/static/images/bg_schemas.png");
     --bg-position: left top;
     --bg-size: 400px;
+
+    --color-link: rgb(0, 255, 0);
+    --color-link-visited: rgb(85, 192, 0);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -86,6 +92,9 @@ html[data-theme="dark"] {
         --bg-url: url("/static/images/bg_schemas.png");
         --bg-position: left top;
         --bg-size: 400px;
+
+        --color-link: rgb(0, 255, 0);
+        --color-link-visited: rgb(85, 192, 0);
     }
 }
 
@@ -206,6 +215,12 @@ header nav a:hover {
 }
 .site-footer a:hover {
     text-decoration: underline;
+}
+a:link {
+    color: var(--color-link);
+}
+a:visited {
+    color: var(--color-link-visited);
 }
 
 /* Icon in right top corner */
