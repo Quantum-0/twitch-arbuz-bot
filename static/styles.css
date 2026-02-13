@@ -32,10 +32,10 @@ body {
     margin: 0;
     padding: 0;
     background-color: #f4f4f4;
-    background-image: url("https://quantum-0.github.io/images/bg_leaves.png"),
-                      url("https://quantum-0.github.io/images/bg_leaves_mirror.png"),
-                      url("https://quantum-0.github.io/images/bg_leaves_dark2.png"),
-                      url("https://quantum-0.github.io/images/bg_leaves_dark_mirror2.png");
+    background-image: url("/static/images/bg_leaves.png"),
+                      url("/static/images/bg_leaves_mirror.png"),
+                      url("/static/images/bg_leaves_dark2.png"),
+                      url("/static/images/bg_leaves_dark_mirror2.png");
     background-position: left top, right top, left top, right top;
     background-repeat: repeat-y, repeat-y, repeat-y, repeat-y;
     background-size: 75px, 60px, 120px, 110px;
