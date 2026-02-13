@@ -279,7 +279,7 @@
         </div>
         -->
     </div>
-    {% if user and user.login_name == "quantum075" %}
+    {% if user and (user.login_name == "quantum075" or user.login_name == "d_e_l_y") %}
     <div class="overlay-section">
         <p class="overlay-title">
             Моя тестовая штука, НЕ ТРОГАЙТЕ
@@ -292,7 +292,7 @@
             onclick="this.select(); navigator.clipboard.writeText(this.value); showNotification('Скопировано', 'Ссылка для OBS скопирована');"
         >
         <small class="overlay-copy-hint">
-            Нажмите, чтобы скопировать ссылку. Для использования требуется подключить <a href="https://dashboard.twitch.tv/extensions/cr20njfkgll4okyrhag7xxph270sqk-2.1.1">Heat</a>.
+            Нажмите, чтобы скопировать ссылку.
         </small>
         <button id="setup-ai-sticker-btn" onclick="setupAiStickerReward()">Установить</button>
     </div>
