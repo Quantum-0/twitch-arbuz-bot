@@ -18,19 +18,45 @@
             width: 256px;
             height: 256px;
             pointer-events: none;
-
-            opacity: 1;
-            transition: opacity 2s linear;
-
+            opacity: 0;
             will-change: transform, left, top, opacity;
+        }
+
+        .sprite.spawn {
+            animation: sticker-pop 350ms cubic-bezier(.34,1.56,.64,1) forwards;
         }
 
         .fade-out {
             opacity: 0;
+            transition: opacity 2s linear;
         }
+
+        @keyframes sticker-pop {
+            0% {
+                transform: scale(0) rotate(var(--rotation));
+                opacity: 0;
+            }
+            60% {
+                transform: scale(1.25) rotate(calc(var(--rotation) + 9deg));
+                opacity: 1;
+            }
+            80% {
+                transform: scale(0.90) rotate(calc(var(--rotation) - 5deg));
+            }
+            100% {
+                transform: scale(1) rotate(var(--rotation));
+                opacity: 1;
+            }
+        }
+
     </style>
 </head>
 <body>
+
+<audio id="sticker-sound" preload="auto">
+    <source src="/static/sounds/sticker-pop.wav" type="audio/mpeg">
+</audio>
+
 
 <script>
     const SSE_URL = "{{ request.base_url }}sse/{{ channel_id }}/ai-sticker";
@@ -68,8 +94,8 @@
         img.src = `data:image/png;base64,${base64}`;
         img.style.zIndex = zIndexCounter++;
 
-        const maxX = window.innerWidth - 100;
-        const maxY = window.innerHeight - 100;
+        const maxX = window.innerWidth - 256;
+        const maxY = window.innerHeight - 256;
 
         const x = Math.random() * maxX;
         const y = Math.random() * maxY;
@@ -77,11 +103,23 @@
 
         img.style.left = `${x}px`;
         img.style.top = `${y}px`;
-        img.style.transform = `rotate(${rotation}deg)`;
+        img.style.setProperty("--rotation", `${rotation}deg`);
 
         document.body.appendChild(img);
 
-        // запуск fade-out
+        // триггер анимации
+        requestAnimationFrame(() => {
+            img.classList.add("spawn");
+        });
+
+        // 🔊 звук
+        const sound = document.getElementById("sticker-sound");
+        if (sound) {
+            sound.currentTime = 0;
+            sound.play().catch(() => {});
+        }
+
+        // fade-out
         setTimeout(() => {
             img.classList.add("fade-out");
         }, LIFE_TIME_MS - FADE_OUT_MS);
