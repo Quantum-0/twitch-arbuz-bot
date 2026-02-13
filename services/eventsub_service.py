@@ -4,7 +4,7 @@ from typing import Any
 
 import sqlalchemy as sa
 from memealerts.types.exceptions import MATokenExpiredError
-from openai import BadRequestError
+from openai import BadRequestError, APIStatusError
 from sqlalchemy.orm import selectinload
 from twitchAPI.type import TwitchResourceNotFound
 
@@ -193,6 +193,10 @@ class TwitchEventSubService():
                 chatter=payload.event.user_login,
                 channel=int(user.twitch_id),
             )
+        except APIStatusError as exc:
+            if exc.status_code == 402:
+                await self._chatbot.send_message(user, exc.message)
+            await self._cancel_redemption(user, payload)
         except BadRequestError as exc:
             if exc.type == 'image_generation_user_error' and exc.code == 'moderation_blocked':
                 await self._chatbot.send_message(user, "Запрос отклонён системой модерации как небезопасный для стрима. Баллы возвращены!")
