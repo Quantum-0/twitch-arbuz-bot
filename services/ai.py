@@ -48,7 +48,7 @@ class OpenAIClient:
         logger.info("Start generating image")
         result = await self._client.images.generate(
             model="gpt-image-1-mini",
-            prompt=f"Image of drawn `{prompt}` with transparent background and the white outline like a sticker",
+            prompt=f"Image of drawn in cartoon style `{prompt}` with transparent background and the white outline like a sticker",
             quality="low",
             size="1024x1024",
             moderation="auto",
