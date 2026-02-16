@@ -9,7 +9,7 @@
     --color-text-muted: #666;
 
     --color-border: #ccc;
-    --color-header: #4CAF50;
+    --color-header: rgba(76, 175, 80, 0.3);
 
     --color-primary: #4CAF50;
     --color-primary-hover: #45a049;
@@ -43,7 +43,7 @@ html[data-theme="dark"] {
     --color-text-muted: #aaaaaa;
 
     --color-border: #333;
-    --color-header: rgba(0, 43, 3, 0.47);;
+    --color-header: rgba(0, 43, 3, 0.2);
 
     --color-primary: #66bb6a;
     --color-primary-hover: #57a95b;
@@ -75,7 +75,7 @@ html[data-theme="dark"] {
         --color-text-muted: #aaaaaa;
 
         --color-border: #333;
-        --color-header: rgba(0, 43, 3, 0.47);;
+        --color-header: rgba(0, 43, 3, 0.2);
 
         --color-primary: #66bb6a;
         --color-primary-hover: #57a95b;
@@ -638,7 +638,7 @@ button[disabled] { opacity: 0.6; cursor: not-allowed; }
     align-items: center;
 }
 .modal-content {
-    background: var(--color-bg-secondary);
+    background-color: color-mix(in srgb, var(--color-bg-secondary) 50%, transparent);
     padding: 20px;
     border-radius: 10px;
     text-align: center;
@@ -674,9 +674,23 @@ button[disabled] { opacity: 0.6; cursor: not-allowed; }
 }
 .modal-content .tutorial-link {
     margin-top: 8px;
-    font-size: 12px;
+    font-size: 14px;
     display: block;
     color: #4CAF50;
     text-decoration: underline;
     cursor: pointer;
+}
+
+/* Liquid Glass */
+
+.bg-liquid-glass {
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    @apply bg-muted/25;
+}
+
+@supports not (hanging-punctuation:first) {
+    .bg-liquid-glass {
+        backdrop-filter: url(#displacementFilter) blur(2px);
+    }
 }
