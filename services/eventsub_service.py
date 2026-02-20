@@ -196,7 +196,10 @@ class TwitchEventSubService():
         except APIStatusError as exc:
             if exc.status_code == 402:
                 await self._chatbot.send_message(user, exc.message)
+            else:
+                logger.warning("4XX while generating image", exc_info=True)
             await self._cancel_redemption(user, payload)
+            raise
         except BadRequestError as exc:
             if exc.type == 'image_generation_user_error' and exc.code == 'moderation_blocked':
                 await self._chatbot.send_message(user, "Запрос отклонён системой модерации как небезопасный для стрима. Баллы возвращены!")
