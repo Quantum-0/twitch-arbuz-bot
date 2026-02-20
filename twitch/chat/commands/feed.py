@@ -36,7 +36,7 @@ class FeedCommand(SimpleTargetCommand):
             "чипсеками",
             "яблочком",
         ]
-        result = f"@{user} {random.choice(random_action)} {target} {random.choice(random_food)} {target}"
+        result = f"@{user} {random.choice(random_action)} {target} {random.choice(random_food)}"
         return result
 
     async def _no_target_reply(self, user: str) -> str | None:
