@@ -94,6 +94,11 @@ async def overlay_pair(
     channel_id: int = Query(),
     use_twitch_emoji: bool = Query(default=False),
     arbuz: bool = Query(default=False),
+    offset_left: float = Query(0),
+    offset_right: float = Query(0),
+    offset_top: float = Query(0),
+    offset_bottom: float = Query(0),
+    card_scale: float = Query(0.7),
 ):
     if not use_twitch_emoji and not arbuz:
         result = await db.execute(
@@ -152,9 +157,15 @@ async def overlay_pair(
         "overlays/pair.html",
         {
             "cards": cards,
+            "offset": {
+                "top": offset_top,
+                "left": offset_left,
+                "bottom": offset_bottom,
+                "right": offset_right,
+            },
+            "card_scale": card_scale,
             "request": request,
             "channel_id": channel_id,
-            "salt": "test-salt",
         }
     )
 
