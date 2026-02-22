@@ -8,14 +8,27 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.responses import JSONResponse
 from twitchAPI.type import TwitchAPIException, TwitchResourceNotFound
 
-from dependencies import get_chat_bot, get_db, get_twitch
-from routers.schemas import UpdateMemealertsCoinsSchema, UpdateSettingsForm
+from database.models import User
+from dependencies import get_chat_bot, get_db, get_twitch, get_sse_manager
+from routers.schemas import UpdateMemealertsCoinsSchema, UpdateSettingsForm, BoolResponseSchema
 from routers.security_helpers import user_auth
+from services.sse_manager import SSEManager
 from twitch.chat.bot import ChatBot
 from twitch.client.twitch import Twitch
+from utils.enums import SSEChannel
 from utils.memes import token_expires_in_days
 
 router = APIRouter(prefix="/user", tags=["User API"])
+
+
+@router.get("/check-sse", response_model=BoolResponseSchema)
+async def check_user_sse_connected(
+    ssem: Annotated[SSEManager, Depends(get_sse_manager)],
+    user: User = Security(user_auth),
+    channel: SSEChannel | None = None,
+) -> BoolResponseSchema:
+    return BoolResponseSchema(result=ssem.has_clients(int(user.twitch_id), channel))
+
 
 
 @router.post("/update_settings")

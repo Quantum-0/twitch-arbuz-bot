@@ -205,3 +205,7 @@ class ChatMessageSchema(BaseModel):
         WebhookSubscriptionChatMessageConditionSchema
     ]
     event: ChatMessageWebhookEventSchema
+
+
+class BoolResponseSchema(BaseModel):
+    result: bool
