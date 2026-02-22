@@ -30,7 +30,11 @@ LOGGING_CONFIG = {
         "handlers": ["default"],
     },
     "loggers": {
-        "uvicorn": {"handlers": ["uvicorn"], "level": "INFO", "propagate": False},
+        "uvicorn": {
+            "handlers": ["uvicorn"],
+            "level": "INFO",
+            "propagate": False,
+        },
         "uvicorn.error": {"level": "INFO", "propagate": True},
         "uvicorn.access": {
             "handlers": ["uvicorn"],
@@ -43,6 +47,7 @@ LOGGING_CONFIG = {
         "urllib3.connectionpool": {"level": "WARN", "propagate": False},
         "httpcore.connection": {"level": "INFO", "propagate": False},
         "httpcore.http11": {"level": "INFO", "propagate": False},
+        "websockets.client": {"level": "WARN", "propagate": False},
         # "twitch.bot": {"level": "DEBUG", "propagate": False},
     },
 }
