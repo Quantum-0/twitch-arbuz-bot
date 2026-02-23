@@ -72,7 +72,7 @@ function initOverlays() {
         updateOverlayLink(card);
     });
 
-    fetch('/api/user/check-heat-installed', {
+    /*fetch('/api/user/check-heat-installed', {
         method: 'GET',
         headers: { 'Content-Type': 'application/json' },
     })
@@ -85,7 +85,7 @@ function initOverlays() {
                 })
             };
         }
-    );
+    );*/
 }
 
 function updateDependentTogglesState() {
@@ -176,6 +176,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initToggles();
     updateDependentTogglesState();
     initOverlays();
+    initStatusCards();
     const coinInput = document.getElementById('coin-count');
     if (coinInput) {
         coinInput.addEventListener('input', triggerCoinSave);
@@ -218,6 +219,56 @@ function updateOverlayLink(card) {
     const link = base + "?" + params.toString();
     const linkDiv = card.querySelector(".overlay-link");
     linkDiv.textContent = link;
+}
+
+async function checkStatus(card) {
+    const indicator = card.querySelector(".status-indicator");
+    const endpoint = card.dataset.endpoint;
+    const type = card.dataset.type;
+
+    // состояние загрузки
+    indicator.classList.remove("active", "error");
+
+    try {
+        const res = await fetch(endpoint);
+        const data = await res.json();
+
+        if (data.result === true) {
+            indicator.classList.add("active");
+
+            // 🔥 важная логика для heat
+            if (type === "heat") {
+                document.querySelectorAll(".plugin-required").forEach(el => {
+                    el.style.display = "none";
+                });
+            }
+
+        } else {
+            indicator.classList.add("error");
+        }
+
+    } catch (e) {
+        indicator.classList.add("error");
+    }
+}
+
+function initStatusCards() {
+    document.querySelectorAll(".overlay-card-status").forEach(card => {
+
+        const type = card.dataset.type;
+
+        // первый запуск
+        checkStatus(card);
+
+        // интервалы
+        if (type === "heat") {
+            setInterval(() => checkStatus(card), 180000); // 3 минуты
+        }
+
+        if (type === "sse") {
+            setInterval(() => checkStatus(card), 5000); // 5 секунд
+        }
+    });
 }
 
 //const installBtn = document.getElementById("installBtn");

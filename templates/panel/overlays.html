@@ -7,6 +7,17 @@
 </small>
 
 <div class="overlay-cards">
+
+    <div class="overlay-card-status" data-endpoint="/api/user/check-heat-installed" data-type="heat">
+        <h3>Плагин <a href="https://dashboard.twitch.tv/extensions/cr20njfkgll4okyrhag7xxph270sqk-2.1.1">Heat</a> установлен</h3>
+        <div class="status-indicator tooltip-container"><span class="tooltip-text">Показывает, что плагин успешно установлен и активирован</span></div>
+    </div>
+
+    <div class="overlay-card-status" data-endpoint="/api/user/check-sse" data-type="sse">
+        <h3>Оверлей подключён к SSE</h3>
+        <div class="status-indicator tooltip-container"><span class="tooltip-text">Оверлей добавлен в OBS и успешно подключён к серверу</span></div>
+    </div>
+
     <div class="overlay-card" data-base="{{ request.base_url }}overlay/star">
         <h2>⭐ Звёздочка</h2>
         <p>Отображает наверху экрана интерактивную звёздочку, которую могут трогать зрители. Для корректной работы оверлей <u><b>должен быть растянут на всю сцену</b></u>. Добавлять можно несколько.</p>

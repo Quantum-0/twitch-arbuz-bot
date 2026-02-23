@@ -223,6 +223,34 @@ a:visited {
     color: var(--color-link-visited);
 }
 
+/* tooltips */
+
+.tooltip-container {
+  position: relative;
+  display: inline-block;
+  cursor: help;
+}
+
+.tooltip-text {
+  visibility: hidden;
+  width: 120px;
+  background-color: black;
+  color: #fff;
+  text-align: center;
+  border-radius: 6px;
+  padding: 5px 0;
+
+  position: absolute;
+  z-index: 1;
+  bottom: 125%;
+  left: 50%;
+  margin-left: -60px;
+}
+
+.tooltip-container:hover .tooltip-text {
+  visibility: visible;
+}
+
 /* Icon in right top corner */
 
 .user-icon {
@@ -361,6 +389,45 @@ section h3 {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
     gap: 30px;
+}
+
+.overlay-card-status {
+    background: var(--color-bg-secondary);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border-radius: 20px;
+    padding: 25px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+    border: 1px solid rgba(255,255,255,0.1);
+    display: flex;
+    transition: 0.3s ease;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    height: 20px;
+}
+
+.overlay-card-status:hover {
+    transform: translateY(-4px);
+}
+
+.status-indicator {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: #666;
+    box-shadow: 0 0 8px rgba(255,255,255,0.2);
+    transition: 0.3s;
+}
+
+.status-indicator.active {
+    background: radial-gradient(circle, #00ff88, #00cc66);
+    box-shadow: 0 0 12px #00ff88, 0 0 25px rgba(0,255,136,0.6);
+}
+
+.status-indicator.error {
+    background: radial-gradient(circle, #ff3366, #cc0033);
+    box-shadow: 0 0 12px #ff3366, 0 0 25px rgba(255,51,102,0.6);
 }
 
 .overlay-card {
