@@ -11,6 +11,8 @@ user_scope = [
     AuthScope.MODERATION_READ,
     # AuthScope.CHANNEL_BOT
     # user:read:chat?
+    AuthScope.USER_READ_BROADCAST,
+    AuthScope.USER_EDIT_BROADCAST,
 ]
 bot_scope = [
     # AuthScope.USER_CHAT_READ,
