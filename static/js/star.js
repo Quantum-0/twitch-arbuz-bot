@@ -155,8 +155,8 @@ function drawStar(x, y, r) {
         );
     }
     ctx.closePath();
-    ctx.fillStyle = "#ffd45a";
-    ctx.shadowColor = "#ffd45a";
+    ctx.fillStyle = COLOR;
+    ctx.shadowColor = COLOR;
     ctx.shadowBlur = 15;
     ctx.fill();
     ctx.restore();

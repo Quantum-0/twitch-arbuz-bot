@@ -5,6 +5,7 @@ from typing import Annotated, Any
 import sqlalchemy as sa
 from fastapi import APIRouter, HTTPException, Query, Security
 from fastapi.params import Depends
+from pydantic.color import Color
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from starlette.requests import Request
@@ -61,6 +62,7 @@ async def overlay_star(
     channel_id: int = Query(),
     pos: float = Query(default=0.5),
     size: int = Query(default=16),
+    color: Color = Query(default="#ffd45a"),
 ):
     return templates.TemplateResponse(
         "overlays/star.html",
@@ -69,6 +71,7 @@ async def overlay_star(
             "channel_id": channel_id,
             "position": pos,
             "size": size,
+            "color": color,
         }
     )
 
