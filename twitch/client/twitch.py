@@ -14,6 +14,7 @@ from twitchAPI.object.api import (
     Stream,
     TwitchUser,
     EventSubSubscription,
+    UserActiveExtensions,
 )
 from twitchAPI.twitch import Twitch as TwitchClient
 from twitchAPI.type import AuthScope, CustomRewardRedemptionStatus, UnauthorizedException
@@ -404,4 +405,40 @@ class Twitch:
             reward_id,
             redemption_id,
             CustomRewardRedemptionStatus.FULFILLED,
+        )
+
+    async def get_user_active_ext(
+        self, user: User,
+    ) -> UserActiveExtensions:
+        twitch_user = await TwitchClient(
+            settings.twitch_client_id, settings.twitch_client_secret
+        )
+        await twitch_user.set_user_authentication(
+            user.access_token,
+            [AuthScope.USER_EDIT_BROADCAST, AuthScope.USER_READ_BROADCAST],
+            user.refresh_token,
+        )
+        return await twitch_user.get_user_active_extensions(user.twitch_id)
+
+    async def install_heat_ext(
+        self, user: User,
+    ):
+        twitch_user = await TwitchClient(
+            settings.twitch_client_id, settings.twitch_client_secret
+        )
+        await twitch_user.set_user_authentication(
+            user.access_token,
+            [AuthScope.USER_EDIT_BROADCAST, AuthScope.USER_READ_BROADCAST],
+            user.refresh_token,
+        )
+        await twitch_user.update_user_extensions(
+            UserActiveExtensions(
+                overlay={
+                    "1": dict(
+                        active=True,
+                        id="cr20njfkgll4okyrhag7xxph270sqk",
+                        version="2.1.1"
+                    )
+                }
+            )
         )

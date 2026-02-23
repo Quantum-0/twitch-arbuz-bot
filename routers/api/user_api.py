@@ -30,6 +30,27 @@ async def check_user_sse_connected(
     return BoolResponseSchema(result=ssem.has_clients(int(user.twitch_id), channel))
 
 
+@router.get("/check-heat-installed", response_model=BoolResponseSchema)
+async def check_heat_installed(
+    twitch: Annotated[Twitch, Depends(get_twitch)],
+    user: User = Security(user_auth),
+) -> BoolResponseSchema:
+    exts = await twitch.get_user_active_ext(user)
+    overlay = exts.overlay.get('1')
+    if overlay and overlay.id == 'cr20njfkgll4okyrhag7xxph270sqk' and overlay.active:
+        return BoolResponseSchema(result=True)
+    return BoolResponseSchema(result=False)
+
+
+@router.get("/install-heat", response_model=BoolResponseSchema)
+async def install_heat(
+    twitch: Annotated[Twitch, Depends(get_twitch)],
+    user: User = Security(user_auth),
+) -> BoolResponseSchema:
+    await twitch.install_heat_ext(user)
+    return BoolResponseSchema(result=True)
+
+
 
 @router.post("/update_settings")
 async def update_settings(
