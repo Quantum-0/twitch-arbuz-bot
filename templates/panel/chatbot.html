@@ -1,0 +1,38 @@
+{% set toggles = [
+    ("!кусь", "enable_bite", settings.enable_bite),
+    ("!лизь", "enable_lick", settings.enable_lick),
+    ("!boop", "enable_boop", settings.enable_boop),
+    ("!pat", "enable_pat", settings.enable_pat),
+    ("!hug", "enable_hug", settings.enable_hug),
+    ("!банан", "enable_banana", settings.enable_banana),
+    ("!lurk", "enable_lurk", settings.enable_lurk),
+    ("!хорни", "enable_horny_good", settings.enable_horny_good),
+    ("!хвост", "enable_tail", settings.enable_tail),
+    ("!dice", "enable_dice", settings.enable_dice),
+    ("!bonk", "enable_bonk", settings.enable_bonk),
+    ("!трусы", "enable_pants", settings.enable_pants),
+    ("!якто", "enable_whoami", settings.enable_whoami),
+    ("!вкусняшка", "enable_treat", settings.enable_treat),
+    ("!покормить", "enable_feed", settings.enable_feed),
+    ("!паста", "enable_pasta", settings.enable_pasta),
+] %}
+
+<h3>Настройки чат-бота</h3>
+
+<!-- Главный переключатель -->
+<div class="toggle-label">
+    <span><b>Включить чат-бота</b></span>
+    <div class="toggle-switch {% if settings.enable_chat_bot %}active{% endif %}" data-name="enable_chat_bot"></div>
+</div>
+
+<hr>
+
+<!-- Остальные переключатели -->
+<div id="dependent-toggles" class="toggles-grid">
+    {% for label, name, value in toggles %}
+        <div class="toggle-label {% if not settings.enable_chat_bot %}disabled{%endif%}">
+            <span>Включить {{ label }}</span>
+            <div class="toggle-switch {{ 'active' if value }}" data-name="{{ name }}"></div>
+        </div>
+    {% endfor %}
+</div>

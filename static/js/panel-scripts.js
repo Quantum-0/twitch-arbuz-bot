@@ -46,17 +46,53 @@ function initToggles() {
     });
 }
 
+function initOverlays() {
+    document.querySelectorAll(".overlay-card").forEach(card => {
+
+        const linkDiv = card.querySelector(".overlay-link");
+
+        card.querySelectorAll("[data-param]").forEach(el => {
+            el.addEventListener("input", () => updateOverlayLink(card));
+        });
+
+        card.querySelector(".overlay-toggle-settings").addEventListener("click", () => {
+            card.querySelector(".overlay-settings").classList.toggle("active");
+        });
+
+        linkDiv.addEventListener("click", () => {
+            navigator.clipboard.writeText(linkDiv.textContent);
+            linkDiv.classList.add("copied");
+            linkDiv.textContent = "Скопировано!";
+            setTimeout(() => {
+                updateOverlayLink(card);
+                linkDiv.classList.remove("copied");
+            }, 1000);
+        });
+
+        updateOverlayLink(card);
+    });
+
+    fetch('/api/user/check-heat-installed', {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' },
+    })
+    .then(res => res.json().then(data => ({ ok: res.ok, data })))
+    .then((
+        {ok, data}) => {
+            if (ok) {
+                document.querySelectorAll('div.plugin-required').forEach(element => {
+                    element.remove();
+                })
+            };
+        }
+    );
+}
+
 function updateDependentTogglesState() {
     const isEnabled = document.querySelector('.toggle-switch[data-name="enable_chat_bot"]').classList.contains('active');
     const container = document.getElementById('dependent-toggles');
     if (!container) return;
-    container.querySelectorAll('.toggle-label').forEach(label => {
-        if (isEnabled) {
-            label.classList.remove('disabled');
-        } else {
-            label.classList.add('disabled');
-        }
-    });
+    container.classList.toggle("active");
 }
 
 function openActivateModal() {
@@ -139,6 +175,7 @@ function updateCoins() {
 document.addEventListener('DOMContentLoaded', () => {
     initToggles();
     updateDependentTogglesState();
+    initOverlays();
     const coinInput = document.getElementById('coin-count');
     if (coinInput) {
         coinInput.addEventListener('input', triggerCoinSave);
@@ -163,7 +200,25 @@ function setupHeat() {
     .catch(err => showNotification('Ошибка', 'Ошибка установки плагина', true));
 }
 
+function updateOverlayLink(card) {
+    const base = card.dataset.base;
+    const params = new URLSearchParams();
 
+    params.set("channel_id", channel_id);
+
+    card.querySelectorAll("[data-param]").forEach(el => {
+        const key = el.dataset.param;
+        if (el.type === "checkbox") {
+            params.set(key, el.checked);
+        } else {
+            params.set(key, el.value);
+        }
+    });
+
+    const link = base + "?" + params.toString();
+    const linkDiv = card.querySelector(".overlay-link");
+    linkDiv.textContent = link;
+}
 
 //const installBtn = document.getElementById("installBtn");
 //const refreshBtn = document.getElementById("refreshBtn");

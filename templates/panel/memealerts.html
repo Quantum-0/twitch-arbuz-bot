@@ -1,0 +1,29 @@
+<h3>Настройки мемалёртов</h3>
+{% if memealerts.enabled %}
+    <button id="memealerts-btn" class="btn-danger" onclick="toggleMemealerts(false)">Отключить мемалёрты</button>
+    <p>Время жизни токена:
+        {% if memealerts.expires_in == 0 %}
+            <span style="font-weight: bold; color: red;">{{ memealerts.expires_in }} дней</span>
+        {% else %}
+            {{ memealerts.expires_in }} дней
+        {% endif %}. По истечению срока действия токена его необходимо будет обновить.
+    </p>
+    <button id="refresh-token-btn" onclick="openRefreshModal()">Обновить токен</button>
+    <div class="memealert-coins-wrapper">
+        <span>Количество мемкоинов за награду</span>
+        <div class="memealert-coins">
+            <!-- TODO: REFACTOR -->
+            <button type="button" class="coin-btn" onclick="changeCoinCount(-1)">−</button>
+            <input type="number" id="coin-count" min="1" max="100" value="{{ memealerts.coins_for_reward }}">
+            <button type="button" class="coin-btn" onclick="changeCoinCount(1)">+</button>
+        </div>
+    </div>
+{% else %}
+    <button id="memealerts-btn" onclick="openActivateModal()">Включить мемалёрты</button>
+{% endif %}
+
+
+
+
+
+

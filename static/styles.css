@@ -190,7 +190,7 @@ header nav a:hover {
     width: 100%;
 }*/
 .container {
-    max-width: min(60%, 1000px);
+    max-width: min(70%, 1000px);
     width: 100%;
 }
 /*@media (max-width: 900px) {
@@ -259,6 +259,26 @@ button[disabled] { opacity: 0.6; cursor: not-allowed; }
 .btn-danger { background-color: var(--color-danger) !important; }
 .btn-danger:hover { background-color: var(--color-danger-hover) !important; }
 
+section {
+    background: var(--color-bg-secondary);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border-radius: 8px;
+    padding: 18px;
+    margin-bottom: 20px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+    border: 1px solid rgba(255,255,255,0.1);
+    transition: 0.3s ease;
+}
+
+section:hover {
+    transform: translateY(-4px);
+}
+
+section h3 {
+    text-align: center;
+}
+
 .toggle-label {
     display: flex;
     align-items: center;
@@ -290,10 +310,13 @@ button[disabled] { opacity: 0.6; cursor: not-allowed; }
 .toggle-switch.active::after { transform: translateX(24px); }
 
 .toggles-grid {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 10px 40px;
+    display: none;
     margin-top: 20px;
+}
+.toggles-grid.active {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(256px, 1fr));
+    gap: 8px 32px;
 }
 @media (max-width: 600px) {
     .toggles-grid {
@@ -400,6 +423,19 @@ button[disabled] { opacity: 0.6; cursor: not-allowed; }
     width: 100%;
     accent-color: var(--color-primary);
 }
+.overlay-card input[type="color"] {
+    width: 100%;
+    height: 32px;
+    border-radius: 12px;
+    border: 2px solid black;
+    background: none;
+    cursor: pointer;
+    padding: 0;
+}
+
+.overlay-card input[type="color"]::-webkit-color-swatch-wrapper {
+    padding: 0;
+}
 
 .overlay-card .switch {
     position: relative;
@@ -443,6 +479,7 @@ button[disabled] { opacity: 0.6; cursor: not-allowed; }
 .overlay-card .switch input:checked + .slider:before {
     transform: translateX(20px);
 }
+
 .overlay-link {
     margin-top: 0px;
     font-size: 13px;
@@ -476,6 +513,59 @@ button[disabled] { opacity: 0.6; cursor: not-allowed; }
     display: inline-block;
     margin-bottom: 0px;
 }
+
+.overlay-copy-input {
+    width: 100%;
+    padding: 8px 10px;
+    border: 2px solid #4CAF50;
+    border-radius: 5px;
+    font-size: 14px;
+    background-color: #f9fff9;
+    cursor: pointer;
+}
+
+.overlay-copy-hint {
+    display: block;
+    margin-top: 4px;
+    color: #666;
+    font-size: 12px;
+}
+
+.memealert-coins-wrapper {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 10px;
+}
+.memealert-coins {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.memealert-coins .coin-btn {
+    background-color: #4CAF50;
+    color: #fff;
+    border: none;
+    border-radius: 5px;
+    font-size: 20px;
+    line-height: 1;
+    padding: 6px 14px;
+    margin: 0;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+.memealert-coins .coin-btn:hover { background-color: #45a049; }
+.memealert-coins input {
+    width: 80px;
+    text-align: center;
+    padding: 8px;
+    border: 2px solid #4CAF50;
+    border-radius: 5px;
+    background-color: #fff;
+    font-size: 16px;
+    margin: 0;
+}
+
 
 /* About Page user's card */
 
