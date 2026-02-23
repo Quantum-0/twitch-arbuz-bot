@@ -144,3 +144,89 @@ document.addEventListener('DOMContentLoaded', () => {
         coinInput.addEventListener('input', triggerCoinSave);
     }
 });
+
+function setupHeat() {
+    fetch('/api/user/install-heat', {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' },
+    })
+    .then(res => res.json().then(data => ({ ok: res.ok, data })))
+    .then((
+        {ok, data}) => {
+            showNotification(ok ? 'Настройки' : 'Ошибка', ok ? 'Плагин Heat успешно установлен!' : 'Ошибка установки плагина Heat', !ok);
+            if (ok) {
+                document.querySelectorAll('div.plugin-required').forEach(element => {
+                    element.remove();
+                })
+            };
+        })
+    .catch(err => showNotification('Ошибка', 'Ошибка установки плагина', true));
+}
+
+
+
+//const installBtn = document.getElementById("installBtn");
+//const refreshBtn = document.getElementById("refreshBtn");
+//const deleteBtn = document.getElementById("deleteBtn");
+//const backdrop = document.getElementById("modalBackdrop");
+//const keyInput = document.getElementById("keyInput");
+//const activateBtn = document.getElementById("activateBtn");
+//const cancelBtn = document.getElementById("cancelBtn");
+//
+//let onlyRefresh = false;
+//
+//function openModal(refresh=false) {
+//    onlyRefresh = refresh;
+//    keyInput.value = "";
+//    keyInput.classList.remove("error");
+//    backdrop.classList.add("active");
+//}
+//
+//function closeModal() {
+//    backdrop.classList.remove("active");
+//}
+//
+//installBtn.onclick = () => openModal(false);
+//refreshBtn.onclick = () => openModal(true);
+//cancelBtn.onclick = closeModal;
+//
+//deleteBtn.onclick = async () => {
+//    await fetch("/install-ai-overlay", {
+//        method: "POST",
+//        headers: {"Content-Type": "application/json"},
+//        body: JSON.stringify({ delete: true })
+//    });
+//    installBtn.style.display = "inline-block";
+//    refreshBtn.style.display = "none";
+//    deleteBtn.style.display = "none";
+//};
+//
+//activateBtn.onclick = async () => {
+//    const value = keyInput.value.trim();
+//    const regex = /^st-[a-z]{10}$/;
+//
+//    if (!regex.test(value)) {
+//        keyInput.classList.add("error");
+//        setTimeout(() => keyInput.classList.remove("error"), 400);
+//        return;
+//    }
+//
+//    const response = await fetch("/install-ai-overlay", {
+//        method: "POST",
+//        headers: {"Content-Type": "application/json"},
+//        body: JSON.stringify({
+//            key: value,
+//            only_refresh: onlyRefresh
+//        })
+//    });
+//
+//    if (response.status === 200) {
+//        closeModal();
+//        installBtn.style.display = "none";
+//        refreshBtn.style.display = "inline-block";
+//        deleteBtn.style.display = "inline-block";
+//    } else {
+//        keyInput.classList.add("error");
+//        setTimeout(() => keyInput.classList.remove("error"), 400);
+//    }
+//};

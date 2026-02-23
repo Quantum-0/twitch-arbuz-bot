@@ -225,77 +225,158 @@
     <p>После его активации - вы и ваши зрители увидите красную точку при наведении мыши на стрим. После этого можно добавлять любые из перечисленных ниже оверлеев.</p>
     <p>При добавлении оверлея нужно добавить браузерный источник в OBS, указать ссылку, выставить разрешение равное вашему разрешению трансляции и установить положение оверлея полностью под размер сцены, иначе клики будут обрабатываться некорректно.</p>
     </small>
-    <div class="overlay-section">
-        <p class="overlay-title">
-            <a href="https://dashboard.twitch.tv/extensions/cr20njfkgll4okyrhag7xxph270sqk-2.1.1">Heat</a> оверлей с игрой угадай пару
-        </p>
-        <input
-            class="overlay-copy-input"
-            type="text"
-            value="{{ request.base_url }}overlay/pair?channel_id={{ user.twitch_id }}"
-            readonly
-            onclick="this.select(); navigator.clipboard.writeText(this.value); showNotification('Скопировано', 'Ссылка для OBS скопирована');"
-        >
-        <small class="overlay-copy-hint">
-            Нажмите, чтобы скопировать ссылку. Для использования требуется подключить <a href="https://dashboard.twitch.tv/extensions/cr20njfkgll4okyrhag7xxph270sqk-2.1.1">Heat</a>.
-        </small>
-    </div>
-    <div class="overlay-section">
-        <p class="overlay-title">
-            <a href="https://dashboard.twitch.tv/extensions/cr20njfkgll4okyrhag7xxph270sqk-2.1.1">Интерактивный</a> оверлей с висящей звёздочкой
-        </p>
-        <input
-            class="overlay-copy-input"
-            type="text"
-            value="{{ request.base_url }}overlay/star?channel_id={{ user.twitch_id }}"
-            readonly
-            onclick="this.select(); navigator.clipboard.writeText(this.value); showNotification('Скопировано', 'Ссылка для OBS скопирована');"
-        >
-        <small class="overlay-copy-hint">
-            Нажмите, чтобы скопировать ссылку. Для использования требуется подключить <a href="https://dashboard.twitch.tv/extensions/cr20njfkgll4okyrhag7xxph270sqk-2.1.1">Heat</a>.
-        </small>
-        <!--
-        <div class="overlay-control">
-            <label>
-                Позиция (pos):
-                <span id="pos-value">—</span>
-            </label>
-            <input
-                type="range"
-                min="0"
-                max="1"
-                step="0.01"
-                value=""
-                oninput="updatePos(this.value)"
-            >
-        </div>
-        <div class="overlay-control">
-            <label>Размер звезды (size):</label>
-            <div class="memealert-coins">
-                <button type="button" class="coin-btn" onclick="changeStarSize(-1)">−</button>
-                <input type="number" id="star-size" min="1" max="100" value="20" oninput="updateUrl()">
-                <button type="button" class="coin-btn" onclick="changeStarSize(1)">+</button>
+
+    <div class="overlay-cards">
+        <div class="overlay-card" data-base="{{ request.base_url }}overlay/star">
+            <h2>Звёздочка</h2>
+            <p>Отображает наверху экрана интерактивную звёздочку, которую могут трогать зрители</p>
+            <div class="plugin-required">
+                Для использования оверлея <b>обязательно</b> установить Heat
+                <br/>
+                <button class="install-btn" onclick="setupHeat()">Установить Heat</button>
             </div>
+            <button class="overlay-toggle-settings">Настройки</button>
+            <div class="overlay-settings">
+<!--                <div class="overlay-control">-->
+<!--                  Var 1-->
+<!--                  <label class="switch">-->
+<!--                    <input type="checkbox" data-param="var1" />-->
+<!--                    <span class="slider"></span>-->
+<!--                  </label>-->
+<!--                </div>-->
+                <div class="overlay-control">
+                  Положение по горизонтали
+                  <input type="range" min="0" max="1" step="0.01" value="0.5" data-param="pos"/>
+                </div>
+                <div class="overlay-control">
+                  Размер
+                  <input type="range" min="8" max="256" value="16" data-param="size" />
+                </div>
+            </div>
+            <p>Скопируй ссылку и вставь в OBS, растянув на всю сцену:</p>
+            <div class="overlay-link"></div>
         </div>
-        -->
+
+        <div class="overlay-card" data-base="{{ request.base_url }}overlay/pair">
+            <h2>Игра "Найди пару"</h2>
+            <p>Мини-игра в угадывание двух одинаковых карточек, по которым могут кликать зрители, чтоб не скучать, например, когда вы куда-то отходите 👀</p>
+            <div class="plugin-required">
+                Для использования оверлея <b>обязательно</b> установить Heat
+                <br/>
+                <button class="install-btn" onclick="setupHeat()">Установить Heat</button>
+            </div>
+            <button class="overlay-toggle-settings">Настройки</button>
+            <div class="overlay-settings">
+                <div class="overlay-control">
+                  Использование стандартных смайликов твича
+                  <label class="switch">
+                    <input type="checkbox" data-param="use_twitch_emoji" />
+                    <span class="slider"></span>
+                  </label>
+                </div>
+                <div class="overlay-control">
+                  Использование стикеров автора бота
+                  <label class="switch">
+                    <input type="checkbox" data-param="arbuz" />
+                    <span class="slider"></span>
+                  </label>
+                </div>
+                <div class="overlay-control">
+                  Отступ слева
+                  <input type="range" min="0" max="1" step="0.01" value="0.2" data-param="offset_left"/>
+                </div>
+                <div class="overlay-control">
+                  Отступ справа
+                  <input type="range" min="0" max="1" step="0.01" value="0.2" data-param="offset_right"/>
+                </div>
+                <div class="overlay-control">
+                  Отступ сверху
+                  <input type="range" min="0" max="1" step="0.01" value="0.02" data-param="offset_top"/>
+                </div>
+                <div class="overlay-control">
+                  Отступ снизу
+                  <input type="range" min="0" max="1" step="0.01" value="0.05" data-param="offset_bottom"/>
+                </div>
+                <div class="overlay-control">
+                  Размер карточек
+                  <input type="range" min="0" max="1" step="0.01" value="0.87" data-param="card_scale"/>
+                </div>
+            </div>
+            <p>Скопируй ссылку и вставь в OBS, растянув на всю сцену:</p>
+            <div class="overlay-link"></div>
+        </div>
     </div>
-    {% if user and user.login_name in ["quantum075", "d_e_l_y", "silverosemary"] %}
-    <div class="overlay-section">
-        <p class="overlay-title">
-            Моя тестовая штука, НЕ ТРОГАЙТЕ
-        </p>
-        <input
-            class="overlay-copy-input"
-            type="text"
-            value="{{ request.base_url }}overlay/ai-sticker?channel_id={{ user.twitch_id }}"
-            readonly
-            onclick="this.select(); navigator.clipboard.writeText(this.value); showNotification('Скопировано', 'Ссылка для OBS скопирована');"
-        >
-        <small class="overlay-copy-hint">
-            Нажмите, чтобы скопировать ссылку.
-        </small>
-        <button id="setup-ai-sticker-btn" onclick="setupAiStickerReward()">Установить</button>
-    </div>
+<!--    <div class="overlay-section">-->
+<!--        <p class="overlay-title">-->
+<!--            <a href="https://dashboard.twitch.tv/extensions/cr20njfkgll4okyrhag7xxph270sqk-2.1.1">Heat</a> оверлей с игрой угадай пару-->
+<!--        </p>-->
+<!--        <input-->
+<!--            class="overlay-copy-input"-->
+<!--            type="text"-->
+<!--            value="{{ request.base_url }}overlay/pair?channel_id={{ user.twitch_id }}"-->
+<!--            readonly-->
+<!--            onclick="this.select(); navigator.clipboard.writeText(this.value); showNotification('Скопировано', 'Ссылка для OBS скопирована');"-->
+<!--        >-->
+<!--        <small class="overlay-copy-hint">-->
+<!--            Нажмите, чтобы скопировать ссылку. Для использования требуется подключить <a href="https://dashboard.twitch.tv/extensions/cr20njfkgll4okyrhag7xxph270sqk-2.1.1">Heat</a>.-->
+<!--        </small>-->
+<!--    </div>-->
+<!--    <div class="overlay-section">-->
+<!--        <p class="overlay-title">-->
+<!--            <a href="https://dashboard.twitch.tv/extensions/cr20njfkgll4okyrhag7xxph270sqk-2.1.1">Интерактивный</a> оверлей с висящей звёздочкой-->
+<!--        </p>-->
+<!--        <input-->
+<!--            class="overlay-copy-input"-->
+<!--            type="text"-->
+<!--            value="{{ request.base_url }}overlay/star?channel_id={{ user.twitch_id }}"-->
+<!--            readonly-->
+<!--            onclick="this.select(); navigator.clipboard.writeText(this.value); showNotification('Скопировано', 'Ссылка для OBS скопирована');"-->
+<!--        >-->
+<!--        <small class="overlay-copy-hint">-->
+<!--            Нажмите, чтобы скопировать ссылку. Для использования требуется подключить <a href="https://dashboard.twitch.tv/extensions/cr20njfkgll4okyrhag7xxph270sqk-2.1.1">Heat</a>.-->
+<!--        </small>-->
+<!--        &lt;!&ndash;-->
+<!--        <div class="overlay-control">-->
+<!--            <label>-->
+<!--                Позиция (pos):-->
+<!--                <span id="pos-value">—</span>-->
+<!--            </label>-->
+<!--            <input-->
+<!--                type="range"-->
+<!--                min="0"-->
+<!--                max="1"-->
+<!--                step="0.01"-->
+<!--                value=""-->
+<!--                oninput="updatePos(this.value)"-->
+<!--            >-->
+<!--        </div>-->
+<!--        <div class="overlay-control">-->
+<!--            <label>Размер звезды (size):</label>-->
+<!--            <div class="memealert-coins">-->
+<!--                <button type="button" class="coin-btn" onclick="changeStarSize(-1)">−</button>-->
+<!--                <input type="number" id="star-size" min="1" max="100" value="20" oninput="updateUrl()">-->
+<!--                <button type="button" class="coin-btn" onclick="changeStarSize(1)">+</button>-->
+<!--            </div>-->
+<!--        </div>-->
+<!--        &ndash;&gt;-->
+<!--    </div>-->
+<!--    {% if user and user.login_name in ["quantum075", "d_e_l_y", "silverosemary"] %}-->
+<!--    <div class="overlay-section">-->
+<!--        <p class="overlay-title">-->
+<!--            Моя тестовая штука, НЕ ТРОГАЙТЕ-->
+<!--        </p>-->
+<!--        <input-->
+<!--            class="overlay-copy-input"-->
+<!--            type="text"-->
+<!--            value="{{ request.base_url }}overlay/ai-sticker?channel_id={{ user.twitch_id }}"-->
+<!--            readonly-->
+<!--            onclick="this.select(); navigator.clipboard.writeText(this.value); showNotification('Скопировано', 'Ссылка для OBS скопирована');"-->
+<!--        >-->
+<!--        <small class="overlay-copy-hint">-->
+<!--            Нажмите, чтобы скопировать ссылку.-->
+<!--        </small>-->
+<!--        <button id="setup-ai-sticker-btn" onclick="setupAiStickerReward()">Установить</button>-->
+<!--    </div>-->
     {% endif %}
 </section>
 
@@ -313,4 +394,66 @@
         </div>
     </div>
 </div>
+
+<script>
+    function updateOverlayLink(card) {
+    const base = card.dataset.base;
+    const params = new URLSearchParams();
+
+    params.set("channel_id", {{ user.twitch_id }});
+
+    card.querySelectorAll("[data-param]").forEach(el => {
+        const key = el.dataset.param;
+        if (el.type === "checkbox") {
+            params.set(key, el.checked);
+        } else {
+            params.set(key, el.value);
+        }
+    });
+
+    const link = base + "?" + params.toString();
+    const linkDiv = card.querySelector(".overlay-link");
+    linkDiv.textContent = link;
+}
+
+document.querySelectorAll(".overlay-card").forEach(card => {
+
+    const linkDiv = card.querySelector(".overlay-link");
+
+    card.querySelectorAll("[data-param]").forEach(el => {
+        el.addEventListener("input", () => updateOverlayLink(card));
+    });
+
+    card.querySelector(".overlay-toggle-settings").addEventListener("click", () => {
+        card.querySelector(".overlay-settings").classList.toggle("active");
+    });
+
+    linkDiv.addEventListener("click", () => {
+        navigator.clipboard.writeText(linkDiv.textContent);
+        linkDiv.classList.add("copied");
+        linkDiv.textContent = "Скопировано!";
+        setTimeout(() => {
+            updateOverlayLink(card);
+            linkDiv.classList.remove("copied");
+        }, 1000);
+    });
+
+    updateOverlayLink(card);
+});
+
+fetch('/api/user/check-heat-installed', {
+    method: 'GET',
+    headers: { 'Content-Type': 'application/json' },
+})
+.then(res => res.json().then(data => ({ ok: res.ok, data })))
+.then((
+    {ok, data}) => {
+        if (ok) {
+            document.querySelectorAll('div.plugin-required').forEach(element => {
+                element.remove();
+            })
+        };
+    }
+);
+</script>
 {% endblock %}
