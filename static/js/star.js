@@ -77,8 +77,8 @@ class Stick {
 const points = [];
 const sticks = [];
 
-const segments = 18;
-const segmentLength = 12;
+const segments = 5 + Math.round(LENGTH * 15);
+const segmentLength = 10 + Math.round(LENGTH * 25);
 const startX = canvas.width * POSITION;
 const startY = 0;
 

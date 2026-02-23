@@ -63,6 +63,7 @@ async def overlay_star(
     pos: float = Query(default=0.5),
     size: int = Query(default=16),
     color: Color = Query(default="#ffd45a"),
+    length: float = Query(default=0.39),
 ):
     return templates.TemplateResponse(
         "overlays/star.html",
@@ -72,6 +73,7 @@ async def overlay_star(
             "position": pos,
             "size": size,
             "color": color,
+            "length": length,
         }
     )
 
