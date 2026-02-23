@@ -41,7 +41,38 @@ class Twitch:
             settings.bot_access_token, bot_scope, settings.bot_refresh_token
         )
         self._twitch = twitch
-        # await self.get_subscriptions()
+
+    async def send_chat_message_raw(
+        self,
+        broadcaster_id: str,
+        sender_id: str,
+        message: str,
+        reply_parent_message_id: str | None = None,
+    ):
+        async with httpx.AsyncClient() as client:
+            payload = {
+                "broadcaster_id": broadcaster_id,
+                "sender_id": sender_id,
+                "message": message,
+            }
+
+            if reply_parent_message_id:
+                payload["reply_parent_message_id"] = reply_parent_message_id
+
+            resp = await client.post(
+                "https://api.twitch.tv/helix/chat/messages",
+                headers={
+                    "Authorization": f"Bearer {self._twitch.get_app_token()}",
+                    "Client-Id": settings.twitch_client_id,
+                    "Content-Type": "application/json",
+                },
+                json=payload,
+            )
+
+            if resp.status_code != 200:
+                raise Exception(f"Twitch error: {resp.status_code} {resp.text}")
+
+            return resp.json()
 
     async def build_chat_client(self) -> Chat:
         return await Chat(self._twitch)
@@ -104,14 +135,21 @@ class Twitch:
         reply_parent_message_id: str | None = None,
         for_source_only: bool | None = None,
     ) -> SendMessageResponse:
-        result = await self._twitch.send_chat_message(
-            broadcaster_id=stream_channel.twitch_id,
-            sender_id="957818216",
-            message=message,
-            reply_parent_message_id=reply_parent_message_id,
-            for_source_only=for_source_only,
-        )
-        return result
+        try:
+            return await self.send_chat_message_raw(
+                broadcaster_id=stream_channel.twitch_id,
+                sender_id="957818216",
+                message=message,
+                reply_parent_message_id=reply_parent_message_id,
+            )
+        except:
+            return await self._twitch.send_chat_message(
+                broadcaster_id=stream_channel.twitch_id,
+                sender_id="957818216",
+                message=message,
+                reply_parent_message_id=reply_parent_message_id,
+                for_source_only=for_source_only,
+            )
 
     async def get_subscriptions(self) -> list[EventSubSubscription]:
         try:
