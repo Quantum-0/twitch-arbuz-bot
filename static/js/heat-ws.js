@@ -3,7 +3,7 @@
 //    const BACKUP_WS  = `wss://bot.quantum0.ru/ws/heat/${CHANNEL_ID}`;
 //    const BACKUP_SSE = `https://bot.quantum0.ru/sse/heat/${CHANNEL_ID}`;
 
-    const PRIMARY_SSE = `http://localhost:8000/sse/${CHANNEL_ID}/heat`;
+    const PRIMARY_SSE = `https://bot.quantum0.ru/sse/${CHANNEL_ID}/heat`;
     const BACKUP_WS  = `wss://heat-api.j38.net/channel/${CHANNEL_ID}`;
 
     const BASE_DELAY = 1000;
