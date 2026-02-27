@@ -37,7 +37,7 @@ async def check_heat_installed(
 ) -> BoolResponseSchema:
     exts = await twitch.get_user_active_ext(user)
     overlay = exts.overlay.get('1')
-    if overlay and overlay.id == 'cr20njfkgll4okyrhag7xxph270sqk' and overlay.active:
+    if overlay and overlay.active and overlay.id == 'cr20njfkgll4okyrhag7xxph270sqk':
         return BoolResponseSchema(result=True)
     return BoolResponseSchema(result=False)
 
