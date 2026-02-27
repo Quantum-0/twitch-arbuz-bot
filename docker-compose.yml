@@ -1,25 +1,51 @@
 version: '3.8'
 
 services:
-  app:
-    build: .
-    ports:
-      - "8015:8000"
-    env_file:
-      - .env
+#  app:
+#    build: .
+#    ports:
+#      - "8015:8000"
+#    env_file:
+#      - .env
 #    depends_on:
 #      - db
 
-#  db:
-#    image: postgres:13
-#    ports:
-#      - "45432:5432"
-#    environment:
-#      - POSTGRES_USER=user
-#      - POSTGRES_PASSWORD=password
-#      - POSTGRES_DB=twitch_bot
-#    volumes:
-#      - postgres_data:/var/lib/postgresql/data
+  db:
+    image: postgres:13
+    ports:
+      - "45432:5432"
+    environment:
+      - POSTGRES_USER=user
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=twitch_bot
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  emqx:
+    container_name: emqx
+    image: emqx/emqx
+    healthcheck:
+      test: [ "CMD", "/opt/emqx/bin/emqx", "ctl", "status" ]
+      interval: 5s
+      timeout: 25s
+      retries: 5
+    volumes:
+      - emqx_data:/opt/emqx/data:rw
+    ports:
+      - "1883:1883"
+      - "127.0.0.1:8083:8083"
+      - "127.0.0.1:8084:8084"
+      - "127.0.0.1:8883:8883"
+      - "18083:18083"
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 1G
+        reservations:
+          cpus: '0.25'
+          memory: 400M
 
 #  vmagent:
 #    image: victoriametrics/vmagent
@@ -54,5 +80,6 @@ services:
 #      - "--vmui.defaultDatasourceUrl=http://localhost:8428"
 
 volumes:
-#  postgres_data:
-  vmdata:
+  postgres_data:
+  emqx_data:
+#  vmdata:
