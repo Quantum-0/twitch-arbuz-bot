@@ -96,76 +96,17 @@
         <p>Скопируй ссылку и вставь в OBS, растянув на всю сцену:</p>
         <div class="overlay-link"></div>
     </div>
+
+    {% if user and user.login_name in ["quantum075", "d_e_l_y", "silverosemary"] %}
+    <div class="overlay-card" data-base="{{ request.base_url }}overlay/ai-sticker">
+        <h2>⭐ AI Stickers</h2>
+        <p>Позволяет через награду кидать на стрим стикеры, сгенерированные с помощью ИИ.</p>
+        <button class="overlay-toggle-settings">Настройки</button>
+        <div class="overlay-settings">
+            <button id="setup-ai-sticker-btn" onclick="setupAiStickerReward()">Установить</button>
+        </div>
+        <p>Скопируй ссылку и вставь в OBS, растянув на всю сцену:</p>
+        <div class="overlay-link"></div>
+    </div>
+    {% endif %}
 </div>
-<!--    <div class="overlay-section">-->
-<!--        <p class="overlay-title">-->
-<!--            <a href="https://dashboard.twitch.tv/extensions/cr20njfkgll4okyrhag7xxph270sqk-2.1.1">Heat</a> оверлей с игрой угадай пару-->
-<!--        </p>-->
-<!--        <input-->
-<!--            class="overlay-copy-input"-->
-<!--            type="text"-->
-<!--            value="{{ request.base_url }}overlay/pair?channel_id={{ user.twitch_id }}"-->
-<!--            readonly-->
-<!--            onclick="this.select(); navigator.clipboard.writeText(this.value); showNotification('Скопировано', 'Ссылка для OBS скопирована');"-->
-<!--        >-->
-<!--        <small class="overlay-copy-hint">-->
-<!--            Нажмите, чтобы скопировать ссылку. Для использования требуется подключить <a href="https://dashboard.twitch.tv/extensions/cr20njfkgll4okyrhag7xxph270sqk-2.1.1">Heat</a>.-->
-<!--        </small>-->
-<!--    </div>-->
-<!--    <div class="overlay-section">-->
-<!--        <p class="overlay-title">-->
-<!--            <a href="https://dashboard.twitch.tv/extensions/cr20njfkgll4okyrhag7xxph270sqk-2.1.1">Интерактивный</a> оверлей с висящей звёздочкой-->
-<!--        </p>-->
-<!--        <input-->
-<!--            class="overlay-copy-input"-->
-<!--            type="text"-->
-<!--            value="{{ request.base_url }}overlay/star?channel_id={{ user.twitch_id }}"-->
-<!--            readonly-->
-<!--            onclick="this.select(); navigator.clipboard.writeText(this.value); showNotification('Скопировано', 'Ссылка для OBS скопирована');"-->
-<!--        >-->
-<!--        <small class="overlay-copy-hint">-->
-<!--            Нажмите, чтобы скопировать ссылку. Для использования требуется подключить <a href="https://dashboard.twitch.tv/extensions/cr20njfkgll4okyrhag7xxph270sqk-2.1.1">Heat</a>.-->
-<!--        </small>-->
-<!--        &lt;!&ndash;-->
-<!--        <div class="overlay-control">-->
-<!--            <label>-->
-<!--                Позиция (pos):-->
-<!--                <span id="pos-value">—</span>-->
-<!--            </label>-->
-<!--            <input-->
-<!--                type="range"-->
-<!--                min="0"-->
-<!--                max="1"-->
-<!--                step="0.01"-->
-<!--                value=""-->
-<!--                oninput="updatePos(this.value)"-->
-<!--            >-->
-<!--        </div>-->
-<!--        <div class="overlay-control">-->
-<!--            <label>Размер звезды (size):</label>-->
-<!--            <div class="memealert-coins">-->
-<!--                <button type="button" class="coin-btn" onclick="changeStarSize(-1)">−</button>-->
-<!--                <input type="number" id="star-size" min="1" max="100" value="20" oninput="updateUrl()">-->
-<!--                <button type="button" class="coin-btn" onclick="changeStarSize(1)">+</button>-->
-<!--            </div>-->
-<!--        </div>-->
-<!--        &ndash;&gt;-->
-<!--    </div>-->
-<!--    {% if user and user.login_name in ["quantum075", "d_e_l_y", "silverosemary"] %}-->
-<!--    <div class="overlay-section">-->
-<!--        <p class="overlay-title">-->
-<!--            Моя тестовая штука, НЕ ТРОГАЙТЕ-->
-<!--        </p>-->
-<!--        <input-->
-<!--            class="overlay-copy-input"-->
-<!--            type="text"-->
-<!--            value="{{ request.base_url }}overlay/ai-sticker?channel_id={{ user.twitch_id }}"-->
-<!--            readonly-->
-<!--            onclick="this.select(); navigator.clipboard.writeText(this.value); showNotification('Скопировано', 'Ссылка для OBS скопирована');"-->
-<!--        >-->
-<!--        <small class="overlay-copy-hint">-->
-<!--            Нажмите, чтобы скопировать ссылку.-->
-<!--        </small>-->
-<!--        <button id="setup-ai-sticker-btn" onclick="setupAiStickerReward()">Установить</button>-->
-<!--    </div>-->
-{% endif %}
