@@ -1,21 +1,8 @@
 import pytest
 
 # !!! ORDER IS IMPORTANT !!!
-from fixtures.auto_use_fixtures import event_loop  # noqa
-from fixtures.client_fixtures import (
-    client,
-    session_override,
-    test_user_cookie,
-    user_auth_mock,
-)  # noqa
-from fixtures.database_fixtures import (
-    db_session,
-    migrations,
-    postgres_container,
-    test_engine,
-    test_user,
-)  # noqa
-from fixtures.twitch_message import twitch_message_event_model, twitch_message_event_raw  # noqa
+from tests.unit.fixtures import event_loop  # noqa
+from tests.unit.fixtures.twitch_message import twitch_message_event_model, twitch_message_event_raw  # noqa
 from pytest import fixture
 from pytest_asyncio import is_async_test
 
