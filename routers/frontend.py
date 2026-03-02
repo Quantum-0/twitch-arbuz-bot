@@ -26,6 +26,36 @@ templates = Jinja2Templates(directory="templates")
 router = APIRouter()
 
 
+@router.get("/profile/{profile_user:str}")
+async def profile_page(
+    profile_user: str,
+    request: Request,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    twitch: Annotated[Twitch, Depends(get_twitch)],
+    user: User | None = Security(user_auth_optional),
+):
+    profile_user_data = (await db.execute(
+        sa.select(User)
+        .options(selectinload(User.settings))
+        .options(selectinload(User.memealerts))
+        .filter_by(login_name=profile_user)
+    )).scalar_one_or_none()
+    profile_user_dict = profile_user_data.__dict__
+    streams = await twitch.get_streams([profile_user_data])
+    profile_user_dict["is_live"] = bool(streams.get(profile_user_data))
+    profile_user_dict["link_telegram"] = "t.me/quantum0"
+    profile_user_dict["link_discord"] = "discord.com"
+    profile_user_dict["memealerts_enabled"] = profile_user_data.memealerts.memealerts_reward is not None
+    return templates.TemplateResponse(
+        "profile.html",
+        {
+            "user": user,
+            "profile_user": profile_user_dict,
+            "request": request,
+        }
+    )
+
+
 @router.get("/", response_class=HTMLResponse)
 async def index_page(request: Request):
     if request.session.get("user_id"):

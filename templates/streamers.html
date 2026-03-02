@@ -11,7 +11,7 @@
 <div class="streamers-grid">
     {% for streamer in streamers %}
         <div class="streamer-container">
-            <a href="https://twitch.tv/{{ streamer.username }}" target="_blank">
+            <a href="/profile/{{ streamer.username }}" target="_blank">
                 <img src="{{ streamer.avatar_url }}" alt="{{ streamer.username }}" class="streamer-avatar">
             </a>
             {% if streamer.role == "beta" %}

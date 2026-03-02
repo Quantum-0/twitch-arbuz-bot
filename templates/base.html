@@ -46,7 +46,7 @@
     </nav>
     <div class="user-icon">
     {% if user %}
-        <a href="https://twitch.tv/{{ user.twitch_login }}"><img src="{{ user.profile_image_url }}" alt="Avatar" class="avatar"></a>
+        <a href="/profile/{{ user.login_name }}"><img src="{{ user.profile_image_url }}" alt="Avatar" class="avatar"></a>
     {% endif %}
     </div>
     </header>

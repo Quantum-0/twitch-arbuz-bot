@@ -1,0 +1,133 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container">
+
+    <section>
+        <div style="display: flex; gap: 20px; align-items: center; flex-wrap: wrap;">
+
+            <!-- Аватар -->
+            <div>
+                <img src="{{ profile_user.profile_image_url }}"
+                     alt="avatar"
+                     style="width:300px; height:300px; border-radius: 12px; border: 3px solid var(--color-border);">
+            </div>
+
+            <!-- Основная информация -->
+            <div style="flex: 1; min-width: 250px;">
+
+                <h2 style="margin-top: 0;">
+                    {{ profile_user.login_name }}
+                </h2>
+
+                <p style="color: var(--color-text-muted); margin-top: 5px;">
+                    ID: {{ profile_user.id }}
+                </p>
+
+                <p style="color: var(--color-text-muted); margin-top: 5px;">
+                    Twitch ID: {{ profile_user.twitch_id }}
+                </p>
+
+                <!-- Индикаторы -->
+                <div style="display: flex; gap: 10px; flex-wrap: wrap; margin: 10px 0;">
+
+                    {% if profile_user.is_live %}
+                        <span class="tooltip-container"
+                              style="background: #DD1111; color: white; padding: 5px 10px; border-radius: 6px;">
+                            ● LIVE
+                            <span class="tooltip-text">Пользователь сейчас в эфире</span>
+                        </span>
+                    {% endif %}
+
+                    {% if profile_user.is_beta_test %}
+                        <span class="tooltip-container"
+                              style="background: #219aff; color: white; padding: 5px 10px; border-radius: 6px;">
+                            β
+                            <span class="tooltip-text">Бета-тестер</span>
+                        </span>
+                    {% endif %}
+
+                    {% if profile_user.donated > 0 %}
+                        <span class="tooltip-container"
+                              style="background: gold; color: black; padding: 5px 10px; border-radius: 6px;">
+                            ★
+                            <span class="tooltip-text">Финансово поддерживает сервис</span>
+                        </span>
+                    {% endif %}
+
+                </div>
+
+                <!-- Соцсети -->
+                <div style="display: flex; flex-direction: column; gap: 5px;">
+
+                    {% if profile_user.link_telegram %}
+                    <button class="twitch-login-button" onclick="location.href='{{ profile_user.link_telegram }}';"><i class="fa fa-telegram"></i> Telegram</button>
+                    {% endif %}
+
+                    {% if profile_user.link_discord %}
+                        <button class="twitch-login-button" onclick="location.href='{{ profile_user.link_discord }}';"><i class="fab fa-discord"></i> Discord</button>
+                    {% endif %}
+
+                    <button class="twitch-login-button" onclick="location.href='https://twitch.tv/{{ profile_user.login_name }}';"><i class="fa fa-twitch"></i> Twitch</button>
+
+                </div>
+
+            </div>
+        </div>
+    </section>
+
+    <!-- Статистика -->
+    <section>
+        <h3>Статистика</h3>
+
+        <div style="display: flex; justify-content: space-around; flex-wrap: wrap; gap: 20px; text-align: center;">
+
+            <div>
+                <div style="font-size: 22px; font-weight: bold;">
+                    {{ profile_user.followers_count }}
+                </div>
+                <div style="color: var(--color-text-muted);">
+                    Фолловеров
+                </div>
+            </div>
+
+            <div>
+                <div style="font-size: 22px; font-weight: bold;">
+                    {{ profile_user.created_at.strftime("%d.%m.%Y") }}
+                </div>
+                <div style="color: var(--color-text-muted);">
+                    Дата регистрации
+                </div>
+            </div>
+
+        </div>
+    </section>
+
+    <!-- Настройки -->
+    <section>
+        <h3>Интеграции</h3>
+
+        <div style="display: flex; flex-direction: column; gap: 10px;">
+
+            <div>
+                Чат-бот:
+                <strong style="color: {{ 'var(--color-primary)' if profile_user.settings.enable_chat_bot else 'var(--color-danger)' }}">
+                    {{ "включён" if profile_user.settings.enable_chat_bot else "выключен" }}
+                </strong>
+                {% if profile_user.settings.enable_chat_bot %}
+                    <a style="text-align: right" href="/cmdlist?streamer={{ profile_user.login_name }}">Список команд чат бота</a>
+                {% endif %}
+            </div>
+
+            <div>
+                Интеграция МА:
+                <strong style="color: {{ 'var(--color-primary)' if profile_user.memealerts_enabled else 'var(--color-danger)' }}">
+                    {{ "включена" if profile_user.memealerts_enabled else "выключена" }}
+                </strong>
+            </div>
+
+        </div>
+    </section>
+
+</div>
+{% endblock %}
