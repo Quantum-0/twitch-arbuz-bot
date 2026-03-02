@@ -3,6 +3,8 @@ from base64 import b64encode
 import pytest
 
 from config import settings
+from tests.unit.fixtures.client_fixtures import client, session_override, test_user_cookie, user_auth_mock  # noqa
+from tests.unit.fixtures.database_fixtures import db_session, migrations, postgres_container, test_engine, test_user  # noqa
 
 
 @pytest.mark.asyncio()

@@ -1,11 +1,19 @@
-import datetime
 import random
+from types import SimpleNamespace
 
 import pytest
-from twitchAPI.chat import ChatMessage
 
 from routers.schemas import ChatMessageSchema
 from twitch.chat.handlers.handlers import HelloHandler
+
+
+def _build_webhook_event(user_message: str, display_name: str, login: str):
+    return SimpleNamespace(
+        message=SimpleNamespace(text=user_message),
+        reply=None,
+        chatter_user_name=display_name,
+        chatter_user_login=login,
+    )
 
 
 @pytest.mark.parametrize(
@@ -32,20 +40,16 @@ async def test_hello_positive(
 ):
     random.seed(42)
     handler = HelloHandler(sm=state_manager, send_message=send_message_mock)
-    msg = ChatMessage(
-        chat={},
-        parsed={
-            "source": {"nick": user_name["name"]},
-            "parameters": user_message,
-            "tags": {
-                "display-name": user_name["display_name"],
-                "tmi-sent-ts": datetime.datetime.now().timestamp(),
-            },
-        },
+    msg = _build_webhook_event(
+        user_message=user_message,
+        display_name=user_name["display_name"],
+        login=user_name["name"],
     )
-    await handler.handle(streamer_name, msg)
+    streamer = SimpleNamespace(login_name=streamer_name)
+
+    await handler.handle(streamer, msg)
     send_message_mock.assert_sent(
-        f"@{user_name['display_name']}, дарова! >w<", chat=streamer_name
+        f"@{user_name['display_name']}, дарова! >w<", chat=streamer
     )
 
 
@@ -66,19 +70,15 @@ async def test_hello_custom_reply_in_channels(
 ):
     random.seed(42)
     handler = HelloHandler(sm=state_manager, send_message=send_message_mock)
-    msg = ChatMessage(
-        chat={},
-        parsed={
-            "source": {"nick": "vasya"},
-            "parameters": user_message,
-            "tags": {
-                "display-name": "Vasya",
-                "tmi-sent-ts": datetime.datetime.now().timestamp(),
-            },
-        },
+    msg = _build_webhook_event(
+        user_message=user_message,
+        display_name="Vasya",
+        login="vasya",
     )
-    await handler.handle(streamer_name, msg)
-    send_message_mock.assert_sent(response, chat=streamer_name)
+    streamer = SimpleNamespace(login_name=streamer_name)
+
+    await handler.handle(streamer, msg)
+    send_message_mock.assert_sent(response, chat=streamer)
 
 
 @pytest.mark.parametrize(
@@ -89,18 +89,14 @@ async def test_hello_custom_reply_in_channels(
 async def test_hello_negative(state_manager, send_message_mock, user_message):
     random.seed(42)
     handler = HelloHandler(sm=state_manager, send_message=send_message_mock)
-    msg = ChatMessage(
-        chat={},
-        parsed={
-            "source": {"nick": "vasya"},
-            "parameters": user_message,
-            "tags": {
-                "display-name": "Vasya",
-                "tmi-sent-ts": datetime.datetime.now().timestamp(),
-            },
-        },
+    msg = _build_webhook_event(
+        user_message=user_message,
+        display_name="Vasya",
+        login="vasya",
     )
-    await handler.handle("TestStreamer", msg)
+    streamer = SimpleNamespace(login_name="TestStreamer")
+
+    await handler.handle(streamer, msg)
     send_message_mock.assert_not_sent()
 
 
@@ -108,9 +104,10 @@ async def test_new_message(
     state_manager,
     send_message_mock,
     twitch_message_event_model: ChatMessageSchema,
-    test_user,
 ):
     msg = twitch_message_event_model.event
     handler = HelloHandler(sm=state_manager, send_message=send_message_mock)
-    await handler.handle("TestStreamer", msg)
+    streamer = SimpleNamespace(login_name="TestStreamer")
+
+    await handler.handle(streamer, msg)
     send_message_mock.assert_not_sent()
