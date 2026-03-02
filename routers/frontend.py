@@ -43,8 +43,8 @@ async def profile_page(
     profile_user_dict = profile_user_data.__dict__
     streams = await twitch.get_streams([profile_user_data])
     profile_user_dict["is_live"] = bool(streams.get(profile_user_data))
-    profile_user_dict["link_telegram"] = "t.me/quantum0"
-    profile_user_dict["link_discord"] = "discord.com"
+    # profile_user_dict["link_telegram"] = "t.me/quantum0"
+    # profile_user_dict["link_discord"] = "discord.com"
     profile_user_dict["memealerts_enabled"] = profile_user_data.memealerts.memealerts_reward is not None
     return templates.TemplateResponse(
         "profile.html",
