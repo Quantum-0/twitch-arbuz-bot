@@ -56,7 +56,7 @@ async def eventsub_handler(
     elif isinstance(payload, RaidWebhookSchema):
         logger.info("Handling raid")
         await service.handle_raid(payload)
-        await mqtt.publish(f"twitch/{payload.subscription.condition.broadcaster_user_id}/raid", payload)
+        await mqtt.publish(f"twitch/{payload.subscription.condition.to_broadcaster_user_id}/raid", payload)
     elif isinstance(payload, ChatMessageSchema):
         logger.info("Handling message webhook")
         if settings.direct_handle_messages:
