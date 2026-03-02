@@ -351,7 +351,7 @@ class Twitch:
     @staticmethod
     async def get_user_access_refresh_tokens_by_authorization_code(
         authorization_code: str,
-    ) -> tuple[str, str]:
+    ) -> tuple[str, str] | None:
         async with httpx.AsyncClient() as client:
             response = await client.post(
                 "https://id.twitch.tv/oauth2/token",
@@ -367,9 +367,10 @@ class Twitch:
             try:
                 access_token = tokens["access_token"]
                 refresh_token = tokens["refresh_token"]
+                return access_token, refresh_token
             except KeyError:
                 logger.error(f"Error getting tokens from oauth. Resp: {tokens}")
-            return access_token, refresh_token
+                return None
 
     @staticmethod
     async def get_self(access_token, refresh_token) -> TwitchUser:

@@ -508,10 +508,14 @@ async def callback(
 ):
     # TODO: re-subcribe raid and both rewards
     #  Connections to PG should be short, reopen session after twitch request
+    tokens = await twitch.get_user_access_refresh_tokens_by_authorization_code(code)
+    if tokens is None:
+        return RedirectResponse(url="/")
+
     (
         access_token,
         refresh_token,
-    ) = await twitch.get_user_access_refresh_tokens_by_authorization_code(code)
+    ) = tokens
     user_info = await twitch.get_self(access_token, refresh_token)
 
     user_id = user_info.id
