@@ -476,6 +476,8 @@ async def callback(
     db: Annotated[AsyncSession, Depends(get_db)],
     twitch: Annotated[Twitch, Depends(get_twitch)],
 ):
+    # TODO: re-subcribe raid and both rewards
+    #  Connections to PG should be short, reopen session after twitch request
     (
         access_token,
         refresh_token,
