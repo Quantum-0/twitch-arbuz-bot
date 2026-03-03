@@ -10,6 +10,7 @@ from fastapi import WebSocket, APIRouter, Depends
 from starlette.requests import Request
 from starlette.responses import StreamingResponse
 from starlette.websockets import WebSocketDisconnect
+from websockets import ConnectionClosedError
 
 from config import settings
 from dependencies import get_ai
@@ -78,8 +79,11 @@ class HeatChannel:
             except asyncio.CancelledError:
                 break
 
+            except ConnectionClosedError:
+                logger.warning("Upstream connection was closed", exc_info=True)
+
             except Exception:
-                logger.exception("Heat upstream crashed")
+                logger.exception("Heat upstream crashed", exc_info=True)
 
             finally:
                 await self._close_upstream()
