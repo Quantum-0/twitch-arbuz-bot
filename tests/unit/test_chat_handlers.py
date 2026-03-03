@@ -1,6 +1,7 @@
 import random
 from types import SimpleNamespace
 
+import allure
 import pytest
 
 from routers.schemas import ChatMessageSchema
@@ -16,6 +17,8 @@ def _build_webhook_event(user_message: str, display_name: str, login: str):
     )
 
 
+@allure.epic("Unit testing")
+@allure.title("Ответ бота на приветствие")
 @pytest.mark.parametrize(
     "user_message",
     [
@@ -53,6 +56,8 @@ async def test_hello_positive(
     )
 
 
+@allure.epic("Unit testing")
+@allure.title("Кастомные приветствия")
 @pytest.mark.parametrize(
     "user_message", ["@Quantum075Bot, привет!", "@Quantum075Bot кваствуй"]
 )
@@ -81,6 +86,8 @@ async def test_hello_custom_reply_in_channels(
     send_message_mock.assert_sent(response, chat=streamer)
 
 
+@allure.epic("Unit testing")
+@allure.title("Негативный тест на приветствие")
 @pytest.mark.parametrize(
     "user_message",
     ["@Quantum075Bot, пырывееет!", "@Quantum075Bot йоу", "@Quantum075Bob привет"],
