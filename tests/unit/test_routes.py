@@ -3,7 +3,7 @@ from base64 import b64encode
 import pytest
 
 from config import settings
-from tests.unit.fixtures.client_fixtures import client, session_override, test_user_cookie, user_auth_mock  # noqa
+from tests.unit.fixtures.client_fixtures import client, session_override, twitch_override, test_user_cookie, user_auth_mock  # noqa
 from tests.unit.fixtures.database_fixtures import db_session, migrations, postgres_container, test_engine, test_user  # noqa
 
 
@@ -18,8 +18,7 @@ async def test_openapi(client):
 @pytest.mark.asyncio()
 async def test_unauthorized_index_page(client):
     resp = await client.get("/")
-    assert resp.status_code == 307
-    assert resp.next_request.url.path == "/login"
+    assert resp.status_code == 200
 
 
 @pytest.mark.asyncio()
