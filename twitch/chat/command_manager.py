@@ -28,7 +28,7 @@ class CommandsManager:
         streamer: User,
         message: ChatMessageWebhookEventSchema,
     ):
-        logger.debug(f"Handling message with {self}")
+        logger.debug(f"Handling message with {self.__class__.__name__}")
         for cmd in self.commands:
             if not cmd.is_enabled(user_settings):
                 continue
@@ -52,7 +52,7 @@ class CommandsManager:
                 )
                 for x in [f"!{alias}" for alias in cmd.command_aliases]
             ):
-                logger.debug(f"Handler for command was found: {cmd}")
+                logger.debug(f"Handler for command was found: {cmd.__class__.__name__}")
                 await cmd.handle(streamer, message)
 
     async def get_commands_of_user(self, user) -> list[tuple[str, str, str]]:

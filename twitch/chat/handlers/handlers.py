@@ -249,7 +249,7 @@ class MessagesHandlerManager:
         streamer: User,
         message: ChatMessageWebhookEventSchema,
     ):
-        logger.debug(f"Handling message with {self}")
+        logger.debug(f"Handling message with {self.__class__.__name__}")
         for handler in self.handlers:
             if not handler.is_enabled(user_settings):
                 continue
