@@ -41,6 +41,10 @@ class PantsRaffleHandler(CommonMessagesHandler):
             param=SMParam.PARTICIPANTS
         )
 
+        if target is None or participants is None:
+            logger.info("Raffle was not ran on the channel")
+            return HandlerResult.SKIPED
+
         if message.message.text.strip() == '-':
             if message.chatter_user_login == target.lower():
                 await self.send_response(
@@ -60,10 +64,6 @@ class PantsRaffleHandler(CommonMessagesHandler):
                 return HandlerResult.HANDLED
             else:
                 return HandlerResult.SKIPED
-
-        if target is None or participants is None:
-            logger.info("Raffle was not ran on the channel")
-            return HandlerResult.SKIPED
 
         if message.chatter_user_name in participants:
             logger.info("Already in participants. Skip.")
