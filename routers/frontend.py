@@ -541,6 +541,7 @@ async def callback(
         user.access_token = access_token
         user.refresh_token = refresh_token
         user.profile_image_url = profile_image_url
+        user.login_name = login_name
 
     asyncio.create_task(login_callback_task(user, twitch))  # todo: remove twitch, use DI
 
