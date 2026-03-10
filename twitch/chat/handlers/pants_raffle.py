@@ -1,6 +1,6 @@
 import logging
 
-from database.database import AsyncSessionLocal
+from container_runtime import get_container
 from database.models import User, TwitchUserSettings, PantsDeny
 from routers.schemas import ChatMessageWebhookEventSchema
 from twitch.chat.commands import PantsCommand
@@ -16,7 +16,7 @@ class PantsRaffleHandler(CommonMessagesHandler):
         return streamer_settings.enable_pants
 
     async def check_denied(self, *names: str) -> list[str]:
-        async with AsyncSessionLocal() as session:
+        async with get_container().db_session_factory() as session:
             result = await session.execute(
                 sa.select(PantsDeny)
                 .where(PantsDeny.name.in_([n.lower() for n in names]))

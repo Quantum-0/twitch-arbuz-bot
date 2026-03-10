@@ -263,9 +263,9 @@ class UnlurkHandler(CommonMessagesHandler):
     UNLURK_AFTER = 300
 
     def __init__(self, sm: StateManager, send_message: Callable[..., Awaitable[None]]):
-        from dependencies import get_chat_bot
+        from container_runtime import get_container
 
-        self.chat_bot = next(get_chat_bot())
+        self.chat_bot = get_container().chat_bot()
         super().__init__(sm, send_message)
 
     def is_enabled(self, streamer_settings: TwitchUserSettings) -> bool:

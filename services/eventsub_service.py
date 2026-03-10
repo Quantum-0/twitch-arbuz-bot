@@ -1,15 +1,16 @@
 import asyncio
 import logging
+from collections.abc import Callable
 from typing import Any
 
 import sqlalchemy as sa
 from memealerts.types.exceptions import MATokenExpiredError
 from openai import BadRequestError, APIStatusError
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from twitchAPI.type import TwitchResourceNotFound
 
-from database.database import AsyncSessionLocal
-from database.models import User, Base, TwitchUserSettings
+from database.models import Base, TwitchUserSettings, User
 from routers.schemas import RaidWebhookSchema, PointRewardRedemptionWebhookSchema
 from services.ai import OpenAIClient
 from services.image_resizer import ImageResizer
@@ -33,12 +34,14 @@ class TwitchEventSubService():
         ai: OpenAIClient,
         ssem: SSEManager,
         img_resizer: ImageResizer,
+        db_session_factory: Callable[[], AsyncSession],
     ):
         self._twitch = twitch
         self._chatbot = chatbot
         self._ai = ai
         self._ssem = ssem
         self._img_resizer = img_resizer
+        self._db_session_factory = db_session_factory
 
     @staticmethod
     def task_wrapper(func):
@@ -68,7 +71,7 @@ class TwitchEventSubService():
             query = query.where(User.login_name==id_or_login.lower())
         else:
             query = query.where(User.twitch_id==str(id_or_login))
-        async with AsyncSessionLocal() as db:
+        async with self._db_session_factory() as db:
             result = await db.execute(query)
             user = result.scalar_one_or_none()
             if user is None:

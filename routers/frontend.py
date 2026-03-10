@@ -2,10 +2,12 @@ import asyncio
 import logging
 import math
 import random
+from collections.abc import Callable
 from typing import Annotated, Any
 from uuid import UUID
 
 import sqlalchemy as sa
+from dependency_injector.wiring import Provide, inject
 from fastapi import APIRouter, HTTPException, Query, Security
 from fastapi.params import Depends
 from pydantic.color import Color
@@ -16,9 +18,8 @@ from starlette.responses import HTMLResponse, RedirectResponse, FileResponse
 from starlette.templating import Jinja2Templates
 
 from config import settings
-from database.database import AsyncSessionLocal
 from database.models import TwitchUserSettings, User, MemealertsSettings
-from dependencies import get_chat_bot, get_db, get_twitch
+from container import Container
 from routers.security_helpers import admin_auth, user_auth, user_auth_optional
 from twitch.chat.bot import ChatBot
 from twitch.client.twitch import Twitch
@@ -31,11 +32,12 @@ router = APIRouter()
 
 
 @router.get("/profile/{profile_user:str}")
+@inject
 async def profile_page(
     profile_user: str,
     request: Request,
-    db: Annotated[AsyncSession, Depends(get_db)],
-    twitch: Annotated[Twitch, Depends(get_twitch)],
+    db: Annotated[AsyncSession, Depends(Provide[Container.db_session])],
+    twitch: Annotated[Twitch, Depends(Provide[Container.twitch])],
     user: User | None = Security(user_auth_optional),
 ):
     profile_user_data = (await db.execute(
@@ -127,9 +129,10 @@ async def overlay_img_gen(
 
 
 @router.get("/overlay/pair")
+@inject
 async def overlay_pair(
     request: Request,
-    db: Annotated[AsyncSession, Depends(get_db)],
+    db: Annotated[AsyncSession, Depends(Provide[Container.db_session])],
     channel_id: int = Query(),
     use_twitch_emoji: bool = Query(default=False),
     arbuz: bool = Query(default=False),
@@ -270,9 +273,10 @@ async def meme_tutorial_page(
 
 
 @router.get("/debug")
+@inject
 async def debug_page(
     request: Request,
-    chat_bot: Annotated[ChatBot, Depends(get_chat_bot)],
+    chat_bot: Annotated[ChatBot, Depends(Provide[Container.chat_bot])],
     user: Any = Security(user_auth),
 ):
     if not user.in_beta_test:
@@ -311,11 +315,12 @@ async def admin_page(
 
 
 @router.get("/cmdlist")
+@inject
 async def command_list_page(
     request: Request,
     streamer: Annotated[str, Query(...)],
-    db: Annotated[AsyncSession, Depends(get_db)],
-    chat_bot: Annotated[ChatBot, Depends(get_chat_bot)],
+    db: Annotated[AsyncSession, Depends(Provide[Container.db_session])],
+    chat_bot: Annotated[ChatBot, Depends(Provide[Container.chat_bot])],
     # streamer_id: int = Query(...),
     user: User | None = Security(user_auth_optional),
 ):
@@ -342,10 +347,11 @@ async def command_list_page(
 
 
 @router.get("/streamers")
+@inject
 async def get_streamers(
     request: Request,
-    db: Annotated[AsyncSession, Depends(get_db)],
-    twitch: Annotated[Twitch, Depends(get_twitch)],
+    db: Annotated[AsyncSession, Depends(Provide[Container.db_session])],
+    twitch: Annotated[Twitch, Depends(Provide[Container.twitch])],
     user: User | None = Security(user_auth_optional),
 ):
     q = (
@@ -504,11 +510,12 @@ async def roadmap_page(
 
 
 @router.get("/login-callback")
+@inject
 async def callback(
     request: Request,
     code: str,
-    db: Annotated[AsyncSession, Depends(get_db)],
-    twitch: Annotated[Twitch, Depends(get_twitch)],
+    db: Annotated[AsyncSession, Depends(Provide[Container.db_session])],
+    twitch: Annotated[Twitch, Depends(Provide[Container.twitch])],
 ):
     # TODO: re-subcribe raid and both rewards
     #  Connections to PG should be short, reopen session after twitch request
@@ -543,7 +550,7 @@ async def callback(
         user.profile_image_url = profile_image_url
         user.login_name = login_name
 
-    asyncio.create_task(login_callback_task(user, twitch))  # todo: remove twitch, use DI
+    asyncio.create_task(login_callback_task(user))
 
     request.session["user_id"] = user_id
     return RedirectResponse(url="/panel")
@@ -551,16 +558,20 @@ async def callback(
 
 logger = logging.getLogger(__name__)
 
-# TODO: Provide(...) DI
 # TODO: сделать бэкграунд таской штоле о_О
-async def login_callback_task(user: User, twitch: Twitch):
+@inject
+async def login_callback_task(
+    user: User,
+    twitch: Annotated[Twitch, Provide[Container.twitch]],
+    db_session_factory: Annotated[Callable[[], AsyncSession], Provide[Container.db_session_factory]],
+):
     # Получаем фолловеров
     followers = await twitch.get_followers(user)
 
     # Делаем бота модератором
     await twitch.set_bot_moder(user)
 
-    async with AsyncSessionLocal() as session:
+    async with db_session_factory() as session:
         # Обновляем фолловеров
         q = sa.update(User).values(followers_count=followers.total).where(User.twitch_id == user.twitch_id)
         await session.execute(q)

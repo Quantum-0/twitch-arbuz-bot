@@ -4,11 +4,12 @@ from collections import deque
 from typing import Annotated
 from uuid import UUID
 
+from dependency_injector.wiring import Provide, inject
 from fastapi import APIRouter, Depends, Path
 from starlette.responses import PlainTextResponse, Response
 
 from config import settings
-from dependencies import get_chat_bot, get_mqtt, get_twitch_eventsub_service
+from container import Container
 from routers.helpers import parse_eventsub_payload
 from routers.schemas import (
     ChatMessageSchema,
@@ -28,26 +29,22 @@ local_duplicates_cache: deque[UUID] = deque(maxlen=50)
 
 
 @router.post("/eventsub/{streamer_id}")
+@inject
 async def eventsub_handler(
     payload: Annotated[
-        PointRewardRedemptionWebhookSchema
-        | RaidWebhookSchema
-        | TwitchChallengeSchema
-        | ChatMessageSchema,
+        PointRewardRedemptionWebhookSchema | RaidWebhookSchema | TwitchChallengeSchema | ChatMessageSchema,
         Depends(parse_eventsub_payload),
     ],
-    chat_bot: Annotated[ChatBot, Depends(get_chat_bot)],
-    mqtt: Annotated[MQTTClient, Depends(get_mqtt)],
-    service: Annotated[TwitchEventSubService, Depends(get_twitch_eventsub_service)],
-    streamer_id: int = Path(...),
+    chat_bot: Annotated[ChatBot, Depends(Provide[Container.chat_bot])],
+    mqtt: Annotated[MQTTClient, Depends(Provide[Container.mqtt])],
+    service: Annotated[TwitchEventSubService, Depends(Provide[Container.twitch_eventsub_service])],
+    streamer_id: Annotated[int, Path(...)],
 ):
     logger.info(f"Got eventsub. Type: {type(payload)}")
 
-    # Ответ на challenge сразу
     if isinstance(payload, TwitchChallengeSchema):
         return PlainTextResponse(content=payload.challenge, media_type="text/plain")
 
-    # Мгновенно возвращаем 204, а обработку делаем в фоне
     if isinstance(payload, PointRewardRedemptionWebhookSchema):
         logger.info("Handling reward redemption")
         await mqtt.publish(f"twitch/{payload.subscription.condition.broadcaster_user_id}/reward-redemption", payload)

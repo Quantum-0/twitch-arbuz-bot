@@ -8,7 +8,7 @@ from time import time
 
 from sqlalchemy.dialects.postgresql import insert
 
-from database.database import AsyncSessionLocal
+from container_runtime import get_container
 from database.models import TwitchUserSettings, User, PantsDeny
 from twitch.chat.base.cooldown_command import SimpleCDCommand
 from twitch.state_manager import SMParam, StateManager
@@ -39,7 +39,7 @@ class PantsCommand(SimpleCDCommand):
         super().__init__(sm, send_message)
 
     async def check_denied(self, *names: str) -> list[str]:
-        async with AsyncSessionLocal() as session:
+        async with get_container().db_session_factory() as session:
             result = await session.execute(
                 sa.select(PantsDeny)
                 .where(PantsDeny.name.in_([n.lower() for n in names]))
@@ -47,7 +47,7 @@ class PantsCommand(SimpleCDCommand):
             return result.scalars().all()
 
     async def add_to_denied(self, name: str):
-        async with AsyncSessionLocal() as session:
+        async with get_container().db_session_factory() as session:
             await session.execute(
                 insert(PantsDeny)
                 .values({"name": name.lower()})
@@ -55,7 +55,7 @@ class PantsCommand(SimpleCDCommand):
             await session.commit()
 
     async def remove_from_denied(self, name: str):
-        async with AsyncSessionLocal() as session:
+        async with get_container().db_session_factory() as session:
             await session.execute(
                 sa.delete(PantsDeny)
                 .where(PantsDeny.name == name.lower())
