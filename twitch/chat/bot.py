@@ -30,13 +30,11 @@ from twitch.state_manager import get_state_manager
 from twitch.user_list_manager import UserListManager
 from twitch.utils import delay_to_seconds
 from utils.logging_conf import LOGGING_CONFIG
-from utils.singleton import singleton
 
 logging.config.dictConfig(LOGGING_CONFIG)
 logger = logging.getLogger(__name__)
 
 
-@singleton
 class ChatBot:
     _chat: Chat = None  # type: ignore
     _joined_channels: list[str] = []
