@@ -1,9 +1,7 @@
 import asyncio
 import json
 import logging
-import random
 from json import JSONDecodeError
-from typing import Annotated
 
 import websockets
 from dependency_injector.wiring import Provide, inject
