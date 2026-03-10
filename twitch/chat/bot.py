@@ -36,7 +36,6 @@ logging.config.dictConfig(LOGGING_CONFIG)
 logger = logging.getLogger(__name__)
 
 
-@singleton
 class ChatBot:
     _chat: Chat = None  # type: ignore
     _joined_channels: list[str] = []
