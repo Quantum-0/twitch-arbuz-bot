@@ -32,7 +32,7 @@ else:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    async with lifespan_dep():
+    async with lifespan_dep(app):
         yield
 
 

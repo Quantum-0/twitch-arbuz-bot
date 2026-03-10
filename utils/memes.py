@@ -10,7 +10,7 @@ from memealerts.types.user_id import UserID
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from database.database import AsyncSessionLocal
+from dependencies import get_container
 from database.models import MemealertsSupporters
 from utils.logging_conf import LOGGING_CONFIG
 
@@ -37,7 +37,7 @@ async def save_all_supporters_into_db(supporters: list[Supporter]) -> None:
         },
     )
     db: AsyncSession
-    async with AsyncSessionLocal() as db:
+    async with get_container().db_session_factory() as db:
         await db.execute(q)
         await db.commit()
 

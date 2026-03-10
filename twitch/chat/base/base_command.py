@@ -32,9 +32,9 @@ class Command(ABC):
         if len(self.command_aliases) == 0:
             raise RuntimeError("Command has no trigger aliases")
 
-        from dependencies import get_chat_bot
+        from dependencies import get_container
 
-        self.chat_bot = next(get_chat_bot())
+        self.chat_bot = get_container().chat_bot()
 
     @abstractmethod
     async def handle(self, streamer: User, message: ChatMessageWebhookEventSchema):
