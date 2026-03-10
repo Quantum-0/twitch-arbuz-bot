@@ -1,5 +1,6 @@
 from typing import Annotated, Any
 
+from dependency_injector.wiring import Provide, inject
 from fastapi import APIRouter, Depends, Form, Query, Security
 from httpx import HTTPStatusError
 from jwt import DecodeError
@@ -9,7 +10,8 @@ from starlette.responses import JSONResponse
 from twitchAPI.type import TwitchAPIException, TwitchResourceNotFound
 
 from database.models import User
-from dependencies import get_chat_bot, get_db, get_twitch, get_sse_manager
+from container import Container
+from dependencies import get_db
 from routers.schemas import UpdateMemealertsCoinsSchema, UpdateSettingsForm, BoolResponseSchema
 from routers.security_helpers import user_auth
 from services.sse_manager import SSEManager
@@ -22,8 +24,9 @@ router = APIRouter(prefix="/user", tags=["User API"])
 
 
 @router.get("/check-sse", response_model=BoolResponseSchema)
+@inject
 async def check_user_sse_connected(
-    ssem: Annotated[SSEManager, Depends(get_sse_manager)],
+    ssem: Annotated[SSEManager, Depends(Provide[Container.sse_manager])],
     user: User = Security(user_auth),
     channel: SSEChannel | None = None,
 ) -> BoolResponseSchema:
@@ -31,8 +34,9 @@ async def check_user_sse_connected(
 
 
 @router.get("/check-heat-installed", response_model=BoolResponseSchema)
+@inject
 async def check_heat_installed(
-    twitch: Annotated[Twitch, Depends(get_twitch)],
+    twitch: Annotated[Twitch, Depends(Provide[Container.twitch])],
     user: User = Security(user_auth),
 ) -> BoolResponseSchema:
     exts = await twitch.get_user_active_ext(user)
@@ -43,8 +47,9 @@ async def check_heat_installed(
 
 
 @router.get("/install-heat", response_model=BoolResponseSchema)
+@inject
 async def install_heat(
-    twitch: Annotated[Twitch, Depends(get_twitch)],
+    twitch: Annotated[Twitch, Depends(Provide[Container.twitch])],
     user: User = Security(user_auth),
 ) -> BoolResponseSchema:
     await twitch.install_heat_ext(user)
@@ -53,11 +58,12 @@ async def install_heat(
 
 
 @router.post("/update_settings")
+@inject
 async def update_settings(
     data: Annotated[UpdateSettingsForm, Form()],
-    chat_bot: Annotated[ChatBot, Depends(get_chat_bot)],
+    chat_bot: Annotated[ChatBot, Depends(Provide[Container.chat_bot])],
     db: Annotated[AsyncSession, Depends(get_db)],
-    twitch: Annotated[Twitch, Depends(get_twitch)],
+    twitch: Annotated[Twitch, Depends(Provide[Container.twitch])],
     user: Any = Security(user_auth),
 ):
     for field in data.model_fields_set:
@@ -94,6 +100,7 @@ async def update_settings(
 
 
 @router.post("/memealerts/coins")
+@inject
 async def update_memealert_coins(
     db: Annotated[AsyncSession, Depends(get_db)],
     data: UpdateMemealertsCoinsSchema,
@@ -111,9 +118,10 @@ async def update_memealert_coins(
 
 
 @router.post("/memealerts")
+@inject
 async def setup_memealert(
     db: Annotated[AsyncSession, Depends(get_db)],
-    twitch: Annotated[Twitch, Depends(get_twitch)],
+    twitch: Annotated[Twitch, Depends(Provide[Container.twitch])],
     user: Any = Security(user_auth),
     enable: bool = Query(...),
     memealerts_token: str | None = Form(None, alias="key"),
@@ -188,9 +196,10 @@ async def setup_memealert(
 
 
 @router.post("/setup-ai-stickers")
+@inject
 async def setup_ai_stickers(
     db: Annotated[AsyncSession, Depends(get_db)],
-    twitch: Annotated[Twitch, Depends(get_twitch)],
+    twitch: Annotated[Twitch, Depends(Provide[Container.twitch])],
     user: Any = Security(user_auth),
     enable: bool = Query(default=True),
 ):

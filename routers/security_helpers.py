@@ -4,6 +4,7 @@ import secrets
 from typing import Annotated
 
 import sqlalchemy as sa
+from dependency_injector.wiring import Provide, inject
 from fastapi import Depends, Header, HTTPException
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -38,9 +39,10 @@ async def verify_eventsub_signature(
     return msg_type
 
 
+@inject
 async def user_auth(
     request: Request,
-    db: AsyncSession = Depends(get_db),
+    db: Annotated[AsyncSession, Depends(get_db)],
 ) -> User:
     if not request.session or not (user_id := request.session.get("user_id")):
         raise HTTPException(status_code=401, detail="Not authorized")
@@ -58,9 +60,10 @@ async def user_auth(
     return user
 
 
+@inject
 async def user_auth_optional(
     request: Request,
-    db: AsyncSession = Depends(get_db),
+    db: Annotated[AsyncSession, Depends(get_db)],
 ) -> User | None:
     if not request.session or not (user_id := request.session.get("user_id")):
         return None

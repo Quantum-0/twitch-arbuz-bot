@@ -1,19 +1,20 @@
 import logging
+from collections.abc import Callable
 
+import sqlalchemy as sa
 from openai import AsyncOpenAI
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from config import settings
-import sqlalchemy as sa
-
-from database.database import AsyncSessionLocal
 from database.models import GeneratedImage
 
 logger = logging.getLogger(__name__)
 
 
 class OpenAIClient:
-    def __init__(self):
+    def __init__(self, db_session_factory: Callable[[], AsyncSession]):
         self._client = None
+        self._db_session_factory = db_session_factory
 
     async def startup(self):
         self._client = AsyncOpenAI(
@@ -22,7 +23,7 @@ class OpenAIClient:
         )
 
     async def get_sticker_or_cached(self, prompt: str, chatter: str, channel: int) -> str:
-        async with AsyncSessionLocal() as session:
+        async with self._db_session_factory() as session:
             q = sa.select(GeneratedImage).where(GeneratedImage.prompt == prompt).limit(1)
             cached = (await session.execute(q)).scalar_one_or_none()
             if cached:
@@ -31,7 +32,7 @@ class OpenAIClient:
 
         image = await self.generate_sticker(prompt)
 
-        async with AsyncSessionLocal() as session:
+        async with self._db_session_factory() as session:
             async with session.begin():
                 session.add(
                     GeneratedImage(

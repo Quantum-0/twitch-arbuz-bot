@@ -10,7 +10,6 @@ from memealerts.types.user_id import UserID
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from database.database import AsyncSessionLocal
 from database.models import MemealertsSupporters
 from utils.logging_conf import LOGGING_CONFIG
 
@@ -18,6 +17,7 @@ logging.config.dictConfig(LOGGING_CONFIG)
 logger = logging.getLogger(__name__)
 
 
+# TODO: db_session_factory: Annotated[Callable[[], AsyncSession], Provide[Container.db_session_factory]],
 async def save_all_supporters_into_db(supporters: list[Supporter]) -> None:
     unique_data = {sup.supporter_id.root: sup for sup in supporters}.values()
     data = [
@@ -37,7 +37,7 @@ async def save_all_supporters_into_db(supporters: list[Supporter]) -> None:
         },
     )
     db: AsyncSession
-    async with AsyncSessionLocal() as db:
+    async with get_container().db_session_factory() as db:
         await db.execute(q)
         await db.commit()
 
@@ -58,7 +58,10 @@ async def load_supporters(cli: MemealertsAsyncClient) -> list[Supporter]:
     items = first_page.data
 
     if total_count <= limit:
-        await save_all_supporters_into_db(items)
+        try:
+            await save_all_supporters_into_db(items)
+        except:
+            logger.error("Error saving supporters to db", exc_info=True)
         logger.info(f"Loaded {len(items)} supporters (1 page)")
         return items
 
@@ -74,7 +77,12 @@ async def load_supporters(cli: MemealertsAsyncClient) -> list[Supporter]:
     if len(items) == total_count:
         logger.warning("Total count = %s, items = %s", total_count, len(items))
     logger.info(f"Loaded {len(items)} supporters ({len(results) + 1} pages)")
-    await save_all_supporters_into_db(items)
+
+    try:
+        await save_all_supporters_into_db(items)
+    except:
+        logger.error("Error saving supporters to db", exc_info=True)
+
     return items
 
 
