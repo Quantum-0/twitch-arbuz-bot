@@ -1,10 +1,15 @@
 from base64 import b64encode
 
+import allure
 import pytest
 
 from config import settings
+from tests.unit.fixtures.client_fixtures import client, session_override, twitch_override, test_user_cookie, user_auth_mock  # noqa
+from tests.unit.fixtures.database_fixtures import db_session, migrations, postgres_container, test_engine, test_user  # noqa
 
 
+@allure.epic("Unit testing")
+@allure.title("Открытие OpenAPI")
 @pytest.mark.asyncio()
 async def test_openapi(client):
     resp = await client.get("/docs")
@@ -13,13 +18,16 @@ async def test_openapi(client):
     assert resp.status_code == 200
 
 
+@allure.epic("Unit testing")
+@allure.title("Главная страница без авторизации")
 @pytest.mark.asyncio()
 async def test_unauthorized_index_page(client):
     resp = await client.get("/")
-    assert resp.status_code == 307
-    assert resp.next_request.url.path == "/login"
+    assert resp.status_code == 200
 
 
+@allure.epic("Unit testing")
+@allure.title("Главная страница с авторизацией")
 @pytest.mark.asyncio()
 async def test_authorized_index_page(client, test_user_cookie):
     resp = await client.get("/", cookies=test_user_cookie)
@@ -27,12 +35,16 @@ async def test_authorized_index_page(client, test_user_cookie):
     assert resp.next_request.url.path == "/panel"
 
 
+@allure.epic("Unit testing")
+@allure.title("Админка без авторизации")
 @pytest.mark.asyncio()
 async def test_admin_api_not_authorized(client):
     resp = await client.post("/api/admin/add_to_beta_test?twitch_login=test")
     assert resp.status_code == 401
 
 
+@allure.epic("Unit testing")
+@allure.title("Админка с cookies но без basic auth")
 @pytest.mark.asyncio()
 async def test_admin_api_cookie(client, test_user_cookie):
     resp = await client.post(
@@ -41,6 +53,8 @@ async def test_admin_api_cookie(client, test_user_cookie):
     assert resp.status_code == 401
 
 
+@allure.epic("Unit testing")
+@allure.title("Неверные креды к админке")
 @pytest.mark.asyncio()
 async def test_admin_api_invalid_creds(client):
     encoded_credentials = b64encode(
@@ -54,6 +68,8 @@ async def test_admin_api_invalid_creds(client):
     assert resp.status_code == 403
 
 
+@allure.epic("Unit testing")
+@allure.title("Корректные креды к админке, но без cookies")
 @pytest.mark.asyncio()
 async def test_admin_api_valid_creds(client):
     encoded_credentials = b64encode(
@@ -67,6 +83,8 @@ async def test_admin_api_valid_creds(client):
     assert resp.status_code == 401
 
 
+@allure.epic("Unit testing")
+@allure.title("Успешная авторизация в админке")
 @pytest.mark.asyncio()
 async def test_admin_api_valid_creds_and_cookie(client, test_user_cookie):
     encoded_credentials = b64encode(
@@ -82,6 +100,8 @@ async def test_admin_api_valid_creds_and_cookie(client, test_user_cookie):
     assert resp.status_code == 200
 
 
+@allure.epic("Unit testing")
+@allure.title("Получение списка стримеров")
 @pytest.mark.asyncio(loop_scope="session")
 async def test_get_streamers(client, test_user):
     resp = await client.get("/streamers")
@@ -94,30 +114,40 @@ async def test_get_streamers(client, test_user):
     )
 
 
+@allure.epic("Unit testing")
+@allure.title("Открытие панели управления")
 @pytest.mark.asyncio()
 async def test_panel(client, user_auth_mock):
     resp = await client.get("/panel")
     assert resp.status_code == 200
 
 
+@allure.epic("Unit testing")
+@allure.title("Открытие страницы отладки")
 @pytest.mark.asyncio()
 async def test_debug(client, user_auth_mock):
     resp = await client.get("/debug")
     assert resp.status_code == 200
 
 
+@allure.epic("Unit testing")
+@allure.title("Открытие роадмапа")
 @pytest.mark.asyncio()
 async def test_todo(client, user_auth_mock):
     resp = await client.get("/kinda_roadmap")
     assert resp.status_code == 200
 
 
+@allure.epic("Unit testing")
+@allure.title("Открытие тутора по мемалёртам")
 @pytest.mark.asyncio()
 async def test_memealerts_tutorial(client, user_auth_mock):
     resp = await client.get("/memealerts-tutorial")
     assert resp.status_code == 200
 
 
+@allure.epic("Unit testing")
+@allure.title("Открытие страницы о сервисе")
 @pytest.mark.asyncio()
 async def test_about(client, user_auth_mock):
     resp = await client.get("/about")

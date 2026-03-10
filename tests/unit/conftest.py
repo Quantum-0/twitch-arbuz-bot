@@ -1,10 +1,8 @@
 import pytest
 
 # !!! ORDER IS IMPORTANT !!!
-from tests.unit.fixtures import event_loop  # noqa
 from tests.unit.fixtures.twitch_message import twitch_message_event_model, twitch_message_event_raw  # noqa
 from pytest import fixture
-from pytest_asyncio import is_async_test
 
 from database.models import User
 from twitch.state_manager import InMemoryStateManager
@@ -62,10 +60,3 @@ def send_message_mock():
 #     ) as ac:
 #         yield ac
 #     settings.DEVELOPMENT = settings_development
-
-
-def pytest_collection_modifyitems(items):
-    pytest_asyncio_tests = (item for item in items if is_async_test(item))
-    session_scope_marker = pytest.mark.asyncio(loop_scope="session")
-    for async_test in pytest_asyncio_tests:
-        async_test.add_marker(session_scope_marker, append=False)
