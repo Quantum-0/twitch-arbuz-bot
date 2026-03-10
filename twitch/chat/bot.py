@@ -10,9 +10,10 @@ import sqlalchemy as sa
 from sqlalchemy.orm import selectinload
 from twitchAPI.chat import Chat
 
+from config import settings
 from database.database import AsyncSessionLocal
 from database.models import TwitchUserSettings, User
-from exceptions import NotInBetaTest, UserNotFoundInDatabase
+from exceptions import NotInBetaTest, UserNotFoundInDatabase, ToManyChatUnsubscribesStartupException
 from routers.schemas import ChatMessageWebhookEventSchema
 from twitch.chat.command_manager import CommandsManager
 from twitch.chat.commands import *
@@ -186,6 +187,9 @@ class ChatBot:
         }
         logger.debug(f"desired_channels: {desired_channels}")
         logger.debug(f"current_channels: {current_channels}")
+
+        if settings.exception_to_many_unsubscribes and len(current_channels) - len(desired_channels) > settings.exception_to_many_unsubscribes:
+            raise ToManyChatUnsubscribesStartupException
 
         # Присоединяемся к новым каналам
         async for channel, success, response in self._twitch.subscribe_chat_messages(

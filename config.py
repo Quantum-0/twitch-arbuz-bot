@@ -57,6 +57,7 @@ class Settings(BaseSettings):
     mqtt_password: SecretStr
     direct_handle_messages: bool = True
     direct_handle_rewards: bool = True
+    exception_to_many_unsubscribes: int | None = 20
 
     model_config = SettingsConfigDict(env_prefix="", env_file=".env")
 
