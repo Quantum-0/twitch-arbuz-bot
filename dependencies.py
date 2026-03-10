@@ -11,7 +11,8 @@ if TYPE_CHECKING:
 
 
 async def get_db() -> AsyncGenerator:
-    async with get_container().db_session_factory() as session:
+    session_factory = get_container().db_session_factory()
+    async with session_factory() as session:
         yield session
 
 
