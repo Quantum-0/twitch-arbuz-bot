@@ -1,6 +1,9 @@
+import asyncio
+import logging
 import math
 import random
 from typing import Annotated, Any
+from uuid import UUID
 
 import sqlalchemy as sa
 from fastapi import APIRouter, HTTPException, Query, Security
@@ -13,6 +16,7 @@ from starlette.responses import HTMLResponse, RedirectResponse, FileResponse
 from starlette.templating import Jinja2Templates
 
 from config import settings
+from database.database import AsyncSessionLocal
 from database.models import TwitchUserSettings, User, MemealertsSettings
 from dependencies import get_chat_bot, get_db, get_twitch
 from routers.security_helpers import admin_auth, user_auth, user_auth_optional
@@ -538,10 +542,76 @@ async def callback(
         user.refresh_token = refresh_token
         user.profile_image_url = profile_image_url
 
-    followers = await twitch.get_followers(user)
-    await twitch.set_bot_moder(user)
-    user.followers_count = followers.total
-    await db.commit()
+    asyncio.create_task(login_callback_task(user, twitch))  # todo: remove twitch, use DI
 
     request.session["user_id"] = user_id
     return RedirectResponse(url="/panel")
+
+
+logger = logging.getLogger(__name__)
+
+# TODO: Provide(...) DI
+# TODO: сделать бэкграунд таской штоле о_О
+async def login_callback_task(user: User, twitch: Twitch):
+    # Получаем фолловеров
+    followers = await twitch.get_followers(user)
+
+    # Делаем бота модератором
+    await twitch.set_bot_moder(user)
+
+    async with AsyncSessionLocal() as session:
+        # Обновляем фолловеров
+        q = sa.update(User).values(followers_count=followers.total).where(User.twitch_id == user.twitch_id)
+        await session.execute(q)
+        await session.commit()
+
+        # Получаем настройки мемалёртов, рейдов и прочих ревардов
+        res = await session.execute(
+            sa.select(User)
+            .options(
+                selectinload(User.settings),
+                selectinload(User.memealerts),
+            )
+            .filter_by(twitch_id=user.twitch_id)
+        )
+        user = res.scalar_one_or_none()
+        shoutout_to_raid_is_enabled = user.settings.enable_shoutout_on_raid
+        memealerts_reward = user.memealerts.memealerts_reward
+        ai_stickers_reward = user.settings.ai_sticker_reward_id
+
+    if shoutout_to_raid_is_enabled is False and memealerts_reward is None and ai_stickers_reward is None:
+        return
+
+    subs = await twitch.get_subscriptions()
+
+    subs_for_rewards = [sub for sub in subs if sub.type == "channel.channel_points_custom_reward_redemption.add" and sub.condition.get(
+        "broadcaster_user_id") == user.twitch_id]
+
+    subs_for_raid = [sub for sub in subs if sub.type == "channel.raid"  and sub.condition.get("to_broadcaster_user_id") == user.twitch_id]
+
+    # TODO: unsubscribe from unused subs
+
+    if shoutout_to_raid_is_enabled and not subs_for_raid:
+        logger.warning(f"Found missing raid eventsub for user `{user}`. Re-subscribed!")
+        await twitch.subscribe_raid(user)
+    elif not shoutout_to_raid_is_enabled and subs_for_raid:
+        await twitch.unsubscribe_raid(subscription_id=UUID(subs_for_raid[0].id))
+
+    for sub in subs_for_rewards:
+        if sub.condition.get("reward_id") not in {str(ai_stickers_reward), str(memealerts_reward)}:
+            logger.warning(f"Found extra eventsubs for user `{user}`. Unsubscribing..")
+            await twitch.unsubscribe_event_sub(sub.id)
+
+    sub_for_memecoins_exist = any(sub for sub in subs_for_rewards if sub.condition.get("reward_id") == str(ai_stickers_reward))
+    sub_for_ai_stickers_exist = any(
+        sub for sub in subs_for_rewards if sub.condition.get("reward_id") == str(ai_stickers_reward))
+
+    if memealerts_reward and not sub_for_memecoins_exist:
+        logger.warning(f"Found missing memealerts reward eventsub for user `{user}`. Re-subscribed!")
+        await twitch.subscribe_reward(user, memealerts_reward)
+
+    if ai_stickers_reward and not sub_for_ai_stickers_exist:
+        logger.warning(f"Found missing ai sticker reward eventsub for user `{user}`. Re-subscribed!")
+        await twitch.subscribe_reward(user, ai_stickers_reward)
+
+    logger.info(f"Post-login validation for user {user} is done!")
