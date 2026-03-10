@@ -1,7 +1,7 @@
 import asyncio
 import logging.config
 import random
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
 from time import time
 from typing import Any
@@ -11,8 +11,8 @@ from sqlalchemy.orm import selectinload
 from twitchAPI.chat import Chat
 
 from config import settings
-from database.database import AsyncSessionLocal
 from database.models import TwitchUserSettings, User
+from sqlalchemy.ext.asyncio import AsyncSession
 from exceptions import NotInBetaTest, UserNotFoundInDatabase, ToManyChatUnsubscribesStartupException
 from routers.schemas import ChatMessageWebhookEventSchema
 from twitch.chat.command_manager import CommandsManager
@@ -42,13 +42,14 @@ class ChatBot:
     _joined_channels: list[str] = []
     _main_event_loop: asyncio.AbstractEventLoop
 
-    def __init__(self) -> None:
+    def __init__(self, db_session_factory: Callable[[], AsyncSession]) -> None:
         self._user_list_manager = UserListManager()
         self._handler_manager: MessagesHandlerManager = MessagesHandlerManager(
             get_state_manager(), self.send_message
         )
         self._command_manager = CommandsManager(get_state_manager(), self.send_message)
         self._twitch: Twitch = None  # type: ignore
+        self._db_session_factory = db_session_factory
 
     async def startup(self, twitch: Twitch):
         chat = await twitch.build_chat_client()
@@ -128,11 +129,10 @@ class ChatBot:
             stream_channel=chat, message=message, reply_parent_message_id=None
         )
 
-    @staticmethod
     @asynccontextmanager
-    async def _get_user_with_settings(channel_name: str) -> AsyncIterator[User]:
+    async def _get_user_with_settings(self, channel_name: str) -> AsyncIterator[User]:
         channel_name = channel_name.lower()
-        async with AsyncSessionLocal() as session:
+        async with self._db_session_factory() as session:
             result = await session.execute(
                 sa.select(User)
                 .options(selectinload(User.settings))
@@ -165,7 +165,7 @@ class ChatBot:
 
     async def update_bot_channels(self):
         logger.info("Updating bot channels")
-        async with AsyncSessionLocal() as session:
+        async with self._db_session_factory() as session:
             users_result = await session.execute(
                 sa.select(User)
                 .join(TwitchUserSettings)

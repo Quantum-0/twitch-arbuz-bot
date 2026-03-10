@@ -6,6 +6,7 @@ from json import JSONDecodeError
 from typing import Annotated
 
 import websockets
+from dependency_injector.wiring import Provide, inject
 from fastapi import WebSocket, APIRouter, Depends
 from starlette.requests import Request
 from starlette.responses import StreamingResponse
@@ -13,7 +14,7 @@ from starlette.websockets import WebSocketDisconnect
 from websockets import ConnectionClosedError
 
 from config import settings
-from dependencies import get_ai
+from container import Container
 from services.ai import OpenAIClient
 
 logger = logging.getLogger(__name__)
@@ -265,9 +266,10 @@ async def heat_sse(channel_id: int, request: Request):
 
 
 @router_sse.get("/img_gen/{channel_id:int}")
+@inject
 async def img_gen_sse(
     channel_id: int,
-    ai: Annotated[OpenAIClient, Depends(get_ai)],
+    ai: Annotated[OpenAIClient, Depends(Provide[Container.ai])],
     request: Request,
 ):
     channel = get_channel(channel_id)

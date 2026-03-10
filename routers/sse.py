@@ -1,10 +1,11 @@
 from typing import Annotated, AsyncGenerator
 
+from dependency_injector.wiring import Provide, inject
 from fastapi import APIRouter, Depends
 from starlette.requests import Request
 from starlette.responses import StreamingResponse
 
-from dependencies import get_sse_manager
+from container import Container
 from services.sse_manager import SSEManager
 from utils.enums import SSEChannel
 
@@ -12,11 +13,12 @@ router = APIRouter(prefix="/sse", tags=["SSE"])
 
 
 @router.get("/{user_id}/{channel}")
+@inject
 async def sse(
     user_id: int,
     channel: SSEChannel,
     request: Request,
-    ssem: Annotated[SSEManager, Depends(get_sse_manager)],
+    ssem: Annotated[SSEManager, Depends(Provide[Container.sse_manager])],
 ):
     conn = await ssem.connect(user_id, channel)
 
@@ -41,8 +43,6 @@ async def sse(
             "Cache-Control": "no-cache",
             "Connection": "keep-alive",
             "X-Accel-Buffering": "no",
-
-            # 🔥 CORS
             "Access-Control-Allow-Origin": "http://0.0.0.0:8000",
             "Access-Control-Allow-Credentials": "true",
         },
