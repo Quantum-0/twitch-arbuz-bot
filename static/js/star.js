@@ -114,6 +114,8 @@ canvas.addEventListener("pointerdown", e => {
     const fy = (dy / dist) * AIR_FORCE * 0.4;
 
     starPoint.applyForce(fx, fy);
+
+    spawnParticles(2 + Math.random() * 5);
 });
 
 /* ================= HEAT ================= */
@@ -136,7 +138,57 @@ window.addEventListener("heat:message", (e) => {
     const fy = (dy / dist) * AIR_FORCE * 0.4;
 
     starPoint.applyForce(fx, fy);
+
+    spawnParticles(2 + Math.random() * 5);
 });
+
+/* ================== Патиклы =================== */
+
+const particles = [];
+
+class Particle {
+  constructor(x, y) {
+    const angle = Math.random() * Math.PI * 2;
+    const speed = Math.random() * 2 + 1;
+
+    this.x = x;
+    this.y = y;
+    this.vx = Math.cos(angle) * speed;
+    this.vy = Math.sin(angle) * speed;
+    this.life = 1;
+    this.size = Math.random() * 2 + 1;
+  }
+
+  update() {
+    this.vx *= 0.98;
+    this.vy *= 0.98;
+    this.vy += 0.05;
+    this.x += this.vx;
+    this.y += this.vy;
+    this.life -= 0.02;
+  }
+
+  draw() {
+    ctx.fillStyle = hexToRgba(COLOR, this.life);
+    // ctx.fillStyle = `rgba(255,220,150,${this.life})`;
+    ctx.beginPath();
+    ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+function hexToRgba(hex, alpha) {
+    const r = parseInt(hex.slice(1, 3), 16);
+    const g = parseInt(hex.slice(3, 5), 16);
+    const b = parseInt(hex.slice(5, 7), 16);
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
+function spawnParticles(count) {
+  for (let i = 0; i < count; i++) {
+    particles.push(new Particle(starPoint.x, starPoint.y));
+  }
+}
 
 /* ================== РЕНДЕР ================== */
 
@@ -185,6 +237,12 @@ function update() {
     /* Звёздочка */
     drawStar(starPoint.x, starPoint.y, SIZE);
 
+    for (let i = particles.length - 1; i >= 0; i--) {
+        const p = particles[i];
+        p.update();
+        p.draw();
+        if (p.life <= 0) particles.splice(i, 1);
+    }
     requestAnimationFrame(update);
 }
 
