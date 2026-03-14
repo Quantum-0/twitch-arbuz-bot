@@ -211,6 +211,10 @@ function updateOverlayLink(card) {
         const key = el.dataset.param;
         if (el.type === "checkbox") {
             params.set(key, el.checked);
+        } else if (el.type == "radio") {
+            console.log(el)
+            if (el.checked)
+                params.set(key, el.value);
         } else {
             params.set(key, el.value);
         }

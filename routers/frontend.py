@@ -84,11 +84,13 @@ async def favicon():
 @router.get("/overlay/jumping-chibi")
 async def overlay_jumping_chibi(
     request: Request,
+    timer: int = Query(default=3*60),
 ):
     return templates.TemplateResponse(
         "overlays/jumping-chibi.html",
         {
             "request": request,
+            "timer": timer * 1000,
         }
     )
 
@@ -518,8 +520,6 @@ async def callback(
     db: Annotated[AsyncSession, Depends(get_db)],
     twitch: Annotated[Twitch, Depends(Provide[Container.twitch])],
 ):
-    # TODO: re-subcribe raid and both rewards
-    #  Connections to PG should be short, reopen session after twitch request
     tokens = await twitch.get_user_access_refresh_tokens_by_authorization_code(code)
     if tokens is None:
         return RedirectResponse(url="/")
