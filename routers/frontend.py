@@ -550,6 +550,7 @@ async def callback(
         user.refresh_token = refresh_token
         user.profile_image_url = profile_image_url
         user.login_name = login_name
+        db.add(user)
 
     await db.commit()
     asyncio.create_task(login_callback_task(user))
