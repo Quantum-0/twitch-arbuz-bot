@@ -97,6 +97,63 @@
         <div class="overlay-link"></div>
     </div>
 
+    <div class="overlay-card" data-base="{{ request.base_url }}overlay/jumping-chibi">
+        <h2>🦊 Jumping Chibi</h2>
+        <p>Маленький прыгающий чиби-лисёнок (персонаж создателя бота) внизу экрана.</p>
+        <button class="overlay-toggle-settings">Настройки</button>
+        <div class="overlay-settings">
+            <div class="overlay-control">
+              Таймер появления (в минутах)
+              <input type="range" min="0" max="10" step="0.5" value="3" data-param="timer"/>
+            </div>
+        </div>
+        <p>Скопируй ссылку и вставь в OBS:</p>
+        <div class="overlay-link"></div>
+    </div>
+
+    <!--
+    <div class="overlay-card" data-base="{{ request.base_url }}overlay/tts">
+        <h2>🗣 TTS</h2>
+        <p>Простенький Text-To-Speach для чата.</p>
+        <button class="overlay-toggle-settings">Настройки</button>
+        <div class="overlay-settings">
+            <div class="overlay-control">
+              Что озвучивать?
+              <fieldset>
+                <input type="radio" id="tts-filter-all" data-param="tts-filter" name="contact" value="all">
+                <label for="tts-filter-all">Все сообщения</label><br>
+
+                <input type="radio" id="tts-filter-exclamation" data-param="tts-filter" name="contact" value="exclamation">
+                <label for="tts-filter-exclamation">Сообщения, начинающиеся с !!!</label><br>
+
+                <input type="radio" id="tts-filter-no-reply" data-param="tts-filter" name="contact" value="no-reply">
+                <label for="tts-filter-no-reply">Все сообщения без реплаев</label><br>
+
+                <input type="radio" id="tts-filter-tag" data-param="tts-filter" name="contact" value="tag">
+                <label for="tts-filter-tag">Сообщения с тегом стримера</label>
+              </fieldset>
+            </div>
+        </div>
+        <p>Скопируй ссылку и вставь в OBS:</p>
+        <div class="overlay-link"></div>
+    </div>
+    -->
+
+    <div class="overlay-card" data-base="{{ request.base_url }}overlay/slovotron">
+        <h2>🎲 Slovotron</h2>
+        <p>Игра в угадывание слово по контексту от Fra3a.</p>
+        <p><i>Подключено эксперементально!</i></p>
+        <button class="overlay-toggle-settings">Настройки</button>
+        <div class="overlay-settings">
+            <div class="overlay-control">
+              Автоматический рестарт через:
+              <input type="range" min="1" max="60" step="1" value="20" data-param="restart_time"/>
+            </div>
+        </div>
+        <p>Скопируй ссылку и вставь в OBS:</p>
+        <div class="overlay-link"></div>
+    </div>
+
     {% if user and user.login_name in ["quantum075", "d_e_l_y", "silverosemary"] %}
     <div class="overlay-card" data-base="{{ request.base_url }}overlay/ai-sticker">
         <h2>⭐ AI Stickers</h2>

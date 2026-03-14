@@ -4,9 +4,12 @@ import math
 import random
 from collections.abc import Callable
 from typing import Annotated, Any
+from urllib.parse import urljoin
 from uuid import UUID
 
+import httpx
 import sqlalchemy as sa
+from bs4 import BeautifulSoup
 from dependency_injector.wiring import Provide, inject
 from fastapi import APIRouter, HTTPException, Query, Security
 from fastapi.params import Depends
@@ -93,6 +96,43 @@ async def overlay_jumping_chibi(
             "timer": timer * 1000,
         }
     )
+
+
+@router.get("/overlay/tts")
+async def overlay_tts(
+    request: Request,
+    channel_name: str = Query(),
+):
+    return templates.TemplateResponse(
+        "overlays/tts.html",
+        {
+            "request": request,
+            "channel_name": channel_name,
+        }
+    )
+
+
+@router.get("/overlay/slovotron")
+async def overlay_slovotron(
+    channel_name: str = Query(),
+):
+    async with httpx.AsyncClient() as client:
+        response = await client.get("https://slovotron.fra3a.ru/?channel_name=" + channel_name)
+        print(response.status_code)
+        print(response.text)
+        soup = BeautifulSoup(response.text, 'lxml')
+        undesired_elements = soup.find_all('nav') + soup.find_all('footer') + [soup.select_one("#info.content-box")]
+        for el in undesired_elements:
+            if el:
+                style = el.get("style", "")
+                if not style.endswith(";") and style != "":
+                    style += ";"
+                el["style"] = style + "display: none;"
+        for tag in soup.find_all(["a", "link", "script", "img"]):
+            attr = "href" if tag.name in ["a", "link"] else "src"
+            if tag.has_attr(attr):
+                tag[attr] = urljoin("https://slovotron.fra3a.ru/", tag[attr])
+    return HTMLResponse(soup.prettify())
 
 
 @router.get("/overlay/star")

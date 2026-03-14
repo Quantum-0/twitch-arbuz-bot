@@ -206,6 +206,7 @@ function updateOverlayLink(card) {
     const params = new URLSearchParams();
 
     params.set("channel_id", channel_id);
+    params.set("channel_name", channel_name);
 
     card.querySelectorAll("[data-param]").forEach(el => {
         const key = el.dataset.param;

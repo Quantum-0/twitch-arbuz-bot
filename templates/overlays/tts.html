@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Title</title>
+    <script src="https://github.com/tmijs/tmi.js/releases/download/v1.8.5/tmi.min.js"></script>
+<script>
+    const CHANNEL_NAME = "{{ channel_name }}";   // twitch channel
+    const MAX_LENGTH = 200;                      // максимум символов
+    const COOLDOWN = 2000;                       // задержка между сообщениями
+    const READ_USERNAME = true;                  // читать ник
+
+    const synth = window.speechSynthesis;
+
+let queue = [];
+let speaking = false;
+let lastSpeak = 0;
+
+function cleanMessage(text) {
+
+    // удаляем ссылки
+    text = text.replace(/https?:\/\/\S+/g, '');
+
+    // удаляем twitch emotes типа Kappa
+    text = text.replace(/:[^\s:]+:/g, '');
+
+    // ограничиваем длину
+    if (text.length > MAX_LENGTH) {
+        text = text.substring(0, MAX_LENGTH);
+    }
+
+    return text.trim();
+}
+
+function processQueue() {
+
+    if (speaking) return;
+    if (queue.length === 0) return;
+
+    const now = Date.now();
+    if (now - lastSpeak < COOLDOWN) {
+        setTimeout(processQueue, 200);
+        return;
+    }
+
+    const text = queue.shift();
+
+    const utter = new SpeechSynthesisUtterance(text);
+
+    utter.rate = 1.05;
+    utter.pitch = 1;
+    utter.volume = 1;
+
+    utter.onstart = () => {
+        speaking = true;
+        lastSpeak = Date.now();
+    };
+
+    utter.onend = () => {
+        speaking = false;
+        processQueue();
+    };
+
+    synth.speak(utter);
+}
+
+function addToQueue(text) {
+
+    if (!text) return;
+
+    queue.push(text);
+
+    processQueue();
+}
+
+
+// Twitch chat connection
+
+const client = new tmi.Client({
+    channels: [CHANNEL_NAME]
+});
+
+client.connect();
+
+client.on("message", (channel, tags, message, self) => {
+
+    if (self) return;
+
+    let clean = cleanMessage(message);
+    if (!clean) return;
+
+    let text = READ_USERNAME
+        ? `${tags["display-name"]} says ${clean}`
+        : clean;
+
+    console.log("TTS:", text);
+
+    addToQueue(text);
+});
+</script>
+</head>
+<body>
+</body>
+</html>
