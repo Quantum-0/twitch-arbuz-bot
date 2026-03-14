@@ -551,6 +551,7 @@ async def callback(
         user.profile_image_url = profile_image_url
         user.login_name = login_name
 
+    await db.commit()
     asyncio.create_task(login_callback_task(user))
 
     request.session["user_id"] = user_id
