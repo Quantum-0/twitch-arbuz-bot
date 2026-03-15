@@ -157,6 +157,7 @@ class ChatBot:
 
         logger.debug(f"Got message `{message.message.text}` from channel `{channel}`")
 
+        # FIXME: если ловим тут exceptions.UserNotFoundInDatabase - либо отключаем чат бота, либо меняем пользователю имя в бд
         async with self._get_user_with_settings(channel) as user:
             user_settings: TwitchUserSettings = user.settings
             await self._user_list_manager.handle(channel, message)
