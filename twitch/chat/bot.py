@@ -42,12 +42,14 @@ class ChatBot:
 
     def __init__(self, db_session_factory: Callable[[], AsyncSession]) -> None:
         self._user_list_manager = UserListManager()
-        self._handler_manager: MessagesHandlerManager = MessagesHandlerManager(
-            get_state_manager(), self.send_message
-        )
-        self._command_manager = CommandsManager(get_state_manager(), self.send_message)
         self._twitch: Twitch = None  # type: ignore
         self._db_session_factory = db_session_factory
+        self._handler_manager: MessagesHandlerManager = MessagesHandlerManager(
+            get_state_manager(), self.send_message, self._db_session_factory
+        )
+        self._command_manager = CommandsManager(
+            get_state_manager(), self.send_message, self._db_session_factory
+        )
 
     async def startup(self, twitch: Twitch):
         chat = await twitch.build_chat_client()

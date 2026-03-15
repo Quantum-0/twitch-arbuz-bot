@@ -1,4 +1,3 @@
-from container_runtime import get_container
 from database.models import TwitchUserSettings, User, RaidPasta
 from twitch.chat.base.cooldown_command import SimpleCDCommand
 import sqlalchemy as sa
@@ -28,7 +27,7 @@ class PastaCommand(SimpleCDCommand):
         return ""
 
     async def _handle_random(self, streamer: User) -> str | None:
-        async with get_container().db_session_factory() as session:
+        async with self.db_session() as session:
             result = (await session.execute(
                 sa.select(RaidPasta).order_by(sa.func.random()).limit(1)
             )).scalar_one_or_none()
@@ -38,7 +37,7 @@ class PastaCommand(SimpleCDCommand):
         return streamer.settings.personal_pasta or "Паста не сохранена."
 
     async def _save_pasta(self, streamer: User, pasta: str) -> str:
-        async with get_container().db_session_factory() as session:
+        async with self.db_session() as session:
             await session.execute(
                 sa.update(TwitchUserSettings).where(TwitchUserSettings.user_id == streamer.id).values({"personal_pasta": pasta})
             )
