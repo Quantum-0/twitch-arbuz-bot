@@ -7,7 +7,7 @@ import pytest
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from dependencies import get_db
+from dependencies import get_db, get_twitch
 from main import app
 from routers.security_helpers import user_auth, user_auth_optional
 
@@ -18,7 +18,22 @@ def session_override(db_session):
         yield db_session
 
     app.dependency_overrides[get_db] = get_session_override
+    yield
+    app.dependency_overrides = {}
 
+
+@pytest.fixture(scope="function", autouse=True)
+def twitch_override():
+    class TwitchMockClient():
+        async def get_streams(self, *args, **kwargs):
+            return {}
+
+    async def get_twitch_override():
+        return TwitchMockClient()
+
+    app.dependency_overrides[get_twitch] = get_twitch_override
+    yield
+    app.dependency_overrides = {}
 
 @pytest.fixture(scope="function")
 def user_auth_mock(db_session, test_user):
@@ -37,7 +52,7 @@ def test_user_cookie(test_user) -> dict[str, str]:
 
 
 @pytest.fixture(scope="function")
-async def client(session_override) -> AsyncGenerator[AsyncClient, None]:
+async def client(session_override, twitch_override) -> AsyncGenerator[AsyncClient, None]:
     """HTTPX клиент для тестов."""
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
