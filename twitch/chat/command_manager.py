@@ -2,6 +2,8 @@ import logging
 from collections.abc import Callable
 from typing import Awaitable
 
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from database.models import TwitchUserSettings, User
 from routers.schemas import ChatMessageWebhookEventSchema
 from twitch.chat.base.base_command import Command
@@ -12,14 +14,18 @@ logger = logging.getLogger(__name__)
 
 class CommandsManager:
     def __init__(
-        self, storage: StateManager, send_message: Callable[..., Awaitable[None]]
+        self,
+        storage: StateManager,
+        send_message: Callable[..., Awaitable[None]],
+        db_session_factory: Callable[[], AsyncSession] | None = None,
     ):
         self.commands: list[Command] = []
         self._sm = storage
         self._send_message = send_message
+        self._db_session_factory = db_session_factory
 
     def register(self, command: type[Command]):
-        self.commands.append(command(self._sm, self._send_message))
+        self.commands.append(command(self._sm, self._send_message, self._db_session_factory))
         logger.info(f"Command {command} was registered")
 
     async def handle(

@@ -2,13 +2,14 @@ import asyncio
 import logging
 import random
 from collections.abc import Awaitable, Callable
+
+from sqlalchemy.ext.asyncio import AsyncSession
 from functools import partial
 from operator import itemgetter
 from time import time
 
 from sqlalchemy.dialects.postgresql import insert
 
-from container_runtime import get_container
 from database.models import TwitchUserSettings, User, PantsDeny
 from twitch.chat.base.cooldown_command import SimpleCDCommand
 from twitch.state_manager import SMParam, StateManager
@@ -34,12 +35,15 @@ class PantsCommand(SimpleCDCommand):
     # cooldown_timer_per_target = 600
 
     def __init__(
-        self, sm: StateManager, send_message: Callable[..., Awaitable[None]]
+        self,
+        sm: StateManager,
+        send_message: Callable[..., Awaitable[None]],
+        db_session_factory: Callable[[], AsyncSession] | None = None,
     ) -> None:
-        super().__init__(sm, send_message)
+        super().__init__(sm, send_message, db_session_factory)
 
     async def check_denied(self, *names: str) -> list[str]:
-        async with get_container().db_session_factory() as session:
+        async with self.db_session() as session:
             result = await session.execute(
                 sa.select(PantsDeny)
                 .where(PantsDeny.name.in_([n.lower() for n in names]))
@@ -47,7 +51,7 @@ class PantsCommand(SimpleCDCommand):
             return result.scalars().all()
 
     async def add_to_denied(self, name: str):
-        async with get_container().db_session_factory() as session:
+        async with self.db_session() as session:
             await session.execute(
                 insert(PantsDeny)
                 .values({"name": name.lower()})
@@ -55,7 +59,7 @@ class PantsCommand(SimpleCDCommand):
             await session.commit()
 
     async def remove_from_denied(self, name: str):
-        async with get_container().db_session_factory() as session:
+        async with self.db_session() as session:
             await session.execute(
                 sa.delete(PantsDeny)
                 .where(PantsDeny.name == name.lower())
