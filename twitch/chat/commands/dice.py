@@ -66,12 +66,11 @@ class DiceCommand(SimpleTargetCommand):
         elif not max_value and not is_fallen and to_grab:
             return f"@{user} не нужно поднимать кубик. Он не упал"
         elif not max_value and is_fallen and to_grab:
-            await self._state_manager.set_state(
+            await self._state_manager.del_state(
                 channel=streamer.login_name,
                 user=user.lower(),
                 command=self.command_name,
                 param=SMParam.PREVIOUS_VALUE,
-                value=True,
             )
             return f"@{user} поднимает кубик с пола и теперь может его кинуть!"
         return ""
