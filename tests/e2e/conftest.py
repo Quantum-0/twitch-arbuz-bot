@@ -5,7 +5,7 @@ from playwright.sync_api import BrowserContext, sync_playwright, Browser
 from pytest import fixture
 
 
-@fixture(scope="session")
+@fixture(scope="session", autouse=True)
 def cookie_session_value() -> str:
     return os.environ['TEST_COOKIE_SESSION_VALUE']
 

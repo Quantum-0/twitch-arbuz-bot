@@ -72,7 +72,8 @@ def test_goto_about(context_unauthorized, main_page_url):
 
     with allure.step("Жмём кнопку"):
         page.click("text=О сервисе")
-        page.wait_for_load_state()
+        sleep(3)
+        # page.wait_for_load_state()
         assert "/about" in page.url
         scr = screenshot(page)
         allure.attach(scr, name="Перешли на /about", attachment_type=allure.attachment_type.PNG)
