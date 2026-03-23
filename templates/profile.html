@@ -76,6 +76,14 @@
         </div>
     </section>
 
+    {% if profile_user.is_live %}
+    <!-- Стрим -->
+    <section>
+        <h3>Стрим</h3>
+        <iframe src="https://player.twitch.tv/?channel={{ profile_user.login_name }}&parent=bot.quantum0.ru&parent=localhost&muted=true&autoplay=true" height="400" width="100%" allowfullscreen></iframe>
+    </section>
+    {% endif %}
+
     <!-- Статистика -->
     <section>
         <h3>Статистика</h3>
