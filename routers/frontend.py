@@ -117,15 +117,16 @@ async def overlay_slovotron(
     channel_name: str = Query(),
 ):
     async with httpx.AsyncClient() as client:
-        response = await client.get("https://slovotron.fra3a.ru/?channel_name=" + channel_name)
+        # TODO: webhook - победа, подсказка. utm метки
+        response = await client.get("https://slovotron.fra3a.ru/obs-overlay=1&channel=" + channel_name)
         soup = BeautifulSoup(response.text, 'lxml')
-        undesired_elements = soup.find_all('nav') + soup.find_all('footer') + [soup.select_one("#info.content-box")]
-        for el in undesired_elements:
-            if el:
-                style = el.get("style", "")
-                if not style.endswith(";") and style != "":
-                    style += ";"
-                el["style"] = style + "display: none;"
+        # undesired_elements = soup.find_all('nav') + soup.find_all('footer') + [soup.select_one("#info.content-box")]
+        # for el in undesired_elements:
+        #     if el:
+        #         style = el.get("style", "")
+        #         if not style.endswith(";") and style != "":
+        #             style += ";"
+        #         el["style"] = style + "display: none;"
         for tag in soup.find_all(["a", "link", "script", "img"]):
             attr = "href" if tag.name in ["a", "link"] else "src"
             if tag.has_attr(attr):
