@@ -118,7 +118,7 @@ async def overlay_slovotron(
 ):
     async with httpx.AsyncClient() as client:
         # TODO: webhook - победа, подсказка. utm метки
-        response = await client.get("https://slovotron.fra3a.ru/obs-overlay=1&channel=" + channel_name)
+        response = await client.get("https://slovotron.fra3a.ru?obs-overlay=1&channel=" + channel_name)
         soup = BeautifulSoup(response.text, 'lxml')
         # undesired_elements = soup.find_all('nav') + soup.find_all('footer') + [soup.select_one("#info.content-box")]
         # for el in undesired_elements:
