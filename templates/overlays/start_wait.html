@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <title>Stream Loading Overlay</title>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      background: black;
+      overflow: hidden;
+      font-family: Arial;
+      color: white;
+    }
+
+    .container {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      text-align: center;
+      z-index: 10;
+      pointer-events: none;
+    }
+
+    .loader {
+      width: 80px;
+      height: 80px;
+      border: 6px solid rgba(255,255,255,0.2);
+      border-top: 6px solid white;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin: 0 auto 20px;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0); }
+      100% { transform: rotate(360deg); }
+    }
+
+    .text {
+      font-size: 22px;
+      opacity: 0;
+      transition: 0.5s;
+      max-width: 600px;
+    }
+
+    .text.show { opacity: 1; }
+
+    canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+    }
+  </style>
+</head>
+<body>
+
+<canvas id="world"></canvas>
+
+<div class="container">
+  <div class="loader"></div>
+  <div id="text" class="text"></div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
+<script src="https://github.com/tmijs/tmi.js/releases/download/v1.8.5/tmi.min.js"></script>
+
+<script>
+// ===== TEXT =====
+const phrases = [
+  "Придвигаем кресло к столу…",
+  "Наливаем стримеру чай…",
+  "Загружаем глупеньковость стримера…",
+  "Разогреваем микрофон…",
+  "Подключаем наушники…",
+  "Настраиваем удачу (0.1% → 0.2%)…",
+  "Проверяем, жив ли чат…",
+  "Добавляем ещё немного контента…",
+  "Генерируем интересные мысли… (ошибка 404)",
+  "Пытаемся не кринжевать…",
+  "Включаем режим: киберкотлета (почти)…",
+  "Делаем шутки смешными…",
+
+  "Исправляем баги в реальном времени…",
+  "Наливаем заново остывший чай…",
+  "Вспоминаем, куда дели наушники…",
+  "Ищем адаптер от мышки…",
+  "Вспоминаем, куда дели геймпад…",
+  "В шоке обнаруживаем, что наушники разрядились. В панике их заряжаем…",
+
+  "Завариваем чай…",
+  "Инициализация чай.exe…",
+  "Загрузка personality.dll…",
+  "Проверяем, не сломается ли всё…",
+  "Ожидание: работает ли звук?…",
+  "Пытаемся понять, почему сломался трекинг…",
+
+  "Кормим пиксели…",
+  "Приручаем зрителей…",
+  "Гипнотизируем алгоритмы…",
+  "Ждём, пока стример соберётся с мыслями…",
+  "Пытаемся вспомнить, что хотели стримить…",
+  "Синхронизация с реальностью… (занимает время)",
+  "Где-то тут должен быть контент…",
+  "Подозрительно тихо…",
+  "Кто выключил мозг?…",
+
+  "Делаем вид, что всё под контролем…",
+  "Сейчас начнём… правда…",
+  "Ещё пару минут… (возможно)",
+  "Готовимся морально…",
+  "Собираем последние остатки мотивации…",
+  "Проверяем, не забыли ли начать стрим…",
+  "Пытаемся заинтересовать чат смешными надписями…",
+  "Ждём пока стример покакает…",
+
+  "Чат, вы живы?",
+  "Как настроение по шкале от 1 до “мяу”?",
+
+  "Добавляем ещё немного удачи…",
+  "Отвлеклись на поглаживание котика…",
+  "Собираем стрим по кусочкам…",
+  "Проверяем стабильность вселенной…",
+  "Оптимизируем реальность…",
+  "Пытаемся не сломать ничего…",
+  "Синхронизируемся с чатом…",
+
+  "git pull && docker compose up -d…",
+  "Перезапускаем стримера…",
+  "Ты всё ещё читаешь эти надписи?",
+  "Это точно последний фикс…",
+  "Ещё одна кружечка чая и начнём…",
+
+  "Ищем стримера…",
+  "Ожидайте, вам ответит ближайший освободившийся стример",
+  "Может он забыл что запустил стрим?",
+  "Может он потерял кнопку смены сцены?",
+  "Проверяем, установлена ли игра…",
+  "Это всё часть плана…",
+  "Мы тоже не знаем, что происходит…",
+
+  "Ещё минутка…",
+  "Ща-ща-ща-ща, щас всё будет!",
+  "Открываем портал в стрим…",
+  "Загрузка завершится… когда будет готова",
+  "Пытаемся разбудить уснувшего стримера…",
+  "Ожидание завершения ожидания…",
+
+  "Ого, редкая надпись! 🎉",
+  "Расскажите что-нибудь, пока стример не пришёл 👀",
+  "А стрим точно будет?",
+  "Знаете что? Я хочу шоколадку…",
+
+  "Делаем красиво…",
+  "Делаем стримера вкусным…",
+  "Никто не ожидал этого…",
+  "Почти не лагает…",
+  "Собираем остатки концентрации…",
+  "Пытаемся быть интересными…",
+  "Думаем, что сказать…",
+  "Вспоминаем, как здороваться с чатом…",
+  "Доигрываем последнюю катку…",
+  "Ничего не происходит…",
+  "Ожидаем неожиданное…",
+  "Открываем пачку печенек…",
+  "Боимся запускать стрим…",
+  "Зовём модеров на помощь…",
+  "Ищем тиммейтов…",
+  "Это уже 57-ая надпись…",
+  "Эта надпись ничего не делает",
+  "Ты всё ещё читаешь это?"
+];
+
+
+const textEl = document.getElementById("text");
+
+function upd() {
+  textEl.classList.remove("show");
+  setTimeout(() => {
+    textEl.textContent = phrases[Math.floor(Math.random() * phrases.length)];
+    textEl.classList.add("show");
+  }, 300);
+}
+
+upd();
+setInterval(upd, 3000 + Math.random() * 2000);
+
+// ===== MATTER =====
+const { Engine, Render, Runner, Bodies, Composite, Events } = Matter;
+
+const canvas = document.getElementById('world');
+const engine = Engine.create();
+const world = engine.world;
+
+const render = Render.create({
+  canvas,
+  engine,
+  options: {
+    width: innerWidth,
+    height: innerHeight,
+    wireframes: false,
+    background: 'transparent'
+  }
+});
+
+Render.run(render);
+Runner.run(Runner.create(), engine);
+
+function resize() {
+  render.canvas.width = innerWidth;
+  render.canvas.height = innerHeight;
+}
+
+addEventListener('resize', resize);
+
+function bounds() {
+  const w = innerWidth;
+  const h = innerHeight;
+
+  Composite.clear(world, false);
+
+  Composite.add(world, [
+    Bodies.rectangle(w/2, h+50, w, 100, { isStatic: true }),
+    Bodies.rectangle(-50, h/2, 100, h, { isStatic: true }),
+    Bodies.rectangle(w+50, h/2, 100, h, { isStatic: true })
+  ]);
+}
+
+bounds();
+
+// ===== SETTINGS =====
+const MAX_BALLS = 50;
+
+// ===== RENDER =====
+Events.on(render, 'afterRender', () => {
+  const ctx = render.context;
+
+  for (let b of world.bodies) {
+    if (!b.avatar) continue;
+
+    const { x, y } = b.position;
+    const r = b.circleRadius;
+
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(b.angle);
+
+    ctx.shadowColor = b.border;
+    ctx.shadowBlur = 20;
+
+    ctx.beginPath();
+    ctx.arc(0, 0, r, 0, Math.PI * 2);
+    ctx.closePath();
+    ctx.clip();
+
+    ctx.drawImage(b.avatar, -r, -r, r*2, r*2);
+
+    ctx.restore();
+
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.lineWidth = 4;
+    ctx.strokeStyle = b.border;
+    ctx.stroke();
+  }
+});
+
+// ===== BOUNCE EFFECT =====
+Events.on(engine, 'collisionStart', e => {
+  for (let pair of e.pairs) {
+    for (let b of [pair.bodyA, pair.bodyB]) {
+      if (!b.avatar) continue;
+      b.scale = 1.2;
+      setTimeout(() => b.scale = 1, 100);
+    }
+  }
+});
+
+// ===== CLICK INTERACTION =====
+canvas.addEventListener('mousedown', (e) => {
+  const mouseX = e.clientX;
+  const mouseY = e.clientY;
+
+  for (let b of world.bodies) {
+    if (!b.avatar) continue;
+
+
+    const dx = b.position.x - mouseX;
+    const dy = b.position.y - mouseY;
+    const dist = Math.sqrt(dx*dx + dy*dy);
+
+    if (dist < 200) {
+      const force = 0.25;
+      Matter.Body.applyForce(b, b.position, {
+        x: dx / dist * force,
+        y: dy / dist * force
+      });
+    }
+  }
+});
+
+window.addEventListener("heat:message", (e) => {
+    const data = e.detail;
+
+    const mouseX = data.x * window.innerWidth;
+    const mouseY = data.y * window.innerHeight;
+
+    for (let b of world.bodies) {
+      if (!b.avatar) continue;
+
+
+      const dx = b.position.x - mouseX;
+      const dy = b.position.y - mouseY;
+      const dist = Math.sqrt(dx*dx + dy*dy);
+
+      if (dist < 200) {
+        const force = 0.25;
+        Matter.Body.applyForce(b, b.position, {
+          x: dx / dist * force,
+          y: dy / dist * force
+        });
+      }
+    }
+});
+
+// ===== TWITCH =====
+const client = new tmi.Client({ channels: ['quantum075'] });
+client.connect();
+
+const cache = new Set();
+
+function url(u) {
+  return `https://unavatar.io/twitch/${u}`;
+}
+
+function fallback(u) {
+  return `https://decapi.me/twitch/avatar/${u}`;
+}
+
+function border(tags) {
+  if (tags.badges?.broadcaster) return 'red';
+  if (tags.badges?.moderator) return 'green';
+  if (tags.badges?.vip) return 'gold';
+  if (tags.subscriber) return 'purple';
+  return 'white';
+}
+
+function spawn(img, borderColor) {
+  const base = 96;
+  const scale = 0.8 + Math.random() * 0.4;
+  const r = (base * scale) / 2;
+
+  if (world.bodies.filter(b => b.avatar).length >= MAX_BALLS) {
+    const old = world.bodies.find(b => b.avatar);
+    if (old) Composite.remove(world, old);
+  }
+
+  const body = Bodies.circle(Math.random() * innerWidth, -100, r, {
+    restitution: 0.7,
+    friction: 0.2
+  });
+
+  body.avatar = img;
+  body.border = borderColor;
+
+  Composite.add(world, body);
+}
+
+client.on('message', (ch, tags, msg, self) => {
+  if (self) return;
+
+  const user = tags['display-name'] || tags.username;
+  if (cache.has(user)) return;
+  cache.add(user);
+
+  const b = border(tags);
+
+  const img = new Image();
+  img.crossOrigin = 'anonymous';
+  img.src = url(user);
+
+  img.onload = () => spawn(img, b);
+
+  img.onerror = () => {
+    const fb = new Image();
+    fb.crossOrigin = 'anonymous';
+    fb.src = fallback(user);
+    fb.onload = () => spawn(fb, b);
+  };
+});
+
+</script>
+</body>
+</html>

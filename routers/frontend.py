@@ -156,6 +156,20 @@ async def overlay_star(
     )
 
 
+@router.get("/overlay/start-wait")
+async def overlay_start_wait(
+    request: Request,
+    channel_id: int = Query(),
+):
+    return templates.TemplateResponse(
+        "overlays/start_wait.html",
+        {
+            "request": request,
+            "channel_id": channel_id,
+        }
+    )
+
+
 @router.get("/overlay/ai-sticker")
 async def overlay_img_gen(
     request: Request,
