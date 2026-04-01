@@ -45,6 +45,14 @@ def upgrade() -> None:
                 'id': uuid.uuid4(),
                 'text': 'РЕЙД БЕЗ ПАСТЫ!!! pastaThat pastaThat pastaThat pastaThat pastaThat РЕЙД БЕЗ ПАСТЫ!!! pastaThat pastaThat pastaThat pastaThat pastaThat РЕЙД БЕЗ ПАСТЫ!!! pastaThat pastaThat pastaThat pastaThat pastaThat РЕЙД БЕЗ ПАСТЫ!!! pastaThat pastaThat pastaThat pastaThat pastaThat',
             },
+            {
+                'id': uuid.uuid4(),
+                'text': 'AlienPls3 AlienPls3 AlienPls3 AlienPls3 AlienPls3 AlienPls3 AlienPls3 AlienPls3 AlienPls3 ',
+            },
+            {
+                'id': uuid.uuid4(),
+                'text': '⠀⢠⣒⣤⠤⣀⣀⠀ ⠀⠀⠠⣒⢤⠋⠂⠈⡷⠒⠒⣗⠢⡀⠀⠀⠀⠀ ⠀⢠⠋⠀⡇⠀⠀⣰⠁⠀⢀⡼⠠⣱⠀⠀⠀⠀ ⠀⢈⠀⠀⣧⣀⣠⣏⢀⠴⠋⠉⠙⡟⡄⠀⠀⠀ ⠀⠘⣄⢠⠟⠉⠉⢻⡎⠀⠀⠀⣸⠇⢸⠀⠀⠀ ⠀⢀⠜⡏⠁⠀⠀⠀⣧⣀⣠⠾⠋⠀⡜⠀⠀⠀ ⠀⡜⠀⠁⠀⠀⠀⠀⠘⣷⠀⠀⡠⠊⠀⠀⠀⠀ ⠀⠹⣁⡤⢾⡀⠀⠀⢠⠏⠀⡐⠁⠀⠀⠀⠀⠀ ⠀⠀⠃⢴⠀⠉⠒⠚⠃⠀⢠⠁⠀⠀⠀⠀⠀⠀ ⠀⢸⠀⠈⠁⠀⠀⠀⠀⠀⡎⠀⠀⠀⠀⠀⠀⠀ ⠀⢸⠀⠀⠀⠀⠀⠀⠀⢠⠁⠀⠀⠀⠀⠀⠀⠀ ⠀⠸⠀⠀⠀⠀⠀⠀⠀⢸⠀⠀⠀⠀⠀⠀⠀⠀ ⠀⠀⠤⠤⠤⠤⠤⠤⠤⠤⠀',
+            },
         ],
     )
 
