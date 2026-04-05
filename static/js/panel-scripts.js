@@ -92,7 +92,10 @@ function updateDependentTogglesState() {
     const isEnabled = document.querySelector('.toggle-switch[data-name="enable_chat_bot"]').classList.contains('active');
     const container = document.getElementById('dependent-toggles');
     if (!container) return;
-    container.classList.toggle("active");
+    if (isEnabled)
+        container.classList.add("active");
+    else
+        container.classList.remove("active");
 }
 
 function openActivateModal() {

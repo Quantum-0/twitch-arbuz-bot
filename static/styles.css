@@ -222,6 +222,12 @@ a:link {
 a:visited {
     color: var(--color-link-visited);
 }
+tr {
+    background-color: var(--color-bg);
+}
+tr:hover {
+    background-color: var(--color-bg-secondary);
+}
 
 /* tooltips */
 
@@ -749,7 +755,6 @@ section h3 {
 }
 .tutorial-step p {
     font-size: 15px;
-    color: #333;
 }
 
 /* Roadmap styles */
