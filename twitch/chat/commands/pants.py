@@ -109,7 +109,7 @@ class PantsCommand(SimpleCDCommand):
 
         # Выбор цели
         target: str | None = None
-        if message.startswith("!трусы @"):
+        if message.lower().startswith("!трусы @"):
             targets = await extract_targets(
                 message, streamer.login_name, partial(self.chat_bot.get_random_active_user, streamer)
             )  # TODO replace with display name
