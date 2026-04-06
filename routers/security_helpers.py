@@ -47,12 +47,14 @@ async def user_auth(
     if not request.session or not (user_id := request.session.get("user_id")):
         raise HTTPException(status_code=401, detail="Not authorized")
     result = await db.execute(
-        sa.select(User)
+        sa.update(User)
+        .where(User.twitch_id == user_id)
+        .values(interacted_at=sa.func.now())
+        .returning(User)
         .options(
             selectinload(User.settings),
             selectinload(User.memealerts),
         )
-        .filter_by(twitch_id=user_id)
     )
     user = result.scalar_one_or_none()
     if not user:
@@ -68,12 +70,14 @@ async def user_auth_optional(
     if not request.session or not (user_id := request.session.get("user_id")):
         return None
     result = await db.execute(
-        sa.select(User)
+        sa.update(User)
+        .where(User.twitch_id == user_id)
+        .values(interacted_at=sa.func.now())
+        .returning(User)
         .options(
             selectinload(User.settings),
             selectinload(User.memealerts),
         )
-        .filter_by(twitch_id=user_id)
     )
     return result.scalar_one_or_none()
 

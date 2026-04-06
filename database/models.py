@@ -42,6 +42,9 @@ class User(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), nullable=False
     )
+    interacted_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default="2026-01-01 00:00:00", nullable=False,
+    )
 
     _access_token: Mapped[str] = mapped_column("access_token", String)
     _refresh_token: Mapped[str] = mapped_column("refresh_token", String)
