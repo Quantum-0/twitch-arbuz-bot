@@ -17,6 +17,8 @@ from .tail import TailCommand
 from .whoami import WhoAmICommand
 from .feed import FeedCommand
 from .treat import TreatCommand
+from .tg import LinkTgCommand
+from .discord import LinkDisCommand
 
 __all__ = [
     "BananaCommand",
@@ -31,6 +33,8 @@ __all__ = [
     "HornyBadCommand",
     "HugCommand",
     "LickCommand",
+    "LinkTgCommand",
+    "LinkDisCommand",
     "LurkCommand",
     "PantsCommand",
     "PastaCommand",

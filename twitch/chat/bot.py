@@ -82,6 +82,8 @@ class ChatBot:
         self._command_manager.register(LurkCommand)
         self._command_manager.register(PantsCommand)
         self._command_manager.register(WhoAmICommand)
+        self._command_manager.register(LinkDisCommand)
+        self._command_manager.register(LinkTgCommand)
 
         # chat.register_event(ChatEvent.MESSAGE, on_message)
         logger.debug("On_message handler registered")

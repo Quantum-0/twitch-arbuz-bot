@@ -101,6 +101,12 @@ class TwitchUserSettings(Base):
     enable_pasta: Mapped[bool] = mapped_column(
         Boolean, default=False, server_default=false(), nullable=False
     )
+    enable_tg_link: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default=false(), nullable=False
+    )
+    enable_ds_link: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default=false(), nullable=False
+    )
 
     enable_bite: Mapped[bool] = mapped_column(
         Boolean, default=False, server_default=false(), nullable=False
@@ -170,6 +176,13 @@ class TwitchUserSettings(Base):
 
     personal_pasta: Mapped[str] = mapped_column(
         String, default=None, nullable=True
+    )
+
+    tg_link: Mapped[str] = mapped_column(
+        String, default=None, nullable=True,
+    )
+    ds_link: Mapped[str] = mapped_column(
+        String, default=None, nullable=True,
     )
 
     ai_sticker_reward_id: Mapped[uuid.UUID | None] = mapped_column(
