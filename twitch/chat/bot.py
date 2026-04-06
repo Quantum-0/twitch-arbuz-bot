@@ -132,22 +132,23 @@ class ChatBot:
         )
 
     @asynccontextmanager
-    async def _get_user_with_settings(self, channel_name: str) -> AsyncIterator[User]:
-        channel_name = channel_name.lower()
+    async def _get_user_with_settings_by_twitch_id(self, channel_id: str) -> AsyncIterator[User]:
         async with self._db_session_factory() as session:
             result = await session.execute(
                 sa.select(User)
+                # .with_for_update()
                 .options(selectinload(User.settings))
-                .filter_by(login_name=channel_name)
+                .filter_by(twitch_id=channel_id)
             )
             user = result.scalar_one_or_none()
             if not user:
-                logger.error(f"User {channel_name} not found")
+                logger.error(f"User id={channel_id} not found")
                 raise UserNotFoundInDatabase
             # if not user.in_beta_test:
             #     logger.error(f"User {channel_name} not in beta test")
             #     raise NotInBetaTest
             yield user
+            await session.commit()
 
     async def on_message(self, raw_message: ChatMessageWebhookEventSchema | dict[str, Any]):
         if isinstance(raw_message, dict):
@@ -159,8 +160,9 @@ class ChatBot:
 
         logger.debug(f"Got message `{message.message.text}` from channel `{channel}`")
 
-        # FIXME: если ловим тут exceptions.UserNotFoundInDatabase - либо отключаем чат бота, либо меняем пользователю имя в бд
-        async with self._get_user_with_settings(channel) as user:
+        async with self._get_user_with_settings_by_twitch_id(message.broadcaster_user_id) as user:
+            if user.login_name != message.broadcaster_user_login:
+                user.login_name = message.broadcaster_user_login
             user_settings: TwitchUserSettings = user.settings
             await self._user_list_manager.handle(channel, message)
             await self._command_manager.handle(user_settings, user, message)
