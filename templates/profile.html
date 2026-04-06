@@ -60,12 +60,12 @@
                 <!-- Соцсети -->
                 <div style="display: flex; flex-direction: column; gap: 5px;">
 
-                    {% if profile_user.link_telegram %}
-                    <button class="twitch-login-button" onclick="location.href='{{ profile_user.link_telegram }}';"><i class="fa fa-telegram"></i> Telegram</button>
+                    {% if profile_user.tg_link %}
+                    <button class="twitch-login-button" onclick="location.href='{{ profile_user.tg_link }}';"><i class="fa fa-telegram"></i> Telegram</button>
                     {% endif %}
 
-                    {% if profile_user.link_discord %}
-                        <button class="twitch-login-button" onclick="location.href='{{ profile_user.link_discord }}';"><i class="fab fa-discord"></i> Discord</button>
+                    {% if profile_user.ds_link %}
+                        <button class="twitch-login-button" onclick="location.href='{{ profile_user.ds_link }}';"><i class="fab fa-discord"></i> Discord</button>
                     {% endif %}
 
                     <button class="twitch-login-button" onclick="location.href='https://twitch.tv/{{ profile_user.login_name }}';"><i class="fa fa-twitch"></i> Twitch</button>
