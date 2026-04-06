@@ -14,6 +14,7 @@ const GRAVITY = 0.25;
 const FRICTION = 0.999;
 const AIR_FORCE = 20;
 const ITERATIONS = 6;
+const MIN_INTERACTIONS_BEFORE_BREAK = 100;
 
 /* Точка (Verlet) */
 class Point {
@@ -99,6 +100,35 @@ for (let i = 0; i <= segments; i++) {
 
 const starPoint = points[points.length - 1];
 
+/* ====== РАЗРЫВ НИТКИ ====== */
+
+let isBroken = false;
+let interactionsBeforeBreak = 0;
+
+function breakString() {
+    if (isBroken) return;
+    isBroken = true;
+
+    const breakIndex = 1 + Math.floor(Math.random() * (sticks.length - 2));
+
+    // удаляем сегмент
+    sticks.splice(breakIndex, 1);
+
+    // нижняя часть отрывается
+    for (let i = breakIndex + 1; i < points.length; i++) {
+        points[i].pinned = false;
+    }
+
+    // импульс вниз
+    for (let i = breakIndex + 1; i < points.length; i++) {
+        points[i].oldy -= Math.random() * 5 + 2;
+    }
+
+    // дополнительный импульс звезде
+    starPoint.oldx -= (Math.random() - 0.5) * 10;
+    starPoint.oldy -= Math.random() * 10;
+}
+
 /* ================== ВЕТЕР ================== */
 
 canvas.addEventListener("pointerdown", e => {
@@ -114,6 +144,12 @@ canvas.addEventListener("pointerdown", e => {
     const fy = (dy / dist) * AIR_FORCE * 0.4;
 
     starPoint.applyForce(fx, fy);
+
+    if (!isBroken && interactionsBeforeBreak < MIN_INTERACTIONS_BEFORE_BREAK && Math.random() < (BREAK_CHANCE / 100)) {
+        breakString();
+    } else {
+        interactionsBeforeBreak += 1;
+    }
 
     spawnParticles(2 + Math.random() * 5);
 });
@@ -138,6 +174,12 @@ window.addEventListener("heat:message", (e) => {
     const fy = (dy / dist) * AIR_FORCE * 0.4;
 
     starPoint.applyForce(fx, fy);
+
+    if (!isBroken && interactionsBeforeBreak < MIN_INTERACTIONS_BEFORE_BREAK && Math.random() < (BREAK_CHANCE / 100)) {
+        breakString();
+    } else {
+        interactionsBeforeBreak += 1;
+    }
 
     spawnParticles(2 + Math.random() * 5);
 });
@@ -170,7 +212,6 @@ class Particle {
 
   draw() {
     ctx.fillStyle = hexToRgba(COLOR, this.life);
-    // ctx.fillStyle = `rgba(255,220,150,${this.life})`;
     ctx.beginPath();
     ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
     ctx.fill();
@@ -227,10 +268,11 @@ function update() {
     ctx.beginPath();
     ctx.strokeStyle = "#aaa";
     ctx.lineWidth = 2;
-    for (let i = 0; i < points.length; i++) {
-        const p = points[i];
-        if (i === 0) ctx.moveTo(p.x, p.y);
-        else ctx.lineTo(p.x, p.y);
+
+    for (let i = 0; i < sticks.length; i++) {
+        const s = sticks[i];
+        ctx.moveTo(s.p0.x, s.p0.y);
+        ctx.lineTo(s.p1.x, s.p1.y);
     }
     ctx.stroke();
 

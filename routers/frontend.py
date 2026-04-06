@@ -146,6 +146,11 @@ async def overlay_star(
     size: int = Query(default=16),
     color: Color = Query(default="#ffd45a"),
     length: float = Query(default=0.39),
+    break_chance: float = Query(default=0.015),
+        # 0.05 == 100+1385 interactions to 50% chance to break
+        # 0.03 == 100+2310 to 50%
+        # 0.015 == 100+4620
+        # 1.0 = 100+68 to 50%
 ):
     return templates.TemplateResponse(
         "overlays/star.html",
@@ -156,6 +161,7 @@ async def overlay_star(
             "size": size,
             "color": color,
             "length": length,
+            "break_chance": break_chance,
         }
     )
 
