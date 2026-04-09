@@ -10,8 +10,8 @@ class LinkTgCommand(SimpleCDCommand):
     command_aliases = ["tg", "тг", "телега", "телеграм", "тгк"]
     command_description = "Сохранить, получить сохранённую или выдать ссылку на телеграм-канал стримера"
 
-    cooldown_timer_per_chat = 10
-    cooldown_timer_per_user = 60
+    cooldown_timer_per_chat = 5
+    cooldown_timer_per_user = 10
 
     def is_enabled(self, streamer_settings: TwitchUserSettings) -> bool:
         return streamer_settings.enable_tg_link

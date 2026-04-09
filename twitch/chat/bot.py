@@ -138,7 +138,7 @@ class ChatBot:
                 sa.select(User)
                 # .with_for_update()
                 .options(selectinload(User.settings))
-                .filter_by(twitch_id=channel_id)
+                .filter_by(twitch_id=str(channel_id))
             )
             user = result.scalar_one_or_none()
             if not user:

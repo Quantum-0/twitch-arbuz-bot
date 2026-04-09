@@ -145,7 +145,7 @@ canvas.addEventListener("pointerdown", e => {
 
     starPoint.applyForce(fx, fy);
 
-    if (!isBroken && interactionsBeforeBreak < MIN_INTERACTIONS_BEFORE_BREAK && Math.random() < (BREAK_CHANCE / 100)) {
+    if (!isBroken && interactionsBeforeBreak > MIN_INTERACTIONS_BEFORE_BREAK && Math.random() < (BREAK_CHANCE / 100)) {
         breakString();
     } else {
         interactionsBeforeBreak += 1;

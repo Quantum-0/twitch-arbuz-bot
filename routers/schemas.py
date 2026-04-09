@@ -21,6 +21,9 @@ class UpdateSettingsForm(BaseModel):
     enable_dice: bool | None = Field(None)
     enable_pasta: bool | None = Field(None)
 
+    enable_tg_link: bool | None = Field(None)
+    enable_ds_link: bool | None = Field(None)
+
     enable_banana: bool | None = Field(None)
     enable_treat: bool | None = Field(None)
     enable_whoami: bool | None = Field(None)
