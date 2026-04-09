@@ -41,7 +41,7 @@
 <!-- Остальные переключатели -->
 <div id="dependent-toggles" class="toggles-grid">
     {% for label, name, value in toggles %}
-        <div class="toggle-label {% if not settings.enable_chat_bot %}disabled{%endif%}">
+        <div class="toggle-label">
             <span>Включить {{ label }}</span>
             <div class="toggle-switch {{ 'active' if value }}" data-name="{{ name }}"></div>
         </div>
