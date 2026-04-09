@@ -6,6 +6,7 @@ from typing import Annotated
 import sqlalchemy as sa
 from dependency_injector.wiring import Provide, inject
 from fastapi import Depends, Header, HTTPException
+from sqlalchemy.exc import DBAPIError
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -13,8 +14,34 @@ from starlette import status
 from starlette.requests import Request
 
 from config import settings
+from database.database import AsyncSessionLocal
 from database.models import User
 from dependencies import get_db
+
+INTERACTION_UPDATE_INTERVAL_SECONDS = 15
+INTERACTION_UPDATE_LOCK_TIMEOUT_MS = 50
+
+
+async def touch_user_interaction(user_id: str) -> None:
+    """Best-effort update of last user interaction without blocking request flow."""
+    async with AsyncSessionLocal() as touch_db:
+        try:
+            await touch_db.execute(
+                sa.text(f"SET LOCAL lock_timeout = '{INTERACTION_UPDATE_LOCK_TIMEOUT_MS}ms'")
+            )
+            await touch_db.execute(
+                sa.update(User)
+                .where(User.twitch_id == user_id)
+                .where(
+                    User.interacted_at
+                    < sa.func.now()
+                    - sa.text(f"INTERVAL '{INTERACTION_UPDATE_INTERVAL_SECONDS} seconds'")
+                )
+                .values(interacted_at=sa.func.now())
+            )
+            await touch_db.commit()
+        except DBAPIError:
+            await touch_db.rollback()
 
 
 async def verify_eventsub_signature(
@@ -47,10 +74,8 @@ async def user_auth(
     if not request.session or not (user_id := request.session.get("user_id")):
         raise HTTPException(status_code=401, detail="Not authorized")
     result = await db.execute(
-        sa.update(User)
+        sa.select(User)
         .where(User.twitch_id == user_id)
-        .values(interacted_at=sa.func.now())
-        .returning(User)
         .options(
             selectinload(User.settings),
             selectinload(User.memealerts),
@@ -59,6 +84,7 @@ async def user_auth(
     user = result.scalar_one_or_none()
     if not user:
         raise HTTPException(status_code=403, detail="User not found")
+    await touch_user_interaction(user_id)
     return user
 
 
@@ -70,16 +96,17 @@ async def user_auth_optional(
     if not request.session or not (user_id := request.session.get("user_id")):
         return None
     result = await db.execute(
-        sa.update(User)
+        sa.select(User)
         .where(User.twitch_id == user_id)
-        .values(interacted_at=sa.func.now())
-        .returning(User)
         .options(
             selectinload(User.settings),
             selectinload(User.memealerts),
         )
     )
-    return result.scalar_one_or_none()
+    user = result.scalar_one_or_none()
+    if user:
+        await touch_user_interaction(user_id)
+    return user
 
 
 security = HTTPBasic()
