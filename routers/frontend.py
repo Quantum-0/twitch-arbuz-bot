@@ -3,7 +3,7 @@ import logging
 import math
 import random
 from collections.abc import Callable
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 from urllib.parse import urljoin
 from uuid import UUID
 
@@ -187,6 +187,21 @@ async def overlay_img_gen(
 ):
     return templates.TemplateResponse(
         "overlays/imggen.html",
+        {
+            "request": request,
+            "channel_id": channel_id,
+        }
+    )
+
+
+@router.get("/overlay/ya-music-widget")
+async def overlay_img_gen(
+    request: Request,
+    channel_id: int = Query(),
+    widget_type: Literal["pulsma", "battlebeats"] = Query(default="pulsma", alias="widget-type")
+):
+    return templates.TemplateResponse(
+        f"overlays/ya-music-widget-{widget_type}.html",
         {
             "request": request,
             "channel_id": channel_id,

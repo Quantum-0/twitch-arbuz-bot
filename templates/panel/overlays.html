@@ -174,4 +174,26 @@
         <div class="overlay-link"></div>
     </div>
     {% endif %}
+
+    <div class="overlay-card" data-base="{{ request.base_url }}overlay/ya-music-widget">
+        <h2>🎵 Виджет Yandex-music</h2>
+        <p>Данный виджет отображает песню из приложения Яндекс Музыки на ПК в OBS</p>
+        <p>Для подключения требуется установить <a href="https://pulsesync.dev/">Pulse Sync</a></p>
+        <p>Оригинальная реализация от PulseSync-LLC <a href="https://github.com/PulseSync-LLC/Yandex-Music-Widget-for-OBS">здесь</a>.</p>
+        <button class="overlay-toggle-settings">Настройки</button>
+        <div class="overlay-settings">
+            <div class="overlay-control">
+              Тип виджета
+              <fieldset>
+                <input type="radio" id="pulsma" data-param="widget-type" name="widget-type" value="pulsma">
+                <label for="pulsma">Pulsma Bar</label><br>
+
+                <input type="radio" id="battlebeats" data-param="widget-type" name="widget-type" value="battlebeats">
+                <label for="battlebeats">Battlebeats Classic Card</label><br>
+              </fieldset>
+            </div>
+        </div>
+        <p>Скопируй ссылку и вставь в OBS:</p>
+        <div class="overlay-link"></div>
+    </div>
 </div>
