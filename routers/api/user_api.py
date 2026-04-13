@@ -177,6 +177,10 @@ async def setup_memealert(
                     {"title": "Ошибка", "message": "Слишком много наград на канале."},
                     400,
                 )
+            return JSONResponse(
+                {"title": "Ошибка", "message": str(exc)},
+                400,
+            )
 
         user.memealerts.memealerts_reward = reward.id
         user.memealerts.memealerts_token = memealerts_token
