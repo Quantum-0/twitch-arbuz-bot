@@ -224,6 +224,10 @@ async def setup_ai_stickers(
                     {"title": "Ошибка", "message": "Слишком много наград на канале."},
                     400,
                 )
+            return JSONResponse(
+                {"title": "Ошибка", "message": str(exc)},
+                400,
+            )
 
         user.settings.ai_sticker_reward_id = reward.id
         await db.commit()
