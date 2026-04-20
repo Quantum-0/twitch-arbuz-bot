@@ -55,7 +55,7 @@ class OpenAIClient:
                 # extra_body={"quality": "low"},
                 quality="low",
                 image=open("static/images/refs/quantum075.png"),
-                ize="1024x1024",
+                size="1024x1024",
                 moderation="auto",
                 output_format="png",
             )
