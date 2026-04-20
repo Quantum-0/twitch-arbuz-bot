@@ -54,7 +54,7 @@ class OpenAIClient:
                 prompt=f"Generate an image of drawn in cartoon style `{prompt}` with transparent background and the white outline like a sticker",
                 # extra_body={"quality": "low"},
                 quality="low",
-                image=open("static/images/refs/quantum075.png"),
+                image=open("static/images/refs/quantum075.png", "rb"),
                 size="1024x1024",
                 # moderation="auto",
                 output_format="png",
