@@ -56,7 +56,7 @@ class OpenAIClient:
                 quality="low",
                 image=open("static/images/refs/quantum075.png"),
                 size="1024x1024",
-                moderation="auto",
+                # moderation="auto",
                 output_format="png",
             )
         else:
