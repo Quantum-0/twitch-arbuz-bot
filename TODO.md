@@ -28,3 +28,10 @@ https://dev.twitch.tv/docs/api/reference/#update-user-extensions
 дать кнопочку установить оверлей
 
 Если В ЛЮБОМ МЕСТЕ стрельнуло InvalidRefreshTokenException - делаем логаут
+
+TODO:
+- подключить с3
+- хранить рефы для ai sticker в с3
+- хранить output в с3
+- из постгреса всё пересохранять в с3
+- научить ai sticker генерировать по рефам

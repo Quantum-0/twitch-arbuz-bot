@@ -47,12 +47,25 @@ class OpenAIClient:
 
     async def generate_sticker(self, prompt: str) -> str:
         logger.info("Start generating image")
-        result = await self._client.images.generate(
-            model="gpt-image-1-mini",
-            prompt=f"Image of drawn in cartoon style `{prompt}` with transparent background and the white outline like a sticker",
-            quality="low",
-            size="1024x1024",
-            moderation="auto",
-            output_format="png",
-        )
+        if "@quantum075" in prompt.lower():
+            prompt = prompt.replace("@Quantum075", "character from applied photo")
+            result = await self._client.images.edit(
+                model="gpt-image-1-mini",
+                prompt=f"Generate an image of drawn in cartoon style `{prompt}` with transparent background and the white outline like a sticker",
+                # extra_body={"quality": "low"},
+                quality="low",
+                image=open("static/images/refs/quantum075.png"),
+                ize="1024x1024",
+                moderation="auto",
+                output_format="png",
+            )
+        else:
+            result = await self._client.images.generate(
+                model="gpt-image-1-mini",
+                prompt=f"Image of drawn in cartoon style `{prompt}` with transparent background and the white outline like a sticker",
+                quality="low",
+                size="1024x1024",
+                moderation="auto",
+                output_format="png",
+            )
         return result.data[0].b64_json
