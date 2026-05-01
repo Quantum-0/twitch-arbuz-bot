@@ -190,14 +190,18 @@
         <p>Оригинальная реализация от PulseSync-LLC <a href="https://github.com/PulseSync-LLC/Yandex-Music-Widget-for-OBS">здесь</a>.</p>
         <button class="overlay-toggle-settings">Настройки</button>
         <div class="overlay-settings">
-            <div class="overlay-control">
-              Тип виджета
-              <fieldset>
-                <input type="radio" id="pulsma" data-param="widget-type" name="widget-type" value="pulsma">
-                <label for="pulsma">Pulsma Bar</label><br>
+            <div class="overlay-control overlay-radio-panel">
+              <div class="target-behaviour-title">Тип виджета</div>
+              <fieldset class="overlay-radio-options">
+                <label class="overlay-radio-option" for="pulsma">
+                    <input type="radio" id="pulsma" data-param="widget-type" name="widget-type" value="pulsma">
+                    <span>Pulsma Bar</span>
+                </label>
 
-                <input type="radio" id="battlebeats" data-param="widget-type" name="widget-type" value="battlebeats">
-                <label for="battlebeats">Battlebeats Classic Card</label><br>
+                <label class="overlay-radio-option" for="battlebeats">
+                    <input type="radio" id="battlebeats" data-param="widget-type" name="widget-type" value="battlebeats">
+                    <span>Battlebeats Classic Card</span>
+                </label>
               </fieldset>
             </div>
         </div>

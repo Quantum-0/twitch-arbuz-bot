@@ -103,8 +103,12 @@ function updateDependentTogglesState() {
     const isEnabled = document.querySelector('.toggle-switch[data-name="enable_chat_bot"]').classList.contains('active');
     const container = document.getElementById('dependent-toggles');
     const extraSettingsContainer = document.getElementById('chatbot-extra-settings');
+    const extraDivider = document.getElementById('chatbot-extra-divider');
     if (container) {
         container.classList.toggle("active", isEnabled);
+    }
+    if (extraDivider) {
+        extraDivider.classList.toggle("active", isEnabled);
     }
     if (extraSettingsContainer) {
         extraSettingsContainer.classList.toggle("active", isEnabled);
