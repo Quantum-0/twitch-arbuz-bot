@@ -47,21 +47,47 @@
 
 <hr>
 
-<div class="toggle-label">
-    <span>Разрешить работать в общих чатах</span>
-    <div class="toggle-switch {{ 'active' if settings.allow_shared_chat }}" data-name="allow_shared_chat"></div>
-</div>
+<div id="chatbot-extra-settings" class="chatbot-extra-settings">
+    <div class="toggle-label">
+        <span>Разрешить работать в общих чатах</span>
+        <div class="toggle-switch {{ 'active' if settings.allow_shared_chat }}" data-name="allow_shared_chat"></div>
+    </div>
 
-<div>  <!-- TODO: скрывать если чат бот выключен !!!! --> <!-- TODO: сделать так, чтоб отправляло update_settings -->
-    Дефолтное поведение Target-команд (например !кусь)
-    <fieldset>
-        <input type="radio" id="chatbot_default_target_behaviour_tip" name="chatbot_default_target_behaviour" value="tip">
-        <label for="chatbot_default_target_behaviour_tip">Подсказывать пользователю, что нужно указать цель</label><br>
+    <div class="target-behaviour-card">
+        <div class="target-behaviour-title">Дефолтное поведение Target-команд (например !кусь)</div>
+        <fieldset class="target-behaviour-options">
+            <label class="target-behaviour-option" for="chatbot_default_target_behaviour_tip">
+                <input
+                    type="radio"
+                    id="chatbot_default_target_behaviour_tip"
+                    name="chatbot_default_target_behaviour"
+                    value="tip"
+                    {{ 'checked' if settings.default_target_behaviour|default('tip') == 'tip' else '' }}
+                >
+                <span>Подсказывать пользователю, что нужно указать цель</span>
+            </label>
 
-        <input type="radio" id="chatbot_default_target_behaviour_random" name="chatbot_default_target_behaviour" value="random">
-        <label for="chatbot_default_target_behaviour_random">Выбирать рандомную цель среди чаттерсов</label><br>
+            <label class="target-behaviour-option" for="chatbot_default_target_behaviour_random">
+                <input
+                    type="radio"
+                    id="chatbot_default_target_behaviour_random"
+                    name="chatbot_default_target_behaviour"
+                    value="random"
+                    {{ 'checked' if settings.default_target_behaviour == 'random' else '' }}
+                >
+                <span>Выбирать рандомную цель среди чаттерсов</span>
+            </label>
 
-        <input type="radio" id="chatbot_default_target_behaviour_streamer" name="chatbot_default_target_behaviour" value="streamer">
-        <label for="chatbot_default_target_behaviour_streamer">Выбирать стримера в качестве цели</label><br>
-    </fieldset>
+            <label class="target-behaviour-option" for="chatbot_default_target_behaviour_streamer">
+                <input
+                    type="radio"
+                    id="chatbot_default_target_behaviour_streamer"
+                    name="chatbot_default_target_behaviour"
+                    value="streamer"
+                    {{ 'checked' if settings.default_target_behaviour == 'streamer' else '' }}
+                >
+                <span>Выбирать стримера в качестве цели</span>
+            </label>
+        </fieldset>
+    </div>
 </div>

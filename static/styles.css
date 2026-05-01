@@ -362,6 +362,54 @@ section h3 {
     pointer-events: none;
 }
 
+.chatbot-extra-settings {
+    display: none;
+    margin-top: 10px;
+}
+
+.chatbot-extra-settings.active {
+    display: block;
+}
+
+.target-behaviour-card {
+    margin-top: 12px;
+    padding: 14px;
+    border: 1px solid var(--color-border);
+    border-radius: 10px;
+    background: var(--color-bg-muted);
+}
+
+.target-behaviour-title {
+    font-weight: 700;
+    margin-bottom: 10px;
+}
+
+.target-behaviour-options {
+    border: none;
+    padding: 0;
+    margin: 0;
+    display: grid;
+    gap: 8px;
+}
+
+.target-behaviour-option {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 8px 10px;
+    border-radius: 8px;
+    transition: background-color 0.2s ease;
+    cursor: pointer;
+}
+
+.target-behaviour-option:hover {
+    background: var(--color-bg-secondary);
+}
+
+.target-behaviour-option input[type="radio"] {
+    margin-top: 2px;
+}
+
 /* Specific UI */
 
 .twitch-login-button {

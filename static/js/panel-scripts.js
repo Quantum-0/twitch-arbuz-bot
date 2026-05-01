@@ -34,6 +34,17 @@ function toggleSetting(name, enabled) {
     .catch(err => showNotification('Ошибка', err.message, true));
 }
 
+function updateSettingValue(name, value) {
+    fetch('/api/user/update_settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: `${name}=${encodeURIComponent(value)}`
+    })
+    .then(res => res.json().then(data => ({ ok: res.ok, data })))
+    .then(({ok, data}) => showNotification(data.title || 'Настройки', data.message, !ok))
+    .catch(err => showNotification('Ошибка', err.message, true));
+}
+
 function initToggles() {
     document.querySelectorAll('.toggle-switch').forEach(toggle => {
         toggle.addEventListener('click', () => {
@@ -91,11 +102,22 @@ function initOverlays() {
 function updateDependentTogglesState() {
     const isEnabled = document.querySelector('.toggle-switch[data-name="enable_chat_bot"]').classList.contains('active');
     const container = document.getElementById('dependent-toggles');
-    if (!container) return;
-    if (isEnabled)
-        container.classList.add("active");
-    else
-        container.classList.remove("active");
+    const extraSettingsContainer = document.getElementById('chatbot-extra-settings');
+    if (container) {
+        container.classList.toggle("active", isEnabled);
+    }
+    if (extraSettingsContainer) {
+        extraSettingsContainer.classList.toggle("active", isEnabled);
+    }
+}
+
+function initTargetBehaviourRadios() {
+    document.querySelectorAll('input[name="chatbot_default_target_behaviour"]').forEach(radio => {
+        radio.addEventListener('change', (event) => {
+            if (!event.target.checked) return;
+            updateSettingValue('default_target_behaviour', event.target.value);
+        });
+    });
 }
 
 function openActivateModal() {
@@ -178,6 +200,7 @@ function updateCoins() {
 document.addEventListener('DOMContentLoaded', () => {
     initToggles();
     updateDependentTogglesState();
+    initTargetBehaviourRadios();
     initOverlays();
     initStatusCards();
     const coinInput = document.getElementById('coin-count');
