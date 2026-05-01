@@ -21,11 +21,9 @@ class LinkDisCommand(SimpleCDCommand):
             return await self._get_link(streamer)
         elif streamer.login_name == user.lower():
             link = message.strip().split(maxsplit=1)[1]
-            # TODO: parse and check link
-            # parsed = re.match(r"(@(?P<username1>\w*)|(https?:\/\/)?t\.me\/(?P<username2>\w*)(\/(?P<post>\d+))?|(https?:\/\/)?(?P<username3>\w*)\.t\.me\/?)", link)
-            # clean_link = parsed.groupdict().get("username1") or parsed.groupdict().get("username2") or parsed.groupdict().get("username3") or None
-            # if not clean_link:
-            #     return "Кажется это некорректная ссылка :с"
+            parsed = re.match(r"(https?://)?(www\.)?(discord\.(gg|io|me|li)|discordapp\.com/invite|discord\.com/invite)/[^\s/]+?", link)
+            if not parsed:
+                return "Кажется это некорректная ссылка :с"
             await self._save_link(streamer, link)
             return "Ссылка сохранена!"
         return "Только владелец канала может сохранить ссылку на дис 👀"
@@ -35,8 +33,8 @@ class LinkDisCommand(SimpleCDCommand):
 
     @staticmethod
     async def _get_link(streamer: User) -> str:
-        if streamer.settings.tg_link:
-            return "t.me/" + streamer.settings.tg_link
+        if streamer.settings.ds_link:
+            return streamer.settings.ds_link
         return "Ссылка на Discord-сервер не указана."
 
     async def _save_link(self, streamer: User, link: str) -> None:
