@@ -1,3 +1,5 @@
+from uuid import UUID
+
 from pydantic import AnyHttpUrl, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from twitchAPI.type import AuthScope
@@ -58,6 +60,7 @@ class Settings(BaseSettings):
     direct_handle_messages: bool = True
     direct_handle_rewards: bool = True
     exception_to_many_unsubscribes: int | None = 20
+    slovotron_secret: UUID
 
     model_config = SettingsConfigDict(env_prefix="", env_file=".env")
 

@@ -28,6 +28,7 @@ async def lifespan(app: "FastAPI | None" = None):
     chat_bot = container.chat_bot()
     ai = container.ai()
     mqtt = container.mqtt()
+    slovotron = container.slovotron()
 
     await twitch.startup()
     await chat_bot.startup(twitch)
@@ -43,6 +44,8 @@ async def lifespan(app: "FastAPI | None" = None):
 
     if not settings.direct_handle_rewards:
         mqtt.subscribe("twitch/+/reward-redemption", eventsub_service.handle_reward_redemption)
+
+    mqtt.subscribe("slovotron/+/+", slovotron.handle_webhook)
 
     if app is not None:
         app.container = container

@@ -4,12 +4,9 @@ import math
 import random
 from collections.abc import Callable
 from typing import Annotated, Any, Literal
-from urllib.parse import urljoin
-from uuid import UUID
+from uuid import UUID, uuid3
 
-import httpx
 import sqlalchemy as sa
-from bs4 import BeautifulSoup
 from dependency_injector.wiring import Provide, inject
 from fastapi import APIRouter, HTTPException, Query, Security
 from fastapi.params import Depends
@@ -21,8 +18,8 @@ from starlette.responses import HTMLResponse, RedirectResponse, FileResponse
 from starlette.templating import Jinja2Templates
 
 from config import settings
-from database.models import TwitchUserSettings, User, MemealertsSettings
 from container import Container
+from database.models import TwitchUserSettings, User, MemealertsSettings
 from dependencies import get_db
 from routers.security_helpers import admin_auth, user_auth, user_auth_optional
 from twitch.chat.bot import ChatBot
@@ -114,9 +111,16 @@ async def overlay_tts(
 
 @router.get("/overlay/slovotron")
 async def overlay_slovotron(
+    request: Request,
     channel_name: str = Query(),
+    inactive_timeout: int = Query(default=20),
+    inactive_opacity: float = Query(default=0.4),
 ):
-    return RedirectResponse(url="https://slovotron.fra3a.ru/?obs-overlay=1&channel=" + channel_name)
+    return RedirectResponse(
+        url=f"https://slovotron.fra3a.ru/?obs-overlay=1&"
+            f"channel={channel_name}&inactive_timeout={inactive_timeout}&"
+            f"inactive_opacity={inactive_opacity}&webhook_secret={uuid3(namespace=settings.slovotron_secret, name=channel_name)}"
+            f"webhook_url={request.base_url}/")
     # async with httpx.AsyncClient() as client:
     #     # TODO: webhook - победа, подсказка. utm метки
     #     response = await client.get("https://slovotron.fra3a.ru/", params={
