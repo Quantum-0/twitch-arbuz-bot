@@ -189,6 +189,13 @@ class TwitchUserSettings(Base):
         UUID(as_uuid=True), nullable=True, default=None
     )
 
+    allow_shared_chat: Mapped[bool] = mapped_column(
+        Boolean, default=True, server_default=false(), nullable=False
+    )
+    chatbot_default_target_behaviour: Mapped[str] = mapped_column(
+        String, default="tip", server_default="tip", nullable=False,
+    )
+
     user: Mapped["User"] = relationship("User", back_populates="settings")
 
 

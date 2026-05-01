@@ -4,7 +4,7 @@ from functools import partial
 from time import time
 
 from database.models import User
-from routers.schemas import ChatMessageWebhookEventSchema
+from routers.schemas import ChatMessageWebhookEventSchema, ChatbotDefaultTargetBehaviour
 from twitch.chat.base.base_command import Command
 from twitch.state_manager import SMParam
 from twitch.utils import extract_targets
@@ -44,10 +44,15 @@ class SimpleTargetCommand(Command, ABC):
                     partial(self.chat_bot.get_random_active_user, streamer),
                 )
             )
-            if len(targets) == 0 and self.need_target:
-                response = await self._no_target_reply(user)
-                await self.send_response(chat=streamer, message=response)
-                return
+            if len(targets) == 0:
+                if streamer.settings.chatbot_default_target_behaviour == ChatbotDefaultTargetBehaviour.TIP:
+                    response = await self._no_target_reply(user)
+                    await self.send_response(chat=streamer, message=response)
+                    return
+                elif streamer.settings.chatbot_default_target_behaviour == ChatbotDefaultTargetBehaviour.STREAMER:
+                    targets = [f"@{message.broadcaster_user_name}"]
+                elif streamer.settings.chatbot_default_target_behaviour == ChatbotDefaultTargetBehaviour.RANDOM:
+                    targets = ["@" + await self.chat_bot.get_random_active_user(streamer)]
 
         last_command_call = await self._state_manager.get_state(
             channel=streamer.login_name,

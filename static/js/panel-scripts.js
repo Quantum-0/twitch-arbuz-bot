@@ -119,7 +119,7 @@ function initTargetBehaviourRadios() {
     document.querySelectorAll('input[name="chatbot_default_target_behaviour"]').forEach(radio => {
         radio.addEventListener('change', (event) => {
             if (!event.target.checked) return;
-            updateSettingValue('default_target_behaviour', event.target.value);
+            updateSettingValue('chatbot_default_target_behaviour', event.target.value);
         });
     });
 }

@@ -62,7 +62,7 @@
                     id="chatbot_default_target_behaviour_tip"
                     name="chatbot_default_target_behaviour"
                     value="tip"
-                    {{ 'checked' if settings.default_target_behaviour|default('tip') == 'tip' else '' }}
+                    {{ 'checked' if settings.chatbot_default_target_behaviour|default('tip') == 'tip' else '' }}
                 >
                 <span>Подсказывать пользователю, что нужно указать цель</span>
             </label>
@@ -73,7 +73,7 @@
                     id="chatbot_default_target_behaviour_random"
                     name="chatbot_default_target_behaviour"
                     value="random"
-                    {{ 'checked' if settings.default_target_behaviour == 'random' else '' }}
+                    {{ 'checked' if settings.chatbot_default_target_behaviour == 'random' else '' }}
                 >
                 <span>Выбирать рандомную цель среди чаттерсов</span>
             </label>
@@ -84,7 +84,7 @@
                     id="chatbot_default_target_behaviour_streamer"
                     name="chatbot_default_target_behaviour"
                     value="streamer"
-                    {{ 'checked' if settings.default_target_behaviour == 'streamer' else '' }}
+                    {{ 'checked' if settings.chatbot_default_target_behaviour == 'streamer' else '' }}
                 >
                 <span>Выбирать стримера в качестве цели</span>
             </label>

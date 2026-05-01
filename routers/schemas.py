@@ -7,6 +7,11 @@ from pydantic import AnyHttpUrl, BaseModel, Field
 
 from config import settings
 
+class ChatbotDefaultTargetBehaviour(StrEnum):
+    TIP = "tip"
+    RANDOM = "random"
+    STREAMER = "streamer"
+
 
 class UpdateSettingsForm(BaseModel):
     enable_chat_bot: bool | None = Field(None)
@@ -41,6 +46,9 @@ class UpdateSettingsForm(BaseModel):
 
     enable_shoutout_on_raid: bool | None = Field(None)
 
+    # Extra
+    allow_shared_chat: bool | None = Field(None)
+    chatbot_default_target_behaviour: ChatbotDefaultTargetBehaviour | None = Field(None)
 
 class UpdateMemealertsCoinsSchema(BaseModel):
     count: int = Field(..., ge=1, le=100)
