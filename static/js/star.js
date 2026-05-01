@@ -285,7 +285,10 @@ function update() {
         p.draw();
         if (p.life <= 0) particles.splice(i, 1);
     }
-    requestAnimationFrame(update);
+
+    setTimeout(() => {
+        requestAnimationFrame(update);
+    }, 1000 / 60);
 }
 
 update();
