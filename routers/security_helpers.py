@@ -32,11 +32,11 @@ async def touch_user_interaction(user_id: str) -> None:
             await touch_db.execute(
                 sa.update(User)
                 .where(User.twitch_id == user_id)
-                .where(
-                    User.interacted_at
-                    < sa.func.now()
-                    - sa.text(f"INTERVAL '{INTERACTION_UPDATE_INTERVAL_SECONDS} seconds'")
-                )
+                # .where(
+                #     User.interacted_at
+                #     < sa.func.now()
+                #     - sa.text(f"INTERVAL '{INTERACTION_UPDATE_INTERVAL_SECONDS} seconds'")
+                # )
                 .values(interacted_at=sa.func.now())
             )
             await touch_db.commit()

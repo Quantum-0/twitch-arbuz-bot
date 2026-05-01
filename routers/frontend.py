@@ -3,6 +3,7 @@ import logging
 import math
 import random
 from collections.abc import Callable
+from datetime import datetime
 from typing import Annotated, Any, Literal
 from uuid import UUID, uuid3
 
@@ -446,6 +447,8 @@ async def get_streamers(
             User.followers_count.label("followers"),
             User.in_beta_test.label("is_beta_tester"),
             User.donated.label("donated"),
+            User.created_at.label("created_at"),
+            User.interacted_at.label("interacted_at"),
             TwitchUserSettings.enable_chat_bot.label("chat_bot_enabled"),
             MemealertsSettings.memealerts_reward.is_not(None).label("memealerts_enabled")
         )
@@ -458,8 +461,14 @@ async def get_streamers(
     res = (await db.execute(q)).all()
 
     def cmp(usr):
+        now = datetime.now()
+        day = 24*60*60
         return (
             (10 * bool(usr["is_live"])) +
+            (4 * bool((now - usr["created_at"]).total_seconds() < day)) + # Зареган меньше суток назад
+            (1.75 * bool((now - usr["created_at"]).total_seconds() < 7*day)) + # Зареган меньше недели назад
+            (1.75 * bool((now - usr["interacted_at"]).total_seconds() < 30*day)) + # Заходил в панель управления ботом за последний месяц
+            (2 * bool((now - usr["interacted_at"]).total_seconds() < day)) + # Заходил в панель управления ботом за последние сутки
             (0.6 * math.log10((usr.get("followers", 0) or 0) + 1)) +
             (2 * (usr["username"] == "quantum075" or usr["donated"] > 0)) +
             (1 * usr["is_beta_tester"]) +
