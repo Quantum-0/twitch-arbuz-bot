@@ -157,6 +157,14 @@
               Автоматический рестарт через:
               <input type="range" min="1" max="60" step="1" value="20" data-param="restart_time"/>
             </div>
+            <div class="overlay-control">
+              Непрозрачность при отсутствии активности:
+              <input type="range" min="0" max="1" step="0.01" value="0.4" data-param="inactive_opacity"/>
+            </div>
+            <div class="overlay-control">
+              Время неактивности, через которое виджет становится полу-прозрачным (в секундах):
+              <input type="range" min="1" max="180" step="1" value="20" data-param="inactive_timeout"/>
+            </div>
         </div>
         <p>Скопируй ссылку и вставь в OBS:</p>
         <div class="overlay-link"></div>
