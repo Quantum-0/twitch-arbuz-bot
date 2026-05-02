@@ -35,8 +35,9 @@ class CommandsManager:
         message: ChatMessageWebhookEventSchema,
     ):
         logger.debug(f"Handling message with {self.__class__.__name__}")
-        if not user_settings.allow_shared_chat and message.source_broadcaster_user_id is not None and message.broadcaster_user_id != message.source_broadcaster_user_id:
+        if not user_settings.allow_shared_chat and message.source_broadcaster_user_id:
             logger.debug(f"Skip message because of common chat. Source: {message.source_broadcaster_user_login}, Broadcaster: {message.broadcaster_user_login}")
+            return
         for cmd in self.commands:
             if not cmd.is_enabled(user_settings):
                 continue
