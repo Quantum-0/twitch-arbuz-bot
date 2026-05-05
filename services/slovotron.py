@@ -1,15 +1,19 @@
 from collections.abc import Callable
 from typing import Any
 
-from dependency_injector.wiring import inject, Provide
+import sqlalchemy as sa
 from pydantic import TypeAdapter, ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database.models import User
-from routers.schemas import SlovotronWebhookSchema, SlovotronNewWebhookSchema, SlovotronWinWebhookSchema, \
-    SlovotronTipWebhookSchema, SlovotronEvent
+from schemas.slovotron import (
+    SlovotronEvent,
+    SlovotronNewWebhookSchema,
+    SlovotronWinWebhookSchema,
+    SlovotronTipWebhookSchema,
+    SlovotronWebhookSchema,
+)
 from twitch.chat.bot import ChatBot
-import sqlalchemy as sa
 
 
 class SlovotronService:
@@ -49,10 +53,14 @@ class SlovotronService:
 
     async def handle_game_win(self, payload: SlovotronWinWebhookSchema):
         async with self._db_session_factory() as session:
-            user: User = (await session.execute(  # type: ignore
-                sa.select(User).where(User.login_name == payload.channel)
-            )).scalar_one_or_none()
-        await self._chat_bot.send_message(user, f"@{payload.data.winner.display_name} угадывает слово {payload.data.winning_word}! Поздравляем!")
+            user: User = (  # type: ignore
+                await session.execute(
+                    sa.select(User).where(User.login_name == payload.channel)
+                )
+            ).scalar_one_or_none()
+        await self._chat_bot.send_message(
+            user, f"@{payload.data.winner.display_name} угадывает слово {payload.data.winning_word}! Поздравляем!"
+        )
 
     async def handle_game_tip(self, payload: SlovotronTipWebhookSchema):
         pass

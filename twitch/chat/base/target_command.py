@@ -4,7 +4,8 @@ from functools import partial
 from time import time
 
 from database.models import User
-from routers.schemas import ChatMessageWebhookEventSchema, ChatbotDefaultTargetBehaviour
+from schemas.twitch import ChatMessageWebhookEventSchema
+from schemas.enums import ChatbotDefaultTargetBehaviour
 from twitch.chat.base.base_command import Command
 from twitch.state_manager import SMParam
 from twitch.utils import extract_targets

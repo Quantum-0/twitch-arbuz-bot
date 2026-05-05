@@ -1,57 +1,10 @@
 from datetime import datetime
-from enum import StrEnum
-from typing import Generic, Literal, TypeVar, Annotated, Union
-from uuid import UUID, uuid3
+from typing import Literal, TypeVar, Generic
+from uuid import UUID
 
-from pydantic import AnyHttpUrl, BaseModel, Field
+from pydantic import BaseModel, Field, AnyHttpUrl
 
 from config import settings
-
-class ChatbotDefaultTargetBehaviour(StrEnum):
-    TIP = "tip"
-    RANDOM = "random"
-    STREAMER = "streamer"
-
-
-class UpdateSettingsForm(BaseModel):
-    enable_chat_bot: bool | None = Field(None)
-
-    enable_bite: bool | None = Field(None)
-    enable_lick: bool | None = Field(None)
-    enable_boop: bool | None = Field(None)
-    enable_pat: bool | None = Field(None)
-    enable_hug: bool | None = Field(None)
-    enable_bonk: bool | None = Field(None)
-    enable_feed: bool | None = Field(None)
-
-    enable_dice: bool | None = Field(None)
-    enable_pasta: bool | None = Field(None)
-
-    enable_tg_link: bool | None = Field(None)
-    enable_ds_link: bool | None = Field(None)
-
-    enable_banana: bool | None = Field(None)
-    enable_treat: bool | None = Field(None)
-    enable_whoami: bool | None = Field(None)
-    enable_lurk: bool | None = Field(None)
-    enable_horny_good: bool | None = Field(None)
-    enable_horny_bad: bool | None = Field(None)
-    enable_tail: bool | None = Field(None)
-
-    enable_riot: bool | None = Field(None)
-    enable_pants: bool | None = Field(None)
-
-    enable_pyramid: bool | None = Field(None)
-    enable_pyramid_breaker: bool | None = Field(None)
-
-    enable_shoutout_on_raid: bool | None = Field(None)
-
-    # Extra
-    allow_shared_chat: bool | None = Field(None)
-    chatbot_default_target_behaviour: ChatbotDefaultTargetBehaviour | None = Field(None)
-
-class UpdateMemealertsCoinsSchema(BaseModel):
-    count: int = Field(..., ge=1, le=100)
 
 
 class PointRewardRedemptionWebhookEventSchema(BaseModel):
@@ -79,9 +32,7 @@ class WebhookSubscriptionRaidConditionSchema(BaseModel):
 
 class WebhookTransportSchema(BaseModel):
     method: str = Field(..., examples=["webhook"])
-    callback: AnyHttpUrl = Field(
-        ..., examples=[str(settings.reward_redemption_webhook) + "/123"]
-    )
+    callback: AnyHttpUrl = Field(..., examples=[str(settings.reward_redemption_webhook) + "/123"])
 
 
 T = TypeVar("T", bound=BaseModel)
@@ -106,9 +57,7 @@ class WebhookSubscriptionSchema(BaseModel, Generic[T]):
 
 class PointRewardRedemptionWebhookSchema(BaseModel):
     event: PointRewardRedemptionWebhookEventSchema
-    subscription: WebhookSubscriptionSchema[
-        WebhookSubscriptionRewardRedemptionConditionSchema
-    ]
+    subscription: WebhookSubscriptionSchema[WebhookSubscriptionRewardRedemptionConditionSchema]
 
 
 class TwitchChallengeSchema(BaseModel):
@@ -213,68 +162,5 @@ class WebhookSubscriptionChatMessageConditionSchema(BaseModel):
 
 
 class ChatMessageSchema(BaseModel):
-    subscription: WebhookSubscriptionSchema[
-        WebhookSubscriptionChatMessageConditionSchema
-    ]
+    subscription: WebhookSubscriptionSchema[WebhookSubscriptionChatMessageConditionSchema]
     event: ChatMessageWebhookEventSchema
-
-
-class BoolResponseSchema(BaseModel):
-    result: bool
-
-# TODO: рефактор схем: схемы в отдельной папке, internal, api, twitch-eventsub, integration?
-
-# {"channel":"quantum075","event":"game-new","data":{"challenge_id":"c66acc72-258f-4bd5-823d-23fadc70ab6a","secret_word":"медь"}}
-#
-# {"channel":"quantum075","event":"game-win","data":{"winner":{"login":"quantum075","display_name":"Quantum075"},"winning_word":"медь","attempts_used":2,"unique_words":2,"repeated_words":0,"round_duration_sec":37}}
-#
-# {"channel":"quantum075","event":"game-tip","data":{"tip_word":"водолаз","tip_distance":150,"challenge_id":"88d617f7-cb77-456f-8871-6f22c642fea9"}}
-
-class SlovotronNewGameDataSchema(BaseModel):
-    challenge_id: UUID
-    secret_word: str
-
-class SlovotronWinDataSchema(BaseModel):
-    class SlovotronWinnerSchema(BaseModel):
-        login: str
-        display_name: str
-    winner: SlovotronWinnerSchema
-    winning_word: str
-    attempts_used: int
-    unique_words: int
-    repeated_words: int
-    round_duration_sec: int
-
-class SlovotronTipDataSchema(BaseModel):
-    tip_word: str
-    tip_distance: int
-    challenge_id: UUID
-
-class SlovotronEvent(StrEnum):
-    GAME_NEW = "game-new"
-    GAME_TIP = "game-tip"
-    GAME_WIN = "game-win"
-
-class SlovotronWebhookBaseSchema(BaseModel):
-    channel: str
-    secret: UUID
-
-    def validate_secret(self):
-        return self.secret == uuid3(namespace=settings.slovotron_secret, name=self.channel)
-
-class SlovotronNewWebhookSchema(SlovotronWebhookBaseSchema):
-    event: Literal["game-new"]  # Literal обязателен для дискриминатора
-    data: SlovotronNewGameDataSchema
-
-class SlovotronWinWebhookSchema(SlovotronWebhookBaseSchema):
-    event: Literal["game-win"]
-    data: SlovotronWinDataSchema
-
-class SlovotronTipWebhookSchema(SlovotronWebhookBaseSchema):
-    event: Literal["game-tip"]
-    data: SlovotronTipDataSchema
-
-SlovotronWebhookSchema = Annotated[
-    Union[SlovotronNewWebhookSchema, SlovotronWinWebhookSchema, SlovotronTipWebhookSchema],
-    Field(discriminator='event')
-]

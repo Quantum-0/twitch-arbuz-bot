@@ -5,7 +5,7 @@ from contextlib import asynccontextmanager
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database.models import TwitchUserSettings, User
-from routers.schemas import ChatMessageWebhookEventSchema
+from schemas.twitch import ChatMessageWebhookEventSchema
 from twitch.state_manager import StateManager
 
 

@@ -5,7 +5,7 @@ from typing import Awaitable
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database.models import TwitchUserSettings, User
-from routers.schemas import ChatMessageWebhookEventSchema
+from schemas.twitch import ChatMessageWebhookEventSchema
 from twitch.chat.base.base_command import Command
 from twitch.state_manager import StateManager
 

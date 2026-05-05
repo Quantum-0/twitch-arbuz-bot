@@ -18,7 +18,7 @@ class Container(containers.DeclarativeContainer):
             "routers.api.twitch_eventsub",
             "routers.api.user_api",
             "routers.api.slovotron_webhook",
-            "routers.frontend",
+            "routers.web.service_routes",
             "routers.security_helpers",
             "routers.sse",
             "routers.ws.heat_proxy",

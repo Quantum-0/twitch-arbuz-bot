@@ -8,11 +8,10 @@ from contextlib import asynccontextmanager
 from enum import Enum, auto
 from time import time
 
-from twitchAPI.chat import ChatMessage
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database.models import TwitchUserSettings, User
-from routers.schemas import ChatMessageWebhookEventSchema
+from schemas.twitch import ChatMessageWebhookEventSchema
 from twitch.state_manager import SMParam, StateManager
 
 logger = logging.getLogger(__name__)

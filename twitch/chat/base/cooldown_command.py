@@ -3,7 +3,7 @@ from abc import abstractmethod
 from time import time
 
 from database.models import User
-from routers.schemas import ChatMessageWebhookEventSchema
+from schemas.twitch import ChatMessageWebhookEventSchema
 from twitch.chat.base.base_command import Command
 from twitch.state_manager import SMParam
 

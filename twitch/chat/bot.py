@@ -7,14 +7,14 @@ from time import time
 from typing import Any
 
 import sqlalchemy as sa
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from twitchAPI.chat import Chat
 
 from config import settings
 from database.models import TwitchUserSettings, User
-from sqlalchemy.ext.asyncio import AsyncSession
-from exceptions import NotInBetaTest, UserNotFoundInDatabase, ToManyChatUnsubscribesStartupException
-from routers.schemas import ChatMessageWebhookEventSchema
+from exceptions import UserNotFoundInDatabase, ToManyChatUnsubscribesStartupException
+from schemas.twitch import ChatMessageWebhookEventSchema
 from twitch.chat.command_manager import CommandsManager
 from twitch.chat.commands import *
 from twitch.chat.handlers import PantsRaffleHandler

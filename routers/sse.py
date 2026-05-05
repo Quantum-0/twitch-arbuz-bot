@@ -12,7 +12,7 @@ from utils.enums import SSEChannel
 router = APIRouter(prefix="/sse", tags=["SSE"])
 
 
-@router.get("/{user_id}/{channel}")
+@router.get("/{user_id}/{channel}", response_class=StreamingResponse)
 @inject
 async def sse(
     user_id: int,

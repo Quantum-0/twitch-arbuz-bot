@@ -1,7 +1,7 @@
 import logging
 
 from database.models import User, TwitchUserSettings, PantsDeny
-from routers.schemas import ChatMessageWebhookEventSchema
+from schemas.twitch import ChatMessageWebhookEventSchema
 from twitch.chat.commands import PantsCommand
 from twitch.chat.handlers.handlers import CommonMessagesHandler, HandlerResult
 from twitch.state_manager import SMParam

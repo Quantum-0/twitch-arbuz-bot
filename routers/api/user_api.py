@@ -12,7 +12,7 @@ from twitchAPI.type import TwitchAPIException, TwitchResourceNotFound
 from database.models import User
 from container import Container
 from dependencies import get_db
-from routers.schemas import UpdateMemealertsCoinsSchema, UpdateSettingsForm, BoolResponseSchema
+from schemas.api import UpdateSettingsForm, UpdateMemealertsCoinsSchema, BoolResponseSchema
 from routers.security_helpers import user_auth
 from services.sse_manager import SSEManager
 from twitch.chat.bot import ChatBot

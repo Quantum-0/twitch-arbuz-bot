@@ -11,12 +11,8 @@ from starlette.responses import PlainTextResponse, Response
 from config import settings
 from container import Container
 from routers.helpers import parse_eventsub_payload
-from routers.schemas import (
-    ChatMessageSchema,
-    PointRewardRedemptionWebhookSchema,
-    RaidWebhookSchema,
-    TwitchChallengeSchema,
-)
+from schemas.twitch import PointRewardRedemptionWebhookSchema, TwitchChallengeSchema, RaidWebhookSchema, \
+    ChatMessageSchema
 from services.eventsub_service import TwitchEventSubService
 from services.mqtt import MQTTClient
 from twitch.chat.bot import ChatBot

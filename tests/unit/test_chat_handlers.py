@@ -4,7 +4,7 @@ import random
 import pytest
 from twitchAPI.chat import ChatMessage
 
-from routers.schemas import ChatMessageSchema
+from schemas.twitch import ChatMessageSchema
 from twitch.chat.handlers.handlers import HelloHandler
 
 

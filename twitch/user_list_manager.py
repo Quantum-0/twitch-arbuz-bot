@@ -2,8 +2,7 @@ import logging
 from collections import defaultdict
 from time import time
 
-from routers.schemas import ChatMessageWebhookEventSchema
-
+from schemas.twitch import ChatMessageWebhookEventSchema
 
 logger = logging.getLogger(__name__)
 

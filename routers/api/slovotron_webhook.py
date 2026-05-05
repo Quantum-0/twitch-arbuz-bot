@@ -9,16 +9,16 @@ from starlette import status
 from container import Container
 from database.models import User
 from dependencies import get_db
-from routers.schemas import SlovotronWebhookSchema
+from schemas.slovotron import SlovotronWebhookSchema
 from services.mqtt import MQTTClient
 
-router = APIRouter(prefix="", tags=["Slovotron Webhook"])
+router = APIRouter()
 
 
 @router.post(
-    "/slovotron-webhook",
+    "/webhook/slovotron",
+    status_code=204,
     responses={
-        200: {},
         204: {"description": "Успешно обработано"},
         403: {"description": "Некорректный секрет"},
         404: {"description": "Канал (channel) не найден"},

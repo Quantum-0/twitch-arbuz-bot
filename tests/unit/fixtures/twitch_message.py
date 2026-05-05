@@ -1,6 +1,6 @@
 import pytest
 
-from routers.schemas import ChatMessageSchema
+from schemas.twitch import ChatMessageSchema
 
 
 @pytest.fixture

@@ -11,7 +11,7 @@ from sqlalchemy.orm import selectinload
 from twitchAPI.type import TwitchResourceNotFound
 
 from database.models import Base, TwitchUserSettings, User
-from routers.schemas import RaidWebhookSchema, PointRewardRedemptionWebhookSchema
+from schemas.twitch import PointRewardRedemptionWebhookSchema, RaidWebhookSchema
 from services.ai import OpenAIClient
 from services.image_resizer import ImageResizer
 from services.sse_manager import SSEManager
@@ -19,7 +19,6 @@ from twitch.chat.bot import ChatBot
 from twitch.client.twitch import Twitch
 from utils.enums import SSEChannel
 from utils.memes import give_bonus
-from utils.singleton import singleton
 
 logger = logging.getLogger(__name__)
 
@@ -144,6 +143,7 @@ class TwitchEventSubService():
                 user.login_name,
                 supporter=payload.event.user_input,
                 amount=user.memealerts.coins_for_reward,
+                db_session_factory=self._db_session_factory,
             )
 
             if result:
