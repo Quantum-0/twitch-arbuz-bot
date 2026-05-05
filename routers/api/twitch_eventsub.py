@@ -11,6 +11,7 @@ from starlette.responses import PlainTextResponse, Response
 from config import settings
 from container import Container
 from routers.helpers import parse_eventsub_payload
+from schemas.api import BaseErrorSchema
 from schemas.twitch import PointRewardRedemptionWebhookSchema, TwitchChallengeSchema, RaidWebhookSchema, \
     ChatMessageSchema
 from services.eventsub_service import TwitchEventSubService
@@ -24,7 +25,29 @@ logger = logging.getLogger(__name__)
 local_duplicates_cache: deque[UUID] = deque(maxlen=50)
 
 
-@router.post("/eventsub/{streamer_id}")
+@router.post(
+    "/eventsub/{streamer_id}",
+    status_code=204,
+    responses={
+        200: {
+            "description": "Challenge response with text/plain",
+            "content": {
+                "text/plain": {
+                    "example": "p7q9384u5y9834u5"
+                }
+            },
+        },
+        204: {"description": "Successful handling message"},
+        400: {
+            "description": "Invalid JSON body or Unknown EventSub message type",
+            "model": BaseErrorSchema,
+        },
+        403: {
+            "description": "Invalid signature",
+            "model": BaseErrorSchema,
+        },
+    },
+)
 @inject
 async def eventsub_handler(
     payload: Annotated[

@@ -22,17 +22,17 @@ from twitch.client.twitch import Twitch
 router = APIRouter(prefix="", tags=["Service"])
 
 
-@router.get("/favicon.ico")
+@router.get("/favicon.ico", response_class=FileResponse)
 async def favicon():
-    return FileResponse("static/favicon.ico")
+    return FileResponse("static/favicon.ico", headers={"Cache-Control": "public, max-age=604800"})
 
 
-@router.get("/login")
+@router.get("/login", response_class=RedirectResponse)
 async def login():
     return RedirectResponse(settings.login_twitch_url)
 
 
-@router.get("/login-callback")
+@router.get("/login-callback", response_class=RedirectResponse)
 @inject
 async def callback(
     request: Request,

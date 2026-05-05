@@ -47,3 +47,6 @@ class UpdateMemealertsCoinsSchema(BaseModel):
 
 class BoolResponseSchema(BaseModel):
     result: bool
+
+class BaseErrorSchema(BaseModel):
+    detail: str = Field(examples=["Error description"])

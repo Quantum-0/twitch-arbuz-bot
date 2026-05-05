@@ -130,7 +130,10 @@ async def profile_page(
     )
 
 
-@router.get("/about")
+@router.get(
+    "/about",
+    response_class=HTMLResponse,
+)
 async def about_page(
     request: Request,
     user: User | None = Security(user_auth_optional),
@@ -144,7 +147,10 @@ async def about_page(
     )
 
 
-@router.get("/memealerts-tutorial")
+@router.get(
+    "/memealerts-tutorial",
+    response_class=HTMLResponse,
+)
 async def meme_tutorial_page(
     request: Request,
     user: User | None = Security(user_auth_optional),
@@ -158,7 +164,10 @@ async def meme_tutorial_page(
     )
 
 
-@router.get("/debug")
+@router.get(
+    "/debug",
+    response_class=HTMLResponse,
+)
 @inject
 async def debug_page(
     request: Request,
@@ -183,7 +192,10 @@ async def debug_page(
     )
 
 
-@router.get("/admin")
+@router.get(
+    "/admin",
+    response_class=HTMLResponse,
+)
 async def admin_page(
     request: Request,
     user: Any = Security(user_auth),
@@ -200,7 +212,10 @@ async def admin_page(
     )
 
 
-@router.get("/cmdlist")
+@router.get(
+    "/cmdlist",
+    response_class=HTMLResponse,
+)
 @inject
 async def command_list_page(
     request: Request,
@@ -230,7 +245,10 @@ async def command_list_page(
     )
 
 
-@router.get("/streamers")
+@router.get(
+    "/streamers",
+    response_class=HTMLResponse,
+)
 @inject
 async def get_streamers(
     request: Request,
@@ -310,7 +328,10 @@ async def get_streamers(
     return templates.TemplateResponse("streamers.html", {"request": request, "streamers": res, "user": user})
 
 
-@router.get("/kinda_roadmap")
+@router.get(
+    "/kinda_roadmap",
+    response_class=HTMLResponse,
+)
 async def roadmap_page(
     request: Request,
     user: User | None = Security(user_auth_optional),
@@ -404,8 +425,8 @@ async def roadmap_page(
                     "text": "Отрывание звёздочки. Фикс трусов. Команды !тг и !дис, вывод их в профиль. Добавил оверлей яндекс-музыки.",
                 },
                 {
-                    "date": "Апрель 2026",
-                    "text": "Вебхук для словотрона. AI стикеры переключил на S3. Сортировка стримеров по их последнему активу в панели управления ботом",
+                    "date": "Май 2026",
+                    "text": "Вебхук для словотрона. AI стикеры переключаю на S3. Сортировка стримеров по их последнему активу в панели управления ботом",
                 },
             ],
             "todos": [

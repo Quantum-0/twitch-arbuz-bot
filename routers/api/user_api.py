@@ -12,7 +12,7 @@ from twitchAPI.type import TwitchAPIException, TwitchResourceNotFound
 from database.models import User
 from container import Container
 from dependencies import get_db
-from schemas.api import UpdateSettingsForm, UpdateMemealertsCoinsSchema, BoolResponseSchema
+from schemas.api import UpdateSettingsForm, UpdateMemealertsCoinsSchema, BoolResponseSchema, BaseErrorSchema
 from routers.security_helpers import user_auth
 from services.sse_manager import SSEManager
 from twitch.chat.bot import ChatBot
@@ -23,7 +23,13 @@ from utils.memes import token_expires_in_days
 router = APIRouter(prefix="/user", tags=["User API"])
 
 
-@router.get("/check-sse", response_model=BoolResponseSchema)
+@router.get(
+    "/check-sse",
+    response_model=BoolResponseSchema,
+    responses={
+        401: {"description": "Unauthorized", "model": BaseErrorSchema}
+    }
+)
 @inject
 async def check_user_sse_connected(
     ssem: Annotated[SSEManager, Depends(Provide[Container.sse_manager])],
