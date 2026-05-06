@@ -1,7 +1,9 @@
 import asyncio
+import json
 import logging
 from collections.abc import Callable
 from typing import Any
+from uuid import UUID, uuid4
 
 import sqlalchemy as sa
 from memealerts.types.exceptions import MATokenExpiredError
@@ -10,10 +12,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from twitchAPI.type import TwitchResourceNotFound
 
-from database.models import Base, TwitchUserSettings, User
+from database.models import Base, TwitchUserSettings, User, GeneratedImage
+from schemas.enums import FileStorageDir
 from schemas.twitch import PointRewardRedemptionWebhookSchema, RaidWebhookSchema
 from services.ai import OpenAIClient
 from services.image_resizer import ImageResizer
+from services.s3 import FileStorage
 from services.sse_manager import SSEManager
 from twitch.chat.bot import ChatBot
 from twitch.client.twitch import Twitch
@@ -34,13 +38,15 @@ class TwitchEventSubService():
         ssem: SSEManager,
         img_resizer: ImageResizer,
         db_session_factory: Callable[[], AsyncSession],
+        s3: FileStorage,
     ):
         self._twitch = twitch
         self._chatbot = chatbot
         self._ai = ai
         self._ssem = ssem
-        self._img_resizer = img_resizer
+        # self._img_resizer = img_resizer
         self._db_session_factory = db_session_factory
+        self._s3 = s3
 
     @staticmethod
     def task_wrapper(func):
@@ -190,32 +196,71 @@ class TwitchEventSubService():
             await self._cancel_redemption(user, payload)
             return
 
-        try:
-            image = await self._ai.get_sticker_or_cached(
-                prompt=payload.event.user_input,
-                chatter=payload.event.user_login,
-                channel=int(user.twitch_id),
+        prompt = payload.event.user_input
+        file_id: UUID | None = None
+        image: bytes = None  # type: ignore
+        cost: float = 0
+
+        # Пытаемся вытащить из Кэша
+        async with self._db_session_factory() as session:
+            q = (
+                sa
+                .select(GeneratedImage)
+                .where(
+                    sa.func.lower(GeneratedImage.prompt) == prompt.lower()
+                )
+                .where(
+                    GeneratedImage.created_at >= sa.func.now() - sa.text("interval '7 days'")
+                )
+                .limit(1)
             )
-        except APIStatusError as exc:
-            if exc.status_code == 402:
-                await self._chatbot.send_message(user, exc.message)
+            cached: GeneratedImage = (await session.execute(q)).scalar_one_or_none()  # type: ignore
+            if cached:
+                logger.info("Get cached image")
+                file_id = cached.file_id
             else:
-                logger.warning("4XX while generating image", exc_info=True)
-            await self._cancel_redemption(user, payload)
-            raise
-        except BadRequestError as exc:
-            if exc.type == 'image_generation_user_error' and exc.code == 'moderation_blocked':
-                await self._chatbot.send_message(user, "Запрос отклонён системой модерации как небезопасный для стрима. Баллы возвращены!")
-            else:
-                await self._chatbot.send_message(user, f"Ошибка при генерации изображения: {exc.type} {exc.code}. Баллы возвращены!")
-            await self._cancel_redemption(user, payload)
+                logger.debug("No cached image found")
 
-            # logger.error("Error generation image", exc_info=True)
-            raise
-        except Exception as exc:
-            await self._chatbot.send_message(user,"Неизвестная ошибка. Баллы возвращены!")
-            await self._cancel_redemption(user, payload)
-            raise
+        # Если закешированного изображения не найдено - пытаемся его сгенерировать
+        if not file_id:
+            try:
+                image, cost = await self._ai.generate_sticker(
+                    prompt=payload.event.user_input,
+                )
+            except BadRequestError as exc:
+                if exc.type == 'image_generation_user_error' and exc.code == 'moderation_blocked':
+                    await self._chatbot.send_message(user, "Запрос отклонён системой модерации как небезопасный для стрима. Баллы возвращены!")
+                else:
+                    await self._chatbot.send_message(user, f"Ошибка при генерации изображения: {exc.type} {exc.code}. Баллы возвращены!")
+                await self._cancel_redemption(user, payload)
+            except APIStatusError as exc:
+                if exc.status_code == 402:
+                    await self._chatbot.send_message(user, exc.message)
+                else:
+                    logger.warning("4XX while generating image", exc_info=True)
+                await self._cancel_redemption(user, payload)
+                raise
+            except:
+                await self._chatbot.send_message(user,"Неизвестная ошибка. Баллы возвращены!")
+                await self._cancel_redemption(user, payload)
+                raise
 
-        image = await self._img_resizer.resize(image)
-        await self._ssem.broadcast(int(user.twitch_id), SSEChannel.AI_STICKER, image)
+            assert image is not None
+
+            file_id = uuid4()
+            await self._s3.put_object(f"{FileStorageDir.AI_GENERATED_STICKER}/{file_id}.png", image)
+
+            async with self._db_session_factory() as session:
+                async with session.begin():
+                    session.add(
+                        GeneratedImage(
+                            prompt=prompt,
+                            by_chatter=payload.event.user_login,
+                            on_channel=int(user.twitch_id),
+                            cost=cost,
+                            file_id=file_id,
+                        )
+                    )
+
+        # image = await self._img_resizer.resize(image)
+        await self._ssem.broadcast(int(user.twitch_id), SSEChannel.AI_STICKER, json.dumps({"sticker_file_id": str(file_id)}))

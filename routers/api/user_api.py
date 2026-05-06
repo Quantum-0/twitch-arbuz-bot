@@ -1,7 +1,7 @@
 from typing import Annotated, Any
 
 from dependency_injector.wiring import Provide, inject
-from fastapi import APIRouter, Depends, Form, Query, Security
+from fastapi import APIRouter, Depends, Form, Query, Security, HTTPException
 from httpx import HTTPStatusError
 from jwt import DecodeError
 from memealerts.types.exceptions import MATokenExpiredError
@@ -9,10 +9,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.responses import JSONResponse
 from twitchAPI.type import TwitchAPIException, TwitchResourceNotFound
 
-from database.models import User
+from database.models import User, GeneratedImage
 from container import Container
 from dependencies import get_db
-from schemas.api import UpdateSettingsForm, UpdateMemealertsCoinsSchema, BoolResponseSchema, BaseErrorSchema
+from schemas.api import (
+    UpdateSettingsForm,
+    UpdateMemealertsCoinsSchema,
+    BoolResponseSchema,
+    BaseErrorSchema,
+    UUIDResponseSchema,
+)
 from routers.security_helpers import user_auth
 from services.sse_manager import SSEManager
 from twitch.chat.bot import ChatBot
@@ -20,15 +26,37 @@ from twitch.client.twitch import Twitch
 from utils.enums import SSEChannel
 from utils.memes import token_expires_in_days
 
+import sqlalchemy as sa
+
 router = APIRouter(prefix="/user", tags=["User API"])
+
+
+@router.get(
+    "/not-shown-sticker-id",
+)
+@inject
+async def get_not_shown_sticker_id(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    channel: int,
+) -> UUIDResponseSchema:
+    q = (
+        sa.select(GeneratedImage)
+        .where(GeneratedImage.on_channel == channel)
+        .where(GeneratedImage.shown_at.is_(None))
+        .order_by(GeneratedImage.created_at.desc())
+        .limit(1)
+    )
+    img: GeneratedImage = (await db.execute(q)).scalar_one_or_none()
+    if img and img.file_id.int != 0:
+        return UUIDResponseSchema(id=img.file_id)
+    else:
+        raise HTTPException(404, "No stickers are not shown")
 
 
 @router.get(
     "/check-sse",
     response_model=BoolResponseSchema,
-    responses={
-        401: {"description": "Unauthorized", "model": BaseErrorSchema}
-    }
+    responses={401: {"description": "Unauthorized", "model": BaseErrorSchema}},
 )
 @inject
 async def check_user_sse_connected(
@@ -46,8 +74,8 @@ async def check_heat_installed(
     user: User = Security(user_auth),
 ) -> BoolResponseSchema:
     exts = await twitch.get_user_active_ext(user)
-    overlay = exts.overlay.get('1')
-    if overlay and overlay.active and overlay.id == 'cr20njfkgll4okyrhag7xxph270sqk':
+    overlay = exts.overlay.get("1")
+    if overlay and overlay.active and overlay.id == "cr20njfkgll4okyrhag7xxph270sqk":
         return BoolResponseSchema(result=True)
     return BoolResponseSchema(result=False)
 
@@ -60,7 +88,6 @@ async def install_heat(
 ) -> BoolResponseSchema:
     await twitch.install_heat_ext(user)
     return BoolResponseSchema(result=True)
-
 
 
 @router.post("/update_settings")
@@ -100,9 +127,7 @@ async def update_settings(
         elif data.enable_shoutout_on_raid is False:
             await twitch.unsubscribe_raid(user=user)
 
-    return JSONResponse(
-        {"title": "Сохранено", "message": f"Настройки успешно обновлены."}, 200
-    )
+    return JSONResponse({"title": "Сохранено", "message": f"Настройки успешно обновлены."}, 200)
 
 
 @router.post("/memealerts/coins")
@@ -175,9 +200,7 @@ async def setup_memealert(
             )
         except TwitchAPIException as exc:
             if "CREATE_CUSTOM_REWARD_DUPLICATE_REWARD" in str(exc):
-                return JSONResponse(
-                    {"title": "Ошибка", "message": "Награда уже существует."}, 400
-                )
+                return JSONResponse({"title": "Ошибка", "message": "Награда уже существует."}, 400)
             if "CREATE_CUSTOM_REWARD_TOO_MANY_REWARDS" in str(exc):
                 return JSONResponse(
                     {"title": "Ошибка", "message": "Слишком много наград на канале."},
@@ -226,9 +249,7 @@ async def setup_ai_stickers(
             )
         except TwitchAPIException as exc:
             if "CREATE_CUSTOM_REWARD_DUPLICATE_REWARD" in str(exc):
-                return JSONResponse(
-                    {"title": "Ошибка", "message": "Награда уже существует."}, 400
-                )
+                return JSONResponse({"title": "Ошибка", "message": "Награда уже существует."}, 400)
             if "CREATE_CUSTOM_REWARD_TOO_MANY_REWARDS" in str(exc):
                 return JSONResponse(
                     {"title": "Ошибка", "message": "Слишком много наград на канале."},

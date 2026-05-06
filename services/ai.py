@@ -1,3 +1,4 @@
+import base64
 import logging
 from collections.abc import Callable
 
@@ -22,30 +23,30 @@ class OpenAIClient:
             base_url=settings.openai_base_url,
         )
 
-    async def get_sticker_or_cached(self, prompt: str, chatter: str, channel: int) -> str:
-        async with self._db_session_factory() as session:
-            q = sa.select(GeneratedImage).where(GeneratedImage.prompt == prompt).limit(1)
-            cached = (await session.execute(q)).scalar_one_or_none()
-            if cached:
-                logger.info("Get cached image")
-                return cached.image
+    # async def get_sticker_or_cached(self, prompt: str, chatter: str, channel: int) -> str:
+    #     async with self._db_session_factory() as session:
+    #         q = sa.select(GeneratedImage).where(GeneratedImage.prompt == prompt).limit(1)
+    #         cached = (await session.execute(q)).scalar_one_or_none()
+    #         if cached:
+    #             logger.info("Get cached image")
+    #             return cached.image
+    #
+    #     image = await self.generate_sticker(prompt)
+    #
+    #     async with self._db_session_factory() as session:
+    #         async with session.begin():
+    #             session.add(
+    #                 GeneratedImage(
+    #                     prompt=prompt,
+    #                     by_chatter=chatter,
+    #                     on_channel=channel,
+    #                     image=image,
+    #                 )
+    #             )
+    #
+    #     return image
 
-        image = await self.generate_sticker(prompt)
-
-        async with self._db_session_factory() as session:
-            async with session.begin():
-                session.add(
-                    GeneratedImage(
-                        prompt=prompt,
-                        by_chatter=chatter,
-                        on_channel=channel,
-                        image=image,
-                    )
-                )
-
-        return image
-
-    async def generate_sticker(self, prompt: str) -> str:
+    async def generate_sticker(self, prompt: str) -> tuple[bytes, float]:
         logger.info("Start generating image")
         if "@quantum075" in prompt.lower():
             prompt = prompt.replace("@Quantum075", "character from applied photo")
@@ -68,4 +69,4 @@ class OpenAIClient:
                 moderation="auto",
                 output_format="png",
             )
-        return result.data[0].b64_json
+        return base64.b64decode(result.data[0].b64_json), result.usage.cost_rub

@@ -61,6 +61,10 @@ class Settings(BaseSettings):
     direct_handle_rewards: bool = True
     exception_to_many_unsubscribes: int | None = 20
     slovotron_secret: UUID
+    s3_url: AnyHttpUrl = "http://localhost:9000"
+    s3_access_key: SecretStr
+    s3_secret_key: SecretStr
+    s3_bucket: str = "twibot"
 
     model_config = SettingsConfigDict(env_prefix="", env_file=".env")
 

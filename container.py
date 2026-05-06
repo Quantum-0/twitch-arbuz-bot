@@ -1,3 +1,4 @@
+import aioboto3
 from dependency_injector import containers, providers
 
 from database.database import AsyncSessionLocal
@@ -5,6 +6,7 @@ from services.ai import OpenAIClient
 from services.eventsub_service import TwitchEventSubService
 from services.image_resizer import ImageResizer
 from services.mqtt import MQTTClient
+from services.s3 import FileStorage
 from services.slovotron import SlovotronService
 from services.sse_manager import SSEManager
 from twitch.chat.bot import ChatBot
@@ -19,6 +21,9 @@ class Container(containers.DeclarativeContainer):
             "routers.api.user_api",
             "routers.api.slovotron_webhook",
             "routers.web.service_routes",
+            "routers.web.pages",
+            "routers.web.overlays",
+            "routers.web.file_storage",
             "routers.security_helpers",
             "routers.sse",
             "routers.ws.heat_proxy",
@@ -33,6 +38,12 @@ class Container(containers.DeclarativeContainer):
     slovotron = providers.Singleton(SlovotronService, db_session_factory=db_session_factory, chat_bot=chat_bot)
     sse_manager = providers.Singleton(SSEManager)
 
+    boto_session = providers.Singleton(aioboto3.Session)
+    s3 = providers.Singleton(
+        FileStorage,
+        session=boto_session,
+    )
+
     image_resizer = providers.Factory(ImageResizer)
     twitch_eventsub_service = providers.Singleton(
         TwitchEventSubService,
@@ -42,4 +53,5 @@ class Container(containers.DeclarativeContainer):
         ssem=sse_manager,
         img_resizer=image_resizer,
         db_session_factory=db_session_factory,
+        s3=s3,
     )

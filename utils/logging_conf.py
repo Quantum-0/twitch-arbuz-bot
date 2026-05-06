@@ -48,6 +48,7 @@ LOGGING_CONFIG = {
         "httpcore.connection": {"level": "INFO", "propagate": False},
         "httpcore.http11": {"level": "INFO", "propagate": False},
         "websockets.client": {"level": "WARN", "propagate": False},
+        "botocore": {"level": "WARN", "propagate": False},
         # "twitch.bot": {"level": "DEBUG", "propagate": False},
     },
 }

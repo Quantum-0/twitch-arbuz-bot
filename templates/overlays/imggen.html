@@ -60,9 +60,12 @@
 
 <script>
     const SSE_URL = "{{ request.base_url }}sse/{{ channel_id }}/ai-sticker";
+    const RETRY_URL = "{{ request.base_url }}api/user/not-shown-sticker-id?channel={{ channel_id }}";
+    const IMAGE_BASE_URL = "{{ request.base_url }}files/ai-gen-stickers/";
 
     const LIFE_TIME_MS = 60_000;
     const FADE_OUT_MS = 2_000;
+    const RETRY_INTERVAL_MS = 10_000;
 
     let zIndexCounter = 1;
 
@@ -70,15 +73,14 @@
 
     eventSource.onmessage = (event) => {
         try {
-            let base64;
+            const data = JSON.parse(event.data);
+            const fileId = data.sticker_file_id;
 
-            if (event.data.startsWith("{")) {
-                base64 = JSON.parse(event.data).image;
-            } else {
-                base64 = event.data;
+            if (fileId) {
+                // Формируем полный URL к картинке
+                const fullImageUrl = `${IMAGE_BASE_URL}${fileId}`;
+                spawnImage(fullImageUrl);
             }
-
-            spawnImage(base64);
         } catch (e) {
             console.error("SSE parse error:", e);
         }
@@ -88,10 +90,33 @@
         console.error("SSE error:", e);
     };
 
-    function spawnImage(base64) {
+    // --- Логика Retry (Polling) ---
+    async function checkMissingStickers() {
+        try {
+            const response = await fetch(RETRY_URL);
+
+            // Если вернулся 200 OK
+            if (response.ok) {
+                const data = await response.json();
+                if (data.id) {
+                    spawnImage(`${IMAGE_BASE_URL}${data.id}`);
+                }
+            }
+            // Если 404 или другие ошибки — просто игнорируем согласно условию
+        } catch (e) {
+            console.error("Retry request failed:", e);
+        }
+    }
+
+    setInterval(checkMissingStickers, RETRY_INTERVAL_MS);
+
+    function spawnImage(imgUrl) {
         const img = document.createElement("img");
         img.className = "sprite";
-        img.src = `data:image/png;base64,${base64}`;
+
+        // Теперь просто подставляем URL вместо base64 строки
+        img.src = imgUrl;
+
         img.style.zIndex = zIndexCounter++;
 
         const maxX = window.innerWidth - 256;

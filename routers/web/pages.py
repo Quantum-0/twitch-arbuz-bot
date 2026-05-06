@@ -15,7 +15,7 @@ from starlette.responses import HTMLResponse, RedirectResponse
 from starlette.templating import Jinja2Templates
 
 from container import Container
-from database.models import TwitchUserSettings, User, MemealertsSettings
+from database.models import TwitchUserSettings, User, MemealertsSettings, GeneratedImage
 from dependencies import get_db
 from routers.security_helpers import admin_auth, user_auth, user_auth_optional
 from twitch.chat.bot import ChatBot
@@ -120,13 +120,16 @@ async def profile_page(
                 profile_user_dict["tt_rank"] = rank_data.get("rank")
     except:
         pass
+    q = (
+        sa.select(GeneratedImage)
+        .where(GeneratedImage.on_channel == int(profile_user_data.twitch_id))
+        .order_by(GeneratedImage.created_at.desc())
+        .limit(20)
+    )
+    ai_stickers = (await db.execute(q)).scalars().all()
     return templates.TemplateResponse(
         "profile.html",
-        {
-            "user": user,
-            "profile_user": profile_user_dict,
-            "request": request,
-        },
+        {"user": user, "profile_user": profile_user_dict, "request": request, "ai_stickers": ai_stickers or None},
     )
 
 

@@ -29,6 +29,8 @@ aiomqtt = "2.5.0"
 dependency-injector = "^4.48.1"
 beautifulsoup4 = "4.14.3"
 lxml = "6.0.2"
+aioboto3 = "15.5.0"
+aiobotocore = "2.25.1"
 
 [tool.poetry.group.dev.dependencies]
 coverage = "^7.10.6"

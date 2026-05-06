@@ -1,3 +1,5 @@
+from uuid import UUID
+
 from pydantic import BaseModel, Field
 
 from schemas.enums import ChatbotDefaultTargetBehaviour
@@ -47,6 +49,9 @@ class UpdateMemealertsCoinsSchema(BaseModel):
 
 class BoolResponseSchema(BaseModel):
     result: bool
+
+class UUIDResponseSchema(BaseModel):
+    id_: UUID = Field(alias="id")
 
 class BaseErrorSchema(BaseModel):
     detail: str = Field(examples=["Error description"])

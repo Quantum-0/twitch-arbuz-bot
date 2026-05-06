@@ -5,6 +5,7 @@ from sqlalchemy import (
     Boolean,
     DateTime,
     ForeignKey,
+    Float,
     Integer,
     String,
     event,
@@ -249,12 +250,23 @@ class GeneratedImage(Base):
     prompt: Mapped[str] = mapped_column(String, index=True, nullable=False)
 
     by_chatter: Mapped[str] = mapped_column(String)
-    on_channel: Mapped[int] = mapped_column(Integer)
+    on_channel: Mapped[int] = mapped_column(Integer, index=True)
 
-    image: Mapped[str] = mapped_column(String)
+    image: Mapped[str | None] = mapped_column(String, nullable=True)  # deprecated, remove later
+
+    file_id: Mapped[uuid.UUID] = mapped_column(UUID(True))
+    shown_at: Mapped[datetime | None] = mapped_column(DateTime, server_default=None, nullable=True)
+    cost: Mapped[float] = mapped_column(
+        Float,
+        server_default="0",
+        nullable=False,
+    )
 
     created_at: Mapped[datetime] = mapped_column(
-        DateTime, server_default=func.now(), nullable=False
+        DateTime,
+        server_default=func.now(),
+        nullable=False,
+        index=True,
     )
 
 

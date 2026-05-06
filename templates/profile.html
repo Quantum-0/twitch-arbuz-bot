@@ -144,5 +144,29 @@
         </div>
     </section>
 
+    <!-- ИИ Стикеры -->
+    {% if ai_stickers %}
+    <section>
+        <h3>ИИ-стикеры</h3>
+        <div class="ai-stickers-grid">
+            {% for sticker in ai_stickers %}
+            <div class="ai-sticker">
+                <a href="/files/ai-gen-stickers/{{ sticker.file_id }}">
+                    <img
+                        src="/files/ai-gen-stickers/{{ sticker.file_id }}"
+                        onerror="this.onerror=null; this.src='/static/images/500.png';"
+                    >
+                </a>
+                <p><i>{{ sticker.prompt }}</i></p>
+                <p>by {{ sticker.by_chatter }}</p>
+                <p>at {{ sticker.created_at }}</p>
+            </div>
+            {% endfor %}
+        </div>
+    </section>
+    {% endif %}
+
+
+
 </div>
 {% endblock %}

@@ -1089,3 +1089,31 @@ section h3 {
         backdrop-filter: url(#displacementFilter) blur(2px);
     }
 }
+
+/* AI Stickers in profile */
+
+.ai-stickers-grid {
+    display: flex;
+    flex-wrap: wrap;    /* Обязательно, чтобы элементы не вытягивались в одну линию */
+    gap: 10px;          /* Зазор между картинками */
+    width: 100%;
+}
+
+.ai-sticker {
+    /* Вычитаем из 20% часть зазора (10px * 4 промежутка / 5 элементов = 8px) */
+    width: calc(20% - 8px);
+    box-sizing: border-box;
+}
+
+.ai-sticker img {
+    width: 100%;
+    height: auto;
+    display: block;
+    border-radius: 4px;
+    transition: transform 0.2s;
+}
+
+/* Эффект при наведении, раз уж это стикеры */
+.ai-sticker img:hover {
+    transform: scale(1.05);
+}
