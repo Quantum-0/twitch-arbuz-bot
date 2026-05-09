@@ -1,5 +1,6 @@
 import uuid
 from datetime import datetime
+from decimal import Decimal
 
 from sqlalchemy import (
     Boolean,
@@ -101,110 +102,63 @@ class TwitchUserSettings(Base):
     __tablename__ = "twitch_user_settings"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
-    user_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("twitch_bot_users.id", ondelete="CASCADE"), nullable=False
-    )
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("twitch_bot_users.id", ondelete="CASCADE"), nullable=False)
 
-    enable_chat_bot: Mapped[bool] = mapped_column(
-        Boolean, default=False, server_default=false(), nullable=False
-    )
+    enable_chat_bot: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false(), nullable=False)
 
-    enable_pasta: Mapped[bool] = mapped_column(
-        Boolean, default=False, server_default=false(), nullable=False
-    )
-    enable_tg_link: Mapped[bool] = mapped_column(
-        Boolean, default=False, server_default=false(), nullable=False
-    )
-    enable_ds_link: Mapped[bool] = mapped_column(
-        Boolean, default=False, server_default=false(), nullable=False
-    )
+    enable_pasta: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false(), nullable=False)
+    enable_tg_link: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false(), nullable=False)
+    enable_ds_link: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false(), nullable=False)
 
-    enable_bite: Mapped[bool] = mapped_column(
-        Boolean, default=False, server_default=false(), nullable=False
-    )
-    enable_lick: Mapped[bool] = mapped_column(
-        Boolean, default=False, server_default=false(), nullable=False
-    )
-    enable_feed: Mapped[bool] = mapped_column(
-        Boolean, default=False, server_default=false(), nullable=False
-    )
-    enable_boop: Mapped[bool] = mapped_column(
-        Boolean, default=False, server_default=false(), nullable=False
-    )
-    enable_pat: Mapped[bool] = mapped_column(
-        Boolean, default=False, server_default=false(), nullable=False
-    )
-    enable_hug: Mapped[bool] = mapped_column(
-        Boolean, default=False, server_default=false(), nullable=False
-    )
-    enable_bonk: Mapped[bool] = mapped_column(
-        Boolean, default=False, server_default=false(), nullable=False
-    )
+    enable_bite: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false(), nullable=False)
+    enable_lick: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false(), nullable=False)
+    enable_feed: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false(), nullable=False)
+    enable_boop: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false(), nullable=False)
+    enable_pat: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false(), nullable=False)
+    enable_hug: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false(), nullable=False)
+    enable_bonk: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false(), nullable=False)
 
-    enable_banana: Mapped[bool] = mapped_column(
-        Boolean, default=False, server_default=false(), nullable=False
-    )
-    enable_treat: Mapped[bool] = mapped_column(
-        Boolean, default=False, server_default=false(), nullable=False
-    )
-    enable_dice: Mapped[bool] = mapped_column(
-        Boolean, default=False, server_default=false(), nullable=False
-    )
-    enable_tail: Mapped[bool] = mapped_column(
-        Boolean, default=False, server_default=false(), nullable=False
-    )
-    enable_whoami: Mapped[bool] = mapped_column(
-        Boolean, default=False, server_default=false(), nullable=False
-    )
-    enable_lurk: Mapped[bool] = mapped_column(
-        Boolean, default=False, server_default=false(), nullable=False
-    )
+    enable_banana: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false(), nullable=False)
+    enable_treat: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false(), nullable=False)
+    enable_dice: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false(), nullable=False)
+    enable_tail: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false(), nullable=False)
+    enable_whoami: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false(), nullable=False)
+    enable_lurk: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false(), nullable=False)
 
-    enable_riot: Mapped[bool] = mapped_column(
-        Boolean, default=False, server_default=false(), nullable=False
-    )
-    enable_pants: Mapped[bool] = mapped_column(
-        Boolean, default=False, server_default=false(), nullable=False
-    )
+    enable_riot: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false(), nullable=False)
+    enable_pants: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false(), nullable=False)
 
-    enable_horny_good: Mapped[bool] = mapped_column(
-        Boolean, default=False, server_default=false(), nullable=False
-    )
-    enable_horny_bad: Mapped[bool] = mapped_column(
-        Boolean, default=False, server_default=false(), nullable=False
-    )
+    enable_horny_good: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false(), nullable=False)
+    enable_horny_bad: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false(), nullable=False)
 
-    enable_pyramid: Mapped[bool] = mapped_column(
-        Boolean, default=False, server_default=false(), nullable=False
-    )
-    enable_pyramid_breaker: Mapped[bool] = mapped_column(
-        Boolean, default=False, server_default=false(), nullable=False
-    )
+    enable_pyramid: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false(), nullable=False)
+    enable_pyramid_breaker: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false(), nullable=False)
 
     enable_shoutout_on_raid: Mapped[bool] = mapped_column(
         Boolean, default=False, server_default=false(), nullable=False
     )
 
-    personal_pasta: Mapped[str] = mapped_column(
-        String, default=None, nullable=True
-    )
+    personal_pasta: Mapped[str] = mapped_column(String, default=None, nullable=True)
 
     tg_link: Mapped[str] = mapped_column(
-        String, default=None, nullable=True,
+        String,
+        default=None,
+        nullable=True,
     )
     ds_link: Mapped[str] = mapped_column(
-        String, default=None, nullable=True,
+        String,
+        default=None,
+        nullable=True,
     )
 
-    ai_sticker_reward_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), nullable=True, default=None
-    )
+    ai_sticker_reward_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True, default=None)
 
-    allow_shared_chat: Mapped[bool] = mapped_column(
-        Boolean, default=True, server_default=false(), nullable=False
-    )
+    allow_shared_chat: Mapped[bool] = mapped_column(Boolean, default=True, server_default=false(), nullable=False)
     chatbot_default_target_behaviour: Mapped[str] = mapped_column(
-        String, default="tip", server_default="tip", nullable=False,
+        String,
+        default="tip",
+        server_default="tip",
+        nullable=False,
     )
 
     user: Mapped["User"] = relationship("User", back_populates="settings")
@@ -214,15 +168,9 @@ class MemealertsSettings(Base):
     __tablename__ = "memealerts_settings"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
-    user_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("twitch_bot_users.id", ondelete="CASCADE"), nullable=False
-    )
-    memealerts_reward: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), nullable=True, default=None
-    )
-    _memealerts_token: Mapped[str | None] = mapped_column(
-        "memealerts_token", String, nullable=True
-    )
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("twitch_bot_users.id", ondelete="CASCADE"), nullable=False)
+    memealerts_reward: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True, default=None)
+    _memealerts_token: Mapped[str | None] = mapped_column("memealerts_token", String, nullable=True)
     coins_for_reward: Mapped[int] = mapped_column(
         "coins_for_reward", Integer, nullable=False, server_default="2", default=2
     )
@@ -249,7 +197,7 @@ class MemealertsSupporters(Base):
 class PantsDeny(Base):
     __tablename__ = "pants_deny"
 
-    #id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    # id: Mapped[int] = mapped_column(Integer, primary_key=True)
     name: Mapped[str] = mapped_column(String, primary_key=True)  # in lower case
 
 
@@ -292,6 +240,4 @@ class RaidPasta(Base):
     id: Mapped[uuid.UUID] = mapped_column(UUID(True), primary_key=True, default=uuid.uuid4)
     text: Mapped[str] = mapped_column(String, nullable=False)
 
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime, server_default=func.now(), nullable=False
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), nullable=False)
