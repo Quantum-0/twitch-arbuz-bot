@@ -15,6 +15,19 @@ from services.mqtt import MQTTClient
 router = APIRouter()
 
 
+# Preflight handler
+@router.options("/webhook/slovotron")
+async def slovotron_webhook_options():
+    return Response(
+        status_code=204,
+        headers={
+            "Access-Control-Allow-Origin": "https://slovotron.fra3a.ru",
+            "Access-Control-Allow-Methods": "POST, OPTIONS",
+            "Access-Control-Allow-Headers": "Content-Type, Authorization",
+        },
+    )
+
+
 @router.post(
     "/webhook/slovotron",
     status_code=204,
@@ -40,4 +53,11 @@ async def slovotron_webhook(
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     await mqtt.publish(f"slovotron/{payload.event}/{payload.channel}", payload)
-    return Response(status_code=status.HTTP_204_NO_CONTENT)
+    return Response(
+        status_code=status.HTTP_204_NO_CONTENT,
+        headers={
+            "Access-Control-Allow-Origin": "https://slovotron.fra3a.ru",
+            "Access-Control-Allow-Methods": "POST, OPTIONS",
+            "Access-Control-Allow-Headers": "Content-Type, Authorization",
+        },
+    )
