@@ -11,6 +11,8 @@ from sqlalchemy import (
     event,
     false,
     func,
+    Numeric,
+    Computed,
 )
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
@@ -30,22 +32,29 @@ class User(Base):
     login_name: Mapped[str] = mapped_column(String, unique=True, index=True)
     profile_image_url: Mapped[str] = mapped_column(String)
     followers_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    in_beta_test: Mapped[bool] = mapped_column(
-        Boolean, default=False, server_default=false(), nullable=False
-    )
+    in_beta_test: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false(), nullable=False)
     # role: Mapped[str] = mapped_column(
     #     String, default=None, nullable=True,
     # ) # default, beta-tester, owner, donater
-    donated: Mapped[int] = mapped_column(
-        Integer, default=0, server_default="0", nullable=False
+    donated: Mapped[int] = mapped_column(Integer, default=0, server_default="0", nullable=False)
+
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), nullable=False)
+    interacted_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        server_default="2026-01-01 00:00:00",
+        nullable=False,
     )
 
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime, server_default=func.now(), nullable=False
+    total_deposited: Mapped[Decimal] = mapped_column(
+        Numeric(12, 2), default=Decimal("0.00"), server_default="0", nullable=False
     )
-    interacted_at: Mapped[datetime] = mapped_column(
-        DateTime, server_default="2026-01-01 00:00:00", nullable=False,
+
+    total_spent: Mapped[Decimal] = mapped_column(
+        Numeric(12, 2), default=Decimal("0.00"), server_default="0", nullable=False
     )
+
+    # Вычисляемый баланс
+    balance: Mapped[Decimal] = mapped_column(Numeric(12, 2), Computed(total_deposited - total_spent))
 
     _access_token: Mapped[str] = mapped_column("access_token", String)
     _refresh_token: Mapped[str] = mapped_column("refresh_token", String)
@@ -86,6 +95,7 @@ class User(Base):
 
     def __str__(self):
         return f"<User:{self.twitch_id} db object '{self.login_name}'>"
+
 
 class TwitchUserSettings(Base):
     __tablename__ = "twitch_user_settings"

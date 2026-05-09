@@ -65,6 +65,8 @@ class Settings(BaseSettings):
     s3_access_key: SecretStr
     s3_secret_key: SecretStr
     s3_bucket: str = "twibot"
+    ai_cost_multiplier: float = 1.3  # 30%
+    ai_cost_single_call: float = 0.075  # 7.5kop
 
     model_config = SettingsConfigDict(env_prefix="", env_file=".env")
 

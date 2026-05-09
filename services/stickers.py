@@ -1,10 +1,12 @@
 import logging
 from collections.abc import Callable
+from decimal import Decimal
 from uuid import UUID, uuid4
 
 from openai import BadRequestError, APIStatusError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from config import settings
 from database.models import User, GeneratedImage
 from schemas.enums import FileStorageDir
 from services.ai import OpenAIClient
@@ -21,6 +23,10 @@ class RewardRedemptionProcessingError(Exception):
     def __init__(self, chatbot_response: str, cancel_redemption: bool = True):
         self.chatbot_response = chatbot_response
         self.cancel_redemption = cancel_redemption
+
+class NegativeBalanceError(RewardRedemptionProcessingError):
+    def __init__(self):
+        super().__init__("Закончились денюшки на генерацию картиночек >.< Стример, пополни баланс, пожалуйста!")
 
 class ModerationBlockedException(RewardRedemptionProcessingError):
     def __init__(self):
@@ -111,7 +117,9 @@ class StickersService:
                     file_id=file_id,
                 )
             )
-            # TODO: Обновлять у пользователя баланс
+            channel.total_spent += Decimal(cost * settings.ai_cost_multiplier + settings.ai_cost_single_call)
+            session.add(channel)
+            await session.commit()
 
     async def build_sticker(self, channel: User, prompt: str, chatter: str) -> FileID:  # success: bool + file_id + error (for chat)
         """
@@ -123,12 +131,14 @@ class StickersService:
         if cached_file_id := await self._get_cached_by_prompt(prompt):
             return cached_file_id
 
+        if channel.balance <= 0:
+            raise NegativeBalanceError
+
         image, cost = await self._generate_sticker(prompt)
         file_id = uuid4()
         resized_image = await self._resizer.resize(image)
         await self._save_to_s3(file_id, data=resized_image)
         await self._save_to_db(file_id, prompt, chatter, channel, cost)
-        # TODO: HANDLE COST!
         return file_id
 
     async def get_unshown(self, channel: int) -> FileID | None:
