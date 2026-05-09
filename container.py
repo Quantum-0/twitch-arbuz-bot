@@ -9,6 +9,7 @@ from services.mqtt import MQTTClient
 from services.s3 import FileStorage
 from services.slovotron import SlovotronService
 from services.sse_manager import SSEManager
+from services.stickers import StickersService
 from twitch.chat.bot import ChatBot
 from twitch.client.twitch import Twitch
 
@@ -45,13 +46,15 @@ class Container(containers.DeclarativeContainer):
     )
 
     image_resizer = providers.Factory(ImageResizer)
+    stickers_service = providers.Factory(
+        StickersService,
+        ai=ai, img_resizer=image_resizer, db_session_factory=db_session_factory, s3=s3,
+    )
     twitch_eventsub_service = providers.Singleton(
         TwitchEventSubService,
         twitch=twitch,
         chatbot=chat_bot,
-        ai=ai,
         ssem=sse_manager,
-        img_resizer=image_resizer,
         db_session_factory=db_session_factory,
-        s3=s3,
+        stickers=stickers_service,
     )

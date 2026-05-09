@@ -3,6 +3,16 @@ import aioboto3
 from config import settings
 
 
+from botocore import exceptions as s3exc
+
+
+class S3Exception(Exception):
+    pass
+
+class FileNotExistError(S3Exception):
+    pass
+
+
 class FileStorage:
     def __init__(self, session: aioboto3.Session):
         self._session = session
@@ -23,7 +33,10 @@ class FileStorage:
             await s3.put_object(Bucket=self._bucket, Key=key, Body=data)
 
     async def get_object(self, key: str) -> bytes:
-        async with self._session.client(**self._client_kwargs) as s3:
-            response = await s3.get_object(Bucket=self._bucket, Key=key)
-            async with response["Body"] as stream:
-                return await stream.read()
+        try:
+            async with self._session.client(**self._client_kwargs) as s3:
+                response = await s3.get_object(Bucket=self._bucket, Key=key)
+                async with response["Body"] as stream:
+                    return await stream.read()
+        except s3exc.ClientError as exc:
+            raise FileNotExistError from exc

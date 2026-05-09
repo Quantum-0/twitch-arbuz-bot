@@ -7,8 +7,8 @@ logger = logging.getLogger(__name__)
 
 
 @singleton
-class ImageResizer():
+class ImageResizer:
     @staticmethod
-    async def resize(image_b64: str, resolution: tuple[int, int] = (100, 100)) -> str:
+    async def resize(input_image: bytes, resolution: tuple[int, int] = (100, 100)) -> bytes:
         logger.info("Resizer is not implemented")
-        return image_b64
+        return input_image

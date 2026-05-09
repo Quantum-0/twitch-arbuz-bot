@@ -78,7 +78,7 @@
 
             if (fileId) {
                 // Формируем полный URL к картинке
-                const fullImageUrl = `${IMAGE_BASE_URL}${fileId}`;
+                const fullImageUrl = `${IMAGE_BASE_URL}${fileId}?t=${new Date().getTime()}`;
                 spawnImage(fullImageUrl);
             }
         } catch (e) {
@@ -99,7 +99,7 @@
             if (response.ok) {
                 const data = await response.json();
                 if (data.id) {
-                    spawnImage(`${IMAGE_BASE_URL}${data.id}`);
+                    spawnImage(`${IMAGE_BASE_URL}${data.id}?t=${new Date().getTime()}`);
                 }
             }
             // Если 404 или другие ошибки — просто игнорируем согласно условию

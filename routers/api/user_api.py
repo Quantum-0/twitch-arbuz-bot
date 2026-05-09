@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.responses import JSONResponse
 from twitchAPI.type import TwitchAPIException, TwitchResourceNotFound
 
-from database.models import User, GeneratedImage
+from database.models import User
 from container import Container
 from dependencies import get_db
 from schemas.api import (
@@ -21,6 +21,7 @@ from schemas.api import (
 )
 from routers.security_helpers import user_auth
 from services.sse_manager import SSEManager
+from services.stickers import StickersService
 from twitch.chat.bot import ChatBot
 from twitch.client.twitch import Twitch
 from utils.enums import SSEChannel
@@ -36,21 +37,12 @@ router = APIRouter(prefix="/user", tags=["User API"])
 )
 @inject
 async def get_not_shown_sticker_id(
-    db: Annotated[AsyncSession, Depends(get_db)],
     channel: int,
+    stickers: Annotated[StickersService, Depends(Provide[Container.stickers_service])],
 ) -> UUIDResponseSchema:
-    q = (
-        sa.select(GeneratedImage)
-        .where(GeneratedImage.on_channel == channel)
-        .where(GeneratedImage.shown_at.is_(None))
-        .order_by(GeneratedImage.created_at.desc())
-        .limit(1)
-    )
-    img: GeneratedImage = (await db.execute(q)).scalar_one_or_none()
-    if img and img.file_id.int != 0:
-        return UUIDResponseSchema(id=img.file_id)
-    else:
-        raise HTTPException(404, "No stickers are not shown")
+    if unshown := await stickers.get_unshown(channel):
+        return UUIDResponseSchema(id=unshown)
+    raise HTTPException(404, "No stickers are not shown")
 
 
 @router.get(
