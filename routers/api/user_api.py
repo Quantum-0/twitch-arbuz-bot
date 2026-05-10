@@ -45,6 +45,24 @@ async def get_not_shown_sticker_id(
     raise HTTPException(404, "No stickers are not shown")
 
 
+@router.post(
+    "/slovotron/tip",
+    status_code=204
+)
+@inject
+async def slovotron_tip(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    twitch: Annotated[Twitch, Depends(Provide[Container.twitch])],
+    channel: Annotated[str, Query(...)],
+):
+    q = sa.select(User).where(User.login_name == channel)
+    res: User | None = await db.scalar(q)
+    if not res:
+        raise HTTPException(status_code=404, detail="User not found")
+    await twitch.send_chat_message(res, "!подсказка")
+
+
+
 @router.get(
     "/check-sse",
     response_model=BoolResponseSchema,

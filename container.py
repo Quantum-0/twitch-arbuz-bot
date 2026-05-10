@@ -36,8 +36,8 @@ class Container(containers.DeclarativeContainer):
     chat_bot = providers.Singleton(ChatBot, db_session_factory=db_session_factory)
     ai = providers.Singleton(OpenAIClient, db_session_factory=db_session_factory)
     mqtt = providers.Singleton(MQTTClient)
-    slovotron = providers.Singleton(SlovotronService, db_session_factory=db_session_factory, chat_bot=chat_bot)
     sse_manager = providers.Singleton(SSEManager)
+    slovotron = providers.Singleton(SlovotronService, db_session_factory=db_session_factory, chat_bot=chat_bot, ssem=sse_manager)
 
     boto_session = providers.Singleton(aioboto3.Session)
     s3 = providers.Singleton(

@@ -1,13 +1,20 @@
 from typing import Annotated, AsyncGenerator
+from uuid import UUID, uuid3
 
 from dependency_injector.wiring import Provide, inject
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.requests import Request
 from starlette.responses import StreamingResponse
 
+from config import settings
 from container import Container
+from database.models import User
+from dependencies import get_db
 from services.sse_manager import SSEManager
 from utils.enums import SSEChannel
+
+import sqlalchemy as sa
 
 router = APIRouter(prefix="/sse", tags=["SSE"])
 
@@ -19,7 +26,20 @@ async def sse(
     channel: SSEChannel,
     request: Request,
     ssem: Annotated[SSEManager, Depends(Provide[Container.sse_manager])],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    secret: UUID | None = Query(default=None)
 ):
+    if channel == SSEChannel.SLOVOTRON:
+        if secret is None:
+            raise HTTPException(401, "No secret provided")
+        else:
+            user: User = (await db.execute(  # type: ignore
+                sa.select(User).where(User.twitch_id == str(user_id))
+            )).scalar_one_or_none()
+            if not user:
+                raise HTTPException(404, "User not found")
+            if secret != uuid3(namespace=settings.slovotron_secret, name=user.login_name):
+                raise HTTPException(403, "Invalid secret")
     conn = await ssem.connect(user_id, channel)
 
     def sse_format(data: str) -> str:

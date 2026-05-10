@@ -1,5 +1,6 @@
+import json
 from collections.abc import Callable
-from typing import Any
+from typing import Any, Annotated
 
 import sqlalchemy as sa
 from pydantic import TypeAdapter, ValidationError
@@ -13,15 +14,23 @@ from schemas.slovotron import (
     SlovotronTipWebhookSchema,
     SlovotronWebhookSchema,
 )
+from services.sse_manager import SSEManager
 from twitch.chat.bot import ChatBot
+from utils.enums import SSEChannel
 
 
 class SlovotronService:
-    def __init__(self, db_session_factory: Callable[[], AsyncSession], chat_bot: ChatBot):
+    def __init__(
+        self,
+        db_session_factory: Callable[[], AsyncSession],
+        chat_bot: ChatBot,
+        ssem: SSEManager,
+    ):
         self._client = None
         self._db_session_factory = db_session_factory
         self._webhook_type_adapter = TypeAdapter(SlovotronWebhookSchema)
         self._chat_bot = chat_bot
+        self._ssem = ssem
 
     async def handle_webhook(self, payload: SlovotronWebhookSchema | dict[str, Any]):
         # Парсим данные
@@ -49,7 +58,13 @@ class SlovotronService:
                 await self.handle_game_tip(payload_model)  # type: ignore
 
     async def handle_game_new(self, payload: SlovotronNewWebhookSchema):
-        pass
+        async with self._db_session_factory() as session:
+            user: User = (  # type: ignore
+                await session.execute(
+                    sa.select(User).where(User.login_name == payload.channel)
+                )
+            ).scalar_one_or_none()
+        await self._ssem.broadcast(int(user.twitch_id), SSEChannel.SLOVOTRON, payload.model_dump_json())
 
     async def handle_game_win(self, payload: SlovotronWinWebhookSchema):
         async with self._db_session_factory() as session:
@@ -61,6 +76,7 @@ class SlovotronService:
         await self._chat_bot.send_message(
             user, f"@{payload.data.winner.display_name} угадывает слово {payload.data.winning_word}! Поздравляем!"
         )
+        await self._ssem.broadcast(int(user.twitch_id), SSEChannel.SLOVOTRON, payload.model_dump_json())
 
     async def handle_game_tip(self, payload: SlovotronTipWebhookSchema):
         pass

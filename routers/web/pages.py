@@ -2,6 +2,7 @@ import math
 import random
 from datetime import datetime
 from typing import Annotated, Any
+from uuid import uuid3
 
 import aiohttp
 import sqlalchemy as sa
@@ -14,6 +15,7 @@ from starlette.requests import Request
 from starlette.responses import HTMLResponse, RedirectResponse
 from starlette.templating import Jinja2Templates
 
+from config import settings
 from container import Container
 from database.models import TwitchUserSettings, User, MemealertsSettings, GeneratedImage
 from dependencies import get_db
@@ -77,6 +79,7 @@ async def control_panel(
                 else None,
                 "coins_for_reward": user.memealerts.coins_for_reward,
             },
+            "slovotron_secret": str(uuid3(namespace=settings.slovotron_secret, name=user.login_name)),
         },
     )
 

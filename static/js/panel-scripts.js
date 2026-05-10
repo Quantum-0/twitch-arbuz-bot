@@ -61,6 +61,7 @@ function initOverlays() {
     document.querySelectorAll(".overlay-card").forEach(card => {
 
         const linkDiv = card.querySelector(".overlay-link");
+        const linkDockDiv = card.querySelector(".dock-panel-link");
 
         card.querySelectorAll("[data-param]").forEach(el => {
             el.addEventListener("input", () => updateOverlayLink(card));
@@ -79,6 +80,18 @@ function initOverlays() {
                 linkDiv.classList.remove("copied");
             }, 1000);
         });
+
+        if (linkDockDiv) {
+            linkDockDiv.addEventListener("click", () => {
+                navigator.clipboard.writeText(linkDockDiv.textContent);
+                linkDockDiv.classList.add("copied");
+                linkDockDiv.textContent = "Скопировано!";
+                setTimeout(() => {
+                    updateOverlayLink(card);
+                    linkDockDiv.classList.remove("copied");
+                }, 1000);
+            });
+        };
 
         updateOverlayLink(card);
     });
@@ -233,6 +246,7 @@ function setupHeat() {
 
 function updateOverlayLink(card) {
     const base = card.dataset.base;
+    const base_dock = card.dataset.base_dock;
     const params = new URLSearchParams();
 
     params.set("channel_id", channel_id);
@@ -254,6 +268,13 @@ function updateOverlayLink(card) {
     const link = base + "?" + params.toString();
     const linkDiv = card.querySelector(".overlay-link");
     linkDiv.textContent = link;
+
+    if (base_dock) {
+        params.set("secret", slovotron_secret);
+        const link = base_dock + "?" + params.toString();
+        const linkDiv = card.querySelector(".dock-panel-link");
+        linkDiv.textContent = link;
+    }
 }
 
 async function checkStatus(card) {

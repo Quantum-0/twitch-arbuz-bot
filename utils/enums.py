@@ -11,3 +11,4 @@ class SSEChannel(StrEnum):
     AI_STICKER = "ai-sticker"
     MESSAGE = "msg"
     HEAT = "heat"
+    SLOVOTRON = "slovotron"

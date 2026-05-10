@@ -657,6 +657,20 @@ section h3 {
     background: rgba(0,255,200,0.3);
 }
 
+.dock-panel-link {
+    margin-top: 0px;
+    font-size: 13px;
+    word-break: break-all;
+    background: rgba(0,0,0,0.3);
+    padding: 10px;
+    border-radius: 10px;
+    cursor: pointer;
+}
+
+.dock-panel-link.copied {
+    background: rgba(0,255,200,0.3);
+}
+
 .overlay-card .plugin-required {
     margin-top: 15px;
     padding: 12px;

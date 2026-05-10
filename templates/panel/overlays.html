@@ -147,7 +147,7 @@
     </div>
     -->
 
-    <div class="overlay-card" data-base="{{ request.base_url }}overlay/slovotron">
+    <div class="overlay-card" data-base="{{ request.base_url }}overlay/slovotron" data-base_dock="{{ request.base_url }}dock/{{ user.login_name }}/slovotron">
         <h2>🎲 Slovotron</h2>
         <p>Игра в угадывание слово по контексту от <a href="https://www.twitch.tv/fra3a">Fra3a</a>.</p>
         <p>Оригинальный сайт Словотрона <a href="https://slovotron.fra3a.ru/?channel_name={{ user.login_name }}">здесь</a>.</p>
@@ -168,6 +168,8 @@
         </div>
         <p>Скопируй ссылку и вставь в OBS:</p>
         <div class="overlay-link"></div>
+        <p>Dock-панель для OBS:</p>
+        <div class="dock-panel-link"></div>
     </div>
 
     {% if user and user.login_name in ["quantum075", "d_e_l_y", "silverosemary"] %}

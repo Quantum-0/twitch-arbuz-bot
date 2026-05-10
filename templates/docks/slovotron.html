@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Словотрон</title>
+    <style>
+        :root {
+            --color-bg: #121212;
+            --color-bg-secondary: #1e1e1e;
+            --color-text: #e0e0e0;
+            --color-text-muted: #aaaaaa;
+            --color-primary: #66bb6a;
+            --color-primary-hover: #57a95b;
+            --color-border: #333;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            background-color: var(--color-bg);
+            color: var(--color-text);
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            min-height: 100vh;
+        }
+
+        /* Адаптивный контейнер под 300-400px */
+        .app-container {
+            width: 100%;
+            max-width: 400px;
+            min-width: 280px;
+            padding: 20px;
+            box-sizing: border-box;
+            text-align: center;
+        }
+
+        h1 { margin-bottom: 20px; font-size: 2rem; color: var(--color-primary); }
+
+        /* Переключатель в 3 состояниях */
+        .mode-switch {
+            display: flex;
+            background: var(--color-bg-secondary);
+            border: 1px solid var(--color-border);
+            border-radius: 8px;
+            margin-bottom: 30px;
+            overflow: hidden;
+        }
+
+        .mode-switch input { display: none; }
+
+        .mode-switch label {
+            flex: 1;
+            padding: 10px 5px;
+            font-size: 0.75rem;
+            cursor: pointer;
+            transition: background 0.3s;
+            border-right: 1px solid var(--color-border);
+        }
+
+        .mode-switch label:last-child { border-right: none; }
+
+        .mode-switch input:checked + label {
+            background: var(--color-primary);
+            color: #000;
+            font-weight: bold;
+        }
+
+        /* Поле со словом */
+        .word-display {
+            font-size: 2.5rem;
+            font-weight: bold;
+            margin: 40px 0;
+            min-height: 60px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: filter 0.3s ease;
+        }
+
+        /* Состояния блюра */
+        .blurred { filter: blur(15px); pointer-events: none; user-select: none; }
+
+        .interactive-blur {
+            filter: blur(15px);
+            cursor: pointer;
+            user-select: none;
+            transition: transform 0.2s;
+        }
+        .interactive-blur:hover { transform: scale(1.05); color: var(--color-primary); }
+        .revealed { filter: blur(0); }
+
+        /* Кнопка */
+        .btn-tip {
+            background: var(--color-bg-secondary);
+            border: 2px solid var(--color-primary);
+            color: var(--color-primary);
+            padding: 10px 25px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 1rem;
+            margin-bottom: 40px;
+        }
+        .btn-tip:hover { background: var(--color-primary); color: #000; }
+
+        /* Блок победителя */
+        .last-game-info {
+            background: var(--color-bg-secondary);
+            padding: 15px;
+            border-radius: 10px;
+            font-size: 0.9rem;
+            border: 1px solid var(--color-border);
+        }
+
+        .winner-name { color: var(--color-primary); font-weight: bold; }
+    </style>
+</head>
+<body>
+
+<div class="app-container">
+    <h1>Словотрон</h1>
+
+    <div class="mode-switch">
+        <input type="radio" name="mode" id="mode-none" value="none">
+        <label for="mode-none">Скрыть</label>
+
+        <input type="radio" name="mode" id="mode-current" value="current" checked>
+        <label for="mode-current">Текущее</label>
+
+        <input type="radio" name="mode" id="mode-all" value="all">
+        <label for="mode-all">Показать</label>
+    </div>
+
+    <div id="word-box" class="word-display interactive-blur">Ожидание игры</div>
+
+    <button id="btn-tip" class="btn-tip">Подсказка</button>
+
+    <div class="last-game-info">
+        <div id="winner-box">Победитель: <span class="winner-name">—</span></div>
+        <div id="last-word-box">Прошлое слово: <span class="winner-name">—</span></div>
+    </div>
+</div>
+
+<script>
+    const wordBox = document.getElementById('word-box');
+    const winnerName = document.querySelector('.winner-name');
+    const lastWordBox = document.querySelector('#last-word-box .winner-name');
+    const modeRadios = document.querySelectorAll('input[name="mode"]');
+
+    let currentWord = "";
+    let isManuallyRevealed = false;
+
+    // Логика обновления визуального состояния слова
+    function updateWordVisibility() {
+        const mode = document.querySelector('input[name="mode"]:checked').value;
+
+        wordBox.classList.remove('blurred', 'interactive-blur', 'revealed');
+
+        if (mode === 'none') {
+            wordBox.classList.add('blurred');
+        } else if (mode === 'all') {
+            wordBox.classList.add('revealed');
+        } else if (mode === 'current') {
+            if (isManuallyRevealed) {
+                wordBox.classList.add('revealed');
+            } else {
+                wordBox.classList.add('interactive-blur');
+            }
+        }
+    }
+
+    // Обработка клика по слову (в режиме "Текущее")
+    wordBox.addEventListener('click', () => {
+        const mode = document.querySelector('input[name="mode"]:checked').value;
+        if (mode === 'current') {
+            isManuallyRevealed = true;
+            updateWordVisibility();
+        }
+    });
+
+    // Следим за переключением режимов
+    modeRadios.forEach(radio => {
+        radio.addEventListener('change', () => {
+            if (radio.value !== 'current') isManuallyRevealed = false;
+            updateWordVisibility();
+        });
+    });
+
+    // Инициализация SSE
+    const evtSource = new EventSource("{{request.base_url}}sse/{{user.twitch_id}}/slovotron?secret={{secret}}");
+
+    evtSource.onmessage = function(event) {
+        const msg = JSON.parse(event.data);
+
+        console.log(msg.data);
+
+        if (msg.event === 'game-new') {
+            currentWord = msg.data.secret_word;
+            wordBox.textContent = currentWord;
+            isManuallyRevealed = false; // Скрываем при новом слове
+            updateWordVisibility();
+        }
+
+        if (msg.event === 'game-win') {
+            winnerName.textContent = msg.data.winner.display_name;
+            lastWordBox.textContent = msg.data.winning_word;
+        }
+    };
+
+    document.getElementById('btn-tip').addEventListener('click', function() {
+        fetch("{{request.base_url}}api/user/slovotron/tip?channel=quantum075", {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({})
+        })
+        .then(response => {
+            // Проверяем, успешен ли ответ (статус 200-299)
+            if (!response.ok) {
+                throw new Error('Сетевая ошибка');
+            }
+            return response.json(); // Преобразуем ответ в JSON
+        })
+        .then(data => {
+            // 3. Обработка успешного ответа
+            console.log('Успех:', data);
+            alert('Запрос успешно отправлен!');
+        })
+        .catch(error => {
+            // Обработка ошибок
+            console.error('Ошибка:', error);
+        });
+    });
+</script>
+</body>
+</html>
