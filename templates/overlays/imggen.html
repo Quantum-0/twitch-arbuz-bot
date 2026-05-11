@@ -15,8 +15,8 @@
 
         .sprite {
             position: absolute;
-            width: 256px;
-            height: 256px;
+            width: {{ sticker_size }}px;
+            height: {{ sticker_size }}px;
             pointer-events: none;
             opacity: 0;
             will-change: transform, left, top, opacity;
@@ -33,15 +33,15 @@
 
         @keyframes sticker-pop {
             0% {
-                transform: scale(0) rotate(var(--rotation));
+                transform: scale(0) rotate(var(--rotation) - 40deg);
                 opacity: 0;
             }
             60% {
-                transform: scale(1.25) rotate(calc(var(--rotation) + 9deg));
+                transform: scale(1.25) rotate(calc(var(--rotation) + 18deg));
                 opacity: 1;
             }
             80% {
-                transform: scale(0.90) rotate(calc(var(--rotation) - 5deg));
+                transform: scale(0.90) rotate(calc(var(--rotation) - 10deg));
             }
             100% {
                 transform: scale(1) rotate(var(--rotation));
@@ -63,9 +63,9 @@
     const RETRY_URL = "{{ request.base_url }}api/user/not-shown-sticker-id?channel={{ channel_id }}";
     const IMAGE_BASE_URL = "{{ request.base_url }}files/ai-gen-stickers/";
 
-    const LIFE_TIME_MS = 60_000;
+    const LIFE_TIME_MS = {{ sticker_lifetime }} * 1000;
     const FADE_OUT_MS = 2_000;
-    const RETRY_INTERVAL_MS = 10_000;
+    const RETRY_INTERVAL_MS = 30_000;
 
     let zIndexCounter = 1;
 
@@ -113,8 +113,6 @@
     function spawnImage(imgUrl) {
         const img = document.createElement("img");
         img.className = "sprite";
-
-        // Теперь просто подставляем URL вместо base64 строки
         img.src = imgUrl;
 
         img.style.zIndex = zIndexCounter++;

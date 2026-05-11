@@ -109,12 +109,16 @@ async def overlay_start_wait(
 async def overlay_img_gen(
     request: Request,
     channel_id: int = Query(),
+    sticker_lifetime: int = Query(default=30),
+    sticker_size: int = Query(default=192),
 ):
     return templates.TemplateResponse(
         "overlays/imggen.html",
         {
             "request": request,
             "channel_id": channel_id,
+            "sticker_lifetime": sticker_lifetime,
+            "sticker_size": sticker_size,
         },
     )
 

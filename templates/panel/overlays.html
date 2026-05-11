@@ -172,13 +172,21 @@
         <div class="dock-panel-link"></div>
     </div>
 
-    {% if user and user.login_name in ["quantum075", "d_e_l_y", "silverosemary"] %}
+    {% if user and user.login_name in ["quantum075", "d_e_l_y", "silverosemary", "lunahoomalu"] %}
     <div class="overlay-card" data-base="{{ request.base_url }}overlay/ai-sticker">
         <h2>⭐ AI Stickers</h2>
         <p>Позволяет через награду кидать на стрим стикеры, сгенерированные с помощью ИИ.</p>
         <button class="overlay-toggle-settings">Настройки</button>
         <div class="overlay-settings">
             <button id="setup-ai-sticker-btn" onclick="setupAiStickerReward()">Установить</button>
+            <div class="overlay-control">
+              Размер стикера:
+              <input type="range" min="32" max="512" step="32" value="192" data-param="sticker_size"/>
+            </div>
+            <div class="overlay-control">
+              Время отображения на экране:
+              <input type="range" min="2" max="90" step="2" value="30" data-param="sticker_lifetime"/>
+            </div>
         </div>
         <p>Скопируй ссылку и вставь в OBS, растянув на всю сцену:</p>
         <div class="overlay-link"></div>
