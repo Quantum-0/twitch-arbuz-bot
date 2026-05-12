@@ -1,19 +1,20 @@
+import asyncio
 import logging
+import re
 from collections.abc import Callable
 from decimal import Decimal
 from uuid import UUID, uuid4
 
+import sqlalchemy as sa
 from openai import BadRequestError, APIStatusError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from config import settings
-from database.models import User, GeneratedImage
+from database.models import User, GeneratedImage, CharacterInfo
 from schemas.enums import FileStorageDir
 from services.ai import OpenAIClient
 from services.image_resizer import ImageResizer
 from services.s3 import FileStorage, FileNotExistError
-
-import sqlalchemy as sa
 
 logger = logging.getLogger(__name__)
 
@@ -80,10 +81,13 @@ class StickersService:
                 logger.debug("No cached sticker by prompt found")
                 return None
 
-    async def _generate_sticker(self, prompt) -> tuple[bytes, float]:
+    async def _generate_sticker(self, prompt: str, files: list[bytes]) -> tuple[bytes, float]:
         logger.debug("Generating sticker by prompt")
         try:
-            image, cost = await self._ai.generate_sticker(prompt=prompt)
+            if files:
+                image, cost = await self._ai.generate_sticker_by_refs(prompt=prompt, refs=files)
+            else:
+                image, cost = await self._ai.generate_sticker(prompt=prompt)
         except BadRequestError as exc:
             if exc.type == 'image_generation_user_error' and exc.code == 'moderation_blocked':
                 logger.debug("Sticker generation was blocked by AI service moderation")
@@ -121,9 +125,66 @@ class StickersService:
             session.add(channel)
             await session.commit()
 
+    async def _handle_refs_from_prompt(self, prompt) -> tuple[dict[str, str], list[bytes]]:
+        """
+        Ищем в промпте указания пользователей, заменяем их на файлы или подробные текстовые описания.
+        :param prompt:
+        :return:
+        """
+        # Ищем упоминания персонажей
+        found_names = set(re.findall(r"@(\w+)", prompt))
+        if not found_names:
+            return {}, []
+
+        search_names = {n.lower() for n in found_names}
+
+        # Вытаскиваем их из БД
+        async with self._db_session_factory() as session:
+            q = (
+                sa.select(CharacterInfo)
+                .where(CharacterInfo.name.in_(search_names))
+            )
+            # Используем scalars(), чтобы получить объекты, а не кортежи
+            result = await session.execute(q)
+            chars = result.scalars().all()
+
+        # Собираем маппинг описаний и список задач для S3
+        descriptions: dict[str, str] = {}
+        s3_tasks = []
+
+        # Чтобы сохранить оригинальный регистр из промпта сопоставляем найденные объекты с именами из сета
+        for char in chars:
+            name_in_db = char.name.lower()
+            # Находим, как это имя было написано в промпте
+            original_name = next((n for n in found_names if n.lower() == name_in_db), char.name)
+
+            if char.description:
+                descriptions[original_name] = char.description
+
+            if char.file_id:
+                s3_tasks.append(self._s3.get_object(f"refs/{char.file_id}.png"))
+
+        # Загружаем файлы рефок
+        refs: list[bytes] = []
+        if s3_tasks:
+            refs = list(await asyncio.gather(*s3_tasks))
+
+        return descriptions, refs
+
+    async def _prepare_final_prompt(self, prompt: str, characters: dict[str, str], with_files: bool) -> str:
+        if characters:
+            descriptions_str = "\n\nCharacter descriptions:" + "\n".join([f"- *@{name}*: {description}" for name, description in characters.items()])
+        else:
+            descriptions_str = ""
+
+        if with_files:
+            return f"Generate an image of drawn in cartoon style `{prompt}` with transparent background and the white outline like a sticker.{descriptions_str}\n\nThe appearance of the characters in the attached files"
+        return f"Image of drawn in cartoon style `{prompt}` with transparent background and the white outline like a sticker.{descriptions_str}"
+
+
     async def build_sticker(self, channel: User, prompt: str, chatter: str) -> FileID:  # success: bool + file_id + error (for chat)
         """
-        Принимаем запрос на генерацию стикеоа из дёрнутой награды
+        Принимаем запрос на генерацию стикера из дёрнутой награды
         :return: ID файла
         """
         file_id: FileID
@@ -134,7 +195,9 @@ class StickersService:
         if channel.balance <= 0:
             raise NegativeBalanceError
 
-        image, cost = await self._generate_sticker(prompt)
+        characters, files = await self._handle_refs_from_prompt(prompt)
+        prompt_for_call = await self._prepare_final_prompt(prompt, characters, with_files=bool(files))
+        image, cost = await self._generate_sticker(prompt_for_call, files)
         file_id = uuid4()
         resized_image = await self._resizer.resize(image)
         await self._save_to_s3(file_id, data=resized_image)

@@ -228,6 +228,15 @@ class GeneratedImage(Base):
     )
 
 
+class CharacterInfo(Base):
+    __tablename__ = "character_info"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(True), primary_key=True, default=uuid.uuid4)
+    name: Mapped[str] = mapped_column(String, nullable=False)
+    description: Mapped[str] = mapped_column(String, nullable=True)
+    file_id: Mapped[uuid.UUID] = mapped_column(UUID(True), nullable=True)
+
+
 @event.listens_for(User, "after_insert")
 def create_settings(mapper, connection, target):
     connection.execute(TwitchUserSettings.__table__.insert().values(user_id=target.id))  # noqa
