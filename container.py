@@ -59,4 +59,5 @@ class Container(containers.DeclarativeContainer):
         ssem=sse_manager,
         db_session_factory=db_session_factory,
         stickers=stickers_service,
+        memealerts=memealerts
     )

@@ -151,7 +151,7 @@ class TwitchEventSubService():
             )
 
             if result:
-                await self._chatbot.send_message(user, "Мемкоины начислены :з")
+                # TODO: https://memealerts.com/api/user/current channel.currencyNameDeclensions.multiple.accusative OR "мемкоины"
                 await self._chatbot.send_message(user, f"Мемкоины для @{payload.event.user_name} начислены :з")
                 await self._fulfill_redemption(user, payload)
             else:
