@@ -190,16 +190,16 @@ class MemealertsSettings(Base):
 class MemealertsSupporters(Base):
     __tablename__ = "memealerts_supporters"
 
+    id: Mapped[str] = mapped_column(String, primary_key=True, index=True)
+    name: Mapped[str] = mapped_column(String, index=True)
+    link: Mapped[str] = mapped_column(String, index=True)
+
     __table_args__ = (
         # Индекс на LOWER(name)
         Index("idx_memealerts_supporters_lower_name", func.lower(name)),
         # Индекс на LOWER(link) — также необходим для вашего sa.or_ запроса
         Index("idx_memealerts_supporters_lower_link", func.lower(link)),
     )
-
-    id: Mapped[str] = mapped_column(String, primary_key=True, index=True)
-    name: Mapped[str] = mapped_column(String, index=True)
-    link: Mapped[str] = mapped_column(String, index=True)
 
 
 class PantsDeny(Base):
