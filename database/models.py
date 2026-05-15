@@ -14,6 +14,7 @@ from sqlalchemy import (
     func,
     Numeric,
     Computed,
+    Index,
 )
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
@@ -188,6 +189,13 @@ class MemealertsSettings(Base):
 
 class MemealertsSupporters(Base):
     __tablename__ = "memealerts_supporters"
+
+    __table_args__ = (
+        # Индекс на LOWER(name)
+        Index("idx_memealerts_supporters_lower_name", func.lower(name)),
+        # Индекс на LOWER(link) — также необходим для вашего sa.or_ запроса
+        Index("idx_memealerts_supporters_lower_link", func.lower(link)),
+    )
 
     id: Mapped[str] = mapped_column(String, primary_key=True, index=True)
     name: Mapped[str] = mapped_column(String, index=True)

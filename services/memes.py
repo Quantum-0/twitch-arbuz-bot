@@ -28,6 +28,8 @@ class MemealertsService:
     ):
         self._db_session_factory = db_session_factory
         self._id_pattern = re.compile("[0-9a-f]{24}")
+        # Защита фоновых задач от сборщика мусора (GC)
+        self._background_tasks: set[asyncio.Task] = set()
 
     def is_id(self, id_: str) -> bool:
         return bool(self._id_pattern.fullmatch(id_))
@@ -63,6 +65,7 @@ class MemealertsService:
             return True
 
         # Пытаемся достать из БД закэшированного саппортера
+        db_elapsed = 0.0
         db_start = time.perf_counter()
         try:
             supporter_from_db = await self.search_supporter_from_db(username_clean)
@@ -132,26 +135,36 @@ class MemealertsService:
         return target_user
 
     def _pick_user_from_list(self, users: list[Supporter], username: str) -> Supporter | None:
-        """Вспомогательный метод для O(1) поиска совпадения в переданном списке"""
+        """Оптимизированный поиск совпадения в списке с защитой от дубликатов"""
         lookup = {}
+        target_user = None
+
         for user in users:
+            # 1. Проверяем supporter_link
             if user.supporter_link:
-                supporter_link = user.supporter_link.lower()
-                if supporter_link not in lookup.keys():
-                    lookup[supporter_link] = user
+                link_clean = user.supporter_link.lower()
+                if link_clean not in lookup:
+                    lookup[link_clean] = user
+                    if link_clean == username:
+                        target_user = user
                 else:
-                    logger.warning(f"Duplicate memealerts name=`{supporter_link}`")
-                    if supporter_link == username:
+                    logger.warning(f"Duplicate memealerts link=`{link_clean}`")
+                    if link_clean == username:
                         raise MADuplicateUserError(username)
+
+            # 2. Проверяем supporter_name
             if user.supporter_name:
-                supporter_name = user.supporter_name.lower()
-                if supporter_name not in lookup.keys():
-                    lookup[supporter_name] = user
+                name_clean = user.supporter_name.lower()
+                if name_clean not in lookup:
+                    lookup[name_clean] = user
+                    if name_clean == username:
+                        target_user = user
                 else:
-                    logger.warning(f"Duplicate memealerts name=`{supporter_name}`")
-                    if supporter_name == username:
+                    logger.warning(f"Duplicate memealerts name=`{name_clean}`")
+                    if name_clean == username:
                         raise MADuplicateUserError(username)
-        return lookup.get(username)
+
+        return target_user
 
     async def load_supporters(self, cli: MemealertsAsyncClient, query: str | None = None) -> list[Supporter]:
         limit = 100
@@ -172,7 +185,10 @@ class MemealertsService:
 
         logger.info(f"Loaded {len(items)} supporters for query='{query}' ({total_count} total)")
 
-        asyncio.create_task(self._safe_save_supporters(items))
+        # Безопасный запуск фоновой задачи с сохранением сильной ссылки
+        task = asyncio.create_task(self._safe_save_supporters(items))
+        self._background_tasks.add(task)
+        task.add_done_callback(self._background_tasks.discard)
 
         return items
 
@@ -185,10 +201,7 @@ class MemealertsService:
         except Exception:
             logger.error("Background error saving supporters to db", exc_info=True)
 
-    async def search_supporter_from_db(
-        self,
-        username: str,
-    ):
+    async def search_supporter_from_db(self, username: str) -> MemealertsSupporters | None:
         """
         Поиск саппортера в бд
         """
@@ -203,10 +216,7 @@ class MemealertsService:
             result: MemealertsSupporters | None = (await db.execute(q)).scalar_one_or_none()
             return result
 
-    async def save_all_supporters_into_db(
-        self,
-        supporters: list[Supporter],
-    ) -> None:
+    async def save_all_supporters_into_db(self, supporters: list[Supporter]) -> None:
         if not supporters:
             return
 
