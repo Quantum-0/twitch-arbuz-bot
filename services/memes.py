@@ -22,10 +22,11 @@ class MemealertsService:
         db_session_factory: Callable[[], AsyncSession],
     ):
         self._db_session_factory = db_session_factory
+        self._id_pattern = re.compile("[0-9a-f]{24}")
 
     @staticmethod
-    def is_id(id_: str) -> bool:
-        return bool(re.fullmatch("[0-9a-f]{24}", id_))
+    def is_id(self, id_: str) -> bool:
+        return bool(self._id_pattern.fullmatch(id_))
 
     async def give_bonus(self, memealerts_token, streamer, supporter, amount):
         """
@@ -38,37 +39,43 @@ class MemealertsService:
             return result
 
     async def find_and_give_bonus(
-        self, cli: MemealertsAsyncClient, username: str, amount: int = 2, *, db_session_factory,
+        self,
+        cli: MemealertsAsyncClient,
+        username: str,
+        amount: int,
     ) -> bool:
         """
         Поиск саппортера и выдача ему коинов.
         """
-        # Если указан айдишник - выдаём сразу по нему
-        if self.is_id(username):
-            logger.info(f"Giving memecoins by user_id=`{username}`")
-            await cli.give_bonus(UserID(username), amount)
-            return True
+        username_clean = username.lower().strip()
 
-        # Пытаемся найти пользователя среди саппортеров
-        user_in_supporters = await self.find_user_in_supporters(cli, username)
-        if user_in_supporters:
-            logger.info(f"Giving memecoins for supporter by username=`{username}`")
-            await cli.give_bonus(user_in_supporters.supporter_id, amount)
+        # Если указан айдишник - выдаём сразу по нему
+        if self.is_id(username_clean):
+            logger.info(f"Giving memecoins by user_id=`{username}`")
+            await cli.give_bonus(UserID(username_clean), amount)
             return True
 
         # Пытаемся достать из БД закэшированного саппортера
         try:
-            supporter_from_db = await self.search_supporter_from_db(username)
-        except:
+            supporter_from_db = await self.search_supporter_from_db(username_clean)
+        except Exception:
+            logger.error("Database error during pre-search", exc_info=True)
             supporter_from_db = None
         if supporter_from_db:
-            logger.info(f"Giving memecoins for supporter by username=`{username}`")
+            logger.info(f"Giving memecoins for supporter from DB cache by username=`{username_clean}`")
             await cli.give_bonus(UserID(supporter_from_db.id), amount)
             return True
 
-        # Пытаемся найти пользователя через глобальный поиск
+        # Ищем пользователя среди активных саппортеров стримера через API
+        user_in_supporters = await self.find_user_in_supporters(cli, username_clean)
+        if user_in_supporters:
+            logger.info(f"Giving memecoins for supporter by username=`{username_clean}`")
+            await cli.give_bonus(user_in_supporters.supporter_id, amount)
+            return True
+
+        # Последний шанс: Глобальный поиск через API
         try:
-            user_in_search: User | None = await cli.find_user(username)
+            user_in_search: User | None = await cli.find_user(username_clean)
         except MAUserNotFoundError:
             user_in_search = None
         if user_in_search:
@@ -86,15 +93,18 @@ class MemealertsService:
     ) -> Supporter | None:
         logger.debug("Search from supporter in all streamer supporters")
         users = await self.load_supporters(cli)
-        username = username.lower().strip()
         # TODO: link and name both - 2 supporters???
+        lookup = {}
         for user in users:
-            if (
-                (user.supporter_link and user.supporter_link.lower() == username)
-                or
-                user.supporter_name.lower() == username
-            ):
-                return user
+            if user.supporter_link:
+                lookup[user.supporter_link.lower()] = user
+            if user.supporter_name:
+                lookup[user.supporter_name.lower()] = user
+
+        target_user = lookup.get(username)
+        if target_user:
+            return target_user
+
         logger.info(f"Failed to search {username} in supporters")
         return None
 
@@ -104,44 +114,44 @@ class MemealertsService:
         total_count = first_page.total
         items = first_page.data
 
-        if total_count <= limit:
-            try:
-                await self.save_all_supporters_into_db(items)
-            except:
-                logger.error("Error saving supporters to db", exc_info=True)
+        if total_count > limit:
+            remaining_skips = list(range(limit, total_count, limit))
+            tasks = [cli.get_supporters(limit=limit, skip=skip) for skip in remaining_skips]
+            results = await asyncio.gather(*tasks)
+
+            for page in results:
+                items.extend(page.data)
+
+            if len(items) != total_count:
+                logger.warning("Total count = %s, items = %s", total_count, len(items))
+            logger.info(f"Loaded {len(items)} supporters ({len(results) + 1} pages)")
+        else:
             logger.info(f"Loaded {len(items)} supporters (1 page)")
-            return items
 
-        # Подготовка остальных запросов
-        remaining_skips = list(range(limit, total_count, limit))
-        tasks = [cli.get_supporters(limit=limit, skip=skip) for skip in remaining_skips]
-        results = await asyncio.gather(*tasks)
-
-        # Сборка всех данных
-        for page in results:
-            items.extend(page.data)
-
-        if len(items) == total_count:
-            logger.warning("Total count = %s, items = %s", total_count, len(items))
-        logger.info(f"Loaded {len(items)} supporters ({len(results) + 1} pages)")
-
-        try:
-            await self.save_all_supporters_into_db(items)
-        except:
-            logger.error("Error saving supporters to db", exc_info=True)
+        asyncio.create_task(self._safe_save_supporters(items))
 
         return items
+
+    async def _safe_save_supporters(self, items: list[Supporter]) -> None:
+        """Вспомогательный метод для безопасной фоновой записи"""
+        try:
+            await self.save_all_supporters_into_db(items)
+        except Exception:
+            logger.error("Background error saving supporters to db", exc_info=True)
 
     async def search_supporter_from_db(
         self,
         username: str,
     ):
+        """
+        Поиск саппортера в бд
+        """
         q = (
             sa.select(MemealertsSupporters)
             .where(
                 sa.or_(
-                    MemealertsSupporters.name == username,
-                    MemealertsSupporters.link == username
+                    sa.func.lower(MemealertsSupporters.name) == username,
+                    sa.func.lower(MemealertsSupporters.link) == username
                 )
             )
         )
@@ -154,6 +164,9 @@ class MemealertsService:
         self,
         supporters: list[Supporter],
     ) -> None:
+        if not supporters:
+            return
+
         unique_data = {sup.supporter_id.root: sup for sup in supporters}.values()
         data = [
             {
