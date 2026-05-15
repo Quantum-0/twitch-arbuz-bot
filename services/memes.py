@@ -66,7 +66,7 @@ class MemealertsService:
             await cli.give_bonus(UserID(supporter_from_db.id), amount)
             return True
 
-        # Ищем пользователя среди активных саппортеров стримера через API
+        # Ищем пользователя среди саппортеров стримера через API (сначала точечно, затем полностью)
         user_in_supporters = await self.find_user_in_supporters(cli, username_clean)
         if user_in_supporters:
             logger.info(f"Giving memecoins for supporter by username=`{username_clean}`")
@@ -91,32 +91,39 @@ class MemealertsService:
         cli: MemealertsAsyncClient,
         username: str,
     ) -> Supporter | None:
-        logger.debug("Search from supporter in all streamer supporters")
-        users = await self.load_supporters(cli)
-        # TODO: link and name both - 2 supporters???
+        # ШАГ А: Оптимизированный точечный поиск по подстроке через API саппортеров
+        logger.debug(f"Targeted search from supporters with query=`{username}`")
+        targeted_users = await self.load_supporters(cli, query=username)
+
+        target_user = self._pick_user_from_list(targeted_users, username)
+        if target_user:
+            return target_user
+
+        # ШАГ Б: Фолбэк. Если по query ничего не нашлось, скачиваем полный список (на случай багов API)
+        logger.warning(f"Targeted search failed for `{username}`. Falling back to full scan.")
+        all_users = await self.load_supporters(cli, query=None)
+
+        return self._pick_user_from_list(all_users, username)
+
+    def _pick_user_from_list(self, users: list[Supporter], username: str) -> Supporter | None:
+        """Вспомогательный метод для O(1) поиска совпадения в переданном списке"""
         lookup = {}
         for user in users:
             if user.supporter_link:
                 lookup[user.supporter_link.lower()] = user
             if user.supporter_name:
                 lookup[user.supporter_name.lower()] = user
+        return lookup.get(username)
 
-        target_user = lookup.get(username)
-        if target_user:
-            return target_user
-
-        logger.info(f"Failed to search {username} in supporters")
-        return None
-
-    async def load_supporters(self, cli: MemealertsAsyncClient) -> list[Supporter]:
+    async def load_supporters(self, cli: MemealertsAsyncClient, query: str | None = None) -> list[Supporter]:
         limit = 100
-        first_page = await cli.get_supporters(limit=limit, skip=0)
+        first_page = await cli.get_supporters(limit=limit, skip=0, query=query)
         total_count = first_page.total
         items = first_page.data
 
         if total_count > limit:
             remaining_skips = list(range(limit, total_count, limit))
-            tasks = [cli.get_supporters(limit=limit, skip=skip) for skip in remaining_skips]
+            tasks = [cli.get_supporters(limit=limit, skip=skip, query=query) for skip in remaining_skips]
             results = await asyncio.gather(*tasks)
 
             for page in results:
@@ -124,9 +131,8 @@ class MemealertsService:
 
             if len(items) != total_count:
                 logger.warning("Total count = %s, items = %s", total_count, len(items))
-            logger.info(f"Loaded {len(items)} supporters ({len(results) + 1} pages)")
-        else:
-            logger.info(f"Loaded {len(items)} supporters (1 page)")
+
+        logger.info(f"Loaded {len(items)} supporters for query='{query}' ({total_count} total)")
 
         asyncio.create_task(self._safe_save_supporters(items))
 
