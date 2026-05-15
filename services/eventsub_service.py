@@ -152,6 +152,7 @@ class TwitchEventSubService():
 
             if result:
                 await self._chatbot.send_message(user, "Мемкоины начислены :з")
+                await self._chatbot.send_message(user, f"Мемкоины для @{payload.event.user_name} начислены :з")
                 await self._fulfill_redemption(user, payload)
             else:
                 await self._chatbot.send_message(
