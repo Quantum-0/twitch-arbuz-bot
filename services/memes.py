@@ -8,12 +8,15 @@ from memealerts import MemealertsAsyncClient
 from memealerts.types.exceptions import MAUserNotFoundError
 from memealerts.types.models import Supporter, User
 from memealerts.types.user_id import UserID
+from sqlalchemy.exc import MultipleResultsFound
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from database.models import MemealertsSupporters
 import sqlalchemy as sa
+
+from exceptions import MADuplicateUserError
 
 logger = logging.getLogger(__name__)
 
@@ -64,10 +67,15 @@ class MemealertsService:
         try:
             supporter_from_db = await self.search_supporter_from_db(username_clean)
             db_elapsed = time.perf_counter() - db_start
-            logger.debug(f"DB search for `{username_clean}` took {db_elapsed:.4f}s")
+        except MultipleResultsFound as exc:
+            logger.warning(f"Found multiple rows in database with username=`{username_clean}`")
+            supporter_from_db = None
+            # TODO: delete rows in db for re-cache?
         except Exception:
             logger.error("Database error during pre-search", exc_info=True)
             supporter_from_db = None
+        finally:
+            logger.debug(f"DB search for `{username_clean}` took {db_elapsed:.4f}s")
         if supporter_from_db:
             logger.info(f"Giving memecoins for supporter from DB cache by username=`{username_clean}`")
             await cli.give_bonus(UserID(supporter_from_db.id), amount)
@@ -128,9 +136,21 @@ class MemealertsService:
         lookup = {}
         for user in users:
             if user.supporter_link:
-                lookup[user.supporter_link.lower()] = user
+                supporter_link = user.supporter_link.lower()
+                if supporter_link not in lookup.keys():
+                    lookup[supporter_link] = user
+                else:
+                    logger.warning(f"Duplicate memealerts name=`{supporter_link}`")
+                    if supporter_link == username:
+                        raise MADuplicateUserError(username)
             if user.supporter_name:
-                lookup[user.supporter_name.lower()] = user
+                supporter_name = user.supporter_name.lower()
+                if supporter_name not in lookup.keys():
+                    lookup[supporter_name] = user
+                else:
+                    logger.warning(f"Duplicate memealerts name=`{supporter_name}`")
+                    if supporter_name == username:
+                        raise MADuplicateUserError(username)
         return lookup.get(username)
 
     async def load_supporters(self, cli: MemealertsAsyncClient, query: str | None = None) -> list[Supporter]:
@@ -172,13 +192,10 @@ class MemealertsService:
         """
         Поиск саппортера в бд
         """
-        q = (
-            sa.select(MemealertsSupporters)
-            .where(
-                sa.or_(
-                    sa.func.lower(MemealertsSupporters.name) == username,
-                    sa.func.lower(MemealertsSupporters.link) == username
-                )
+        q = sa.select(MemealertsSupporters).where(
+            sa.or_(
+                sa.func.lower(MemealertsSupporters.name) == username,
+                sa.func.lower(MemealertsSupporters.link) == username,
             )
         )
         db: AsyncSession

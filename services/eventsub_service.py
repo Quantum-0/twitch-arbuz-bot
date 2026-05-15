@@ -11,6 +11,7 @@ from sqlalchemy.orm import selectinload
 from twitchAPI.type import TwitchResourceNotFound
 
 from database.models import Base, TwitchUserSettings, User
+from exceptions import MADuplicateUserError
 from schemas.twitch import PointRewardRedemptionWebhookSchema, RaidWebhookSchema
 from services.memes import MemealertsService
 from services.sse_manager import SSEManager
@@ -160,6 +161,13 @@ class TwitchEventSubService():
                     "Ошибка начисления >.< Баллы возвращены 👀. Проверьте имя пользователя на мемалёрте!",
                 )
                 await self._cancel_redemption(user, payload)
+        except MADuplicateUserError as exc:
+            logger.error(f"Found duplicate MA user = {exc.supporter}")
+            await self._chatbot.send_message(
+                user,
+                f'Найдено несколько пользователей с именем "{exc.supporter}". Баллы возвращены. Для начисления мемкоинов используйте ID.',
+            )
+            await self._cancel_redemption(user, payload)
         except MATokenExpiredError:
             logger.error("MA Token expired")
             await self._chatbot.send_message(
