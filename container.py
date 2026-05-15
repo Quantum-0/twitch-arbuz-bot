@@ -5,6 +5,7 @@ from database.database import AsyncSessionLocal
 from services.ai import OpenAIClient
 from services.eventsub_service import TwitchEventSubService
 from services.image_resizer import ImageResizer
+from services.memes import MemealertsService
 from services.mqtt import MQTTClient
 from services.s3 import FileStorage
 from services.slovotron import SlovotronService
@@ -38,6 +39,7 @@ class Container(containers.DeclarativeContainer):
     mqtt = providers.Singleton(MQTTClient)
     sse_manager = providers.Singleton(SSEManager)
     slovotron = providers.Singleton(SlovotronService, db_session_factory=db_session_factory, chat_bot=chat_bot, ssem=sse_manager)
+    memealerts = providers.Singleton(MemealertsService, db_session_factory=db_session_factory)
 
     boto_session = providers.Singleton(aioboto3.Session)
     s3 = providers.Singleton(

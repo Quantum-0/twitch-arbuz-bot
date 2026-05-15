@@ -12,12 +12,12 @@ from twitchAPI.type import TwitchResourceNotFound
 
 from database.models import Base, TwitchUserSettings, User
 from schemas.twitch import PointRewardRedemptionWebhookSchema, RaidWebhookSchema
+from services.memes import MemealertsService
 from services.sse_manager import SSEManager
 from services.stickers import StickersService, RewardRedemptionProcessingError
 from twitch.chat.bot import ChatBot
 from twitch.client.twitch import Twitch
 from utils.enums import SSEChannel
-from utils.memes import give_bonus
 
 logger = logging.getLogger(__name__)
 
@@ -32,12 +32,14 @@ class TwitchEventSubService():
         ssem: SSEManager,
         db_session_factory: Callable[[], AsyncSession],
         stickers: StickersService,
+        memealerts: MemealertsService,
     ):
         self._twitch = twitch
         self._chatbot = chatbot
         self._ssem = ssem
         self._db_session_factory = db_session_factory
         self._stickers = stickers
+        self._memealerts = memealerts
 
     @staticmethod
     def task_wrapper(func):
@@ -141,12 +143,11 @@ class TwitchEventSubService():
         user: User,
     ) -> None:
         try:
-            result = await give_bonus(
+            result = await self._memealerts.give_bonus(
                 user.memealerts.memealerts_token,
                 user.login_name,
                 supporter=payload.event.user_input,
                 amount=user.memealerts.coins_for_reward,
-                db_session_factory=self._db_session_factory,
             )
 
             if result:
