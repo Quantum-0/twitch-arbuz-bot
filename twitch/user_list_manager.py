@@ -2,9 +2,12 @@ import logging
 from collections import defaultdict
 from time import time
 
+from opentelemetry import trace
+
 from schemas.twitch import ChatMessageWebhookEventSchema
 
 logger = logging.getLogger(__name__)
+tracer = trace.get_tracer(__name__)
 
 
 class UserListManager:
@@ -27,6 +30,7 @@ class UserListManager:
                     break
         self._last_cleanup = dt
 
+    @tracer.start_as_current_span("ChatBot: Handle User List")
     async def handle(self, channel: str, message: ChatMessageWebhookEventSchema):
         user = message.chatter_user_name
         dt = time()

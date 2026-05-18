@@ -3,6 +3,8 @@ from abc import ABC, abstractmethod
 from functools import partial
 from time import time
 
+from opentelemetry import trace
+
 from database.models import User
 from schemas.twitch import ChatMessageWebhookEventSchema
 from schemas.enums import ChatbotDefaultTargetBehaviour
@@ -11,6 +13,7 @@ from twitch.state_manager import SMParam
 from twitch.utils import extract_targets
 
 logger = logging.getLogger(__name__)
+tracer = trace.get_tracer(__name__)
 
 
 class SimpleTargetCommand(Command, ABC):
@@ -28,7 +31,9 @@ class SimpleTargetCommand(Command, ABC):
     def cooldown_count(self) -> int:
         return 1
 
+    @tracer.start_as_current_span("ChatBot: SimpleTarget Command: Handle")
     async def handle(self, streamer: User, message: ChatMessageWebhookEventSchema):
+        await super().handle(streamer, message)
         targets = (
             [f"@{message.reply.parent_user_name}"]
             if message.reply and message.reply.parent_user_name

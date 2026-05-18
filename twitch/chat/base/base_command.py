@@ -2,11 +2,15 @@ from abc import ABC, abstractmethod
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 
+from opentelemetry import trace
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database.models import TwitchUserSettings, User
 from schemas.twitch import ChatMessageWebhookEventSchema
 from twitch.state_manager import StateManager
+
+
+tracer = trace.get_tracer(__name__)
 
 
 class Command(ABC):
@@ -57,4 +61,6 @@ class Command(ABC):
 
     @abstractmethod
     async def handle(self, streamer: User, message: ChatMessageWebhookEventSchema):
-        raise NotImplementedError
+        current_span = trace.get_current_span()
+        if current_span.is_recording():
+            current_span.set_attribute("command.type", self.__class__.__name__)

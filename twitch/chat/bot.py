@@ -7,6 +7,7 @@ from time import time
 from typing import Any
 
 import sqlalchemy as sa
+from opentelemetry import trace
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from twitchAPI.chat import Chat
@@ -33,6 +34,7 @@ from utils.logging_conf import LOGGING_CONFIG
 
 logging.config.dictConfig(LOGGING_CONFIG)
 logger = logging.getLogger(__name__)
+tracer = trace.get_tracer(__name__)
 
 
 class ChatBot:
@@ -91,6 +93,7 @@ class ChatBot:
         self._chat = chat
         logger.info("Chat bot started!")
 
+    @tracer.start_as_current_span("ChatBot: Sending message to Twitch")
     async def send_message(self, chat: User, message: str) -> None:
         """
         Send message to twitch chat.
@@ -132,6 +135,7 @@ class ChatBot:
         )
 
     @asynccontextmanager
+    @tracer.start_as_current_span("ChatBot: Get User")
     async def _get_user_with_settings_by_twitch_id(self, channel_id: str) -> AsyncIterator[User]:
         async with self._db_session_factory() as session:
             result = await session.execute(
@@ -150,6 +154,7 @@ class ChatBot:
             yield user
             await session.commit()
 
+    @tracer.start_as_current_span("ChatBot: Processing Message")
     async def on_message(self, raw_message: ChatMessageWebhookEventSchema | dict[str, Any]):
         if isinstance(raw_message, dict):
             message = ChatMessageWebhookEventSchema.model_validate(raw_message)
@@ -159,6 +164,11 @@ class ChatBot:
         channel = message.broadcaster_user_login
 
         logger.debug(f"Got message `{message.message.text}` from channel `{channel}`")
+        current_span = trace.get_current_span()
+        if current_span.is_recording():
+            current_span.set_attribute("msg.text", message.message.text)
+            current_span.set_attribute("msg.channel", message.broadcaster_user_login)
+            current_span.set_attribute("msg.chatter", message.chatter_user_login)
 
         async with self._get_user_with_settings_by_twitch_id(message.broadcaster_user_id) as user:
             if user.login_name != message.broadcaster_user_login:

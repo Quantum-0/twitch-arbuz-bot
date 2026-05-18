@@ -6,6 +6,7 @@ from typing import Any
 
 import sqlalchemy as sa
 from memealerts.types.exceptions import MATokenExpiredError
+from opentelemetry import trace
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from twitchAPI.type import TwitchResourceNotFound
@@ -21,6 +22,7 @@ from twitch.client.twitch import Twitch
 from utils.enums import SSEChannel
 
 logger = logging.getLogger(__name__)
+tracer = trace.get_tracer(__name__)
 
 
 class TwitchEventSubService():
@@ -78,6 +80,7 @@ class TwitchEventSubService():
         return user
 
     @task_wrapper
+    @tracer.start_as_current_span("Twitch Eventsub: Raid")
     async def handle_raid(self, payload: RaidWebhookSchema | dict[str, Any]) -> None:
         if isinstance(payload, dict):
             payload = RaidWebhookSchema.model_validate(payload, by_name=True)
@@ -97,6 +100,7 @@ class TwitchEventSubService():
         )
 
     @task_wrapper
+    @tracer.start_as_current_span("Twitch Eventsub: Reward redemption")
     async def handle_reward_redemption(
         self,
         payload: PointRewardRedemptionWebhookSchema | dict[str, Any],
@@ -183,6 +187,7 @@ class TwitchEventSubService():
             )
             await self._cancel_redemption(user, payload)
 
+    @tracer.start_as_current_span("Twitch Eventsub: Reward AI Sticker")
     async def reward_ai_sticker(
         self,
         user: User,

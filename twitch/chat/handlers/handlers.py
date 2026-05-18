@@ -8,6 +8,7 @@ from contextlib import asynccontextmanager
 from enum import Enum, auto
 from time import time
 
+from opentelemetry import trace
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database.models import TwitchUserSettings, User
@@ -15,6 +16,7 @@ from schemas.twitch import ChatMessageWebhookEventSchema
 from twitch.state_manager import SMParam, StateManager
 
 logger = logging.getLogger(__name__)
+tracer = trace.get_tracer(__name__)
 
 
 class HandlerResult(Enum):
@@ -264,6 +266,7 @@ class MessagesHandlerManager:
     def register(self, command: type[CommonMessagesHandler]):
         self.handlers.append(command(self._sm, self._send_message, self._db_session_factory))
 
+    @tracer.start_as_current_span("ChatBot: Messages Handler Manager: Handle")
     async def handle(
         self,
         user_settings: TwitchUserSettings,

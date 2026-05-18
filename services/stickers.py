@@ -7,6 +7,7 @@ from uuid import UUID, uuid4
 
 import sqlalchemy as sa
 from openai import BadRequestError, APIStatusError
+from opentelemetry import trace
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from config import settings
@@ -17,6 +18,7 @@ from services.image_resizer import ImageResizer
 from services.s3 import FileStorage, FileNotExistError
 
 logger = logging.getLogger(__name__)
+tracer = trace.get_tracer(__name__)
 
 FileID = UUID
 
@@ -59,6 +61,7 @@ class StickersService:
         self._db_session_factory = db_session_factory
         self._s3 = s3
 
+    @tracer.start_as_current_span("Stickers: Get cached by prompt")
     async def _get_cached_by_prompt(self, prompt: str) -> FileID | None:
         logger.debug("Trying to get cached sticker by prompt")
         async with self._db_session_factory() as session:
@@ -81,6 +84,7 @@ class StickersService:
                 logger.debug("No cached sticker by prompt found")
                 return None
 
+    @tracer.start_as_current_span("Stickers: Generate sticker")
     async def _generate_sticker(self, prompt: str, files: list[bytes]) -> tuple[bytes, float]:
         logger.debug("Generating sticker by prompt")
         try:
@@ -105,10 +109,12 @@ class StickersService:
         logger.debug("Success sticker generation. Spend: %s", cost)
         return image, cost
 
+    @tracer.start_as_current_span("Stickers: Save to S3")
     async def _save_to_s3(self, file_id: FileID, data: bytes):
         logger.debug("Saving sticker to s3")
         await self._s3.put_object(f"{FileStorageDir.AI_GENERATED_STICKER}/{file_id}.png", data)
 
+    @tracer.start_as_current_span("Stickers: Save to DB")
     async def _save_to_db(self, file_id: FileID, prompt: str, chatter: str, channel: User, cost: float):
         logger.debug("Saving sticker to database")
         async with self._db_session_factory() as session, session.begin():
@@ -125,6 +131,7 @@ class StickersService:
             session.add(channel)
             await session.commit()
 
+    @tracer.start_as_current_span("Stickers: Handle refs from prompt")
     async def _handle_refs_from_prompt(self, prompt) -> tuple[dict[str, str], list[bytes]]:
         """
         Ищем в промпте указания пользователей, заменяем их на файлы или подробные текстовые описания.
@@ -181,7 +188,7 @@ class StickersService:
             return f"Generate an image of drawn in cartoon style `{prompt}` with transparent background and the white outline like a sticker.{descriptions_str}\n\nThe appearance of the characters in the attached files"
         return f"Image of drawn in cartoon style `{prompt}` with transparent background and the white outline like a sticker.{descriptions_str}"
 
-
+    @tracer.start_as_current_span("Stickers: Build sticker")
     async def build_sticker(self, channel: User, prompt: str, chatter: str) -> FileID:  # success: bool + file_id + error (for chat)
         """
         Принимаем запрос на генерацию стикера из дёрнутой награды

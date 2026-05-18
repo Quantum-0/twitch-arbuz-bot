@@ -5,6 +5,7 @@ from uuid import UUID
 
 import httpx
 from more_itertools.recipes import batched
+from opentelemetry import trace
 from twitchAPI.chat import Chat
 from twitchAPI.object.api import (
     ChannelFollowersResult,
@@ -24,6 +25,7 @@ from database.models import User
 from utils.singleton import singleton
 
 logger = logging.getLogger(__name__)
+tracer = trace.get_tracer(__name__)
 
 
 @singleton
@@ -128,6 +130,7 @@ class Twitch:
         )
         await twitch_user.delete_custom_reward(user.twitch_id, str(reward_id))
 
+    @tracer.start_as_current_span("Twitch: Sending message")
     async def send_chat_message(
         self,
         stream_channel: User,

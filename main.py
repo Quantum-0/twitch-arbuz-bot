@@ -6,6 +6,12 @@ import uvicorn
 from fastapi import FastAPI, HTTPException
 from fastapi.exception_handlers import request_validation_exception_handler
 from fastapi.exceptions import RequestValidationError
+from opentelemetry import trace
+from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from sentry_sdk.integrations.fastapi import FastApiIntegration
 from sentry_sdk.integrations.starlette import StarletteIntegration
 from starlette import status
@@ -19,7 +25,7 @@ from dependencies import lifespan as lifespan_dep
 from routers.routers import api_router, user_router
 from utils.logging_conf import LOGGING_CONFIG
 
-from prometheus_fastapi_instrumentator import Instrumentator
+from prometheus_fastapi_instrumentator import Instrumentator as PrometheusInstrumentator
 
 if settings.sentry_dsn:
     sentry_sdk.init(
@@ -37,6 +43,16 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(lifespan=lifespan)
+
+# OTEL
+trace_provider = TracerProvider()
+trace_processor = BatchSpanProcessor(OTLPSpanExporter(endpoint=str(settings.otel_endpoint)))
+trace_provider.add_span_processor(trace_processor)
+trace.set_tracer_provider(trace_provider)
+tracer = trace.get_tracer(__name__)
+
+FastAPIInstrumentor.instrument_app(app)
+HTTPXClientInstrumentor().instrument()
 
 
 @app.exception_handler(RequestValidationError)
@@ -56,7 +72,7 @@ async def sentry_request_validation_handler(
     return await request_validation_exception_handler(request, exc)
 
 
-Instrumentator().instrument(app).expose(app)
+PrometheusInstrumentator().instrument(app).expose(app)
 app.add_middleware(SessionMiddleware, secret_key=settings.middleware_secret_key)
 app.include_router(router=api_router)
 app.include_router(router=user_router)

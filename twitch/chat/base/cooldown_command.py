@@ -2,12 +2,15 @@ import logging
 from abc import abstractmethod
 from time import time
 
+from opentelemetry import trace
+
 from database.models import User
 from schemas.twitch import ChatMessageWebhookEventSchema
 from twitch.chat.base.base_command import Command
 from twitch.state_manager import SMParam
 
 logger = logging.getLogger(__name__)
+tracer = trace.get_tracer(__name__)
 
 
 class SimpleCDCommand(Command):
@@ -21,7 +24,9 @@ class SimpleCDCommand(Command):
     def cooldown_timer_per_user(self) -> int | None:
         return None
 
+    @tracer.start_as_current_span("ChatBot: CoolDown Command: Handle")
     async def handle(self, streamer: User, message: ChatMessageWebhookEventSchema):
+        await super().handle(streamer, message)
         user: str = message.chatter_user_name
         user_id: int = message.chatter_user_id
 

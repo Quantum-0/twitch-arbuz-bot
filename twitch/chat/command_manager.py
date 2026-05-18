@@ -2,6 +2,7 @@ import logging
 from collections.abc import Callable
 from typing import Awaitable
 
+from opentelemetry import trace
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database.models import TwitchUserSettings, User
@@ -10,6 +11,7 @@ from twitch.chat.base.base_command import Command
 from twitch.state_manager import StateManager
 
 logger = logging.getLogger(__name__)
+tracer = trace.get_tracer(__name__)
 
 
 class CommandsManager:
@@ -28,6 +30,7 @@ class CommandsManager:
         self.commands.append(command(self._sm, self._send_message, self._db_session_factory))
         logger.info(f"Command {command} was registered")
 
+    @tracer.start_as_current_span("ChatBot: Command Manager: Handle")
     async def handle(
         self,
         user_settings: TwitchUserSettings,

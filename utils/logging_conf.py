@@ -49,6 +49,7 @@ LOGGING_CONFIG = {
         "httpcore.http11": {"level": "INFO", "propagate": False},
         "websockets.client": {"level": "WARN", "propagate": False},
         "botocore": {"level": "WARN", "propagate": False},
+        "opentelemetry.exporter.otlp.proto.grpc.exporter": {"level": "ERROR", "propagate": False},
         # "twitch.bot": {"level": "DEBUG", "propagate": False},
     },
 }

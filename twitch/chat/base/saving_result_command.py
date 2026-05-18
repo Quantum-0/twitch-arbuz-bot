@@ -4,6 +4,8 @@ from functools import partial
 from time import time
 from typing import Any
 
+from opentelemetry import trace
+
 from database.models import User
 from schemas.twitch import ChatMessageWebhookEventSchema
 from twitch.chat.base.base_command import Command
@@ -11,6 +13,7 @@ from twitch.state_manager import SMParam
 from twitch.utils import extract_targets
 
 logger = logging.getLogger(__name__)
+tracer = trace.get_tracer(__name__)
 
 
 class SavingResultCommand(Command):
@@ -28,7 +31,9 @@ class SavingResultCommand(Command):
     async def result_generator(self, old_value: str | None, **kwargs: Any) -> str:
         raise NotImplementedError
 
+    @tracer.start_as_current_span("ChatBot: SavingResult Command: Handle")
     async def handle(self, streamer: User, message: ChatMessageWebhookEventSchema):
+        await super().handle(streamer, message)
         user: str = message.chatter_user_name
         user_id: int = message.chatter_user_id
 

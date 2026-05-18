@@ -67,6 +67,8 @@ class Settings(BaseSettings):
     s3_bucket: str = "twibot"
     ai_cost_multiplier: float = 1.3  # 30%
     ai_cost_single_call: float = 0.075  # 7.5kop
+    otel_endpoint: AnyHttpUrl | None = "http://localhost:4317"
+    otel_service_name: str = "twitch-bot"
 
     model_config = SettingsConfigDict(env_prefix="", env_file=".env")
 
