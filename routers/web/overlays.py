@@ -139,7 +139,6 @@ async def overlay_img_gen(
 
 
 @router.get("/pair")
-@inject
 async def overlay_pair(
     request: Request,
     db: Annotated[AsyncSession, Depends(get_db)],

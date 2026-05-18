@@ -15,7 +15,6 @@ router = APIRouter(prefix="/admin", tags=["Admin API"])
 
 
 @router.post("/add_to_beta_test")
-@inject
 async def update_settings(
     db: Annotated[AsyncSession, Depends(get_db)],
     _: Annotated[None, Security(admin_auth)],

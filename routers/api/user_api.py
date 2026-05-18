@@ -141,7 +141,6 @@ async def update_settings(
 
 
 @router.post("/memealerts/coins")
-@inject
 async def update_memealert_coins(
     db: Annotated[AsyncSession, Depends(get_db)],
     data: UpdateMemealertsCoinsSchema,
