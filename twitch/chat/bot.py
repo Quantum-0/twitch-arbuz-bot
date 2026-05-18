@@ -188,6 +188,7 @@ class ChatBot:
             )
             users = users_result.scalars().all()
         desired_channels: set[User] = {user for user in users}
+        remove_channels: set[int] = set()
 
         # Получаем текущие подписки
         subs = await self._twitch.get_subscriptions()
@@ -222,7 +223,8 @@ class ChatBot:
                 logger.error(
                     f"Error to join user's channel as chat bot. User: `{channel.login_name}`"
                 )
-                # TODO: unsubscribe from blocked!
+                if response.get("message") == 'subscription missing proper authorization':
+                    remove_channels.add(channel.id)
 
         # Отписываемся от ненужных каналов
         for sub in subs:
@@ -231,6 +233,19 @@ class ChatBot:
             ) not in {channel.twitch_id for channel in desired_channels}:
                 await self._twitch.unsubscribe_event_sub(sub.id)
                 logger.info(f"Unsubscribed from {sub.condition}")
+
+        # Удаляем из БД ненужные подписки
+        delete_banned = await session.execute(
+            sa
+            .update(TwitchUserSettings)
+            .values(enable_chat_bot=False)
+            .where(
+                TwitchUserSettings.user_id.in_(remove_channels)
+            )
+            .returning(TwitchUserSettings.user_id)
+        )
+        banned = delete_banned.scalars().all()
+        logger.error("User's, whose chat bot were disabled: %s", banned)
 
     async def get_commands(self, user: User) -> list[tuple[str, str, str]]:
         return await self._command_manager.get_commands_of_user(user)
