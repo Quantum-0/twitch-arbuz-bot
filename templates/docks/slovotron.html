@@ -209,7 +209,7 @@
     };
 
     document.getElementById('btn-tip').addEventListener('click', function() {
-        fetch("{{request.base_url}}api/user/slovotron/tip?channel=quantum075", {
+        fetch("{{request.base_url}}api/user/slovotron/tip?channel={{user.login_name}}", {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
