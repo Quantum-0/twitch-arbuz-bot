@@ -138,6 +138,11 @@ class Twitch:
         reply_parent_message_id: str | None = None,
         for_source_only: bool | None = None,
     ) -> SendMessageResponse:
+        current_span = trace.get_current_span()
+        if current_span.is_recording():
+            current_span.set_attribute("msg.text", message)
+            current_span.set_attribute("msg.channel", stream_channel.login_name)
+
         try:
             return await self.send_chat_message_raw(
                 broadcaster_id=stream_channel.twitch_id,

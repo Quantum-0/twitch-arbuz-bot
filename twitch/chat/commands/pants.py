@@ -18,6 +18,7 @@ from twitch.utils import extract_targets
 
 import sqlalchemy as sa
 
+from utils.misc import call_with_delay, run_in_clean_otel_context
 
 logger = logging.getLogger(__name__)
 tracer = trace.get_tracer(__name__)
@@ -175,10 +176,9 @@ class PantsCommand(SimpleCDCommand):
         # Запускаем розыгрыш
         await self._state_manager.set_state(channel=streamer.login_name, command=self.command_name, param=SMParam.USER, value=target)
         await self._state_manager.set_state(channel=streamer.login_name, command=self.command_name, param=SMParam.PARTICIPANTS, value=set())
-        await self.send_response(chat=streamer, message=f"Внимание, объявляется розыгрыш трусов @{target}! Ставьте '+' в чат, чтобы принять участие в розыгрыше!")
 
         # Запускаем асинхронный таймер
-        asyncio.create_task(self.finish_raffle(streamer, target))
+        asyncio.create_task(call_with_delay(60, run_in_clean_otel_context(self.finish_raffle(streamer, target))))
 
         # Ставим кулдаун
         await self._state_manager.set_state(
@@ -188,59 +188,60 @@ class PantsCommand(SimpleCDCommand):
             user=target,
             param=SMParam.TARGET_COOLDOWN,
         )
+        return f"Внимание, объявляется розыгрыш трусов @{target}! Ставьте '+' в чат, чтобы принять участие в розыгрыше!"
 
     async def _cooldown_reply(self, user: str, delay: int) -> str | None:
         return ""
 
-    @tracer.start_as_current_span("ChatBot: Pants Raffle: Finishing", context=None)
     async def finish_raffle(self, channel: User, target: str):
-        await asyncio.sleep(60)
         logger.info(f"Finishing raffle for channel {channel.login_name}")
-        target_from_sm = await self._state_manager.get_state(channel=channel.login_name, command=self.command_name, param=SMParam.USER)
-        participants: set[str] = await self._state_manager.get_state(channel=channel.login_name, command=self.command_name, param=SMParam.PARTICIPANTS)
-        logger.info(f"Participants: {participants}")
-        if participants is None or not target_from_sm or target_from_sm.lower() != target.lower():
-            logger.info("Raffle was canceled")
-            return
+        with tracer.start_as_current_span("Pants Raffle: Processing Result") as span:
+            target_from_sm = await self._state_manager.get_state(channel=channel.login_name, command=self.command_name, param=SMParam.USER)
+            participants: set[str] = await self._state_manager.get_state(channel=channel.login_name, command=self.command_name, param=SMParam.PARTICIPANTS)
+            logger.info(f"Participants: {participants}")
+            if participants is None or not target_from_sm or target_from_sm.lower() != target.lower():
+                logger.info("Raffle was canceled")
+                return
 
-        if len(participants) == 0:
-            logger.info("Nobody entered")
-            await self.send_response(chat=channel, message=f"Розыгрыш окончен! Но, к сожалению, никто не принял участие в розыгрыше твоих трусов, @{target}, поэтому они остаются при тебе :с")
-            await self._state_manager.del_state(channel=channel.login_name, command=self.command_name,
-                                                param=SMParam.USER)
-            await self._state_manager.del_state(channel=channel.login_name, command=self.command_name,
-                                                param=SMParam.PARTICIPANTS)
-            return
+            if len(participants) == 0:
+                logger.info("Nobody entered")
+                await self.send_response(chat=channel, message=f"Розыгрыш окончен! Но, к сожалению, никто не принял участие в розыгрыше твоих трусов, @{target}, поэтому они остаются при тебе :с")
+                await self._state_manager.del_state(channel=channel.login_name, command=self.command_name,
+                                                    param=SMParam.USER)
+                await self._state_manager.del_state(channel=channel.login_name, command=self.command_name,
+                                                    param=SMParam.PARTICIPANTS)
+                return
 
-        winner: str = random.choice(list(participants))
-        logger.info(f"winner = {winner}")
+            winner: str = random.choice(list(participants))
+            logger.info(f"winner = {winner}")
 
-        # Информируем об окончании розыгрыша
-        participants_count = len(participants)
-        msg = "Розыгрыш трусов окончен! В нашей лотерее "
-        if participants_count == 1:
-            msg += f"принял участие аж целый {participants_count} человек!"
-        elif 1 < participants_count <= 4:
-            msg += f"приняло участие аж целых {participants_count} человека!"
-        elif participants_count >= 5:
-            msg += f"приняло участие аж целых {participants_count} человек!"
-        msg += f" Время объявлять победителя! Итак.. Трусы @{target} сегодня получааааает... *барабанная дробь*"
-        await self.send_response(
-            chat=channel,
-            message=msg
-        )
+            # Информируем об окончании розыгрыша
+            participants_count = len(participants)
+            msg = "Розыгрыш трусов окончен! В нашей лотерее "
+            if participants_count == 1:
+                msg += f"принял участие аж целый {participants_count} человек!"
+            elif 1 < participants_count <= 4:
+                msg += f"приняло участие аж целых {participants_count} человека!"
+            elif participants_count >= 5:
+                msg += f"приняло участие аж целых {participants_count} человек!"
+            msg += f" Время объявлять победителя! Итак.. Трусы @{target} сегодня получааааает... *барабанная дробь*"
+            await self.send_response(
+                chat=channel,
+                message=msg
+            )
 
         await asyncio.sleep(3)
 
-        # Объявляем победителя
-        type1 = {"красные", "чёрные", "белые", "чистые", "ношенные"}  # TODO
-        type2 = {"с сердечками", "кружевные", "семейные", "эротичные"}  # TODO
-        if winner.lower() == target.lower():
-            logger.info("Winner = self")
-            await self.send_response(chat=channel, message=f"@{winner}! Поздравляем, сегодня ты становишься счастливым обладателем собственных трусов! Надевай их скорее обратно! И больше не снимай!")
-        else:
-            await self.send_response(chat=channel, message=f"@{winner}! Поздравляем, сегодня ты становишься счастливым обладателем трусов @{target}!")
+        with tracer.start_as_current_span("Pants Raffle: Announce Winner"):
+            # Объявляем победителя
+            type1 = {"красные", "чёрные", "белые", "чистые", "ношенные"}  # TODO
+            type2 = {"с сердечками", "кружевные", "семейные", "эротичные"}  # TODO
+            if winner.lower() == target.lower():
+                logger.info("Winner = self")
+                await self.send_response(chat=channel, message=f"@{winner}! Поздравляем, сегодня ты становишься счастливым обладателем собственных трусов! Надевай их скорее обратно! И больше не снимай!")
+            else:
+                await self.send_response(chat=channel, message=f"@{winner}! Поздравляем, сегодня ты становишься счастливым обладателем трусов @{target}!")
 
-        await self._state_manager.del_state(channel=channel.login_name, command=self.command_name, param=SMParam.USER)
-        await self._state_manager.del_state(channel=channel.login_name, command=self.command_name, param=SMParam.PARTICIPANTS)
-        logger.info("State for pants raffle is erased")
+            await self._state_manager.del_state(channel=channel.login_name, command=self.command_name, param=SMParam.USER)
+            await self._state_manager.del_state(channel=channel.login_name, command=self.command_name, param=SMParam.PARTICIPANTS)
+            logger.info("State for pants raffle is erased")

@@ -74,7 +74,7 @@ class MQTTClient:
             mqtt_properties = Properties(PacketTypes.PUBLISH)
             mqtt_properties.UserProperty = user_properties
 
-            logger.debug("MQTT Publish CARRIER Headers = %s", carrier)
+            # logger.debug("MQTT Publish CARRIER Headers = %s", carrier)
 
             await self._client.publish(
                 self._prefix + "/" + topic,
@@ -134,7 +134,7 @@ class MQTTClient:
                         v = val.decode('utf-8') if isinstance(val, bytes) else str(val)
                         incoming_headers[k.lower()] = v  # OTEL ищет 'traceparent' в нижнем регистре
 
-                logger.debug("MQTT Listen CARRIER Headers = %s", incoming_headers)
+                # logger.debug("MQTT Listen CARRIER Headers = %s", incoming_headers)
 
                 parent_context: Context = extract(incoming_headers)
 

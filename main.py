@@ -61,7 +61,10 @@ propagate.set_global_textmap(
     ])
 )
 
-FastAPIInstrumentor.instrument_app(app)
+FastAPIInstrumentor.instrument_app(
+    app,
+    excluded_urls="/sse/.*,/static.*",
+)
 HTTPXClientInstrumentor().instrument()
 
 
