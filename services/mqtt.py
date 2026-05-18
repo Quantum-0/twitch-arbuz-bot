@@ -7,7 +7,7 @@ from typing import Any, Awaitable
 
 from aiomqtt import Client, MqttError, MqttCodeError
 from opentelemetry import trace
-from opentelemetry.context import Context, attach, detach
+from opentelemetry.context import Context
 from opentelemetry.propagate import inject, extract
 from opentelemetry.trace import SpanKind
 from paho.mqtt.packettypes import PacketTypes
@@ -18,14 +18,6 @@ from config import settings
 
 logger = logging.getLogger(__name__)
 tracer = trace.get_tracer(__name__)
-
-
-class MQTTContextCarrier:
-    def __init__(self):
-        self.properties = {}
-
-    def __setitem__(self, key: str, value: str):
-        self.properties[key] = value
 
 
 class MQTTClient:
@@ -59,6 +51,7 @@ class MQTTClient:
             logger.error("Couldn't connect MQTT", exc_info=True)
             yield
 
+    @tracer.start_as_current_span("MQTT: Publish")
     async def publish(self, topic: str, data: dict[str, Any] | BaseModel | str):
         if not self._client:
             # logger.error("MQTT is not initialized", exc_info=True)
@@ -74,12 +67,18 @@ class MQTTClient:
                 payload = json.dumps(data.model_dump(mode='json'))
             else:
                 raise TypeError("Invalid type of payload: %s", type(data))
-            carrier = MQTTContextCarrier()
+
+            carrier = {}
             inject(carrier)
-            user_properties = [(k, v) for k, v in carrier.properties.items()]
+            user_properties = [(str(k), str(v)) for k, v in carrier.items()]
             mqtt_properties = Properties(PacketTypes.PUBLISH)
             mqtt_properties.UserProperty = user_properties
-            await self._client.publish(self._prefix + "/" + topic, payload=payload, properties=mqtt_properties)
+
+            await self._client.publish(
+                self._prefix + "/" + topic,
+                payload=payload,
+                properties=mqtt_properties
+            )
         except MqttCodeError:
             logger.error("Cannot publish MQTT message", exc_info=True)
             return
@@ -107,16 +106,13 @@ class MQTTClient:
         handler: Callable[[dict[str, Any]], Awaitable[None]],
     ):
         async def wrapped_handler(parent_context: Context, *args, **kwargs):
-            token = attach(parent_context)
-            try:
-                with tracer.start_as_current_span(
+            with tracer.start_as_current_span(
                     f"MQTT: Handle from `{topic}`",
-                    context=parent_context,  # Связываем с родителем!
-                    kind=SpanKind.CONSUMER  # Указываем тип спана для красивого отображения
-                ) as span:
-                    await handler(*args, **kwargs)
-            finally:
-                detach(token)
+                    context=parent_context,  # Связываем с родителем
+                    kind=SpanKind.CONSUMER
+            ):
+                await handler(*args, **kwargs)
+
         logger.info("Subscribed to topic `%s` with handler `%s`", topic, handler)
         self._handlers.append((topic, wrapped_handler))
 
@@ -130,10 +126,12 @@ class MQTTClient:
                     continue
 
                 incoming_headers = {}
-                if hasattr(message.properties, "UserProperty"):
-                    incoming_headers = {prop[0].decode() if isinstance(prop[0], bytes) else prop[0]:
-                                            prop[1].decode() if isinstance(prop[1], bytes) else prop[1]
-                                        for prop in message.properties.UserProperty}
+                if message.properties and hasattr(message.properties, "UserProperty"):
+                    for key, val in message.properties.UserProperty:
+                        k = key.decode('utf-8') if isinstance(key, bytes) else str(key)
+                        v = val.decode('utf-8') if isinstance(val, bytes) else str(val)
+                        incoming_headers[k.lower()] = v  # OTEL ищет 'traceparent' в нижнем регистре
+
                 parent_context: Context = extract(incoming_headers)
 
                 short_topic = topic[len(self._prefix) + 1:]
