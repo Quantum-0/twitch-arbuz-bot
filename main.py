@@ -6,12 +6,15 @@ import uvicorn
 from fastapi import FastAPI, HTTPException
 from fastapi.exception_handlers import request_validation_exception_handler
 from fastapi.exceptions import RequestValidationError
-from opentelemetry import trace
+from opentelemetry import trace, propagate
 from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
+from opentelemetry.propagators.b3 import B3MultiFormat
+from opentelemetry.propagators.composite import CompositePropagator
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
+from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapPropagator
 from sentry_sdk.integrations.fastapi import FastApiIntegration
 from sentry_sdk.integrations.starlette import StarletteIntegration
 from starlette import status
@@ -50,6 +53,13 @@ trace_processor = BatchSpanProcessor(OTLPSpanExporter(endpoint=str(settings.otel
 trace_provider.add_span_processor(trace_processor)
 trace.set_tracer_provider(trace_provider)
 tracer = trace.get_tracer(__name__)
+
+propagate.set_global_textmap(
+    CompositePropagator([
+        TraceContextTextMapPropagator(),  # Читает/пишет W3C (traceparent)
+        B3MultiFormat()                   # Читает/пишет B3 (x-b3-traceid)
+    ])
+)
 
 FastAPIInstrumentor.instrument_app(app)
 HTTPXClientInstrumentor().instrument()
