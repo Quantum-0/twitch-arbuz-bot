@@ -3,6 +3,7 @@ import logging
 import random
 from collections.abc import Awaitable, Callable
 
+from opentelemetry import trace
 from sqlalchemy.ext.asyncio import AsyncSession
 from functools import partial
 from operator import itemgetter
@@ -19,6 +20,7 @@ import sqlalchemy as sa
 
 
 logger = logging.getLogger(__name__)
+tracer = trace.get_tracer(__name__)
 
 
 class PantsCommand(SimpleCDCommand):
@@ -190,6 +192,7 @@ class PantsCommand(SimpleCDCommand):
     async def _cooldown_reply(self, user: str, delay: int) -> str | None:
         return ""
 
+    @tracer.start_as_current_span("ChatBot: Pants Raffle: Finishing", context=None)
     async def finish_raffle(self, channel: User, target: str):
         await asyncio.sleep(60)
         logger.info(f"Finishing raffle for channel {channel.login_name}")
