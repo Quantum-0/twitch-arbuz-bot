@@ -5,7 +5,7 @@ from collections.abc import Callable
 from contextlib import asynccontextmanager
 from typing import Any, Awaitable
 
-from aiomqtt import Client, MqttError, MqttCodeError
+from aiomqtt import Client, MqttError, MqttCodeError, ProtocolVersion
 from opentelemetry import trace
 from opentelemetry.context import Context
 from opentelemetry.propagate import inject, extract
@@ -34,7 +34,7 @@ class MQTTClient:
     @asynccontextmanager
     async def lifespan(self):
         try:
-            async with Client(self._host, username=self._username, password=self._password, identifier=self._client_id) as cli:
+            async with Client(self._host, username=self._username, password=self._password, identifier=self._client_id, protocol=ProtocolVersion.V5) as cli:
                 await cli.subscribe(self._prefix + "/#")
                 loop = asyncio.get_event_loop()
                 task = loop.create_task(self.__listen(cli))
