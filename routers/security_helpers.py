@@ -10,7 +10,7 @@ from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from opentelemetry import trace
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import joinedload
 from starlette import status
 from starlette.requests import Request
 
@@ -84,8 +84,8 @@ async def user_auth(
         sa.select(User)
         .where(User.twitch_id == user_id)
         .options(
-            selectinload(User.settings),
-            selectinload(User.memealerts),
+            joinedload(User.settings),
+            joinedload(User.memealerts),
         )
     )
     user: User | None = result.scalar_one_or_none()  # type: ignore
@@ -116,8 +116,8 @@ async def user_auth_optional(
         sa.select(User)
         .where(User.twitch_id == user_id)
         .options(
-            selectinload(User.settings),
-            selectinload(User.memealerts),
+            joinedload(User.settings),
+            joinedload(User.memealerts),
         )
     )
     user: User | None = result.scalar_one_or_none()  # type: ignore
