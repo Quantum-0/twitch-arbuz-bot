@@ -112,8 +112,8 @@
     function spawnImage(imgUrl) {
         const img = document.createElement("img");
         img.className = "sprite";
-        img.src = imgUrl;
 
+        // Задаем координаты и стили сразу, до вставки в DOM
         img.style.zIndex = zIndexCounter++;
 
         const maxX = window.innerWidth - 256;
@@ -127,30 +127,35 @@
         img.style.top = `${y}px`;
         img.style.setProperty("--rotation", `${rotation}deg`);
 
-        document.body.appendChild(img);
+        // Логика запускается ТОЛЬКО после загрузки файла
+        img.onload = () => {
+            document.body.appendChild(img);
 
-        // триггер анимации
-        requestAnimationFrame(() => {
-            img.classList.add("spawn");
-        });
+            // триггер анимации появления
+            requestAnimationFrame(() => {
+                img.classList.add("spawn");
+            });
 
-        // 🔊 звук
-        /* const sound = document.getElementById("sticker-sound");
-        if (sound) {
-            sound.currentTime = 0;
-            sound.play().catch(() => {});
-        }*/
-        playPopSound();
+            // 🔊 звук играет одновременно с появлением изображения
+            playPopSound();
 
-        // fade-out
-        setTimeout(() => {
-            img.classList.add("fade-out");
-        }, LIFE_TIME_MS - FADE_OUT_MS);
+            // Таймер начала исчезновения (fade-out)
+            setTimeout(() => {
+                img.classList.add("fade-out");
+            }, LIFE_TIME_MS - FADE_OUT_MS);
 
-        // полное удаление
-        setTimeout(() => {
-            img.remove();
-        }, LIFE_TIME_MS);
+            // Таймер полного удаления из DOM
+            setTimeout(() => {
+                img.remove();
+            }, LIFE_TIME_MS);
+        };
+
+        img.onerror = () => {
+            console.error("Не удалось загрузить стикер:", imgUrl);
+        };
+
+        // Назначаем src в самом конце, чтобы событие onload сработало корректно во всех браузерах
+        img.src = imgUrl;
     }
 
     function random(min, max) {
