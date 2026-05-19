@@ -7,7 +7,6 @@ from routers.api.slovotron_webhook import router as slovotron_api_router
 from routers.web.overlays import router as overlays_router
 from routers.web.pages import router as pages_routers
 from routers.web.service_routes import router as service_routes_router
-from routers.ws.heat_proxy import router as heat_router
 from routers.sse import router as sse_router
 from routers.web.file_storage import router as files_router
 from routers.web.obs_dock import router as obs_dock_router
@@ -22,7 +21,6 @@ api_router.include_router(slovotron_api_router, tags=["Slovotron"])
 
 # User
 user_router = APIRouter(prefix="", tags=["User"])
-user_router.include_router(heat_router)
 user_router.include_router(sse_router)
 user_router.include_router(overlays_router)
 user_router.include_router(pages_routers)
