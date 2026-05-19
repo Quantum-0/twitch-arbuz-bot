@@ -48,13 +48,15 @@
 
         if (!raw) return null;
 
+        // Если передали просто ID канала, а не URL
+        if (!raw.includes("://") && !raw.includes(".")) {
+            return null;
+        }
+
         forced = true;
 
         if (raw.startsWith("sse://")) {
-            return {
-                type: "sse",
-                url: "https://" + raw.slice(6)
-            };
+            return { type: "sse", url: "https://" + raw.slice(6) };
         }
 
         if (raw.startsWith("ws://") || raw.startsWith("wss://")) {
@@ -70,9 +72,6 @@
     }
 
     const AUTO_URLS = [
-//        { type: "ws",  url: PRIMARY_WS },
-//        { type: "ws",  url: BACKUP_WS },
-//        { type: "sse", url: BACKUP_SSE }
         { type: "sse", url: PRIMARY_SSE },
         { type: "ws", url: BACKUP_WS }
     ];
@@ -90,21 +89,24 @@
             heartbeatTimer = null;
         }
 
+        if (reconnectTimer) {
+            clearTimeout(reconnectTimer);
+            reconnectTimer = null;
+        }
+
         if (transport) {
             try {
+                // Обнуляем обработчики ПЕРЕД закрытием, чтобы не вызвать повторный forceReconnect
+                transport.onopen = null;
+                transport.onerror = null;
+                transport.onmessage = null;
                 if (transportType === "ws") {
-                    transport.onopen =
-                    transport.onclose =
-                    transport.onerror =
-                    transport.onmessage = null;
-                    transport.close();
-                } else if (transportType === "sse") {
-                    transport.onopen =
-                    transport.onerror =
-                    transport.onmessage = null;
-                    transport.close();
+                    transport.onclose = null;
                 }
-            } catch {}
+                transport.close();
+            } catch(e) {
+                warn("Error during transport cleanup:", e);
+            }
         }
 
         transport = null;
@@ -120,10 +122,7 @@
 
         cleanup();
 
-        const target = forced
-            ? forcedUrl
-            : AUTO_URLS[urlIndex];
-
+        const target = forced && forcedUrl ? forcedUrl : AUTO_URLS[urlIndex];
         log("connecting →", target.type, target.url);
 
         lastMessageAt = Date.now();
@@ -146,6 +145,7 @@
         }, CONNECT_TIMEOUT);
 
         ws.onopen = () => {
+            if (ws !== transport) return; // Защита от старых вызовов
             clearTimeout(connectTimer);
             connectTimer = null;
 
@@ -154,21 +154,25 @@
             connecting = false;
 
             emit("heat:open");
-
+            lastMessageAt = Date.now();
             heartbeatTimer = setInterval(heartbeatCheck, HEARTBEAT_CHECK_INTERVAL);
         };
 
         ws.onmessage = (e) => {
+            if (ws !== transport) return;
             lastMessageAt = Date.now();
             handleMessage(e.data);
         };
 
         ws.onerror = (e) => {
+            if (ws !== transport) return;
             warn("ws error", e);
+            // При ошибке WS обычно вызывается и onclose, но мы подстрахуемся
             forceReconnect();
         };
 
         ws.onclose = (e) => {
+            if (ws !== transport) return;
             warn("ws closed", e.code);
             emit("heat:close", e);
             forceReconnect();
@@ -186,6 +190,7 @@
         }, CONNECT_TIMEOUT);
 
         es.onopen = () => {
+            if (es !== transport) return;
             clearTimeout(connectTimer);
             connectTimer = null;
 
@@ -194,17 +199,21 @@
             connecting = false;
 
             emit("heat:open");
-
+            lastMessageAt = Date.now();
             heartbeatTimer = setInterval(heartbeatCheck, HEARTBEAT_CHECK_INTERVAL);
         };
 
         es.onmessage = (e) => {
+            if (es !== transport) return;
             lastMessageAt = Date.now();
             handleMessage(e.data);
         };
 
         es.onerror = (e) => {
-            warn("sse error");
+            if (es !== transport) return;
+            warn("sse error или разрыв соединения. Переподключение...");
+            // Нативный EventSource пытается восстановиться сам, но так как у нас есть фолбэк (fallback) на WS,
+            // мы принудительно переключаем транспорт через свой forceReconnect.
             forceReconnect();
         };
     }
@@ -226,12 +235,15 @@
         if (delta > HEARTBEAT_TIMEOUT) {
             log("idle");
             lastMessageAt = Date.now();
+            // warn("Соединение прервано по таймауту (idle). Переподключение...");
+            // forceReconnect(); // ИСПРАВЛЕНО: теперь запускает реконнект, а не просто пишет лог
         }
     }
 
     /* ---------------- reconnect ---------------- */
 
     function forceReconnect() {
+        // Если уже запланирован реконнект, игнорируем повторные вызовы (дебаунс)
         if (reconnectTimer) return;
 
         cleanup();
@@ -243,11 +255,11 @@
         attempt++;
 
         const delay = Math.min(
-            BASE_DELAY * 2 ** attempt + Math.random() * 500,
+            BASE_DELAY * Math.pow(2, attempt) + Math.random() * 500,
             MAX_DELAY
         );
 
-        warn(`reconnecting in ${delay}ms`);
+        warn(`reconnecting in ${Math.round(delay)}ms (Попытка ${attempt}, Индекс транспорта: ${urlIndex})`);
 
         reconnectTimer = setTimeout(() => {
             reconnectTimer = null;
