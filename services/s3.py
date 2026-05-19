@@ -1,9 +1,13 @@
 import aioboto3
+from opentelemetry import trace
 
 from config import settings
 
 
 from botocore import exceptions as s3exc
+
+
+tracer = trace.get_tracer(__name__)
 
 
 class S3Exception(Exception):
@@ -28,10 +32,12 @@ class FileStorage:
             "region_name": "us-east-1",  # для MinIO
         }
 
+    @tracer.start_as_current_span("S3: Put object")
     async def put_object(self, key: str, data: bytes):
         async with self._session.client(**self._client_kwargs) as s3:
             await s3.put_object(Bucket=self._bucket, Key=key, Body=data)
 
+    @tracer.start_as_current_span("S3: Get object")
     async def get_object(self, key: str) -> bytes:
         try:
             async with self._session.client(**self._client_kwargs) as s3:

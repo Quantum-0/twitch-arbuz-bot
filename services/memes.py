@@ -8,6 +8,7 @@ from memealerts import MemealertsAsyncClient
 from memealerts.types.exceptions import MAUserNotFoundError
 from memealerts.types.models import Supporter, User
 from memealerts.types.user_id import UserID
+from opentelemetry import trace
 from sqlalchemy.exc import MultipleResultsFound
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -19,6 +20,7 @@ import sqlalchemy as sa
 from exceptions import MADuplicateUserError
 
 logger = logging.getLogger(__name__)
+tracer = trace.get_tracer(__name__)
 
 
 class MemealertsService:
@@ -34,17 +36,25 @@ class MemealertsService:
     def is_id(self, id_: str) -> bool:
         return bool(self._id_pattern.fullmatch(id_))
 
-    async def give_bonus(self, memealerts_token, streamer, supporter, amount):
+    @tracer.start_as_current_span("MA: Give bonus")
+    async def give_bonus(self, memealerts_token, streamer: str, supporter: str, amount: int):
         """
         Внешний метод начисления бонуса саппортеру от стримера
         Инитим тут клиент и выполняем с ним поиск и выдачу коинов
         """
         logger.info(f"Giving bonus {amount} memecoins from {streamer} to {supporter}")
+        current_span = trace.get_current_span()
+        if current_span.is_recording():
+            current_span.set_attribute("ma.streamer", streamer)
+            current_span.set_attribute("ma.supporter", supporter)
+            current_span.set_attribute("ma.amount", amount)
         start_time = time.perf_counter()
         async with MemealertsAsyncClient(memealerts_token) as meme_cli:
             result = await self.find_and_give_bonus(meme_cli, supporter, amount)
             elapsed = time.perf_counter() - start_time
             logger.info(f"Method give_bonus finished in {elapsed:.4f}s with result={result}")
+            if current_span.is_recording():
+                current_span.set_attribute("ma.success", result)
             return result
 
     async def find_and_give_bonus(
