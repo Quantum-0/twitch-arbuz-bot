@@ -245,6 +245,7 @@ class ChatBot:
             .returning(TwitchUserSettings.user_id)
         )
         banned = delete_banned.scalars().all()
+        await session.commit()
         logger.error("User's, whose chat bot were disabled: %s", banned)
 
     async def get_commands(self, user: User) -> list[tuple[str, str, str]]:
