@@ -63,6 +63,8 @@ class BiteCommand(SimpleTargetCommand):
             "шею",
         ]
         target = join_targets(targets)
+        if len(targets) == 1 and random.random() < 0.05:
+            return f"@{user} жадно впивается в руку {target} своими острыми зубками (•ิ_•ิ)"
         # TODO: кусает, делает кусь, кусявкает, покусывает?
         return f"@{user} {random.choice(bite_verb)} {random.choice(kind_of_bite)} кусь {target} за {random.choice(target_to_bite)}"
 
