@@ -4,3 +4,5 @@ htmlcov
 .coverage
 allure-results
 allure-report
+/.pycrunch-config.yaml
+/report.xml
