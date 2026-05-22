@@ -1,10 +1,12 @@
 import asyncio
 import logging.config
 import random
+from collections import deque
 from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
 from time import time
 from typing import Any
+from uuid import UUID
 
 import sqlalchemy as sa
 from opentelemetry import trace
@@ -52,6 +54,7 @@ class ChatBot:
         self._command_manager = CommandsManager(
             get_state_manager(), self.send_message, self._db_session_factory
         )
+        self._msg_q: deque[UUID] = deque(maxlen=32)
 
     async def startup(self, twitch: Twitch):
         chat = await twitch.build_chat_client()
@@ -160,6 +163,12 @@ class ChatBot:
             message = ChatMessageWebhookEventSchema.model_validate(raw_message)
         else:
             message = raw_message
+
+        msg_id = message.source_message_id or message.message_id
+        if msg_id in self._msg_q:
+            logger.info(f"Skip message ID={msg_id} because of already handled")
+            return
+        self._msg_q.append(msg_id)
 
         channel = message.broadcaster_user_login
 
