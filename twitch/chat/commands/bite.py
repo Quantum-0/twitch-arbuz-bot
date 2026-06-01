@@ -99,6 +99,7 @@ class BiteCommand(SimpleTargetCommand):
     async def _bot_call_reply(self, user: str, target: str) -> str | None:
         return random.choice([
             f"{target} простите за беспокойство, коллега-бот, но пользователь @{user} делает вам кусьб",
+            f"За что вы бота кусаете, он и так работает 24/7, несчастный т_т",
         ])
 
     async def _this_bot_call_reply(self, user: str) -> str | None:
