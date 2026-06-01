@@ -117,7 +117,8 @@ class PantsCommand(SimpleCDCommand):
                 message,
                 streamer.login_name,
                 user,
-                partial(self.chat_bot.get_random_active_user, streamer)
+                partial(self.chat_bot.get_random_active_user, streamer),
+                partial(self.chat_bot._user_list_manager.get_active_users, streamer.login_name),
             )  # TODO replace with display name
             logger.info(f"Target = {targets}")
             if len(targets) > 1:

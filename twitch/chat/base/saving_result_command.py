@@ -58,7 +58,8 @@ class SavingResultCommand(Command):
             message.message.text,
             message.broadcaster_user_name,
             message.chatter_user_name,
-            partial(self.chat_bot.get_random_active_user, streamer)
+            partial(self.chat_bot.get_random_active_user, streamer),
+            partial(self.chat_bot._user_list_manager.get_active_users, streamer.login_name),
         )
         if targets:
             response = await self._target_selected(user, targets)

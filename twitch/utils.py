@@ -6,7 +6,13 @@ from typing import Awaitable
 logger = logging.getLogger(__name__)
 
 
-async def extract_targets(text: str, streamer_name: str, self_name: str, func_get_random_user: Callable[..., Awaitable[str]]) -> list[str]:
+async def extract_targets(
+    text: str,
+    streamer_name: str,
+    self_name: str,
+    func_get_random_user: Callable[..., Awaitable[str]],
+    func_get_active_users: Callable[..., list[tuple[str, float]]],
+) -> list[str]:
     # m = re.match("!\\w+ @.*[ $]", text)
     # if m:
     #     return m.lastgroup
@@ -25,6 +31,12 @@ async def extract_targets(text: str, streamer_name: str, self_name: str, func_ge
         "когонибуть", "кавота", "каво-та", "каво-то",
         "каво-нибудь", "рандом", "рандома", "рандому",
     }
+    all_users = {
+        "все", "всех", "all", "всем",
+        "чат", "чач", "чатик",
+        "чаттерсы", "чатерсов", "чатерсы", "чаттерсов", "чаттерсам", "чатерсам",
+        "зрителей", "зрители",
+    }
     command, *other = text.split()
     other = [
         o
@@ -32,16 +44,8 @@ async def extract_targets(text: str, streamer_name: str, self_name: str, func_ge
         if (o.startswith("@") and len(o) > 1)
         or o.lower()
         in [
-            "все",
-            "всех",
-            "all",
-            "всем",
+            *list(all_users),
             *list(random_user),
-            "чат",
-            "чатик",
-            "чаттерсы",
-            "чаттерсов",
-            "чач",
             *list(streamer_alias),
             *list(self_alias),
         ]
@@ -59,6 +63,11 @@ async def extract_targets(text: str, streamer_name: str, self_name: str, func_ge
         if o in random_user:
             o = "@" + await func_get_random_user()
             logger.debug(f"`o` replaces to `{o}`")
+        if o in all_users:
+            all_users = func_get_active_users(timeout=30*60)  # берём последних за пол часа
+            if len(all_users) < 7:
+                result.extend(usr[0] for usr in all_users)
+                continue
         if o not in result:
             result.append(o)
 
