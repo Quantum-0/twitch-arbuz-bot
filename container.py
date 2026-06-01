@@ -28,7 +28,6 @@ class Container(containers.DeclarativeContainer):
             "routers.web.file_storage",
             "routers.security_helpers",
             "routers.sse",
-            "routers.ws.heat_proxy",
         ]
     )
 
