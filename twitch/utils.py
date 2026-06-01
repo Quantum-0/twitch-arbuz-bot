@@ -6,7 +6,7 @@ from typing import Awaitable
 logger = logging.getLogger(__name__)
 
 
-async def extract_targets(text: str, streamer_name: str, func_get_random_user: Callable[..., Awaitable[str]]) -> list[str]:
+async def extract_targets(text: str, streamer_name: str, self_name: str, func_get_random_user: Callable[..., Awaitable[str]]) -> list[str]:
     # m = re.match("!\\w+ @.*[ $]", text)
     # if m:
     #     return m.lastgroup
@@ -16,6 +16,9 @@ async def extract_targets(text: str, streamer_name: str, func_get_random_user: C
         "стримера", "стримлера", "стримеру", "стример", "стримлера",
         "стримлеру", "стримлера", "стримлер", "стримерша", "стримершу",
         "стримерши", "стримерка", "стримерку", "стримлерка", "стримлерша",
+    }
+    self_alias = {
+        "себя", "я", "себе", "меня", "мне", "мои",
     }
     random_user = {
         "когото", "кого-то", "кого-нибудь", "когонибудь",
@@ -40,6 +43,7 @@ async def extract_targets(text: str, streamer_name: str, func_get_random_user: C
             "чаттерсов",
             "чач",
             *list(streamer_alias),
+            *list(self_alias),
         ]
     ]
 
@@ -48,9 +52,13 @@ async def extract_targets(text: str, streamer_name: str, func_get_random_user: C
         logger.info(f"Handle target `{o}`")
         if o in streamer_alias:
             o = "@" + streamer_name
+            logger.debug(f"`o` replaces to `{o}`")
+        if o in self_alias:
+            o = "@" + self_name
+            logger.debug(f"`o` replaces to `{o}`")
         if o in random_user:
             o = "@" + await func_get_random_user()
-            logger.info(f"`o` replaces to `{o}`")
+            logger.debug(f"`o` replaces to `{o}`")
         if o not in result:
             result.append(o)
 

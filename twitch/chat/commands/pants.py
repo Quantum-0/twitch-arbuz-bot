@@ -114,7 +114,10 @@ class PantsCommand(SimpleCDCommand):
         target: str | None = None
         if message.lower().startswith("!трусы @"):
             targets = await extract_targets(
-                message, streamer.login_name, partial(self.chat_bot.get_random_active_user, streamer)
+                message,
+                streamer.login_name,
+                user,
+                partial(self.chat_bot.get_random_active_user, streamer)
             )  # TODO replace with display name
             logger.info(f"Target = {targets}")
             if len(targets) > 1:

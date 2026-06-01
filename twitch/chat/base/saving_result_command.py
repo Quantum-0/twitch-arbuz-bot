@@ -57,6 +57,7 @@ class SavingResultCommand(Command):
         targets = await extract_targets(
             message.message.text,
             message.broadcaster_user_name,
+            message.chatter_user_name,
             partial(self.chat_bot.get_random_active_user, streamer)
         )
         if targets:
