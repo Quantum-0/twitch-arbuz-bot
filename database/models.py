@@ -151,6 +151,21 @@ class TwitchUserSettings(Base):
         default=None,
         nullable=True,
     )
+    # tt_link: Mapped[str] = mapped_column(
+    #     String,
+    #     default=None,
+    #     nullable=True,
+    # )
+    # yt_link: Mapped[str] = mapped_column(
+    #     String,
+    #     default=None,
+    #     nullable=True,
+    # )
+    memealerts_link: Mapped[str] = mapped_column(
+        String,
+        default=None,
+        nullable=True,
+    )
 
     ai_sticker_reward_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True, default=None)
 

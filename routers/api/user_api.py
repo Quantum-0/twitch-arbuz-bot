@@ -20,6 +20,7 @@ from schemas.api import (
     UUIDResponseSchema,
 )
 from routers.security_helpers import user_auth
+from services.memes import MemealertsService
 from services.sse_manager import SSEManager
 from services.stickers import StickersService
 from twitch.chat.bot import ChatBot
@@ -162,7 +163,8 @@ async def update_memealert_coins(
 async def setup_memealert(
     db: Annotated[AsyncSession, Depends(get_db)],
     twitch: Annotated[Twitch, Depends(Provide[Container.twitch])],
-    user: Any = Security(user_auth),
+    memealerts: Annotated[MemealertsService, Depends(Provide[Container.memealerts])],
+    user: User = Security(user_auth),
     enable: bool = Query(...),
     memealerts_token: str | None = Form(None, alias="key"),
     refresh: bool = Query(False),
@@ -193,8 +195,17 @@ async def setup_memealert(
                 400,
             )
 
+        try:
+            memealerts_user = await memealerts.get_current(memealerts_token)
+        except:
+            return JSONResponse(
+                {"title": "Ошибка", "message": "Ошибка авторизации пользователя через токен.\nПроверьте корректность скопированного токена."},
+                400,
+            )
+
         if refresh:
             user.memealerts.memealerts_token = memealerts_token
+            user.settings.memealerts_link = memealerts_user.channel.unique_link
             await db.commit()
             await db.refresh(user.memealerts)
             return JSONResponse({"title": "Успешно", "message": "Токен обновлён."}, 200)

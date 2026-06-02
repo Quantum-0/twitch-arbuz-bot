@@ -33,6 +33,11 @@ class MemealertsService:
         # Защита фоновых задач от сборщика мусора (GC)
         self._background_tasks: set[asyncio.Task] = set()
 
+    @tracer.start_as_current_span("MA: Get current")
+    async def get_current(self, memealerts_token):
+        async with MemealertsAsyncClient(memealerts_token) as meme_cli:
+            return await meme_cli.get_current()
+
     def is_id(self, id_: str) -> bool:
         return bool(self._id_pattern.fullmatch(id_))
 
