@@ -63,7 +63,7 @@
                     <button style="background-color:#18bc9c" onclick="location.href='https://twitchtracker.com/{{ profile_user.login_name }}';">Rank #{{ profile_user.tt_rank }}</button>
 
                     {% if profile_user.settings.tg_link %}
-                    <button style="background-color:#0088cc" onclick="location.href='{{ profile_user.settings.tg_link }}';"><i class="fa fa-telegram"></i> Telegram</button>
+                    <button style="background-color:#0088cc" onclick="location.href='https://t.me/{{ profile_user.settings.tg_link }}';"><i class="fa fa-telegram"></i> Telegram</button>
                     {% endif %}
 
                     {% if profile_user.settings.ds_link %}
