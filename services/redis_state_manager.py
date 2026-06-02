@@ -15,6 +15,7 @@ from twitch.state_manager import (
     VALUE_TYPE,
     COMMON_USER,
     COMMON_COMMAND,
+    SMParam,
 )
 
 
@@ -182,7 +183,20 @@ class RedisStateManager(StateManager):
     async def get_all_from_channel(
         self, *, channel: str = COMMON_CHANNEL
     ) -> AsyncIterator[tuple[USER_TYPE, COMMAND_TYPE, PARAM_TYPE, VALUE_TYPE]]:
-        raise NotImplementedError
+        data = await self.get_from_redis(channel=channel)
+        for redis_key, value in data.items():
+            if not redis_key.startswith("sm:"):
+                continue
+            parts = redis_key.split(":")
+            if len(parts) != 5:
+                continue
+            user: int
+            sm, channel, command, user, param = parts
+            if sm != "sm":
+                continue
+            if user.isdigit():  # type: ignore
+                user = int(user)
+            yield user, command, SMParam(param), value
 
     async def cleanup(self):
         pass

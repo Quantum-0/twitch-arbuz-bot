@@ -7,6 +7,21 @@ services:
       - "8015:8000"
     env_file:
       - .env
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+#  redis:
+#    image: redis:8.8.0-alpine
+#    container_name: fast_redis_cache
+#    restart: always
+#    ports:
+#      - "6379:6379"
+#    volumes:
+#      - ./redis.conf:/usr/local/etc/redis/redis.conf
+#    command: redis-server /usr/local/etc/redis/redis.conf
+#    extra_hosts:
+#      - "host.docker.internal:host-gateway"
+
 #    depends_on:
 #      - db
 

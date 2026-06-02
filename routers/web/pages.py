@@ -184,9 +184,9 @@ async def debug_page(
     if not user.in_beta_test:
         raise HTTPException(status_code=403, detail="No access to debug")
     state_manager_data = []
-    async for values in await state_manager.get_all_from_channel(channel="quantum075"):
+    async for values in state_manager.get_all_from_channel(channel="quantum075"):
         state_manager_data.append(values)
-    async for values in await state_manager.get_all_from_channel():
+    async for values in state_manager.get_all_from_channel():
         state_manager_data.append(values)
     return templates.TemplateResponse(
         "debug.html",
@@ -434,8 +434,15 @@ async def roadmap_page(
                 {
                     "date": "Май 2026",
                     "text": "Вебхук для словотрона. AI стикеры переключены на S3. AI стикеры теперь умеют работать со ссылками на стримеров, подтягивая их рефы. "
-                            "Сортировка стримеров по их последнему активу в панели управления ботом. Оптимизирован запрос в мемалёртс, добавлен кэш.",
+                            "Сортировка стримеров по их последнему активу в панели управления ботом. Оптимизирован запрос в мемалёртс, добавлен кэш."
+                            "Убраны дубликаты ответов для общих чатов.",
                 },
+                {
+                    "date": "Июнь 2026",
+                    "text": "Теперь команды умеют использовать алиас `себя` (напр. `!кусь себя`)"
+                            "Исправлены мелкие баги в ответах. Переделана логика алиаса `всех`."
+                            "Хранение временных данных, таких как cooldown по командам перенесено в Redis."
+                }
             ],
             "todos": [
                 "Отчёт об ошибках из мемалёрта в панели управления ботом",
