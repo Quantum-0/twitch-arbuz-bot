@@ -22,7 +22,7 @@ from dependencies import get_db
 from routers.security_helpers import admin_auth, user_auth, user_auth_optional
 from twitch.chat.bot import ChatBot
 from twitch.client.twitch import Twitch
-from twitch.state_manager import get_state_manager
+from twitch.state_manager import StateManager
 from utils.memes import token_expires_in_days
 
 templates = Jinja2Templates(directory="templates")
@@ -178,14 +178,15 @@ async def meme_tutorial_page(
 async def debug_page(
     request: Request,
     chat_bot: Annotated[ChatBot, Depends(Provide[Container.chat_bot])],
+    state_manager: Annotated[StateManager, Depends(Provide[Container.state_manager])],
     user: Any = Security(user_auth),
 ):
     if not user.in_beta_test:
         raise HTTPException(status_code=403, detail="No access to debug")
     state_manager_data = []
-    async for values in get_state_manager().get_all_from_channel(channel="quantum075"):
+    async for values in await state_manager.get_all_from_channel(channel="quantum075"):
         state_manager_data.append(values)
-    async for values in get_state_manager().get_all_from_channel():
+    async for values in await state_manager.get_all_from_channel():
         state_manager_data.append(values)
     return templates.TemplateResponse(
         "debug.html",

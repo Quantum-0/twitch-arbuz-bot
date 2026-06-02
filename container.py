@@ -1,12 +1,14 @@
 import aioboto3
 from dependency_injector import containers, providers
 
+from config import settings
 from database.database import AsyncSessionLocal
 from services.ai import OpenAIClient
 from services.eventsub_service import TwitchEventSubService
 from services.image_resizer import ImageResizer
 from services.memes import MemealertsService
 from services.mqtt import MQTTClient
+from services.redis_state_manager import RedisStateManager, init_redis
 from services.s3 import FileStorage
 from services.slovotron import SlovotronService
 from services.sse_manager import SSEManager
@@ -32,8 +34,19 @@ class Container(containers.DeclarativeContainer):
     )
 
     db_session_factory = providers.Object(AsyncSessionLocal)
+    redis = providers.Resource(
+        init_redis,
+        redis_url=settings.redis_url,
+    )
+    state_manager = providers.Singleton(
+        RedisStateManager,
+        # redis=redis,
+        default_ttl=24 * 60 * 60,
+    )
     twitch = providers.Singleton(Twitch)
-    chat_bot = providers.Singleton(ChatBot, db_session_factory=db_session_factory)
+    chat_bot = providers.Singleton(
+        ChatBot, db_session_factory=db_session_factory, state_manager=state_manager
+    )
     ai = providers.Singleton(OpenAIClient, db_session_factory=db_session_factory)
     mqtt = providers.Singleton(MQTTClient)
     sse_manager = providers.Singleton(SSEManager)

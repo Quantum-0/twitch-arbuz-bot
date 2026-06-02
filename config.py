@@ -69,7 +69,7 @@ class Settings(BaseSettings):
     ai_cost_single_call: float = 0.075  # 7.5kop
     otel_endpoint: AnyHttpUrl | None = "http://localhost:4317"
     otel_service_name: str = "twitch-bot"
-
+    redis_url: str = "redis://localhost:6379"
     model_config = SettingsConfigDict(env_prefix="", env_file=".env")
 
     @property

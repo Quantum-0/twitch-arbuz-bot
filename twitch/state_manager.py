@@ -186,10 +186,3 @@ class InMemoryStateManager(StateManager):
                 for command, param_dict in commands_dict.items():
                     for param, value in param_dict.items():
                         pass  # TODO: придумать чота
-
-
-_sm: StateManager = InMemoryStateManager()
-
-
-def get_state_manager():
-    return _sm

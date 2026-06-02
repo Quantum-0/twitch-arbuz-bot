@@ -29,7 +29,7 @@ from twitch.chat.handlers.handlers import (
     UnlurkHandler,
 )
 from twitch.client.twitch import Twitch
-from twitch.state_manager import get_state_manager
+from twitch.state_manager import StateManager
 from twitch.user_list_manager import UserListManager
 from twitch.utils import delay_to_seconds
 from utils.logging_conf import LOGGING_CONFIG
@@ -44,15 +44,15 @@ class ChatBot:
     _joined_channels: list[str] = []
     _main_event_loop: asyncio.AbstractEventLoop
 
-    def __init__(self, db_session_factory: Callable[[], AsyncSession]) -> None:
+    def __init__(self, db_session_factory: Callable[[], AsyncSession], state_manager: StateManager) -> None:
         self._user_list_manager = UserListManager()
         self._twitch: Twitch = None  # type: ignore
         self._db_session_factory = db_session_factory
         self._handler_manager: MessagesHandlerManager = MessagesHandlerManager(
-            get_state_manager(), self.send_message, self._db_session_factory
+            state_manager, self.send_message, self._db_session_factory
         )
         self._command_manager = CommandsManager(
-            get_state_manager(), self.send_message, self._db_session_factory
+            state_manager, self.send_message, self._db_session_factory
         )
         self._msg_q: deque[UUID] = deque(maxlen=32)
 
