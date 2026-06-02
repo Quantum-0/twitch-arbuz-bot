@@ -208,9 +208,28 @@ async def setup_memealert(
                 400,
             )
 
+        if memealerts_user.channel:
+            user.settings.memealerts_link = memealerts_user.channel.unique_link
+            if memealerts_user.channel.currency_name_declensions:
+                user.memealerts.memecoin_name_genitive = memealerts_user.channel.currency_name_declensions.genitive # 2 мемкоина
+                user.memealerts.memecoin_name_accusative = memealerts_user.channel.currency_name_declensions.accusative # 1 мемкоин
+                if memealerts_user.channel.currency_name_declensions.multiple:
+                    user.memealerts.memecoin_name_genitive_multiple = memealerts_user.channel.currency_name_declensions.multiple.genitive # 5 мемкоинов
+                    user.memealerts.memecoin_name_accusative_multiple = memealerts_user.channel.currency_name_declensions.multiple.accusative # Получить мемкоины
+
+            if memealerts_user.channel.disable_stickers is True:
+                try:
+                    await memealerts.enable_stickers(memealerts_token)
+                except:
+                    pass
+            if memealerts_user.channel.welcome_bonus_enabled is False:
+                try:
+                    await memealerts.enable_welcome_bonus(memealerts_token)
+                except:
+                    pass
+
         if refresh:
             user.memealerts.memealerts_token = memealerts_token
-            user.settings.memealerts_link = memealerts_user.channel.unique_link
             await db.commit()
             await db.refresh(user.memealerts)
             return JSONResponse({"title": "Успешно", "message": "Токен обновлён."}, 200)
@@ -218,9 +237,9 @@ async def setup_memealert(
         try:
             reward = await twitch.create_reward(
                 user,
-                "Memecoins",
-                500,
-                "Награда начисляется автомагически. В комментарии к награде обязательно укажи свой полный ник или ID на мемалёрте. По нику выдача ТОЛЬКО после получения приветственного бонуса.",
+                f"Получить {user.memealerts.memecoin_name_accusative_multiple or 'Мемкоины'}",
+                1000,
+                "Награда начисляется автомагически. В комментарии к награде обязательно укажи свой полный ник или ID на Memealerts. ОБЯЗАТЕЛЬНО заберите приветственный бонус.",
                 is_user_input_required=True,
             )
         except TwitchAPIException as exc:

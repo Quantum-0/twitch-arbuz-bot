@@ -38,6 +38,16 @@ class MemealertsService:
         async with MemealertsAsyncClient(memealerts_token) as meme_cli:
             return await meme_cli.get_current()
 
+    @tracer.start_as_current_span("MA: Enabling stickers")
+    async def enable_stickers(self, memealerts_token):
+        async with MemealertsAsyncClient(memealerts_token) as meme_cli:
+            return await meme_cli.enable_stickers()
+
+    @tracer.start_as_current_span("MA: Enabling welcome bonus")
+    async def enable_welcome_bonus(self, memealerts_token):
+        async with MemealertsAsyncClient(memealerts_token) as meme_cli:
+            return await meme_cli.enable_welcome_bonus()
+
     def is_id(self, id_: str) -> bool:
         return bool(self._id_pattern.fullmatch(id_))
 

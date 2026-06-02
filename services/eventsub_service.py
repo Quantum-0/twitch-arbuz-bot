@@ -156,8 +156,21 @@ class TwitchEventSubService():
             )
 
             if result:
-                # TODO: https://memealerts.com/api/user/current channel.currencyNameDeclensions.multiple.accusative OR "мемкоины"
-                await self._chatbot.send_message(user, f"Мемкоины для @{payload.event.user_name} начислены :з")
+                try:  # TODO: Проверить что работает, потом убрать
+                    msg = f"Начислен"
+                    if user.memealerts.coins_for_reward % 10 == 1 and user.memealerts.coins_for_reward != 11:
+                        coins_name = user.memealerts.memecoin_name_accusative or "Мемкоин"
+                    elif 1 < user.memealerts.coins_for_reward % 10 < 5 and user.memealerts.coins_for_reward != 11:
+                        coins_name = user.memealerts.memecoin_name_genitive or "Мемкоина"
+                        msg += "ы"
+                    else:
+                        coins_name = user.memealerts.memecoin_name_genitive_multiple or "Мемкоинов"
+                        msg += "о"
+
+                    msg += f" {user.memealerts.coins_for_reward} {coins_name} для {payload.event.user_input} :з"
+                    await self._chatbot.send_message(user, msg)
+                except:
+                    await self._chatbot.send_message(user, f"Мемкоины для @{payload.event.user_name} начислены :з")
                 await self._fulfill_redemption(user, payload)
             else:
                 await self._chatbot.send_message(

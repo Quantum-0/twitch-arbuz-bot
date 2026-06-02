@@ -190,6 +190,10 @@ class MemealertsSettings(Base):
     coins_for_reward: Mapped[int] = mapped_column(
         "coins_for_reward", Integer, nullable=False, server_default="2", default=2
     )
+    memecoin_name_genitive: Mapped[str | None] = mapped_column("memecoin_name_genitive", String, nullable=True, default=None)
+    memecoin_name_accusative: Mapped[str | None] = mapped_column("memecoin_name_accusative", String, nullable=True, default=None)
+    memecoin_name_genitive_multiple: Mapped[str | None] = mapped_column("memecoin_name_genitive_multiple", String, nullable=True, default=None)
+    memecoin_name_accusative_multiple:  Mapped[str | None] = mapped_column("memecoin_name_accusative_multiple", String, nullable=True, default=None)
 
     user: Mapped["User"] = relationship("User", back_populates="memealerts")
 
