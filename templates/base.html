@@ -55,7 +55,10 @@
         {% if user and user.in_beta_test %}
         <a href="/kinda_roadmap" style="color: white; text-decoration: none;">TODO</a>
         {% endif %}
+        {% if user %}
         <a href="https://resizer.quantum0.ru/" style="color: white; text-decoration: none;">Ресайзер иконок для твича</a>
+        {% endif %}
+        <a href="/faq" style="color: white; text-decoration: none;">FAQ</a>
         <a href="/about" style="color: white; text-decoration: none;">О сервисе</a>
 
         <button id="themeToggle">🌙</button>

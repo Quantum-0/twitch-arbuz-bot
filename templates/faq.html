@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+
+{% block title %}Часто задаваемые вопросы{% endblock %}
+
+{% block head_scripts %}
+<!-- Скрипт Schema.org FAQPage -->
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {% for item in faq_items %}
+    {
+      "@type": "Question",
+      "name": {{ item.question | tojson }},
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": {{ item.answer | tojson }}
+      }
+    }{% if not loop.last %},{% endif %}
+    {% endfor %}
+  ]
+}
+</script>
+{% endblock %}
+
+{% block content %}
+<h1>Часто задаваемые вопросы</h1>
+<div class="faq-container">
+    {% for item in faq_items %}
+    <div class="faq-item">
+        <h3>{{ item.question }}</h3>
+        <p>{{ item.answer }}</p>
+    </div>
+    {% endfor %}
+</div>
+<hr>
+<p>На самом деле мне кажется на сайтике и так всё понятно, но пусть будет О.о</p>
+{% endblock %}
