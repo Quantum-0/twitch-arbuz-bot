@@ -243,19 +243,25 @@ class ChatBot:
                 await self._twitch.unsubscribe_event_sub(sub.id)
                 logger.info(f"Unsubscribed from {sub.condition}")
 
-        # Удаляем из БД ненужные подписки
-        delete_banned = await session.execute(
-            sa
-            .update(TwitchUserSettings)
-            .values(enable_chat_bot=False)
-            .where(
-                TwitchUserSettings.user_id.in_(remove_channels)
-            )
-            .returning(TwitchUserSettings.user_id)
-        )
-        banned = delete_banned.scalars().all()
-        await session.commit()
-        logger.error("User's, whose chat bot were disabled: %s", banned)
+        # Удаляем из БД ненужные подписки.
+        # Важно: первая сессия выше уже закрыта после чтения списка каналов. Нельзя
+        # переиспользовать закрытый AsyncSession: при следующем execute() он снова
+        # берёт соединение из пула, но уже не находится под context manager'ом и
+        # может не вернуться в пул до сборки мусора.
+        if remove_channels:
+            async with self._db_session_factory() as session:
+                delete_banned = await session.execute(
+                    sa
+                    .update(TwitchUserSettings)
+                    .values(enable_chat_bot=False)
+                    .where(
+                        TwitchUserSettings.user_id.in_(remove_channels)
+                    )
+                    .returning(TwitchUserSettings.user_id)
+                )
+                banned = delete_banned.scalars().all()
+                await session.commit()
+            logger.error("User's, whose chat bot were disabled: %s", banned)
 
     async def get_commands(self, user: User) -> list[tuple[str, str, str]]:
         return await self._command_manager.get_commands_of_user(user)
