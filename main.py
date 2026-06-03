@@ -25,7 +25,7 @@ from starlette.staticfiles import StaticFiles
 
 from config import settings
 from dependencies import lifespan as lifespan_dep
-from routers.routers import api_router, user_router
+from routers.routers import api_router, user_router, router_for_robots
 from utils.logging_conf import LOGGING_CONFIG
 
 from prometheus_fastapi_instrumentator import Instrumentator as PrometheusInstrumentator
@@ -89,6 +89,7 @@ PrometheusInstrumentator().instrument(app).expose(app)
 app.add_middleware(SessionMiddleware, secret_key=settings.middleware_secret_key)
 app.include_router(router=api_router)
 app.include_router(router=user_router)
+app.include_router(router=router_for_robots)
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 logging.config.dictConfig(LOGGING_CONFIG)

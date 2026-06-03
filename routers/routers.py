@@ -10,6 +10,7 @@ from routers.web.service_routes import router as service_routes_router
 from routers.sse import router as sse_router
 from routers.web.file_storage import router as files_router
 from routers.web.obs_dock import router as obs_dock_router
+from routers.robots.for_robots import router as router_for_robots  # noqa
 
 # API
 api_router = APIRouter(prefix="/api", tags=["API"])

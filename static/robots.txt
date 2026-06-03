@@ -1,0 +1,10 @@
+User-agent: *
+Disallow: /api/
+Disallow: /metrics
+Disallow: /overlay/
+Disallow: /sse/
+Disallow: /login
+Disallow: /login-callback
+Disallow: /files/
+
+Sitemap: https://bot.quantum0.ru/
