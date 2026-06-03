@@ -79,9 +79,10 @@ def generate_sitemap(request: Request):
                 ET.SubElement(url_el, "priority").text = "0.5"
 
     # 5. Превращаем дерево элементов в финальную XML-строку
-    xml_data = ET.tostring(root, encoding="utf-8", xml_declaration=True)
+    xml_bytes = ET.tostring(root, encoding="utf-8", xml_declaration=True)
+    xml_string = xml_bytes.decode("utf-8")
 
-    return Response(content=xml_data, media_type="application/xml")
+    return Response(content=xml_string, media_type="application/xml")
 
 
 @router.get("/robots.txt", response_class=FileResponse)

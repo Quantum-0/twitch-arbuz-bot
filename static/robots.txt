@@ -6,5 +6,6 @@ Disallow: /sse/
 Disallow: /login
 Disallow: /login-callback
 Disallow: /files/
+Disallow: /dock/
 
 Sitemap: https://bot.quantum0.ru/
