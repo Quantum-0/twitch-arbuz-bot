@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 from typing import AsyncIterator, Any, AsyncGenerator
 
 import redis.asyncio as aioredis
+from opentelemetry import trace
 from redis.asyncio import Redis
 
 from twitch.state_manager import (
@@ -20,6 +21,7 @@ from twitch.state_manager import (
 
 
 logger = logging.getLogger(__name__)
+tracer = trace.get_tracer(__name__)
 
 
 class RedisStateManager(StateManager):
@@ -30,6 +32,7 @@ class RedisStateManager(StateManager):
     async def startup(self, redis: aioredis.Redis):
         self._r = redis
 
+    @tracer.start_as_current_span("SM: Get State")
     async def get_state(
         self,
         *,
@@ -119,6 +122,7 @@ class RedisStateManager(StateManager):
         else:
             raise TypeError
 
+    @tracer.start_as_current_span("SM: Set State")
     async def set_state(
         self,
         value: VALUE_TYPE,
@@ -143,6 +147,7 @@ class RedisStateManager(StateManager):
             logger.error(f"Redis недоступен! Ошибка: {e}")
             return
 
+    @tracer.start_as_current_span("SM: Del State")
     async def del_state(
         self,
         *,
@@ -180,6 +185,7 @@ class RedisStateManager(StateManager):
             logger.error(f"Redis недоступен! Ошибка: {e}")
             return
 
+    @tracer.start_as_current_span("SM: Get All State")
     async def get_all_from_channel(
         self, *, channel: str = COMMON_CHANNEL
     ) -> AsyncIterator[tuple[USER_TYPE, COMMAND_TYPE, PARAM_TYPE, VALUE_TYPE]]:
