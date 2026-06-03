@@ -49,7 +49,7 @@ def generate_sitemap(request: Request):
     all_paths = openapi_schema.get("paths", {}).keys()
 
     # 4. Инициализируем XML-структуру sitemap
-    xmlns = "http://sitemaps.org"
+    xmlns = "http://www.sitemaps.org/schemas/sitemap/0.9"
     root = ET.Element("urlset", xmlns=xmlns)
 
     for path in all_paths:
