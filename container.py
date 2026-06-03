@@ -34,13 +34,13 @@ class Container(containers.DeclarativeContainer):
     )
 
     db_session_factory = providers.Object(AsyncSessionLocal)
-    redis = providers.Resource(
+    redis = providers.Singleton(
         init_redis,
         redis_url=settings.redis_url,
     )
     state_manager = providers.Singleton(
         RedisStateManager,
-        # redis=redis,
+        redis=redis,
         default_ttl=24 * 60 * 60,
     )
     twitch = providers.Singleton(Twitch)
@@ -50,7 +50,12 @@ class Container(containers.DeclarativeContainer):
     ai = providers.Singleton(OpenAIClient, db_session_factory=db_session_factory)
     mqtt = providers.Singleton(MQTTClient)
     sse_manager = providers.Singleton(SSEManager)
-    slovotron = providers.Singleton(SlovotronService, db_session_factory=db_session_factory, chat_bot=chat_bot, ssem=sse_manager)
+    slovotron = providers.Singleton(
+        SlovotronService,
+        db_session_factory=db_session_factory,
+        chat_bot=chat_bot,
+        ssem=sse_manager,
+    )
     memealerts = providers.Singleton(MemealertsService, db_session_factory=db_session_factory)
 
     boto_session = providers.Singleton(aioboto3.Session)
