@@ -1,36 +1,32 @@
 import asyncio
 import logging
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from typing import AsyncIterator, Any, AsyncGenerator
 
 import redis.asyncio as aioredis
 from opentelemetry import trace
 from redis.asyncio import Redis
 
 from twitch.state_manager import (
-    StateManager,
-    COMMON_CHANNEL,
-    USER_TYPE,
     COMMAND_TYPE,
-    PARAM_TYPE,
-    VALUE_TYPE,
-    COMMON_USER,
+    COMMON_CHANNEL,
     COMMON_COMMAND,
+    COMMON_USER,
+    PARAM_TYPE,
+    USER_TYPE,
+    VALUE_TYPE,
     SMParam,
+    StateManager,
 )
-
 
 logger = logging.getLogger(__name__)
 tracer = trace.get_tracer(__name__)
 
 
 class RedisStateManager(StateManager):
-    def __init__(self, default_ttl: int = 4 * 60 * 60):
-        # self._r = init_redis()
-        self._default_ttl = default_ttl
-
-    async def startup(self, redis: aioredis.Redis):
+    def __init__(self, redis: Redis, default_ttl: int = 4 * 60 * 60):
         self._r = redis
+        self._default_ttl = default_ttl
 
     @tracer.start_as_current_span("SM: Get State")
     async def get_state(
@@ -81,7 +77,11 @@ class RedisStateManager(StateManager):
                 return {}
 
             values = await self._r.mget(target_keys)
-            return {self._ensure_str(key): await self._decode_value(val) for key, val in zip(target_keys, values) if val is not None}
+            return {
+                self._ensure_str(key): await self._decode_value(val)
+                for key, val in zip(target_keys, values, strict=True)
+                if val is not None
+            }
         except (aioredis.ConnectionError, aioredis.TimeoutError) as e:
             logger.error(f"Redis недоступен! Ошибка: {e}")
             return {}
@@ -119,8 +119,7 @@ class RedisStateManager(StateManager):
             return float(str_value[1:])
         if str_value[0] == "i":
             return int(str_value[1:])
-        else:
-            raise TypeError
+        raise TypeError
 
     @tracer.start_as_current_span("SM: Set State")
     async def set_state(
@@ -183,7 +182,7 @@ class RedisStateManager(StateManager):
 
         except (aioredis.ConnectionError, aioredis.TimeoutError) as e:
             logger.error(f"Redis недоступен! Ошибка: {e}")
-            return
+            return 0
 
     @tracer.start_as_current_span("SM: Get All State")
     async def get_all_from_channel(
@@ -210,17 +209,17 @@ class RedisStateManager(StateManager):
     @asynccontextmanager
     async def lifespan(self):
         listener_task = asyncio.create_task(self.redis_event_listener(self._r))
-        print("Успешно: Подключение к Redis установлено, фоновый очиститель запущен.")
+        logger.info("Успешно: Подключение к Redis установлено, фоновый очиститель запущен.")
         yield
-        print("Остановка приложения: завершаем фоновые задачи...")
+        logger.info("Остановка приложения: завершаем фоновые задачи...")
         listener_task.cancel()  # Сигнализируем воркеру завершить работу
         try:
             await listener_task  # Ожидаем завершения таски
         except asyncio.CancelledError:
             pass
 
-        await self._r.close()  # Закрываем пул соединений с Redis
-        print("Успешно: Соединения с Redis закрыты.")
+        await self._r.aclose()  # Закрываем пул соединений с Redis
+        logger.info("Успешно: Соединения с Redis закрыты.")
 
 
     # --- ФОНОВЫЙ ВОРКЕР ДЛЯ СЛУШАНИЯ СОБЫТИЙ ОЧИСТКИ ---
@@ -245,14 +244,14 @@ class RedisStateManager(StateManager):
                                 continue
 
                             async with client.pipeline(transaction=True) as pipe:
-                                print("REM ", expired_key)
+                                logger.debug("REM %s", expired_key)
                                 pipe.srem(f"idx:channel:{channel}", expired_key)  # noqa
                                 pipe.srem(f"idx:command:{command}", expired_key)  # noqa
                                 pipe.srem(f"idx:user:{user}", expired_key)  # noqa
                                 pipe.srem(f"idx:param:{param}", expired_key)  # noqa
                                 await pipe.execute()
             except (aioredis.ConnectionError, aioredis.TimeoutError):
-                print("Связь с Redis потеряна. Ожидание 5 секунд для переподключения...")
+                logger.warning("Связь с Redis потеряна. Ожидание 5 секунд для переподключения...")
                 await asyncio.sleep(5)
             except asyncio.CancelledError:
                 if pubsub:
@@ -260,10 +259,8 @@ class RedisStateManager(StateManager):
                 break
 
 
-async def init_redis(redis_url: str) -> AsyncGenerator[Redis, Any]:
-    client = aioredis.from_url(redis_url, decode_responses=True)
-    yield client
-    await client.close()
+def init_redis(redis_url: str) -> Redis:
+    return aioredis.from_url(redis_url, decode_responses=True)
 #
 # # --- МЕНЕДЖЕР ЖИЗНЕННОГО ЦИКЛА (LIFESPAN) ---
 # @asynccontextmanager
