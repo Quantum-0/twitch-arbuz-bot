@@ -261,7 +261,7 @@ class ChatBot:
                 )
                 banned = delete_banned.scalars().all()
                 await session.commit()
-            logger.error("User's, whose chat bot were disabled: %s", banned)
+            logger.info("Users whose chat bots were disabled: %s", banned)
 
     async def get_commands(self, user: User) -> list[tuple[str, str, str]]:
         return await self._command_manager.get_commands_of_user(user)
