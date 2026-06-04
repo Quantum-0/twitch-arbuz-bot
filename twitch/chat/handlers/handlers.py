@@ -280,6 +280,7 @@ class MessagesHandlerManager:
         for handler in self.handlers:
             if not handler.is_enabled(user_settings):
                 continue
+            logger.info(f"Handling message with {handler.__class__.__name__}")
             res: HandlerResult = await handler.handle(streamer, message)
             if res == HandlerResult.HANDLED:
                 return

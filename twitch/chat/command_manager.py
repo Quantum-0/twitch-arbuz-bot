@@ -64,7 +64,7 @@ class CommandsManager:
                 )
                 for x in [f"!{alias}" for alias in cmd.command_aliases]
             ):
-                logger.debug(f"Handler for command was found: {cmd.__class__.__name__}")
+                logger.info(f"Handler for command was found: {cmd.__class__.__name__}")
                 await cmd.handle(streamer, message)
 
     async def get_commands_of_user(self, user) -> list[tuple[str, str, str]]:
