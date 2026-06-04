@@ -231,44 +231,51 @@ class RedisStateManager(StateManager):
     # --- ФОНОВЫЙ ВОРКЕР ДЛЯ СЛУШАНИЯ СОБЫТИЙ ОЧИСТКИ ---
     @staticmethod
     async def redis_event_listener(client: aioredis.Redis):
-        pubsub = None
-        while True:  # Бесконечный цикл на случай падения Redis
-            try:
-                pubsub = client.pubsub()
-                await pubsub.subscribe("__keyevent@0__:expired", "__keyevent@0__:del")
+        async with client.client() as pubsub_client:
+            while True:
+                try:
+                    pubsub = pubsub_client.pubsub()
+                    await pubsub.subscribe("__keyevent@0__:expired", "__keyevent@0__:del")
+                    logger.info("Успешно подписались на каналы событий ключей")
 
-                async for message in pubsub.listen():
-                    if message["type"] != "message":
-                        continue
+                    while True:
+                        message = await pubsub.get_message(ignore_subscribe_messages=True, timeout=30.0)
 
-                    expired_key = message["data"]
-                    if expired_key.startswith("sm:"):
-                        parts = expired_key.split(":")
-                        if len(parts) == 5:
-                            sm, channel, command, user, param = parts
-                            if sm != "sm":
-                                continue
+                        if message is None:
+                            continue
+                        expired_key = message["data"]
+                        if expired_key.startswith("sm:"):
+                            parts = expired_key.split(":")
+                            if len(parts) == 5:
+                                sm, channel, command, user, param = parts
+                                if sm != "sm":
+                                    continue
 
-                            async with client.pipeline(transaction=True) as pipe:
-                                print("REM ", expired_key)
-                                pipe.srem(f"idx:channel:{channel}", expired_key)  # noqa
-                                pipe.srem(f"idx:command:{command}", expired_key)  # noqa
-                                pipe.srem(f"idx:user:{user}", expired_key)  # noqa
-                                pipe.srem(f"idx:param:{param}", expired_key)  # noqa
-                                await pipe.execute()
-            except (aioredis.ConnectionError, aioredis.TimeoutError):
-                print("Связь с Redis потеряна. Ожидание 5 секунд для переподключения...")
-                await asyncio.sleep(5)
-            except asyncio.CancelledError:
-                if pubsub:
-                    await pubsub.unsubscribe("__keyevent@0__:expired", "__keyevent@0__:del")
-                break
+                                async with client.pipeline(transaction=True) as pipe:
+                                    logger.info("Got removed key: %s", expired_key)
+                                    pipe.srem(f"idx:channel:{channel}", expired_key)
+                                    pipe.srem(f"idx:command:{command}", expired_key)
+                                    pipe.srem(f"idx:user:{user}", expired_key)
+                                    pipe.srem(f"idx:param:{param}", expired_key)
+                                    await pipe.execute()
+                except (aioredis.ConnectionError, aioredis.TimeoutError) as e:
+                    logger.warning(f"Ошибка соединения: {e}. Ожидание 5 секунд...")
+                    await asyncio.sleep(5)
+                    if pubsub:
+                        await pubsub.aclose()
+                except asyncio.CancelledError:
+                    if pubsub:
+                        await pubsub.unsubscribe("__keyevent@0__:expired", "__keyevent@0__:del")
+                    if pubsub:
+                        await pubsub.aclose()
+                    break
 
 
 async def init_redis(redis_url: str) -> AsyncGenerator[Redis, Any]:
     client = aioredis.from_url(redis_url, decode_responses=True)
     # Важно: Включаем режим 'Ev' (gEneric + eXpired), чтобы ловить и DEL, и TTL
     await client.config_set("notify-keyspace-events", "Egx")
+    await client.ping()
     yield client
     await client.close()
 #
