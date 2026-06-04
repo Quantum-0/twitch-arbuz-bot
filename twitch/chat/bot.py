@@ -244,18 +244,19 @@ class ChatBot:
                 logger.info(f"Unsubscribed from {sub.condition}")
 
         # Удаляем из БД ненужные подписки
-        delete_banned = await session.execute(
-            sa
-            .update(TwitchUserSettings)
-            .values(enable_chat_bot=False)
-            .where(
-                TwitchUserSettings.user_id.in_(remove_channels)
+        if remove_channels:
+            delete_banned = await session.execute(
+                sa
+                .update(TwitchUserSettings)
+                .values(enable_chat_bot=False)
+                .where(
+                    TwitchUserSettings.user_id.in_(remove_channels)
+                )
+                .returning(TwitchUserSettings.user_id)
             )
-            .returning(TwitchUserSettings.user_id)
-        )
-        banned = delete_banned.scalars().all()
-        await session.commit()
-        logger.error("User's, whose chat bot were disabled: %s", banned)
+            banned = delete_banned.scalars().all()
+            await session.commit()
+            logger.warning("User's, whose chat bot were disabled: %s", banned)
 
     async def get_commands(self, user: User) -> list[tuple[str, str, str]]:
         return await self._command_manager.get_commands_of_user(user)
