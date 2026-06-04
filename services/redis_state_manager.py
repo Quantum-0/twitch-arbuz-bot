@@ -268,8 +268,7 @@ class RedisStateManager(StateManager):
 async def init_redis(redis_url: str) -> AsyncGenerator[Redis, Any]:
     client = aioredis.from_url(redis_url, decode_responses=True)
     # Важно: Включаем режим 'Ev' (gEneric + eXpired), чтобы ловить и DEL, и TTL
-    # KEA - все события, Egx только на 7 редисе работал
-    await client.config_set("notify-keyspace-events", "KEA")
+    await client.config_set("notify-keyspace-events", "Egx")
     yield client
     await client.close()
 #
