@@ -261,16 +261,16 @@ function setupHeat() {
     .then(res => res.json().then(data => ({ ok: res.ok, data })))
     .then((
         {ok, data}) => {
-            showNotification(ok ? 'Настройки' : 'Ошибка', ok ? 'Плагин Heat успешно установлен!' : 'Ошибка установки плагина Heat', !ok);
+            showNotification(ok ? 'Настройки' : 'Ошибка', ok ? 'Плагин Heat успешно установлен!' : 'Ошибка автоматической установки плагина Heat. Открываем страничку плагина.', !ok);
             if (ok) {
                 document.querySelectorAll('div.plugin-required').forEach(element => {
                     element.remove();
                 })
             } else {
                 window.open('https://dashboard.twitch.tv/extensions/cr20njfkgll4okyrhag7xxph270sqk-2.1.1', '_blank', 'noopener,noreferrer');
-            };
+            }
         })
-    .catch(err => showNotification('Ошибка', 'Ошибка установки плагина', true));
+    .catch(err => { window.open('https://dashboard.twitch.tv/extensions/cr20njfkgll4okyrhag7xxph270sqk-2.1.1', '_blank', 'noopener,noreferrer'); showNotification('Ошибка', 'Ошибка автоматической установки плагина Heat. Открываем страничку плагина.', true); });
 }
 
 function updateOverlayLink(card) {
