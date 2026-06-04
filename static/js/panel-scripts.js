@@ -23,36 +23,58 @@ function setupAiStickerReward(enabled) {
     .catch(err => showNotification('Ошибка', err.message, true));
 }
 
-function toggleSetting(name, enabled) {
-    fetch('/api/user/update_settings', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: `${name}=${enabled ? 'true' : 'false'}`
-    })
-    .then(res => res.json().then(data => ({ ok: res.ok, data })))
-    .then(({ok, data}) => showNotification(data.title || 'Настройки', data.message, !ok))
-    .catch(err => showNotification('Ошибка', err.message, true));
-}
+async function updateSetting(name, value) {
+    const delays = [1000, 2000, 4000, 7000]; // Задержки в миллисекундах
+    let attempt = 0;
 
-function updateSettingValue(name, value) {
-    fetch('/api/user/update_settings', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: `${name}=${encodeURIComponent(value)}`
-    })
-    .then(res => res.json().then(data => ({ ok: res.ok, data })))
-    .then(({ok, data}) => showNotification(data.title || 'Настройки', data.message, !ok))
-    .catch(err => showNotification('Ошибка', err.message, true));
+    // Приводим к строке и кодируем спецсимволы
+    const encodedValue = encodeURIComponent(String(value));
+
+    while (true) {
+        try {
+            const res = await fetch('/api/user/update_settings', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: `${name}=${encodedValue}`
+            });
+
+            // Если это ошибка 500 и попытки не исчерпаны — уходим на ретрай
+            if (res.status === 500 && attempt < delays.length) {
+                await new Promise(resolve => setTimeout(resolve, delays[attempt]));
+                attempt++;
+                continue;
+            }
+
+            // Обрабатываем результат (успех или любую другую ошибку)
+            const data = await res.json();
+            showNotification(data.title || 'Настройки', data.message, !res.ok);
+            return;
+
+        } catch (err) {
+            // Если упала сеть, тоже пробуем повторить запрос
+            if (attempt < delays.length) {
+                await new Promise(resolve => setTimeout(resolve, delays[attempt]));
+                attempt++;
+                continue;
+            }
+
+            showNotification('Ошибка', err.message, true);
+            return;
+        }
+    }
 }
 
 function initToggles() {
     document.querySelectorAll('.toggle-switch').forEach(toggle => {
         toggle.addEventListener('click', () => {
             toggle.classList.toggle('active');
-            toggleSetting(toggle.dataset.name, toggle.classList.contains('active'));
+            void updateSetting(toggle.dataset.name, toggle.classList.contains('active'));
             if (toggle.dataset.name === 'enable_chat_bot') {
-            updateDependentTogglesState();
-        }
+                if (toggle.classList.contains('active')) {
+                    ym(108266334, 'reachGoal', 'enableChatBot');
+                }
+                updateDependentTogglesState();
+            }
         });
     });
 }
@@ -79,6 +101,7 @@ function initOverlays() {
                 updateOverlayLink(card);
                 linkDiv.classList.remove("copied");
             }, 1000);
+            ym(108266334, 'reachGoal', 'copiedOverlayLink');
         });
 
         if (linkDockDiv) {
@@ -132,7 +155,7 @@ function initTargetBehaviourRadios() {
     document.querySelectorAll('input[name="chatbot_default_target_behaviour"]').forEach(radio => {
         radio.addEventListener('change', (event) => {
             if (!event.target.checked) return;
-            updateSettingValue('chatbot_default_target_behaviour', event.target.value);
+            void updateSetting('chatbot_default_target_behaviour', event.target.value);
         });
     });
 }
@@ -147,7 +170,7 @@ function openRefreshModal() {
     openModal();
 }
 
-function openModal() { document.getElementById('memealert-modal').style.display = 'flex'; }
+function openModal() { ym(108266334, 'reachGoal', 'setupMemealertsOpenModal'); document.getElementById('memealert-modal').style.display = 'flex'; }
 function closeModal() { document.getElementById('memealert-modal').style.display = 'none'; }
 function saveMemealert() {
     const key = document.getElementById('memealert-key').value.trim();
@@ -157,6 +180,9 @@ function saveMemealert() {
 }
 
 function toggleMemealerts(enable, key='', refresh=false) {
+    if (enable) {
+        ym(108266334, 'reachGoal', 'setupMemealerts');
+    }
     const btn = document.getElementById('memealerts-btn');
     if (btn) {
         btn.disabled = true;
@@ -227,6 +253,7 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 function setupHeat() {
+    ym(108266334, 'reachGoal', 'installHeat');
     fetch('/api/user/install-heat', {
         method: 'GET',
         headers: { 'Content-Type': 'application/json' },
@@ -239,6 +266,8 @@ function setupHeat() {
                 document.querySelectorAll('div.plugin-required').forEach(element => {
                     element.remove();
                 })
+            } else {
+                window.open('https://dashboard.twitch.tv/extensions/cr20njfkgll4okyrhag7xxph270sqk-2.1.1', '_blank', 'noopener,noreferrer');
             };
         })
     .catch(err => showNotification('Ошибка', 'Ошибка установки плагина', true));
