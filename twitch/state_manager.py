@@ -27,7 +27,7 @@ class SMParam(StrEnum):
 COMMAND_TYPE = str
 CHANNEL_TYPE = str
 USER_TYPE = int
-VALUE_TYPE = str | int | float | None
+VALUE_TYPE = str | int | float | set[str] | None
 PARAM_TYPE = SMParam
 
 COMMON_CHANNEL: CHANNEL_TYPE = "COMMON"

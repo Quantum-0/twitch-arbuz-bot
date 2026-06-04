@@ -34,11 +34,11 @@ class PantsRaffleHandler(CommonMessagesHandler):
             command=PantsCommand.command_name,
             param=SMParam.USER
         )
-        participants: set[str] = await self._state_manager.get_state(
+        participants: set[str] = set(await self._state_manager.get_state(
             channel=streamer.login_name,
             command=PantsCommand.command_name,
             param=SMParam.PARTICIPANTS
-        )
+        ))
 
         if target is None or participants is None:
             logger.info("Raffle was not ran on the channel")

@@ -1,4 +1,5 @@
 import asyncio
+import json
 import logging
 from contextlib import asynccontextmanager
 from typing import AsyncIterator, Any, AsyncGenerator
@@ -104,6 +105,8 @@ class RedisStateManager(StateManager):
             return f"i{value}"
         if isinstance(value, str):
             return f"s{value}"
+        if isinstance(value, set):
+            return f"j{json.dumps(list(value), separators=(',',':'))}"
         if value is None:
             return ""
         raise TypeError("Invalid type")
@@ -119,6 +122,8 @@ class RedisStateManager(StateManager):
             return float(str_value[1:])
         if str_value[0] == "i":
             return int(str_value[1:])
+        if str_value[0] == "j":
+            return json.loads(str_value[1:])
         else:
             raise TypeError
 

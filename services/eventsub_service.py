@@ -170,7 +170,7 @@ class TwitchEventSubService():
                     msg += f" {user.memealerts.coins_for_reward} {coins_name} для {payload.event.user_input} :з"
                     await self._chatbot.send_message(user, msg)
                 except:
-                    await self._chatbot.send_message(user, f"Мемкоины для @{payload.event.user_name} начислены :з")
+                    await self._chatbot.send_message(user, f"Мемкоины для {payload.event.user_name} начислены :з")
                 await self._fulfill_redemption(user, payload)
             else:
                 await self._chatbot.send_message(
