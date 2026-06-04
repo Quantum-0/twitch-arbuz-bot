@@ -201,12 +201,13 @@ class PantsCommand(SimpleCDCommand):
         logger.info(f"Finishing raffle for channel {channel.login_name}")
         with tracer.start_as_current_span("Pants Raffle: Processing Result") as span:
             target_from_sm = await self._state_manager.get_state(channel=channel.login_name, command=self.command_name, param=SMParam.USER)
-            participants: set[str] = set(await self._state_manager.get_state(channel=channel.login_name, command=self.command_name, param=SMParam.PARTICIPANTS))
+            participants: set[str] = await self._state_manager.get_state(channel=channel.login_name, command=self.command_name, param=SMParam.PARTICIPANTS)
             logger.info(f"Participants: {participants}")
             if participants is None or not target_from_sm or target_from_sm.lower() != target.lower():
                 logger.info("Raffle was canceled")
                 return
 
+            participants = set(participants)
             if len(participants) == 0:
                 logger.info("Nobody entered")
                 await self.send_response(chat=channel, message=f"Розыгрыш окончен! Но, к сожалению, никто не принял участие в розыгрыше твоих трусов, @{target}, поэтому они остаются при тебе :с")
