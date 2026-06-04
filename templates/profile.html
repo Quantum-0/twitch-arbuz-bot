@@ -59,7 +59,9 @@
 
                 <!-- Ссылки -->
                 <div style="display: flex; flex-direction: row; flex-wrap: wrap; gap: 5px;">
+                    {% if profile_user.settings.memealerts_link %}
                     <button style="background-color:#ff9b01" onclick="location.href='https://memealerts.com/{{ profile_user.settings.memealerts_link }}';">Memealerts</button>
+                    {% endif %}
 
                     <button style="background-color:#18bc9c" onclick="location.href='https://twitchtracker.com/{{ profile_user.login_name }}';">Rank #{{ profile_user.tt_rank }}</button>
 
