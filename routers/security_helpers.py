@@ -101,6 +101,10 @@ async def user_auth(
 
     asyncio.create_task(touch_user_interaction(user_id))
 
+    # FIX:
+    # sqlalchemy.exc.InterfaceError: (sqlalchemy.dialects.postgresql.asyncpg.InterfaceError) <class 'asyncpg.exceptions._base.InterfaceError'>: cannot call Transaction.rollback(): the underlying connection is closed
+    await db.commit()
+
     return user
 
 
@@ -134,6 +138,11 @@ async def user_auth_optional(
         current_span = trace.get_current_span()
         if current_span.is_recording():
             current_span.set_attribute("auth.authorized", False)
+
+    # FIX:
+    # sqlalchemy.exc.InterfaceError: (sqlalchemy.dialects.postgresql.asyncpg.InterfaceError) <class 'asyncpg.exceptions._base.InterfaceError'>: cannot call Transaction.rollback(): the underlying connection is closed
+    await db.commit()
+
     return user
 
 
