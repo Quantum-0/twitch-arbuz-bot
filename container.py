@@ -44,11 +44,11 @@ class Container(containers.DeclarativeContainer):
         default_ttl=24 * 60 * 60,
     )
     twitch = providers.Singleton(Twitch)
+    mqtt = providers.Singleton(MQTTClient)
     chat_bot = providers.Singleton(
-        ChatBot, db_session_factory=db_session_factory, state_manager=state_manager
+        ChatBot, db_session_factory=db_session_factory, state_manager=state_manager, mqtt=mqtt
     )
     ai = providers.Singleton(OpenAIClient, db_session_factory=db_session_factory)
-    mqtt = providers.Singleton(MQTTClient)
     sse_manager = providers.Singleton(SSEManager)
     slovotron = providers.Singleton(SlovotronService, db_session_factory=db_session_factory, chat_bot=chat_bot, ssem=sse_manager)
     memealerts = providers.Singleton(MemealertsService, db_session_factory=db_session_factory)

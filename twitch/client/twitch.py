@@ -133,7 +133,8 @@ class Twitch:
     @tracer.start_as_current_span("Twitch: Sending message")
     async def send_chat_message(
         self,
-        stream_channel: User,
+        stream_channel_id: str,
+        stream_channel_login: str,
         message: str,
         reply_parent_message_id: str | None = None,
         for_source_only: bool | None = None,
@@ -141,18 +142,18 @@ class Twitch:
         current_span = trace.get_current_span()
         if current_span.is_recording():
             current_span.set_attribute("msg.text", message)
-            current_span.set_attribute("msg.channel", stream_channel.login_name)
+            current_span.set_attribute("msg.channel", stream_channel_login)
 
         try:
             return await self.send_chat_message_raw(
-                broadcaster_id=stream_channel.twitch_id,
+                broadcaster_id=stream_channel_id,
                 sender_id="957818216",
                 message=message,
                 reply_parent_message_id=reply_parent_message_id,
             )
         except:
             return await self._twitch.send_chat_message(
-                broadcaster_id=stream_channel.twitch_id,
+                broadcaster_id=stream_channel_id,
                 sender_id="957818216",
                 message=message,
                 reply_parent_message_id=reply_parent_message_id,

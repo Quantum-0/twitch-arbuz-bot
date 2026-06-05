@@ -18,6 +18,7 @@ from config import settings
 from database.models import TwitchUserSettings, User
 from exceptions import UserNotFoundInDatabase, ToManyChatUnsubscribesStartupException
 from schemas.twitch import ChatMessageWebhookEventSchema
+from services.mqtt import MQTTClient
 from twitch.chat.command_manager import CommandsManager
 from twitch.chat.commands import *
 from twitch.chat.handlers import PantsRaffleHandler
@@ -44,7 +45,7 @@ class ChatBot:
     _joined_channels: list[str] = []
     _main_event_loop: asyncio.AbstractEventLoop
 
-    def __init__(self, db_session_factory: Callable[[], AsyncSession], state_manager: StateManager) -> None:
+    def __init__(self, db_session_factory: Callable[[], AsyncSession], state_manager: StateManager, mqtt: MQTTClient) -> None:
         self._user_list_manager = UserListManager()
         self._twitch: Twitch = None  # type: ignore
         self._db_session_factory = db_session_factory
@@ -55,6 +56,7 @@ class ChatBot:
             state_manager, self.send_message, self._db_session_factory
         )
         self._msg_q: deque[UUID] = deque(maxlen=32)
+        self._mqtt = mqtt
 
     async def startup(self, twitch: Twitch):
         chat = await twitch.build_chat_client()
@@ -104,24 +106,43 @@ class ChatBot:
         :param chat: Модель пользователя в БД или логин твича.
         :param message: Текст сообщения.
         """
-        await self.send_message_via_api(chat, message)
-
-    async def send_message_via_irc(self, chat: User | str, message: str) -> None:
-        """
-        Send message to twitch chat via IRC.
-
-        :param chat: Модель пользователя в БД или логин твича.
-        :param message: Текст сообщения.
-        """
-        if isinstance(chat, User):
-            chat = chat.login_name
-        elif not isinstance(chat, str):
-            raise ValueError
-        if message is None or len(message) == 0:
-            logger.info(f"No message to send to channel `{chat}`")
+        if not message:
             return
-        logger.info(f"Sending message `{message}` to channel `{chat}`")
-        await self._chat.send_message(chat.lower(), message)
+        if settings.direct_sending_messages:
+            await self.send_message_via_api(chat, message)
+        else:
+            await self.send_message_via_broker(chat, message)
+
+    async def send_message_via_broker(self, chat: User, message: str) -> None:
+        "/twitch/outgoing/chat/+"
+        # await self._mqtt.publish()
+        pass
+
+    async def send_message_from_broker(self, data: dict[str, Any]) -> None:
+        await self._twitch.send_chat_message(
+            stream_channel_id=data["stream_channel_id"],
+            stream_channel_login=data["stream_channel_login"],
+            message=data["message"],
+            reply_parent_message_id=data.get("reply_parent_message_id"),
+            for_source_only=data.get("for_source_only"),
+        )
+
+    # async def send_message_via_irc(self, chat: User | str, message: str) -> None:
+    #     """
+    #     Send message to twitch chat via IRC.
+    #
+    #     :param chat: Модель пользователя в БД или логин твича.
+    #     :param message: Текст сообщения.
+    #     """
+    #     if isinstance(chat, User):
+    #         chat = chat.login_name
+    #     elif not isinstance(chat, str):
+    #         raise ValueError
+    #     if message is None or len(message) == 0:
+    #         logger.info(f"No message to send to channel `{chat}`")
+    #         return
+    #     logger.info(f"Sending message `{message}` to channel `{chat}`")
+    #     await self._chat.send_message(chat.lower(), message)
 
     async def send_message_via_api(self, chat: User, message: str) -> None:
         """
@@ -131,10 +152,8 @@ class ChatBot:
         :param message: Текст сообщения.
         """
 
-        if not message:
-            return
         await self._twitch.send_chat_message(
-            stream_channel=chat, message=message, reply_parent_message_id=None
+            stream_channel_id=chat.twitch_id, stream_channel_login=chat.login_name, message=message, reply_parent_message_id=None
         )
 
     @asynccontextmanager

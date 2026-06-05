@@ -46,6 +46,11 @@ async def lifespan(app: "FastAPI | None" = None):
     if not settings.direct_handle_messages:
         mqtt.subscribe("twitch/+/message", chat_bot.on_message)
 
+    if not settings.direct_sending_messages:
+        # mqtt.subscribe("/twitch/outgoing/chat/+", chat_bot.send_message_from_broker)
+        raise NotImplementedError
+        # TODO: перенести топики в константы
+
     if not settings.direct_handle_rewards:
         mqtt.subscribe("twitch/+/reward-redemption", eventsub_service.handle_reward_redemption)
 

@@ -53,14 +53,14 @@ async def get_not_shown_sticker_id(
 @inject
 async def slovotron_tip(
     db: Annotated[AsyncSession, Depends(get_db)],
-    twitch: Annotated[Twitch, Depends(Provide[Container.twitch])],
+    chat_bot: Annotated[ChatBot, Depends(Provide[Container.chat_bot])],
     channel: Annotated[str, Query(...)],
 ):
     q = sa.select(User).where(User.login_name == channel)
     res: User | None = await db.scalar(q)
     if not res:
         raise HTTPException(status_code=404, detail="User not found")
-    await twitch.send_chat_message(res, "!подсказка")
+    await chat_bot.send_message(res, "!подсказка")
 
 
 

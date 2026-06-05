@@ -9,7 +9,7 @@ from container import Container
 from dependencies import get_db
 from database.models import User
 from routers.security_helpers import admin_auth, user_auth
-from twitch.client.twitch import Twitch
+from twitch.chat.bot import ChatBot
 
 router = APIRouter(prefix="/admin", tags=["Admin API"])
 
@@ -31,7 +31,7 @@ async def update_settings(
 @inject
 async def send_message(
     db: Annotated[AsyncSession, Depends(get_db)],
-    twitch: Annotated[Twitch, Depends(Provide[Container.twitch])],
+    chat_bot: Annotated[ChatBot, Depends(Provide[Container.chat_bot])],
     _: Annotated[None, Security(admin_auth)],
     channel: Annotated[str, Query(...)],
     message: Annotated[str, Query(...)],
@@ -41,4 +41,4 @@ async def send_message(
     if not res:
         raise HTTPException(status_code=404, detail="User not found")
 
-    await twitch.send_chat_message(res, message)
+    await chat_bot.send_message(res, message)
