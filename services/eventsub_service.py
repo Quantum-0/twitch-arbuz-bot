@@ -207,7 +207,7 @@ class TwitchEventSubService():
         payload: PointRewardRedemptionWebhookSchema,
     ) -> None:
         # TODO: пока только для себя разрешаю:
-        if user.login_name not in ["quantum075", "d_e_l_y", "silverosemary", "lunahoomalu", "anna_toad"]:
+        if user.login_name not in ["quantum075", "d_e_l_y", "silverosemary", "lunahoomalu", "anna_toad", "mefrusha"]:
             return
 
         if payload.event.user_input.strip() == "":
