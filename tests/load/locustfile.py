@@ -1,9 +1,9 @@
 from locust import HttpUser, task
 
 class TestUser(HttpUser):
-  # @task
-  # def test01(self):
-  #   self.client.get("/streamers")
+  @task
+  def test01(self):
+    self.client.get("/streamers")
 
   # @task
   # def test02(self):

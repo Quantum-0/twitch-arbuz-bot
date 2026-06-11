@@ -26,14 +26,17 @@ async def lifespan(app: "FastAPI | None" = None):
     await container.init_resources()
 
     redis = await container.redis()
+    binary_redis = await container.binary_redis()
     twitch = container.twitch()
     chat_bot = container.chat_bot()
     ai = container.ai()
     mqtt = container.mqtt()
     slovotron = container.slovotron()
     state_manager = container.state_manager()
+    cache = container.cache()
 
     await state_manager.startup(redis)
+    await cache.startup(redis, binary_redis)
     await twitch.startup()
     await chat_bot.startup(twitch)
     await ai.startup()

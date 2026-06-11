@@ -66,7 +66,7 @@ async def extract_targets(
         if o in all_users:
             all_users = func_get_active_users(timeout=30*60)  # берём последних за пол часа
             if len(all_users) < 7:
-                result.extend(usr[0] for usr in all_users)
+                result.extend("@" + usr[0] for usr in all_users)
                 continue
         if o not in result:
             result.append(o)

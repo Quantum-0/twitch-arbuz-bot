@@ -4,6 +4,7 @@ from dependency_injector import containers, providers
 from config import settings
 from database.database import AsyncSessionLocal
 from services.ai import OpenAIClient
+from services.cache import Cache
 from services.eventsub_service import TwitchEventSubService
 from services.image_resizer import ImageResizer
 from services.memes import MemealertsService
@@ -38,10 +39,18 @@ class Container(containers.DeclarativeContainer):
         init_redis,
         redis_url=settings.redis_url,
     )
+    binary_redis = providers.Resource(
+        init_redis,
+        binary=True,
+        redis_url=settings.redis_url,
+    )
     state_manager = providers.Singleton(
         RedisStateManager,
         # redis=redis,
         default_ttl=24 * 60 * 60,
+    )
+    cache = providers.Singleton(
+        Cache,
     )
     twitch = providers.Singleton(Twitch)
     mqtt = providers.Singleton(MQTTClient)

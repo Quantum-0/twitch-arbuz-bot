@@ -271,8 +271,8 @@ class RedisStateManager(StateManager):
                     break
 
 
-async def init_redis(redis_url: str) -> AsyncGenerator[Redis, Any]:
-    client = aioredis.from_url(redis_url, decode_responses=True)
+async def init_redis(redis_url: str, binary: bool=False) -> AsyncGenerator[Redis, Any]:
+    client = aioredis.from_url(redis_url, decode_responses=not binary)
     # Важно: Включаем режим 'Ev' (gEneric + eXpired), чтобы ловить и DEL, и TTL
     await client.config_set("notify-keyspace-events", "Egx")
     await client.ping()

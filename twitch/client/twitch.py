@@ -421,6 +421,9 @@ class Twitch:
         )
         # TODO: load all via pagination
 
+    async def get_followers_count(self, user: User) -> int:
+        return (await self._twitch.get_channel_followers(user.twitch_id)).total
+
     @staticmethod
     async def cancel_redemption(user: User, reward_id: UUID, redemption_id: UUID):
         twitch_user = await TwitchClient(

@@ -1,3 +1,4 @@
+import logging
 import math
 import random
 from datetime import datetime
@@ -20,6 +21,7 @@ from container import Container
 from database.models import TwitchUserSettings, User, MemealertsSettings, GeneratedImage
 from dependencies import get_db
 from routers.security_helpers import admin_auth, user_auth, user_auth_optional
+from services.cache import Cache
 from twitch.chat.bot import ChatBot
 from twitch.client.twitch import Twitch
 from twitch.state_manager import StateManager
@@ -28,6 +30,9 @@ from utils.memes import token_expires_in_days
 templates = Jinja2Templates(directory="templates")
 
 router = APIRouter(prefix="", tags=["Basic Front-end"])
+
+
+logger = logging.getLogger(__name__)
 
 
 @router.get(
@@ -154,6 +159,7 @@ async def profile_page(
     profile_user: str,
     request: Request,
     db: Annotated[AsyncSession, Depends(get_db)],
+    cache: Annotated[Cache, Depends(Provide[Container.cache])],
     twitch: Annotated[Twitch, Depends(Provide[Container.twitch])],
     user: User | None = Security(user_auth_optional),
 ):
@@ -165,11 +171,23 @@ async def profile_page(
             .filter_by(login_name=profile_user)
         )
     ).scalar_one_or_none()
+    q = (
+        sa.select(GeneratedImage)
+        .where(GeneratedImage.on_channel == int(profile_user_data.twitch_id))
+        .order_by(GeneratedImage.created_at.desc())
+        .limit(20)
+    )
+    ai_stickers = (await db.execute(q)).scalars().all()
+    await db.commit()
     if not profile_user_data:
         raise HTTPException(404, "User not found")
     profile_user_dict = profile_user_data.__dict__
-    streams = await twitch.get_streams([profile_user_data])
-    profile_user_dict["is_live"] = bool(streams.get(profile_user_data))
+    streams = await cache.as_cached(twitch.get_streams, [profile_user_data])
+    followers_count = await cache.as_cached(twitch.get_followers_count, profile_user_data)
+    profile_user_dict["is_live"] = set(streams.values()) != {None}
+    # TODO
+    # profile_user_dict["followers_count"] = followers_count
+    # AND SAVE TO DB
     profile_user_dict["memealerts_enabled"] = profile_user_data.memealerts.memealerts_reward is not None
     try:
         async with aiohttp.ClientSession() as http_session:
@@ -180,13 +198,6 @@ async def profile_page(
                 profile_user_dict["tt_rank"] = rank_data.get("rank")
     except:
         pass
-    q = (
-        sa.select(GeneratedImage)
-        .where(GeneratedImage.on_channel == int(profile_user_data.twitch_id))
-        .order_by(GeneratedImage.created_at.desc())
-        .limit(20)
-    )
-    ai_stickers = (await db.execute(q)).scalars().all()
     return templates.TemplateResponse(
         "profile.html",
         {"user": user, "profile_user": profile_user_dict, "request": request, "ai_stickers": ai_stickers or None},
@@ -318,6 +329,7 @@ async def get_streamers(
     request: Request,
     db: Annotated[AsyncSession, Depends(get_db)],
     twitch: Annotated[Twitch, Depends(Provide[Container.twitch])],
+    cache: Annotated[Cache, Depends(Provide[Container.cache])],
     user: User | None = Security(user_auth_optional),
 ):
     q = (
@@ -362,9 +374,16 @@ async def get_streamers(
         )
 
     res = [row._asdict() for row in res]
-    streams = await twitch.get_streams([row["username"] for row in res])
+    online_streams = await cache.get_set("online_streams")
+    if not online_streams:
+        streams = await twitch.get_streams([row["username"] for row in res])
+        online_streams = {row["username"] for row in res if streams.get(row["username"])}
+        await cache.set_set("online_streams", online_streams, ttl=300)
+        logger.info("Online streamers list loaded from twitch")
+    else:
+        logger.info("Online streamers list loaded from cache")
     for row in res:
-        row["is_live"] = streams.get(row["username"])
+        row["is_live"] = row["username"] in online_streams
         row["score"] = cmp(row)
 
     res = sorted(res, key=cmp, reverse=True)
