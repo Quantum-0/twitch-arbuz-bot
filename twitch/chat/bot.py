@@ -183,11 +183,12 @@ class ChatBot:
         else:
             message = raw_message
 
-        msg_id = message.source_message_id or message.message_id
-        if msg_id in self._msg_q:
-            logger.info(f"Skip message ID={msg_id} because of already handled")
-            return
-        self._msg_q.append(msg_id)
+        # Filtering duplicates: DISABLED because works bad :<
+        # msg_id = message.source_message_id or message.message_id
+        # if msg_id in self._msg_q:
+        #     logger.info(f"Skip message ID={msg_id} because of already handled")
+        #     return
+        # self._msg_q.append(msg_id)
 
         channel = message.broadcaster_user_login
 
