@@ -83,7 +83,9 @@ class Cache:
 
 
 
-# RESULT
-# Type	Name	# Requests	# Fails	Median (ms)	95%ile (ms)	99%ile (ms)	Average (ms)	Min (ms)	Max (ms)	Average size (bytes)	Current RPS	Current Failures/s
-# GET	/profile/quantum075	239	0	460	830	1100	502.39	368	1828	27648.66	0.4	0
-# GET	/streamers	247	0	1200	1600	1800	1235.98	952	1861	179760	0.7	0
+# RESULT of optimization with cache
+# Type	Name                # Requests	# Fails	Median (ms)	95%ile (ms)	99%ile (ms)	Average (ms)	Min (ms)	Max (ms)	Average size (bytes)	Current RPS	Current Failures/s
+# GET	/profile/quantum075	239	        0	    460	        830	        1100	    502.39	        368	        1828	    27648.66	            0.4	        0
+# GET	/streamers	        247	        0	    1200	    1600	    1800	    1235.98	        952	        1861	    179760	                0.7	        0
+# GET	/profile/quantum075	1516	    0	    420	        870	        1100	    473.73	        157	        6728	    27647.37	            15.1	    0
+# GET	/streamers	        1529	    0	    190	        500	        790	        228.87	        51	        1376	    179661	                14.9	    0
