@@ -2,7 +2,7 @@ from typing import Annotated
 from uuid import UUID
 
 from dependency_injector.wiring import Provide, inject
-from fastapi import APIRouter, Path, Depends, HTTPException
+from fastapi import APIRouter, Path, Depends, HTTPException, Query
 from starlette.responses import Response
 
 from container import Container
@@ -18,9 +18,10 @@ async def get_file(
     dir: Annotated[FileStorageDir, Path(description="Целевая директория (раздел)")],
     file_id: Annotated[UUID, Path(description="Уникальный идентификатор сущности в формате UUID")],
     stickers: Annotated[StickersService, Depends(Provide[Container.stickers_service])],
+    mark_viewed: bool = Query(False),
 ):
     if dir == FileStorageDir.AI_GENERATED_STICKER:
-        if file := await stickers.get_sticker(file_id):
+        if file := await stickers.get_sticker(file_id, mark_viewed):
             headers = {
                 "Cache-Control": "no-cache, no-store, must-revalidate",
                 "Pragma": "no-cache",

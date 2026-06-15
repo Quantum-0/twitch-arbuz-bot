@@ -77,7 +77,7 @@
 
             if (fileId) {
                 // Формируем полный URL к картинке
-                const fullImageUrl = `${IMAGE_BASE_URL}${fileId}?t=${new Date().getTime()}`;
+                const fullImageUrl = `${IMAGE_BASE_URL}${fileId}?mark_viewed=1&t=${new Date().getTime()}`;
                 spawnImage(fullImageUrl);
             }
         } catch (e) {

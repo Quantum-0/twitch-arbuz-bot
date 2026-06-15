@@ -233,10 +233,11 @@ class StickersService:
         return None
 
 
-    async def get_sticker(self, file_id: FileID) -> bytes | None:
+    async def get_sticker(self, file_id: FileID, mark_as_viewed: bool = False) -> bytes | None:
         """
         Получение байтов стикера через ручку
         :param file_id:
+        :param mark_as_viewed:
         :return:
         """
         logger.debug("Getting sticker by id=%s", file_id)
@@ -251,8 +252,9 @@ class StickersService:
             logger.debug("File with sticker id=%s was found", file_id)
         except FileNotExistError:
             file = None
-        async with self._db_session_factory() as session:
-            (await session.execute(q_update_shown_at)).scalar_one_or_none()
-            await session.commit()
-        logger.debug("Updated sticker in database as shown")
+        if mark_as_viewed:
+            async with self._db_session_factory() as session:
+                (await session.execute(q_update_shown_at)).scalar_one_or_none()
+                await session.commit()
+            logger.debug("Updated sticker in database as shown")
         return file
