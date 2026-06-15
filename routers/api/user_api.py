@@ -64,6 +64,24 @@ async def slovotron_tip(
 
 
 
+@router.post(
+    "/slovotron/restart",
+    status_code=204
+)
+@inject
+async def slovotron_restart(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    chat_bot: Annotated[ChatBot, Depends(Provide[Container.chat_bot])],
+    channel: Annotated[str, Query(...)],
+):
+    q = sa.select(User).where(User.login_name == channel)
+    res: User | None = await db.scalar(q)
+    if not res:
+        raise HTTPException(status_code=404, detail="User not found")
+    await chat_bot.send_message(res, "!словотрон-рестарт")
+
+
+
 @router.get(
     "/check-sse",
     response_model=BoolResponseSchema,

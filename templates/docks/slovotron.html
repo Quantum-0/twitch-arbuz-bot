@@ -102,7 +102,18 @@
             font-size: 1rem;
             margin-bottom: 40px;
         }
-        .btn-tip:hover { background: var(--color-primary); color: #000; }
+        .btn-restart {
+            background: var(--color-bg-secondary);
+            border: 2px solid var(--color-primary);
+            color: var(--color-primary);
+            padding: 10px 25px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 1rem;
+            margin-bottom: 40px;
+        }
+        .btn-tip:hover{ background: var(--color-primary); color: #000; }
+        .btn-restart:hover{ background: var(--color-primary); color: #000; }
 
         /* Блок победителя */
         .last-game-info {
@@ -111,6 +122,7 @@
             border-radius: 10px;
             font-size: 0.9rem;
             border: 1px solid var(--color-border);
+            margin-bottom: 40px;
         }
 
         .winner-name { color: var(--color-primary); font-weight: bold; }
@@ -140,6 +152,8 @@
         <div id="winner-box">Победитель: <span class="winner-name">—</span></div>
         <div id="last-word-box">Прошлое слово: <span class="winner-name">—</span></div>
     </div>
+
+    <button id="btn-restart" class="btn-restart">Перезапуск игры</button>
 </div>
 
 <script>
@@ -210,6 +224,32 @@
 
     document.getElementById('btn-tip').addEventListener('click', function() {
         fetch("{{request.base_url}}api/user/slovotron/tip?channel={{user.login_name}}", {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({})
+        })
+        .then(response => {
+            // Проверяем, успешен ли ответ (статус 200-299)
+            if (!response.ok) {
+                throw new Error('Сетевая ошибка');
+            }
+            return response.json(); // Преобразуем ответ в JSON
+        })
+        .then(data => {
+            // 3. Обработка успешного ответа
+            console.log('Успех:', data);
+            alert('Запрос успешно отправлен!');
+        })
+        .catch(error => {
+            // Обработка ошибок
+            console.error('Ошибка:', error);
+        });
+    });
+
+    document.getElementById('btn-restart').addEventListener('click', function() {
+        fetch("{{request.base_url}}api/user/slovotron/restart?channel={{user.login_name}}", {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
