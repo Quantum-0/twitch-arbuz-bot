@@ -3,6 +3,7 @@ from typing import Any
 
 from database.models import TwitchUserSettings, User
 from twitch.chat.base.saving_result_command import SavingResultCommand
+from twitch.utils import join_targets
 
 
 class BananaCommand(SavingResultCommand):
@@ -90,16 +91,18 @@ class BananaCommand(SavingResultCommand):
 
     async def _target_selected(self, user: str, targets: list[str]):
         variants = [
-            f"{user}, а ты зачем чужими бананами интересуешься?",
-            f"{user}, ай-яй-яй, неприлично чужие бананы трогать!",
-            f"{user}, не трожь чужие бананы!",
+            f"@{user}, а ты зачем чужими бананами интересуешься?",
+            f"@{user}, ай-яй-яй, неприлично чужие бананы трогать!",
+            f"@{user}, не трожь чужие бананы!",
 
-            f"{user}, ну-ка руки убери! Чужие бананы — это святое!",
-            f"{user}, за такое можно и бан получить… бананом по лбу.",
-            f"{user}, хочешь посмотреть чужой банан? А разрешение кто спрашивать будет?",
-            f"{user}, ну вот зачем тебе чужой банан? Своего не хватает?",
-            f"{user}, я конечно понимаю любопытство, но банан — это личное.",
+            f"@{user}, ну-ка руки убери! Чужие бананы — это святое!",
+            f"@{user}, за такое можно и бан получить… бананом по лбу.",
+            f"@{user}, хочешь посмотреть чужой банан? А разрешение кто спрашивать будет?",
+            f"@{user}, ну вот зачем тебе чужой банан? Своего не хватает?",
+            f"@{user}, я конечно понимаю любопытство, но банан — это личное.",
         ]
+        if len(targets) == 1:
+            variants.append(f"{join_targets(targets)}, кажется @{user} очень хочет посмотреть на твой банан. Покажешь?")
         return random.choice(variants)
 
     async def _handle_old(

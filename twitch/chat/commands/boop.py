@@ -22,9 +22,9 @@ class BoopCommand(SimpleTargetCommand):
     ) -> str:
         target = join_targets(targets)
         random_how = [
-            "аккуратненько ",
-            "мягенько ",
-            "легонько ",
+            " аккуратненько ",
+            " мягенько ",
+            " легонько ",
             *[""]*5,
         ]
         random_action = [
