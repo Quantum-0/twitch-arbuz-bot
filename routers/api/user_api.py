@@ -1,5 +1,7 @@
+import logging
 from typing import Annotated, Any
 
+import sqlalchemy as sa
 from dependency_injector.wiring import Provide, inject
 from fastapi import APIRouter, Depends, Form, Query, Security, HTTPException
 from httpx import HTTPStatusError
@@ -9,9 +11,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.responses import JSONResponse
 from twitchAPI.type import TwitchAPIException, TwitchResourceNotFound
 
-from database.models import User
 from container import Container
+from database.models import User
 from dependencies import get_db
+from routers.security_helpers import user_auth
 from schemas.api import (
     UpdateSettingsForm,
     UpdateMemealertsCoinsSchema,
@@ -19,7 +22,6 @@ from schemas.api import (
     BaseErrorSchema,
     UUIDResponseSchema,
 )
-from routers.security_helpers import user_auth
 from services.memes import MemealertsService
 from services.sse_manager import SSEManager
 from services.stickers import StickersService
@@ -28,7 +30,7 @@ from twitch.client.twitch import Twitch
 from utils.enums import SSEChannel
 from utils.memes import token_expires_in_days
 
-import sqlalchemy as sa
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/user", tags=["User API"])
 
@@ -221,8 +223,9 @@ async def setup_memealert(
         try:
             memealerts_user = await memealerts.get_current(memealerts_token)
         except:
+            logger.warning("Error authorization on MA", exc_info=True)
             return JSONResponse(
-                {"title": "Ошибка", "message": "Ошибка авторизации пользователя через токен.\nПроверьте корректность скопированного токена."},
+                {"title": "Ошибка", "message": "Ошибка авторизации пользователя через токен.\nПроверьте корректность скопированного токена.\nЕсли не помогает - попробуйте переавторизоваться на мемалёртсе."},
                 400,
             )
 
