@@ -86,6 +86,10 @@ def join_targets(targets) -> str | None:
 def delay_to_seconds(delay: float | int) -> str:
     delay = int(delay)
 
+    if delay > 300:
+        mins = delay // 60
+        return f"{mins} минут"
+
     tens = delay // 10 % 10
     ones = delay % 10
     if ones == 1 and tens != 1:

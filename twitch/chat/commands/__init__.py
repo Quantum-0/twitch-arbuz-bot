@@ -11,6 +11,7 @@ from .hug import HugCommand
 from .lick import LickCommand
 from .lurk import LurkCommand
 from .pants import PantsCommand
+from .pants_deny import PantsDenyCommand
 from .pasta import PastaCommand
 from .pat import PatCommand
 from .tail import TailCommand
@@ -37,6 +38,7 @@ __all__ = [
     "LinkDisCommand",
     "LurkCommand",
     "PantsCommand",
+    "PantsDenyCommand",
     "PastaCommand",
     "PatCommand",
     "TailCommand",

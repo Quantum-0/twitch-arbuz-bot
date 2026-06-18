@@ -2,22 +2,18 @@ import asyncio
 import logging
 import random
 from collections.abc import Awaitable, Callable
-
-from opentelemetry import trace
-from sqlalchemy.ext.asyncio import AsyncSession
 from functools import partial
 from operator import itemgetter
 from time import time
 
-from sqlalchemy.dialects.postgresql import insert
+import sqlalchemy as sa
+from opentelemetry import trace
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from database.models import TwitchUserSettings, User, PantsDeny
 from twitch.chat.base.cooldown_command import SimpleCDCommand
 from twitch.state_manager import SMParam, StateManager
 from twitch.utils import extract_targets
-
-import sqlalchemy as sa
-
 from utils.misc import call_with_delay, run_in_clean_otel_context
 
 logger = logging.getLogger(__name__)
@@ -26,16 +22,12 @@ tracer = trace.get_tracer(__name__)
 
 class PantsCommand(SimpleCDCommand):
     command_name = "pants"
-    command_aliases = ["трусы", "pants", "запретитьтрусы", "запреттрусов"]
+    command_aliases = ["трусы", "pants"]
     command_description = "Запустить розыгрыш трусов"
 
     cooldown_timer_per_chat = 3
     cooldown_timer_per_user = 5
-    cooldown_timer_per_target = 600
-
-    # cooldown_timer_per_chat = 120
-    # cooldown_timer_per_user = 300
-    # cooldown_timer_per_target = 600
+    cooldown_timer_per_target = 1200
 
     def __init__(
         self,
@@ -53,45 +45,10 @@ class PantsCommand(SimpleCDCommand):
             )
             return result.scalars().all()
 
-    async def add_to_denied(self, name: str):
-        async with self.db_session() as session:
-            await session.execute(
-                insert(PantsDeny)
-                .values({"name": name.lower()})
-            )
-            await session.commit()
-
-    async def remove_from_denied(self, name: str):
-        async with self.db_session() as session:
-            await session.execute(
-                sa.delete(PantsDeny)
-                .where(PantsDeny.name == name.lower())
-            )
-            await session.commit()
-
     def is_enabled(self, streamer_settings: TwitchUserSettings) -> bool:
         return streamer_settings.enable_pants
 
     async def _handle(self, streamer: User, user: str, message: str) -> str | None:
-        if "запретитьтрусы" in message or "запреттрусов" in message:
-            return await self._handle_deny(streamer, user, message)
-        return await self._handle_start_raffle(streamer, user, message)
-
-    async def _handle_deny(self, streamer: User, user: str, message: str) -> str | None:
-        logger.info("Handle deny raffle")
-        user_is_denied = bool(await self.check_denied(user))
-        logger.info(f"User denied = {user_is_denied}")
-
-        if not user_is_denied:
-            await self.add_to_denied(user)
-            logger.info(f"User {user} deny to raffle their pants")
-            return f"Отныне @{user} запрещает использовать свои трусы для розыгрыша!"
-
-        await self.remove_from_denied(user)
-        logger.info(f"User {user} allows to raffle their pants")
-        return f"@{user} вновь разрешает использовать свои трусы для розыгрыша!"
-
-    async def _handle_start_raffle(self, streamer: User, user: str, message: str) -> str | None:
         logger.info("Handle pants raffle")
 
         # Проверка — идёт ли уже розыгрыш

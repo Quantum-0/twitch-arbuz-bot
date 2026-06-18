@@ -88,6 +88,7 @@ class ChatBot:
         self._command_manager.register(HugCommand)
         self._command_manager.register(LurkCommand)
         self._command_manager.register(PantsCommand)
+        self._command_manager.register(PantsDenyCommand)
         self._command_manager.register(WhoAmICommand)
         self._command_manager.register(LinkDisCommand)
         self._command_manager.register(LinkTgCommand)
