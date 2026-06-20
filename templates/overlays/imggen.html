@@ -98,7 +98,7 @@
             if (response.ok) {
                 const data = await response.json();
                 if (data.id) {
-                    spawnImage(`${IMAGE_BASE_URL}${data.id}?t=${new Date().getTime()}`);
+                    spawnImage(`${IMAGE_BASE_URL}${data.id}?mark_viewed=1&t=${new Date().getTime()}`);
                 }
             }
             // Если 404 или другие ошибки — просто игнорируем согласно условию
