@@ -147,7 +147,7 @@ async def login_callback_task(
             await twitch.unsubscribe_event_sub(sub.id)
 
     sub_for_memecoins_exist = any(
-        sub for sub in subs_for_rewards if sub.condition.get("reward_id") == str(ai_stickers_reward)
+        sub for sub in subs_for_rewards if sub.condition.get("reward_id") == str(memealerts_reward)
     )
     sub_for_ai_stickers_exist = any(
         sub for sub in subs_for_rewards if sub.condition.get("reward_id") == str(ai_stickers_reward)
