@@ -124,6 +124,16 @@ html[data-theme="dark"] {
 @keyframes fadeInUp { to { opacity: 1; transform: translateY(0); } }
 @keyframes fadeOutDown { to { opacity: 0; transform: translateY(10px); } }
 
+/* Fonts */
+
+@font-face {
+  font-family: "TMVinograd";
+  src: local("TMVinograd-Regular"),
+    local("TMVinograd-Regular"),
+    url("TMVinograd-Regular.woff2") format("woff2");
+  font-weight: normal;
+}
+
 /* Base page styles */
 
 body {
@@ -168,7 +178,7 @@ header {
     display: flex;
     align-items: center;
 }
-header h1 { flex: 1; margin: 0; font-size: 24px; }
+header h1 { flex: 1; margin: 0; font-size: 32px; font-family: "TMVinograd", sans-serif; padding-bottom: 6px; }
 header nav {
     display: flex;
     gap: 15px;
