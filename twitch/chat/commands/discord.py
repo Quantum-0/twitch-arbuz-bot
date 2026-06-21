@@ -1,8 +1,9 @@
 import re
 
-from database.models import TwitchUserSettings, User, RaidPasta
-from twitch.chat.base.cooldown_command import SimpleCDCommand
 import sqlalchemy as sa
+
+from database.models import TwitchUserSettings, User, Links
+from twitch.chat.base.cooldown_command import SimpleCDCommand
 
 
 class LinkDisCommand(SimpleCDCommand):
@@ -33,13 +34,13 @@ class LinkDisCommand(SimpleCDCommand):
 
     @staticmethod
     async def _get_link(streamer: User) -> str:
-        if streamer.settings.ds_link:
-            return streamer.settings.ds_link
+        if streamer.links.discord:
+            return streamer.links.discord
         return "Ссылка на Discord-сервер не указана."
 
     async def _save_link(self, streamer: User, link: str) -> None:
         async with self.db_session() as session:
             await session.execute(
-                sa.update(TwitchUserSettings).where(TwitchUserSettings.user_id == streamer.id).values({"ds_link": link})
+                sa.update(Links).where(Links.user_id == streamer.id).values({"discord": link})
             )
             await session.commit()

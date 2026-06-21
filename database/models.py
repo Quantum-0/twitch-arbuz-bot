@@ -74,6 +74,12 @@ class User(Base):
         back_populates="user",
         cascade="all, delete",
     )
+    links: Mapped["Links"] = relationship(
+        "Links",
+        uselist=False,
+        back_populates="user",
+        cascade="all, delete",
+    )
 
     @property
     def access_token(self) -> str:
@@ -141,22 +147,12 @@ class TwitchUserSettings(Base):
 
     personal_pasta: Mapped[str] = mapped_column(String, default=None, nullable=True)
 
-    tg_link: Mapped[str] = mapped_column(
-        String,
-        default=None,
-        nullable=True,
-    )
-    ds_link: Mapped[str] = mapped_column(
-        String,
-        default=None,
-        nullable=True,
-    )
-    # tt_link: Mapped[str] = mapped_column(
+    # tg_link: Mapped[str] = mapped_column(
     #     String,
     #     default=None,
     #     nullable=True,
     # )
-    # yt_link: Mapped[str] = mapped_column(
+    # ds_link: Mapped[str] = mapped_column(
     #     String,
     #     default=None,
     #     nullable=True,
@@ -264,12 +260,6 @@ class CharacterInfo(Base):
     file_id: Mapped[uuid.UUID] = mapped_column(UUID(True), nullable=True)
 
 
-@event.listens_for(User, "after_insert")
-def create_settings(mapper, connection, target):
-    connection.execute(TwitchUserSettings.__table__.insert().values(user_id=target.id))  # noqa
-    connection.execute(MemealertsSettings.__table__.insert().values(user_id=target.id))  # noqa
-
-
 class RaidPasta(Base):
     __tablename__ = "twitch_pasta"
 
@@ -277,3 +267,101 @@ class RaidPasta(Base):
     text: Mapped[str] = mapped_column(String, nullable=False)
 
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), nullable=False)
+
+
+class Links(Base):
+    __tablename__ = 'links'
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("twitch_bot_users.id", ondelete="CASCADE"), nullable=False)
+    telegram: Mapped[str] = mapped_column(
+        String,
+        default=None,
+        nullable=True,
+    )
+    youtube: Mapped[str] = mapped_column(
+        String,
+        default=None,
+        nullable=True,
+    )
+    discord: Mapped[str] = mapped_column(
+        String,
+        default=None,
+        nullable=True,
+    )
+    memealerts: Mapped[str] = mapped_column(
+        String,
+        default=None,
+        nullable=True,
+    )
+    tiktok: Mapped[str] = mapped_column(
+        String,
+        default=None,
+        nullable=True,
+    )
+
+    user: Mapped["User"] = relationship("User", back_populates="links")
+
+
+@event.listens_for(User, "after_insert")
+def create_settings(mapper, connection, target):
+    connection.execute(TwitchUserSettings.__table__.insert().values(user_id=target.id))  # noqa
+    connection.execute(MemealertsSettings.__table__.insert().values(user_id=target.id))  # noqa
+    connection.execute(Links.__table__.insert().values(user_id=target.id))  # noqa
+
+
+"""move_links_to_separate_table
+#
+# Revision ID: <авто-id>
+# Revises: <id_прошлой_миграции>
+# Create Date: 2026-06-03
+# """
+# from alembic import op
+# import sqlalchemy as sa
+#
+# # revision identifiers, used by Alembic.
+# revision = '...'
+# down_revision = '...'
+# branch_labels = None
+# depends_on = None
+#
+#
+# def upgrade() -> None:
+#     # Шаг 1: Создаем новую таблицу links
+#     op.create_table(
+#         'links',
+#         sa.Column('id', sa.Integer(), sa.ForeignKey('users.id', ondelete='CASCADE'), primary_key=True),
+#         sa.Column('tg_link', sa.String(), nullable=True),
+#         sa.Column('yt_link', sa.String(), nullable=True)
+#     )
+#
+#     # Шаг 2: ПЕРЕНОС ДАННЫХ из settings в links
+#     # Используем чистый SQL для надежности и скорости в PostgreSQL
+#     op.execute("""
+#         INSERT INTO links (id, tg_link, yt_link)
+#         SELECT id, tg_link, yt_link
+#         FROM settings
+#         WHERE tg_link IS NOT NULL OR yt_link IS NOT NULL;
+#     """)
+#
+#     # Шаг 3: Удаляем старые колонки из таблицы settings
+#     op.drop_column('settings', 'tg_link')
+#     op.drop_column('settings', 'yt_link')
+#
+#
+# def downgrade() -> None:
+#     # Откат миграции в случае проблем
+#     # 1. Возвращаем колонки в settings
+#     op.add_column('settings', sa.Column('tg_link', sa.String(), nullable=True))
+#     op.add_column('settings', sa.Column('yt_link', sa.String(), nullable=True))
+#
+#     # 2. Переносим данные обратно
+#     op.execute("""
+#         UPDATE settings s
+#         SET tg_link = l.tg_link, yt_link = l.yt_link
+#         FROM links l
+#         WHERE s.id = l.id;
+#     """)
+#
+#     # 3. Удаляем таблицу links
+#     op.drop_table('links')

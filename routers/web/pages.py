@@ -11,7 +11,7 @@ from dependency_injector.wiring import Provide, inject
 from fastapi import APIRouter, HTTPException, Query, Security
 from fastapi.params import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import selectinload, joinedload
 from starlette.requests import Request
 from starlette.responses import HTMLResponse, RedirectResponse
 from starlette.templating import Jinja2Templates
@@ -166,8 +166,11 @@ async def profile_page(
     profile_user_data: User = (  # type: ignore
         await db.execute(
             sa.select(User)
-            .options(selectinload(User.settings))
-            .options(selectinload(User.memealerts))
+            .options(
+                joinedload(User.settings),
+                joinedload(User.memealerts),
+                joinedload(User.links)
+            )
             .filter_by(login_name=profile_user)
         )
     ).scalar_one_or_none()

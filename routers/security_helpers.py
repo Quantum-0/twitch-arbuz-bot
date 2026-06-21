@@ -86,6 +86,7 @@ async def user_auth(
         .options(
             joinedload(User.settings),
             joinedload(User.memealerts),
+            joinedload(User.links),
         )
     )
     user: User | None = result.scalar_one_or_none()  # type: ignore
@@ -122,6 +123,7 @@ async def user_auth_optional(
         .options(
             joinedload(User.settings),
             joinedload(User.memealerts),
+            joinedload(User.links),
         )
     )
     user: User | None = result.scalar_one_or_none()  # type: ignore

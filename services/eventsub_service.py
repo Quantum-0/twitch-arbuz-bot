@@ -55,7 +55,7 @@ class TwitchEventSubService():
 
     async def _get_user_by_id_or_login(self, id_or_login: str | int, selectin: list[Base] | None = None) -> User:
         if selectin is None:
-            selectins = [User.settings, User.memealerts]
+            selectins = [User.settings, User.memealerts, User.links]
         else:
             selectins = selectin
 

@@ -11,7 +11,7 @@ from uuid import UUID
 import sqlalchemy as sa
 from opentelemetry import trace
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import joinedload
 from twitchAPI.chat import Chat
 
 from config import settings
@@ -164,7 +164,10 @@ class ChatBot:
             result = await session.execute(
                 sa.select(User)
                 # .with_for_update()
-                .options(selectinload(User.settings))
+                .options(
+                    joinedload(User.settings),
+                    joinedload(User.links),
+                )
                 .filter_by(twitch_id=str(channel_id))
             )
             user = result.scalar_one_or_none()

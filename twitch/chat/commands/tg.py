@@ -1,6 +1,6 @@
 import re
 
-from database.models import TwitchUserSettings, User, RaidPasta
+from database.models import TwitchUserSettings, User, RaidPasta, Links
 from twitch.chat.base.cooldown_command import SimpleCDCommand
 import sqlalchemy as sa
 
@@ -34,13 +34,13 @@ class LinkTgCommand(SimpleCDCommand):
 
     @staticmethod
     async def _get_link(streamer: User) -> str:
-        if streamer.settings.tg_link:
-            return "t.me/" + streamer.settings.tg_link
+        if streamer.links.telegram:
+            return "t.me/" + streamer.links.telegram
         return "Ссылка на Telegram-канал не указана."
 
     async def _save_link(self, streamer: User, link: str) -> None:
         async with self.db_session() as session:
             await session.execute(
-                sa.update(TwitchUserSettings).where(TwitchUserSettings.user_id == streamer.id).values({"tg_link": link})
+                sa.update(Links).where(Links.user_id == streamer.id).values({"telegram": link})
             )
             await session.commit()
