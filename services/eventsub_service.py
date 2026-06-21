@@ -51,6 +51,7 @@ class TwitchEventSubService():
                 func(*args, **kwargs)
             )
 
+        wrapped.__wrapped__ = func
         return wrapped
 
     async def _get_user_by_id_or_login(self, id_or_login: str | int, selectin: list[Base] | None = None) -> User:
@@ -68,10 +69,11 @@ class TwitchEventSubService():
         query = sa.Select(User)
         for selectin in selectins:
             query = query.options(selectinload(selectin))
-        if isinstance(id_or_login, str):
+        if isinstance(id_or_login, str) and not str(id_or_login).isdigit():
             query = query.where(User.login_name==id_or_login.lower())
         else:
             query = query.where(User.twitch_id==str(id_or_login))
+
         async with self._db_session_factory() as db:
             result = await db.execute(query)
             user = result.scalar_one_or_none()
