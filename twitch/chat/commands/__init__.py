@@ -19,6 +19,7 @@ from .whoami import WhoAmICommand
 from .feed import FeedCommand
 from .treat import TreatCommand
 from .tg import LinkTgCommand
+from .tiktok import LinkTiktokCommand
 from .discord import LinkDisCommand
 
 __all__ = [
@@ -35,6 +36,7 @@ __all__ = [
     "HugCommand",
     "LickCommand",
     "LinkTgCommand",
+    "LinkTiktokCommand",
     "LinkDisCommand",
     "LurkCommand",
     "PantsCommand",

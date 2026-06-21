@@ -67,6 +67,10 @@
 
                     <button style="background-color:#18bc9c" onclick="location.href='https://twitchtracker.com/{{ profile_user.login_name }}';">Rank #{{ profile_user.tt_rank }}</button>
 
+                    {% if profile_user.links.tiktok %}
+                    <button style="background-color:#040404" onclick="location.href='https://www.tiktok.com/@{{ profile_user.links.tiktok }}';"><i class="fa fa-tiktok"></i> Tiktok</button>
+                    {% endif %}
+
                     {% if profile_user.links.telegram %}
                     <button style="background-color:#0088cc" onclick="location.href='https://t.me/{{ profile_user.links.telegram }}';"><i class="fa fa-telegram"></i> Telegram</button>
                     {% endif %}
