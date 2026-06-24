@@ -16,3 +16,7 @@ class ToManyChatUnsubscribesStartupException(Exception):
 class MADuplicateUserError(MAError):
     def __init__(self, supporter: str):
         self.supporter: str = supporter
+
+
+class MATokenInvalidError(MAError):
+    pass

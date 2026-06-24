@@ -5,7 +5,7 @@ import time
 from collections.abc import Callable
 
 from memealerts import MemealertsAsyncClient
-from memealerts.types.exceptions import MAUserNotFoundError
+from memealerts.types.exceptions import MAUserNotFoundError, MAError
 from memealerts.types.models import Supporter, User
 from memealerts.types.user_id import UserID
 from opentelemetry import trace
@@ -17,7 +17,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from database.models import MemealertsSupporters
 import sqlalchemy as sa
 
-from exceptions import MADuplicateUserError
+from exceptions import MADuplicateUserError, MATokenInvalidError
 
 logger = logging.getLogger(__name__)
 tracer = trace.get_tracer(__name__)
@@ -65,7 +65,18 @@ class MemealertsService:
             current_span.set_attribute("ma.amount", amount)
         start_time = time.perf_counter()
         async with MemealertsAsyncClient(memealerts_token) as meme_cli:
-            result = await self.find_and_give_bonus(meme_cli, supporter, amount)
+            try:
+                result: bool = await self.find_and_give_bonus(meme_cli, supporter, amount)
+            except MAError as exc:
+                logger.warning(f"Error! Failed to give bonus to `{supporter}` form `{streamer}. Error {exc}")
+                logger.info("Checking for authorization token validity...")
+                try:
+                    await meme_cli.get_current()
+                    logger.info("Token is valid, probably error with supporter.")
+                    raise
+                except MAError as exc:
+                    logger.warning(f"Token is invalid, user should update token! Error {exc}")
+                    raise MATokenInvalidError
             elapsed = time.perf_counter() - start_time
             logger.info(f"Method give_bonus finished in {elapsed:.4f}s with result={result}")
             if current_span.is_recording():

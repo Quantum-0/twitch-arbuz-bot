@@ -5,14 +5,14 @@ from collections.abc import Callable
 from typing import Any
 
 import sqlalchemy as sa
-from memealerts.types.exceptions import MATokenExpiredError
+from memealerts.types.exceptions import MATokenExpiredError, MAUserNotFoundError
 from opentelemetry import trace
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from twitchAPI.type import TwitchResourceNotFound
 
 from database.models import Base, TwitchUserSettings, User
-from exceptions import MADuplicateUserError
+from exceptions import MADuplicateUserError, MATokenInvalidError
 from schemas.twitch import PointRewardRedemptionWebhookSchema, RaidWebhookSchema
 from services.memes import MemealertsService
 from services.sse_manager import SSEManager
@@ -179,17 +179,24 @@ class TwitchEventSubService():
                 )
                 await self._cancel_redemption(user, payload)
         except MADuplicateUserError as exc:
-            logger.error(f"Found duplicate MA user = {exc.supporter}")
+            logger.warning(f"Found duplicate MA user = {exc.supporter}")
             await self._chatbot.send_message(
                 user,
                 f'Найдено несколько пользователей с именем "{exc.supporter}". Баллы возвращены. Для начисления мемкоинов используйте ID.',
             )
             await self._cancel_redemption(user, payload)
         except MATokenExpiredError:
-            logger.error("MA Token expired")
+            logger.warning("MA Token expired")
             await self._chatbot.send_message(
                 user,
                 f"Ошибка начисления мемкоинов. @{user.login_name}, истёк срок действия токена. Пожалуйста, обновите токен в панели управления ботом.",
+            )
+            await self._cancel_redemption(user, payload)
+        except MATokenInvalidError:
+            logger.warning("MA Token invalid")
+            await self._chatbot.send_message(
+                user,
+                f"Ошибка начисления мемкоинов: Memealerts не принял установленный токен. @{user.login_name}, перелогинься на сайте Memealerts и обнови токен, пожалуйста.",
             )
             await self._cancel_redemption(user, payload)
         except Exception:
