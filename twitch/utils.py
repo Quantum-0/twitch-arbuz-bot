@@ -53,7 +53,7 @@ async def extract_targets(
 
     result = []
     for o in other:
-        logger.info(f"Handle target `{o}`")
+        logger.info(f"Handle target `{o}` against streamer={streamer_name} and self={self_name}")
         if o in streamer_alias:
             o = "@" + streamer_name
             logger.debug(f"`o` replaces to `{o}`")

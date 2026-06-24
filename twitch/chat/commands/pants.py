@@ -60,12 +60,14 @@ class PantsCommand(SimpleCDCommand):
             return f"Невозможно начать новый розыгрыш трусов, пока не разыграли трусы @{pants_user}"
 
         # Берём активных чаттерсов
-        active_users: list[str] = [
-            x
-            for x, y in await self.chat_bot.get_last_active_users(
+        raw_active_users = await self.chat_bot.get_last_active_users(
                 streamer.login_name
             )
+        active_users: list[str] = [
+            x
+            for x, y in raw_active_users
         ]
+        logger.debug(f"Active users: {active_users}")
 
         # Выбор цели
         target: str | None = None
