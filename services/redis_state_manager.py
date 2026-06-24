@@ -107,6 +107,8 @@ class RedisStateManager(StateManager):
             return f"s{value}"
         if isinstance(value, set):
             return f"j{json.dumps(list(value), separators=(',',':'))}"
+        if isinstance(value, bool):
+            return f"b{int(value)}"
         if value is None:
             return ""
         raise TypeError("Invalid type")
@@ -124,6 +126,8 @@ class RedisStateManager(StateManager):
             return int(str_value[1:])
         if str_value[0] == "j":
             return json.loads(str_value[1:])
+        if str_value[0] == "b":
+            return bool(int(str_value[1]))
         else:
             raise TypeError
 
