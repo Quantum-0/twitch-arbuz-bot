@@ -28,6 +28,9 @@ bot_scope = [
     AuthScope.USER_READ_CHAT,
     AuthScope.CHANNEL_BOT,
 ]
+memealerts_scope = [
+    "oauth-bonus-give",
+]
 
 
 # TODO: use SecretStr
@@ -72,6 +75,10 @@ class Settings(BaseSettings):
     otel_service_name: str = "twitch-bot"
     redis_url: str = "redis://localhost:6379"
     model_config = SettingsConfigDict(env_prefix="", env_file=".env")
+    memealerts_redirect_url: AnyHttpUrl = "https://bot.quantum0.ru/memealerts/callback"
+    memealerts_client_id: SecretStr
+    memealerts_client_secret: SecretStr
+    memealerts_state_secret: SecretStr
 
     @property
     def login_twitch_url(self) -> str:
@@ -79,6 +86,16 @@ class Settings(BaseSettings):
         url = (
             f"https://id.twitch.tv/oauth2/authorize?client_id={settings.twitch_client_id}"
             f"&redirect_uri={settings.login_redirect_url}&response_type=code&scope={scope}"
+        )
+        return url
+
+    @property
+    def memealerts_oauth_url(self) -> str:
+        scope: str = "%20".join(sp for sp in memealerts_scope)
+        url = (
+            f"https://memealerts.com/oauth/authorize?client_id={settings.memealerts_client_id.get_secret_value()}"
+            f"&redirect_uri={settings.memealerts_redirect_url}&response_type=code&scope={scope}"
+            "&state={state}"
         )
         return url
 

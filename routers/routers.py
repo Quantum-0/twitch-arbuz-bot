@@ -7,6 +7,7 @@ from routers.api.slovotron_webhook import router as slovotron_api_router
 from routers.web.overlays import router as overlays_router
 from routers.web.pages import router as pages_routers
 from routers.web.service_routes import router as service_routes_router
+from routers.web.memealerts_routes import router as memealerts_router
 from routers.sse import router as sse_router
 from routers.web.file_storage import router as files_router
 from routers.web.obs_dock import router as obs_dock_router
@@ -28,3 +29,4 @@ user_router.include_router(pages_routers)
 user_router.include_router(service_routes_router)
 user_router.include_router(files_router)
 user_router.include_router(obs_dock_router)
+user_router.include_router(memealerts_router)
