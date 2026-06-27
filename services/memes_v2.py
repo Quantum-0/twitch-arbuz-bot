@@ -109,7 +109,6 @@ class MemealertsOAuthService:
     ):
         self._db_session_factory = db_session_factory
         self._refresh_semaphore = asyncio.Semaphore(10)
-        self._http_client = httpx.AsyncClient()
 
     async def auth_user(self, authorization_code: str, user: User) -> Tokens[str] | None:
         """
@@ -133,6 +132,7 @@ class MemealertsOAuthService:
         через Memealerts
         а затем сохраняет обновлённые токены обратно в бд.
         """
+        logger.info("Run updating memealerts tokens")
         q = sa.select(MemealertsSettings).where(
             MemealertsSettings.token_expires_at + sa.text("INTERVAL '25 days'") > sa.func.now()
         )
@@ -278,10 +278,11 @@ class MemealertsOAuthService:
             "client_secret": settings.memealerts_client_secret.get_secret_value(),
             "refresh_token": refresh_token,
             "grant_type": grant_type,
+            "code": authorization_code,
         }
         if authorization_code:
             data["redirect_uri"] = settings.memealerts_redirect_url
-        async with self._refresh_semaphore, self._http_client as client:
+        async with self._refresh_semaphore, httpx.AsyncClient() as client:
             response = await client.post(
                 "https://memealerts.com/oauth/token",
                 timeout=5 if refresh_token else 10,
@@ -294,6 +295,22 @@ class MemealertsOAuthService:
             except ValidationError as exc:
                 logger.error(f"Error getting tokens from oauth. Resp: {tokens}")
                 raise MARefreshTokenError from exc
+
+    async def delete_token(self, user: User):
+        async with self._db_session_factory() as db:
+            await db.execute(
+                sa.update(MemealertsSettings)
+                .where(MemealertsSettings.user_id == user.id)
+                .values(
+                    access_token=None,
+                    refresh_token=None,
+                    token_expires_at=None,
+                    token_refresh_expires_at=None,
+                    token_created_at=None,
+                    token_scopes=None,
+                )
+            )
+            await db.commit()
 
 
 class MemealertsV2Service:

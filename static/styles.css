@@ -753,6 +753,12 @@ section h3 {
     margin: 0;
 }
 
+.cards-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+    gap: 30px;
+}
+
 
 /* About Page user's card */
 

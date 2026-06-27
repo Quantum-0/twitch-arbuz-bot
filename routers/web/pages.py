@@ -83,6 +83,7 @@ async def control_panel(
                 if user.memealerts.memealerts_token
                 else None,
                 "coins_for_reward": user.memealerts.coins_for_reward,
+                "enabled_v2": user.memealerts.access_token is not None,
             },
             "slovotron_secret": str(uuid3(namespace=settings.slovotron_secret, name=user.login_name)),
         },

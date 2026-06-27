@@ -353,6 +353,14 @@ function initStatusCards() {
         if (type === "sse") {
             setInterval(() => checkStatus(card), 5000); // 5 секунд
         }
+
+        if (type === "memealerts-token") {
+            setInterval(() => checkStatus(card), 180000); // 3 минуты
+        }
+
+        if (type === "memealerts-reward") {
+            setInterval(() => checkStatus(card), 180000); // 3 минуты
+        }
     });
 }
 

@@ -33,6 +33,15 @@ async def memealerts_auth(
     return RedirectResponse(url)
 
 
+@router.get("/disable", response_class=RedirectResponse)
+@inject
+async def delete_ma_tokens(
+    memealerts: Annotated[MemealertsOAuthService, Depends(Provide[Container.memealerts_auth])],
+    user: Any = Security(user_auth),
+):
+    await memealerts.delete_token(user)
+    return RedirectResponse("/panel")
+
 @router.get("/callback", response_class=RedirectResponse)
 @inject
 async def callback(

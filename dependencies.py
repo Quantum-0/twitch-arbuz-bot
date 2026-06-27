@@ -42,6 +42,7 @@ async def lifespan(app: "FastAPI | None" = None):
     state_manager = container.state_manager()
     cache = container.cache()
     scheduler = container.scheduler()
+    memealerts_auth = container.memealerts_auth()
 
     await state_manager.startup(redis)
     await cache.startup(redis, binary_redis)
@@ -71,12 +72,12 @@ async def lifespan(app: "FastAPI | None" = None):
         app.container = container
 
     scheduler.add_job(
-        test_bg_task,
+        memealerts_auth.run_periodic_update,
         trigger="cron",
-        hour="*",
-        minute="*",
-        second="*/4",
-        id="test_bg_task",
+        hour="*/3",
+        minute="0",
+        second="0",
+        id="update_memealerts_tokens",
         replace_existing=True,
     )
     scheduler.start()
