@@ -1,4 +1,6 @@
 import aioboto3
+from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from dependency_injector import containers, providers
 
 from config import settings
@@ -85,4 +87,17 @@ class Container(containers.DeclarativeContainer):
         db_session_factory=db_session_factory,
         stickers=stickers_service,
         memealerts=memealerts
+    )
+
+    job_store_factory = providers.Factory(
+        SQLAlchemyJobStore,
+        url=settings.db_url,
+    )
+
+    scheduler = providers.Singleton(
+        AsyncIOScheduler,
+        job_stores=providers.Dict(
+            default=job_store_factory,
+        ),
+        timezone="UTC",
     )

@@ -16,6 +16,13 @@ async def get_db() -> AsyncGenerator:
         yield session
 
 
+
+# TODO: inject по аналогии с ручками, но без depends, просто Provide[Container....]
+# TODO: не забыть добавить вайринг
+async def test_bg_task():
+    print("test")
+
+
 @asynccontextmanager
 async def lifespan(app: "FastAPI | None" = None):
     from container import Container
@@ -34,6 +41,7 @@ async def lifespan(app: "FastAPI | None" = None):
     slovotron = container.slovotron()
     state_manager = container.state_manager()
     cache = container.cache()
+    scheduler = container.scheduler()
 
     await state_manager.startup(redis)
     await cache.startup(redis, binary_redis)
@@ -62,8 +70,23 @@ async def lifespan(app: "FastAPI | None" = None):
     if app is not None:
         app.container = container
 
+    scheduler.add_job(
+        test_bg_task,
+        trigger="cron",
+        hour="*",
+        minute="*",
+        second="*/4",
+        id="test_bg_task",
+        replace_existing=True,
+    )
+    scheduler.start()
+    print("Планировщик запущен")
+
     async with mqtt.lifespan(), state_manager.lifespan():
         yield
+
+    scheduler.shutdown()
+    print("Планировщик остановлен")
 
     await async_engine.dispose()
     container.unwire()
