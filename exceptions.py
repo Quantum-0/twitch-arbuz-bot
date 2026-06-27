@@ -20,3 +20,7 @@ class MADuplicateUserError(MAError):
 
 class MATokenInvalidError(MAError):
     pass
+
+
+class MARefreshTokenError(MAError):
+    pass

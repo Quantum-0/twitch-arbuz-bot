@@ -178,7 +178,7 @@ async def update_memealert_coins(
     )
 
 
-@router.post("/memealerts")
+@router.post("/memealerts", deprecated=True)
 @inject
 async def setup_memealert(
     db: Annotated[AsyncSession, Depends(get_db)],

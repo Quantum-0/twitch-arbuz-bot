@@ -36,34 +36,6 @@ class MemealertsService:
         # Защита фоновых задач от сборщика мусора (GC)
         self._background_tasks: set[asyncio.Task] = set()
 
-    @staticmethod
-    async def get_user_access_refresh_tokens_by_authorization_code(
-        authorization_code: str,
-    ) -> tuple[str, str, datetime] | None:
-        async with httpx.AsyncClient() as client:
-            response = await client.post(
-                "https://id.twitch.tv/oauth2/token",
-                data={
-                    "client_id": settings.memealerts_client_id.get_secret_value(),
-                    "client_secret": settings.memealerts_client_secret.get_secret_value(),
-                    "code": authorization_code,
-                    "grant_type": "authorization_code",
-                    "redirect_uri": settings.memealerts_redirect_url,
-                },
-            )
-            response.raise_for_status()
-            tokens = response.json()
-            try:
-                access_token = tokens["access_token"]
-                refresh_token = tokens["refresh_token"]
-                expires_at = datetime.now(timezone.utc) + timedelta(
-                    seconds=tokens["expires_in"]
-                )
-                return access_token, refresh_token, expires_at
-            except KeyError:
-                logger.error(f"Error getting tokens from oauth. Resp: {tokens}")
-                return None
-
     @tracer.start_as_current_span("MA: Get current")
     async def get_current(self, memealerts_token):
         async with MemealertsAsyncClient(memealerts_token) as meme_cli:

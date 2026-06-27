@@ -19,6 +19,7 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
+from database.encrypted_string import EncryptedString
 from utils.cryptography import decrypt_value, encrypt_value
 
 
@@ -193,33 +194,14 @@ class MemealertsSettings(Base):
     memecoin_name_genitive_multiple: Mapped[str | None] = mapped_column("memecoin_name_genitive_multiple", String, nullable=True, default=None)
     memecoin_name_accusative_multiple:  Mapped[str | None] = mapped_column("memecoin_name_accusative_multiple", String, nullable=True, default=None)
 
-    _access_token: Mapped[str | None] = mapped_column("access_token", String, nullable=True, default=None)
-    _refresh_token: Mapped[str | None] = mapped_column("refresh_token", String, nullable=True, default=None)
+    access_token: Mapped[str | None] = mapped_column("access_token", EncryptedString, nullable=True, default=None)
+    refresh_token: Mapped[str | None] = mapped_column("refresh_token", EncryptedString, nullable=True, default=None)
     token_expires_at: Mapped[datetime | None] = mapped_column("token_expires_at", DateTime, nullable=True, default=None)
+    token_refresh_expires_at: Mapped[datetime | None] = mapped_column("token_refresh_expires_at", DateTime, nullable=True, default=None)
     token_created_at: Mapped[datetime | None] = mapped_column("token_created_at", DateTime, nullable=True, default=None)
     token_scopes: Mapped[str | None] = mapped_column("token_scopes", String, nullable=True, default=None)
 
     user: Mapped["User"] = relationship("User", back_populates="memealerts")
-
-    @property
-    def access_token(self) -> str:
-        return decrypt_value(self._access_token)  # type: ignore
-
-    @access_token.setter
-    def access_token(self, value: str) -> None:
-        encrypted_value = encrypt_value(value)
-        assert encrypted_value
-        self._access_token = encrypted_value
-
-    @property
-    def refresh_token(self) -> str:
-        return decrypt_value(self._refresh_token)  # type: ignore
-
-    @refresh_token.setter
-    def refresh_token(self, value: str) -> None:
-        encrypted_value = encrypt_value(value)
-        assert encrypted_value
-        self._refresh_token = encrypted_value
 
     @property
     def memealerts_token(self) -> str:

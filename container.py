@@ -8,6 +8,7 @@ from services.cache import Cache
 from services.eventsub_service import TwitchEventSubService
 from services.image_resizer import ImageResizer
 from services.memes import MemealertsService
+from services.memes_v2 import MemealertsOAuthService, MemealertsV2Service
 from services.mqtt import MQTTClient
 from services.redis_state_manager import RedisStateManager, init_redis
 from services.s3 import FileStorage
@@ -26,6 +27,7 @@ class Container(containers.DeclarativeContainer):
             "routers.api.user_api",
             "routers.api.slovotron_webhook",
             "routers.web.service_routes",
+            "routers.web.memealerts_routes",
             "routers.web.pages",
             "routers.web.overlays",
             "routers.web.file_storage",
@@ -60,7 +62,9 @@ class Container(containers.DeclarativeContainer):
     ai = providers.Singleton(OpenAIClient, db_session_factory=db_session_factory)
     sse_manager = providers.Singleton(SSEManager)
     slovotron = providers.Singleton(SlovotronService, db_session_factory=db_session_factory, chat_bot=chat_bot, ssem=sse_manager)
-    memealerts = providers.Singleton(MemealertsService, db_session_factory=db_session_factory)
+    memealerts = providers.Singleton(MemealertsService, db_session_factory=db_session_factory)  #deprecated!!!
+    memealerts_auth = providers.Singleton(MemealertsOAuthService, db_session_factory=db_session_factory)
+    memealerts_v2 = providers.Singleton(MemealertsV2Service, db_session_factory=db_session_factory)
 
     boto_session = providers.Singleton(aioboto3.Session)
     s3 = providers.Singleton(

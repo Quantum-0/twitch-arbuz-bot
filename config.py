@@ -29,6 +29,7 @@ bot_scope = [
     AuthScope.CHANNEL_BOT,
 ]
 memealerts_scope = [
+    "oauth-user-show",
     "oauth-bonus-give",
 ]
 
@@ -91,7 +92,7 @@ class Settings(BaseSettings):
 
     @property
     def memealerts_oauth_url(self) -> str:
-        scope: str = "%20".join(sp for sp in memealerts_scope)
+        scope: str = " ".join(sp for sp in memealerts_scope)
         url = (
             f"https://memealerts.com/oauth/authorize?client_id={settings.memealerts_client_id.get_secret_value()}"
             f"&redirect_uri={settings.memealerts_redirect_url}&response_type=code&scope={scope}"
