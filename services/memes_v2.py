@@ -7,6 +7,7 @@ from typing import Generic, TypeVar
 import httpx
 import sqlalchemy as sa
 from memealerts.types.exceptions import MATokenExpiredError
+from memealerts.types.user_id import UserID
 from opentelemetry import trace
 from pydantic import BaseModel, PrivateAttr, ValidationError, computed_field, model_validator
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -14,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from config import memealerts_scope, settings
 from database.models import MemealertsSettings, User
 from exceptions import MARefreshTokenError, MAInvalidTokenError, MAUnavailableError, MAValidationRespError
+from schemas.api import BoolResponseSchema
 from schemas.memealerts import MAUserInfo
 
 logger = logging.getLogger(__name__)
@@ -344,3 +346,41 @@ class MemealertsV2Service:
                 return MAUserInfo(**data)
             except ValidationError as exc:
                 raise MAValidationRespError from exc
+
+    async def give_bonus(self, ma_token: Tokens[str], user_id: UserID, value: int) -> bool:
+        """
+        Выдача бонуса пользователю по ID.
+        :param ma_token: OAuth-токен Memealerts;
+        :param user_id: ID-пользователя получателя коинов;
+        :param value: Количество коинов, выдаваемых пользователю;
+        :return: Успех выполнения (скорее всего всегда true или ошибка).
+        """
+        if not (0 < value <= 1000):
+            raise ValueError("Value should be between 0 and 1000")
+        async with self._api_semaphore, httpx.AsyncClient() as client:
+            response = await client.post(
+                "https://memealerts.com/api/v1/user/give-bonus",
+                timeout=10,
+                headers={"Authorization": f"Bearer {ma_token.access_token}"},
+                params={
+                    "userId": str(user_id),
+                    "value": value,
+                }
+            )
+            if response.status_code in {500, 502}:
+                raise MAUnavailableError
+            # TODO: Если коллеги из MA согласятся на использование 404 - тут разделить логику
+            #  - получаем 404 - идём (извне) запрашиваем, включён ли приветственный бонус
+            #  - включён - просим пользака его забрать, выключен - просим его купить коины или кинуть донат
+            if response.status_code != 201:
+                logger.error(f"Access error from MA. Resp: {response.json()}")
+                raise MAInvalidTokenError
+            data = response.json()
+            try:
+                return BoolResponseSchema(**data).result
+            except ValidationError as exc:
+                raise MAValidationRespError from exc
+
+    async def resolve_user_input_to_user_id(self, ma_token, user_input: str):
+        # TODO: convert user input to user_id
+        pass
