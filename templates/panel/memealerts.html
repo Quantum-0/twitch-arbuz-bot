@@ -7,6 +7,8 @@
     <p>НЕ ВКЛЮЧАЙТЕ <u>Пропустить очередь запросов на награды</u>, бот сам отмечает награду выполненной, если начисление прошло успешно, и отклоняет выполнение награды, возвращая баллы, если не получилось.</p>
     <p>В случае возникновения проблем, проверьте, что у вас включена отправка мемов, пользователь получил приветственный бонус или отправлял мемы ранее, время жизни токена не истекло. Если решить проблему не получается самостоятельно, обратитесь к <a href="https://t.me/quantum0">автору бота</a>.</p>
 </small>
+
+
 {% if memealerts.enabled %}
     <button id="memealerts-btn" class="btn-danger" onclick="toggleMemealerts(false)">Отключить мемалёрты</button>
     <p>Время жизни токена:
@@ -31,7 +33,26 @@
 {% endif %}
 
 
+<br>
 
+<h3>Нативная интеграция с Memealerts</h3>
+<p>Данный функционал пока находится в разработке.</p>
+<p>В будущем подключение через ручное копирование токена будет отключено.</p>
+<p>Пока это подключение ни на что не влияет, но вы можете его тыкнуть, чтоб помочь с тестированием <3</p>
+{% if memealerts.enabled_v2 %}
+    <button class="btn-danger" onclick="window.location.href='/memealerts/disable';">Отключить интеграцию Memealerts</button>
 
+    <div class="cards-grid">
+        <div class="overlay-card-status" data-endpoint="/api/user/check-memealerts-token" data-type="memealerts-token">
+            <h3>Подключение к Memealerts</h3>
+            <div class="status-indicator tooltip-container"><span class="tooltip-text">Показывает, что подключение к Memealerts активно и выдача мемкоинов работает</span></div>
+        </div>
 
-
+        <div class="overlay-card-status" data-endpoint="/api/user/check-memealerts-reward" data-type="memealerts-reward">
+            <h3>Награда на Twitch</h3>
+            <div class="status-indicator tooltip-container"><span class="tooltip-text">Показывает, что награда на Twitch создана и сервис подписан на события о её использовании</span></div>
+        </div>
+    </div>
+{% else %}
+    <button onclick="window.location.href='/memealerts/auth';">Включить интеграцию Memealerts</button>
+{% endif %}

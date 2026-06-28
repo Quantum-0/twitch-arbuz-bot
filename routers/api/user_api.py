@@ -26,6 +26,7 @@ from schemas.api import (
 )
 from schemas.enums import FileStorageDir
 from services.memes import MemealertsService
+from services.memes_v2 import MemealertsOAuthService, MemealertsV2Service
 from services.s3 import FileStorage
 from services.sse_manager import SSEManager
 from services.stickers import StickersService
@@ -113,6 +114,34 @@ async def check_heat_installed(
     if overlay and overlay.active and overlay.id == "cr20njfkgll4okyrhag7xxph270sqk":
         return BoolResponseSchema(result=True)
     return BoolResponseSchema(result=False)
+
+
+@router.get("/check-memealerts-token", response_model=BoolResponseSchema)
+@inject
+async def check_memealerts_token(
+    memealerts_auth: Annotated[MemealertsOAuthService, Depends(Provide[Container.memealerts_auth])],
+    memealerts_api: Annotated[MemealertsV2Service, Depends(Provide[Container.memealerts_v2])],
+    user: User = Security(user_auth),
+) -> BoolResponseSchema:
+    try:
+        ma_token = await memealerts_auth.get_token_of_user(user)
+        await memealerts_api.get_user_info(ma_token)
+    except:
+        return BoolResponseSchema(result=False)
+    return BoolResponseSchema(result=True)
+
+
+@router.get("/check-memealerts-reward", response_model=BoolResponseSchema)
+@inject
+async def check_memealerts_reward(
+    twitch: Annotated[Twitch, Depends(Provide[Container.twitch])],
+    user: User = Security(user_auth),
+) -> BoolResponseSchema:
+    result = await twitch.validate_reward_subscription(
+        user = user,
+        reward_id=str(user.memealerts.memealerts_reward),
+    )
+    return BoolResponseSchema(result=result)
 
 
 @router.get("/install-heat", response_model=BoolResponseSchema)

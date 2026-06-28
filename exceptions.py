@@ -24,3 +24,16 @@ class MATokenInvalidError(MAError):
 
 class MARefreshTokenError(MAError):
     pass
+
+class MAInvalidTokenError(MAError):
+    pass
+
+class MAUnavailableError(MAError):
+    """
+    500 or 502 from API
+    """
+
+class MAValidationRespError(MAError):
+    """
+    Failed to validate response schema from MA.
+    """

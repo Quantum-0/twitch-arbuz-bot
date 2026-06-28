@@ -150,17 +150,7 @@ class TwitchUserSettings(Base):
 
     personal_pasta: Mapped[str] = mapped_column(String, default=None, nullable=True)
 
-    # tg_link: Mapped[str] = mapped_column(
-    #     String,
-    #     default=None,
-    #     nullable=True,
-    # )
-    # ds_link: Mapped[str] = mapped_column(
-    #     String,
-    #     default=None,
-    #     nullable=True,
-    # )
-    memealerts_link: Mapped[str] = mapped_column(
+    memealerts_link: Mapped[str] = mapped_column(  # TODO: перенести в линкс по аналогии с другими
         String,
         default=None,
         nullable=True,

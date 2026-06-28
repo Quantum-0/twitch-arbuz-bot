@@ -13,7 +13,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from config import memealerts_scope, settings
 from database.models import MemealertsSettings, User
-from exceptions import MARefreshTokenError
+from exceptions import MARefreshTokenError, MAInvalidTokenError, MAUnavailableError, MAValidationRespError
+from schemas.memealerts import MAUserInfo
 
 logger = logging.getLogger(__name__)
 tracer = trace.get_tracer(__name__)
@@ -314,4 +315,32 @@ class MemealertsOAuthService:
 
 
 class MemealertsV2Service:
-    pass
+    def __init__(
+        self,
+        db_session_factory: Callable[[], AsyncSession],
+    ):
+        self._db_session_factory = db_session_factory
+        self._api_semaphore = asyncio.Semaphore(50)
+
+    async def get_user_info(self, ma_token: Tokens[str]) -> MAUserInfo:
+        """
+        Получение информации о текущем пользователе
+        :param ma_token: OAuth-токен Memealerts
+        :return: Информация о пользователе.
+        """
+        async with self._api_semaphore, httpx.AsyncClient() as client:
+            response = await client.get(
+                "https://memealerts.com/api/v1/user/oauth",
+                timeout=10,
+                headers={"Authorization": f"Bearer {ma_token.access_token}"}
+            )
+            if response.status_code in {500, 502}:
+                raise MAUnavailableError
+            if response.status_code != 200:
+                logger.error(f"Access error from MA. Resp: {response.json()}")
+                raise MAInvalidTokenError
+            data = response.json()["data"]
+            try:
+                return MAUserInfo(**data)
+            except ValidationError as exc:
+                raise MAValidationRespError from exc

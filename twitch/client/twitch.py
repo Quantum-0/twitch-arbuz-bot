@@ -109,6 +109,48 @@ class Twitch:
         )
         return reward
 
+    @staticmethod
+    async def validate_reward_subscription(
+        user: User,
+        reward_id: str,
+        subscription_id: str | None = None,
+    ) -> bool:
+        # TODO: В идеале отсюда возвращать ошибку, что именно не так
+        twitch_user = await TwitchClient(
+            settings.twitch_client_id, settings.twitch_client_secret
+        )
+        await twitch_user.set_user_authentication(
+            user.access_token, user_scope, user.refresh_token
+        )
+        rewards = await twitch_user.get_custom_reward(
+            user.twitch_id,
+            reward_id=reward_id,
+            only_manageable_rewards=True,
+        )
+        if len(rewards) == 0:
+            return False
+        if not rewards[0].is_enabled:
+            return False
+        if rewards[0].should_redemptions_skip_request_queue:
+            # TODO: WARNING
+            pass
+        subs = await twitch_user.get_eventsub_subscriptions(
+            user_id=user.twitch_id,
+            subscription_id=subscription_id,
+        )
+        subs_for_rewards: list[EventSubSubscription] = [
+            sub
+            for sub in subs.data
+            if sub.type == "channel.channel_points_custom_reward_redemption.add"
+               and sub.condition.get("broadcaster_user_id") == user.twitch_id
+        ]
+        for sub in subs_for_rewards:
+            if sub.condition.get("reward_id") not in {reward_id}:
+                continue
+            if sub.status == "enabled":
+                return True
+        return False
+
     async def get_streams(self, users: list[User] | list[str]) -> dict[User, Stream | None]:
         streams = {}
         for batch in batched(users, 100):
