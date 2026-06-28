@@ -3,6 +3,7 @@ from collections.abc import Callable
 from typing import Annotated, Any
 from uuid import uuid4
 
+import httpx
 import sqlalchemy as sa
 from dependency_injector.wiring import Provide, inject
 from fastapi import APIRouter, Depends, Form, Query, Security, HTTPException, UploadFile, File
@@ -16,6 +17,7 @@ from twitchAPI.type import TwitchAPIException, TwitchResourceNotFound
 from container import Container
 from database.models import User, CharacterInfo
 from dependencies import get_db
+from exceptions import MANoToken, MAValidationRespError, MAUnavailableError, MAInvalidTokenError
 from routers.security_helpers import user_auth
 from schemas.api import (
     UpdateSettingsForm,
@@ -23,6 +25,7 @@ from schemas.api import (
     BoolResponseSchema,
     BaseErrorSchema,
     UUIDResponseSchema,
+    CheckStatusResponseSchema,
 )
 from schemas.enums import FileStorageDir
 from services.memes import MemealertsService
@@ -91,7 +94,7 @@ async def slovotron_restart(
 
 @router.get(
     "/check-sse",
-    response_model=BoolResponseSchema,
+    response_model=CheckStatusResponseSchema,
     responses={401: {"description": "Unauthorized", "model": BaseErrorSchema}},
 )
 @inject
@@ -99,49 +102,67 @@ async def check_user_sse_connected(
     ssem: Annotated[SSEManager, Depends(Provide[Container.sse_manager])],
     user: User = Security(user_auth),
     channel: SSEChannel | None = None,
-) -> BoolResponseSchema:
-    return BoolResponseSchema(result=ssem.has_clients(int(user.twitch_id), channel))
+) -> CheckStatusResponseSchema:
+    result = ssem.has_clients(int(user.twitch_id), channel)
+    return CheckStatusResponseSchema(result=result, problems=["OBS не открыт или оверлей не установлен"] if not result else [])
 
 
-@router.get("/check-heat-installed", response_model=BoolResponseSchema)
+@router.get("/check-heat-installed", response_model=CheckStatusResponseSchema)
 @inject
 async def check_heat_installed(
     twitch: Annotated[Twitch, Depends(Provide[Container.twitch])],
     user: User = Security(user_auth),
-) -> BoolResponseSchema:
+) -> CheckStatusResponseSchema:
     exts = await twitch.get_user_active_ext(user)
     overlay = exts.overlay.get("1")
-    if overlay and overlay.active and overlay.id == "cr20njfkgll4okyrhag7xxph270sqk":
-        return BoolResponseSchema(result=True)
-    return BoolResponseSchema(result=False)
+    if not overlay:
+        return CheckStatusResponseSchema(result=False, problems=["Расширение твича не установлено"])
+    if not overlay.active:
+        return CheckStatusResponseSchema(result=False, problems=["Расширение твича не активно"])
+    if overlay.id != "cr20njfkgll4okyrhag7xxph270sqk":
+        CheckStatusResponseSchema(result=False, problems=["Установлено другое расширение"])
+    return CheckStatusResponseSchema(result=True, problems=[])
 
 
-@router.get("/check-memealerts-token", response_model=BoolResponseSchema)
+@router.get("/check-memealerts-token", response_model=CheckStatusResponseSchema)
 @inject
 async def check_memealerts_token(
     memealerts_auth: Annotated[MemealertsOAuthService, Depends(Provide[Container.memealerts_auth])],
     memealerts_api: Annotated[MemealertsV2Service, Depends(Provide[Container.memealerts_v2])],
     user: User = Security(user_auth),
-) -> BoolResponseSchema:
+) -> CheckStatusResponseSchema:
     try:
         ma_token = await memealerts_auth.get_token_of_user(user)
+    except MANoToken:
+        return CheckStatusResponseSchema(result=False, problems=["Токен OAuth отсутствует"])
+    except MATokenExpiredError:
+        return CheckStatusResponseSchema(result=False, problems=["Токен невалидный, требуется переавторизация"])
+    except httpx.HTTPError:
+        return CheckStatusResponseSchema(result=False, problems=["Ошибка подключения к Memealerts"])
+    except Exception:
+        return CheckStatusResponseSchema(result=False, problems=["Неизвестная ошибка получения токена"])
+    try:
         await memealerts_api.get_user_info(ma_token)
-    except:
-        return BoolResponseSchema(result=False)
-    return BoolResponseSchema(result=True)
+    except MAUnavailableError:
+        return CheckStatusResponseSchema(result=False, problems=["Ошибка подключения к Memealerts"])
+    except MAInvalidTokenError:
+        return CheckStatusResponseSchema(result=False, problems=["Ошибка авторизации при получении данных о пользователе"])
+    except MAValidationRespError:
+        return CheckStatusResponseSchema(result=False, problems=["Ошибка формирования ответа в Memealerts"])
+    return CheckStatusResponseSchema(result=True, problems=[])
 
 
-@router.get("/check-memealerts-reward", response_model=BoolResponseSchema)
+@router.get("/check-memealerts-reward", response_model=CheckStatusResponseSchema)
 @inject
 async def check_memealerts_reward(
     twitch: Annotated[Twitch, Depends(Provide[Container.twitch])],
     user: User = Security(user_auth),
-) -> BoolResponseSchema:
-    result = await twitch.validate_reward_subscription(
+) -> CheckStatusResponseSchema:
+    problems = await twitch.validate_reward_subscription(
         user = user,
         reward_id=str(user.memealerts.memealerts_reward),
     )
-    return BoolResponseSchema(result=result)
+    return CheckStatusResponseSchema(result=not problems, problems=problems)
 
 
 @router.get("/install-heat", response_model=BoolResponseSchema)

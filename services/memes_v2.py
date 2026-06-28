@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from config import memealerts_scope, settings
 from database.models import MemealertsSettings, User
-from exceptions import MARefreshTokenError, MAInvalidTokenError, MAUnavailableError, MAValidationRespError
+from exceptions import MARefreshTokenError, MAInvalidTokenError, MAUnavailableError, MAValidationRespError, MANoToken
 from schemas.api import BoolResponseSchema
 from schemas.memealerts import MAUserInfo
 
@@ -172,6 +172,8 @@ class MemealertsOAuthService:
         :param user: пользователь в БД
         :return: актуальный токен из мемалёртса
         """
+        if user.memealerts.access_token is None:
+            raise MANoToken
         if isinstance(user, User):
             current_token = self._tokens_from_settings(user.memealerts)
         else:

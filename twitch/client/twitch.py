@@ -114,7 +114,7 @@ class Twitch:
         user: User,
         reward_id: str,
         subscription_id: str | None = None,
-    ) -> bool:
+    ) -> list[str]:
         # TODO: В идеале отсюда возвращать ошибку, что именно не так
         twitch_user = await TwitchClient(
             settings.twitch_client_id, settings.twitch_client_secret
@@ -128,12 +128,11 @@ class Twitch:
             only_manageable_rewards=True,
         )
         if len(rewards) == 0:
-            return False
+            return ["Награда не найдена"]
         if not rewards[0].is_enabled:
-            return False
+            return ["Награда отключена"]
         if rewards[0].should_redemptions_skip_request_queue:
-            # TODO: WARNING
-            pass
+            return ["Включён пропуск очереди на награды"]
         subs = await twitch_user.get_eventsub_subscriptions(
             user_id=user.twitch_id,
             subscription_id=subscription_id,
@@ -148,8 +147,10 @@ class Twitch:
             if sub.condition.get("reward_id") not in {reward_id}:
                 continue
             if sub.status == "enabled":
-                return True
-        return False
+                return []
+            else:
+                return ["Подписка на награду не активна"]
+        return ["Подписка на награду не найдена"]
 
     async def get_streams(self, users: list[User] | list[str]) -> dict[User, Stream | None]:
         streams = {}

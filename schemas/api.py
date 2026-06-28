@@ -52,6 +52,9 @@ class UpdateMemealertsCoinsSchema(BaseModel):
 class BoolResponseSchema(BaseModel):
     result: bool
 
+class CheckStatusResponseSchema(BoolResponseSchema):
+    problems: list[str]
+
 class UUIDResponseSchema(BaseModel):
     id_: UUID = Field(alias="id")
 

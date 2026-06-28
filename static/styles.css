@@ -497,7 +497,7 @@ section h3 {
     gap: 30px;
 }
 
-.overlay-card-status {
+.card-status {
     background: var(--color-bg-secondary);
     backdrop-filter: blur(16px);
     -webkit-backdrop-filter: blur(16px);
@@ -510,10 +510,16 @@ section h3 {
     flex-direction: row;
     align-items: center;
     justify-content: space-between;
-    height: 20px;
+    height: min(20px, auto);
+
+      & ul {
+        margin: 0px;
+          font-size: 75%;
+          color: var(--color-danger);
+      }
 }
 
-.overlay-card-status:hover {
+.card-status:hover {
     transform: translateY(-4px);
 }
 

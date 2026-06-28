@@ -43,13 +43,16 @@
     <button class="btn-danger" onclick="window.location.href='/memealerts/disable';">Отключить интеграцию Memealerts</button>
 
     <div class="cards-grid">
-        <div class="overlay-card-status" data-endpoint="/api/user/check-memealerts-token" data-type="memealerts-token">
-            <h3>Подключение к Memealerts</h3>
-            <div class="status-indicator tooltip-container"><span class="tooltip-text">Показывает, что подключение к Memealerts активно и выдача мемкоинов работает</span></div>
+        <div class="card-status" data-endpoint="/api/user/check-memealerts-token" data-type="memealerts-token" data-refreshtimer="180">
+            <div><h3>Подключение к Memealerts</h3>
+            <ul class="card-status-problems-list" style="margin: 0px"></ul>
+            </div>
+                <div class="status-indicator tooltip-container"><span class="tooltip-text">Показывает, что подключение к Memealerts активно и выдача мемкоинов работает</span></div>
         </div>
 
-        <div class="overlay-card-status" data-endpoint="/api/user/check-memealerts-reward" data-type="memealerts-reward">
-            <h3>Награда на Twitch</h3>
+        <div class="card-status" data-endpoint="/api/user/check-memealerts-reward" data-type="memealerts-reward" data-refreshtimer="180">
+            <div><h3>Награда на Twitch</h3>
+            <ul class="card-status-problems-list" style="margin: 0px"></ul></div>
             <div class="status-indicator tooltip-container"><span class="tooltip-text">Показывает, что награда на Twitch создана и сервис подписан на события о её использовании</span></div>
         </div>
     </div>

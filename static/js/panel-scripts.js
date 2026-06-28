@@ -308,6 +308,7 @@ function updateOverlayLink(card) {
 
 async function checkStatus(card) {
     const indicator = card.querySelector(".status-indicator");
+    const problems_list = card.querySelector(".card-status-problems-list");
     const endpoint = card.dataset.endpoint;
     const type = card.dataset.type;
 
@@ -330,6 +331,12 @@ async function checkStatus(card) {
 
         } else {
             indicator.classList.add("error");
+            problems_list.innerHTML = "";
+            data.problems.forEach(itemText => {
+              const li = document.createElement("li");
+              li.textContent = itemText;
+              problems_list.appendChild(li);
+            });
         }
 
     } catch (e) {
@@ -338,29 +345,17 @@ async function checkStatus(card) {
 }
 
 function initStatusCards() {
-    document.querySelectorAll(".overlay-card-status").forEach(card => {
+    document.querySelectorAll(".card-status").forEach(card => {
 
         const type = card.dataset.type;
+        const refresh_timer = Number(card.dataset.refreshtimer);
 
         // первый запуск
         checkStatus(card);
 
-        // интервалы
-        if (type === "heat") {
-            setInterval(() => checkStatus(card), 180000); // 3 минуты
-        }
+        console.log("Установлен рефреш таймер для карточки", card, "в", refresh_timer, "секунд");
 
-        if (type === "sse") {
-            setInterval(() => checkStatus(card), 5000); // 5 секунд
-        }
-
-        if (type === "memealerts-token") {
-            setInterval(() => checkStatus(card), 180000); // 3 минуты
-        }
-
-        if (type === "memealerts-reward") {
-            setInterval(() => checkStatus(card), 180000); // 3 минуты
-        }
+        setInterval(() => checkStatus(card), refresh_timer * 1000);
     });
 }
 

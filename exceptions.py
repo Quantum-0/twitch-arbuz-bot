@@ -37,3 +37,8 @@ class MAValidationRespError(MAError):
     """
     Failed to validate response schema from MA.
     """
+
+class MANoToken(MAError):
+    """
+    У пользователя нет oAuth токена.
+    """
