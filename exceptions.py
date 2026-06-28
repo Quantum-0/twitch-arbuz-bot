@@ -42,3 +42,8 @@ class MANoToken(MAError):
     """
     У пользователя нет oAuth токена.
     """
+
+class MAInvalidScopeError(MAError):
+    """
+    Неверный скоуп у пользователя.
+    """
