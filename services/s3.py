@@ -46,3 +46,8 @@ class FileStorage:
                     return await stream.read()
         except s3exc.ClientError as exc:
             raise FileNotExistError from exc
+
+    @tracer.start_as_current_span("S3: Delete object")
+    async def delete_object(self, key: str):
+        async with self._session.client(**self._client_kwargs) as s3:
+            await s3.delete_object(Bucket=self._bucket, Key=key)

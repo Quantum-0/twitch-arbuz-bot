@@ -1,9 +1,11 @@
 import logging
+from collections.abc import Callable
 from typing import Annotated, Any
+from uuid import uuid4
 
 import sqlalchemy as sa
 from dependency_injector.wiring import Provide, inject
-from fastapi import APIRouter, Depends, Form, Query, Security, HTTPException
+from fastapi import APIRouter, Depends, Form, Query, Security, HTTPException, UploadFile, File
 from httpx import HTTPStatusError
 from jwt import DecodeError
 from memealerts.types.exceptions import MATokenExpiredError
@@ -12,7 +14,7 @@ from starlette.responses import JSONResponse
 from twitchAPI.type import TwitchAPIException, TwitchResourceNotFound
 
 from container import Container
-from database.models import User
+from database.models import User, CharacterInfo
 from dependencies import get_db
 from routers.security_helpers import user_auth
 from schemas.api import (
@@ -22,7 +24,9 @@ from schemas.api import (
     BaseErrorSchema,
     UUIDResponseSchema,
 )
+from schemas.enums import FileStorageDir
 from services.memes import MemealertsService
+from services.s3 import FileStorage
 from services.sse_manager import SSEManager
 from services.stickers import StickersService
 from twitch.chat.bot import ChatBot
@@ -339,3 +343,99 @@ async def setup_ai_stickers(
         await db.commit()
         await db.refresh(user.memealerts)
         return JSONResponse({"title": "Успешно", "message": "Награда удалена."}, 200)
+
+
+@router.post("/reference")
+@inject
+async def upload_reference(
+    db_session_factory: Annotated[Callable[[], AsyncSession], Depends(Provide[Container.db_session_factory])],
+    s3: Annotated[FileStorage, Depends(Provide[Container.s3])],
+    user: User = Security(user_auth),
+    file: UploadFile | None = File(default=None),
+    description: str | None = Form(default=None),
+    name: str | None = None
+) -> BoolResponseSchema:
+    if not file and not description:
+        raise HTTPException(
+            status_code=400,
+            detail="Either file or description must be provided."
+        )
+
+    if name is not None and user.login_name != "quantum075":
+        raise HTTPException(
+            status_code=403,
+            detail="You have no access to upload reference by custom name"
+        )
+
+    if file:
+        if file.size > 10_000_000:
+            raise HTTPException(
+                status_code=413,
+                detail="File is too large",
+            )
+        if file.content_type != "image/png":
+            raise HTTPException(
+                status_code=415,
+                detail="Invalid file type. Only PNG images are allowed."
+            )
+
+        file_bytes = await file.read()
+
+        if file_bytes[:8] != b'\x89PNG\r\n\x1a\n':
+            raise HTTPException(415, detail="Invalid file type. Only PNG images are allowed.")
+        logger.info(f"Reference image from {user.login_name} was loaded to server")
+
+    target_username = name or user.login_name.lower()
+    new_image_id = uuid4() if file else None
+    old_file_id_to_delete = None
+
+    async with db_session_factory() as session:
+        try:
+            result = await session.execute(
+                sa.select(CharacterInfo).where(CharacterInfo.name == target_username)
+            )
+            existing_info = result.scalar_one_or_none()
+
+            if existing_info:
+                logger.info(f"Found already existing character info from {user.login_name}")
+                session.add(existing_info)
+                if file and existing_info.file_id:
+                    old_file_id_to_delete = existing_info.file_id
+                    existing_info.file_id = new_image_id
+                if description:
+                    existing_info.description = description
+            else:
+                new_info = CharacterInfo(
+                    name=target_username,
+                    description=description,
+                    file_id=new_image_id,
+                )
+                session.add(new_info)
+            await session.commit()
+        except Exception:
+            await session.rollback()
+            raise HTTPException(
+                status_code=500,
+                detail="Database error occurred."
+            )
+    logger.info(f"Character info from {user.login_name} saved to db")
+
+    if file and new_image_id:
+        try:
+            await s3.put_object(f"{FileStorageDir.REFS}/{new_image_id}.png", file_bytes)
+            logger.info(f"Reference image from {user.login_name} uploaded to s3 successfully")
+        except Exception as e:
+            logger.critical("Failed to upload S3 reference")
+            raise HTTPException(
+                status_code=500,
+                detail="File saved to DB, but failed to upload to storage."
+            )
+
+    if old_file_id_to_delete:
+        try:
+            await s3.delete_object(f"{FileStorageDir.REFS}/{old_file_id_to_delete}.png")
+            logger.info(f"Old reference image from {user.login_name} deleted from s3 successfully")
+        except Exception as e:
+            logger.error(f"Warning: Failed to delete old file {old_file_id_to_delete} from S3: {e}", exc_info=True)
+
+    return BoolResponseSchema(result=True)
