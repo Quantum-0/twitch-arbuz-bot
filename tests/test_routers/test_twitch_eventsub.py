@@ -88,19 +88,10 @@ async def test_eventsub_handler_raid(client, container, db_session):
     await db_session.commit()
 
     # Mock service
-    mock_service = MagicMock()
-    mock_service.handle_raid = MagicMock() # It's not AsyncMock because of how it's called in router?
-    # Actually it is awaited in router.
-
-    # In routers/api/twitch_eventsub.py:
-    # await service.handle_raid(payload)
 
     with container.twitch_eventsub_service.override(MagicMock()) as service_mock:
         service = service_mock()
-        service.handle_raid = MagicMock() # Using MagicMock because the router just calls it,
-        # and if it was decorated with task_wrapper it returns a task.
-        # Wait, the router DOES await it.
-        service.handle_raid = pytest.importorskip("unittest.mock").AsyncMock()
+        service.handle_raid = AsyncMock()
 
         payload = {
             "subscription": {

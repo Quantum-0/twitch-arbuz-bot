@@ -23,7 +23,6 @@ async def test_handle_raid_success(container, db_session, mock_twitch):
     )
     db_session.add(user)
     await db_session.commit()
-    await db_session.commit()
     await db_session.refresh(user)
 
     # Settings are created by event listener in models.py after_insert
@@ -104,7 +103,6 @@ async def test_handle_raid_disabled_shoutout(container, db_session, mock_twitch)
         _refresh_token="enc_refresh"
     )
     db_session.add(user)
-    await db_session.commit()
     await db_session.commit()
     await db_session.refresh(user)
 

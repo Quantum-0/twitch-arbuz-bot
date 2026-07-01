@@ -9,7 +9,7 @@ engine_kwargs = {
     "echo": False,
 }
 
-if not settings.db_url.startswith("sqlite"):
+if not str(settings.db_url).startswith("sqlite"):
     engine_kwargs.update({
         "pool_size": 5,
         "max_overflow": 10,
