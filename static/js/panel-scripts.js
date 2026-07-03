@@ -85,8 +85,40 @@ function initOverlays() {
         const linkDiv = card.querySelector(".overlay-link");
         const linkDockDiv = card.querySelector(".dock-panel-link");
 
+        // --- Автоматическое создание подписей для range-слайдеров ---
+        card.querySelectorAll("input[type='range']").forEach(slider => {
+            // Создаем верхнюю строку для текста и цифры
+            const header = document.createElement("div");
+            header.className = "control-header";
+
+            // Создаем метку для текста и переносим текст из родителя в неё
+            const label = document.createElement("span");
+            label.className = "control-label";
+            // Забираем текстовый узел (название настройки) и переносим в label
+            label.textContent = slider.parentNode.firstChild.textContent.trim();
+            slider.parentNode.firstChild.textContent = ""; // Очищаем старый голый текст
+
+            // Создаем элемент для вывода текущего значения
+            const output = document.createElement("output");
+            output.className = "control-output";
+            output.textContent = slider.value;
+
+            // Собираем структуру вместе
+            header.appendChild(label);
+            header.appendChild(output);
+            slider.parentNode.insertBefore(header, slider);
+        });
+        // -----------------------------------------------------------------------
+
         card.querySelectorAll("[data-param]").forEach(el => {
-            el.addEventListener("input", () => updateOverlayLink(card));
+            el.addEventListener("input", () => {
+                updateOverlayLink(card);
+
+                if (el.type === "range") {
+                    const output = el.parentNode.querySelector(".control-output");
+                    if (output) output.textContent = el.value;
+                }
+            });
         });
 
         card.querySelector(".overlay-toggle-settings").addEventListener("click", () => {
@@ -118,21 +150,6 @@ function initOverlays() {
 
         updateOverlayLink(card);
     });
-
-    /*fetch('/api/user/check-heat-installed', {
-        method: 'GET',
-        headers: { 'Content-Type': 'application/json' },
-    })
-    .then(res => res.json().then(data => ({ ok: res.ok, data })))
-    .then((
-        {ok, data}) => {
-            if (ok) {
-                document.querySelectorAll('div.plugin-required').forEach(element => {
-                    element.remove();
-                })
-            };
-        }
-    );*/
 }
 
 function updateDependentTogglesState() {

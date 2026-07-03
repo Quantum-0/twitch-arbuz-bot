@@ -673,6 +673,23 @@ section h3 {
     background: rgba(0,255,200,0.3);
 }
 
+/* Выстраивает название настройки и цифру в одну линию по краям */
+.control-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+/* Стили для красивого отображения текущего значения */
+.control-output {
+    font-weight: 600;
+    opacity: 0.85;
+    background: rgba(255, 255, 255, 0.1); /* Тонкая подложка, чтобы цифру было видно на любом фоне */
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-family: monospace; /* Моноширинный шрифт, чтобы при смене цифр верстка не дёргалась */
+}
+
 .dock-panel-link {
     margin-top: 0px;
     font-size: 13px;
