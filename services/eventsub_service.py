@@ -15,6 +15,7 @@ from database.models import Base, TwitchUserSettings, User
 from exceptions import MADuplicateUserError, MATokenInvalidError
 from schemas.twitch import PointRewardRedemptionWebhookSchema, RaidWebhookSchema
 from services.memes import MemealertsService
+from services.memes_v2 import MemealertsV2Service, MemealertsOAuthService
 from services.sse_manager import SSEManager
 from services.stickers import StickersService, RewardRedemptionProcessingError
 from twitch.chat.bot import ChatBot
@@ -36,6 +37,8 @@ class TwitchEventSubService():
         db_session_factory: Callable[[], AsyncSession],
         stickers: StickersService,
         memealerts: MemealertsService,
+        memealerts_v2: MemealertsV2Service,
+        memealerts_auth: MemealertsOAuthService,
     ):
         self._twitch = twitch
         self._chatbot = chatbot
@@ -43,6 +46,8 @@ class TwitchEventSubService():
         self._db_session_factory = db_session_factory
         self._stickers = stickers
         self._memealerts = memealerts
+        self._memealerts_v2 = memealerts_v2
+        self._memealerts_auth = memealerts_auth
 
     @staticmethod
     def task_wrapper(func):
@@ -148,12 +153,33 @@ class TwitchEventSubService():
         user: User,
     ) -> None:
         try:
-            result = await self._memealerts.give_bonus(
-                user.memealerts.memealerts_token,
-                user.login_name,
-                supporter=payload.event.user_input,
-                amount=user.memealerts.coins_for_reward,
-            )
+            # TODO: Плавно переходим на memealerts_v2
+            if user.memealerts.access_token is None:
+                # Старый флоу
+                result = await self._memealerts.give_bonus(
+                    user.memealerts.memealerts_token,
+                    user.login_name,
+                    supporter=payload.event.user_input,
+                    amount=user.memealerts.coins_for_reward,
+                )
+            else:
+                # Новый флоу
+                try:
+                    token = await self._memealerts_auth.get_token_of_user(user)
+                    result = await self._memealerts_v2.give_bonus(
+                        ma_token=token,
+                        streamer=user.login_name,
+                        supporter=payload.event.user_input,
+                        amount=user.memealerts.coins_for_reward,
+                    )
+                except Exception:
+                    logger.error("Error with memealerts v2!", exc_info=True)
+                    result = await self._memealerts.give_bonus(
+                        user.memealerts.memealerts_token,
+                        user.login_name,
+                        supporter=payload.event.user_input,
+                        amount=user.memealerts.coins_for_reward,
+                    )
 
             if result:
                 try:  # TODO: Проверить что работает, потом убрать

@@ -1,23 +1,26 @@
 import asyncio
 import logging
+import re
 from collections.abc import Callable, Sequence
 from datetime import UTC, datetime, timedelta
 from typing import Generic, TypeVar
 
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 import httpx
 import sqlalchemy as sa
-from memealerts.types.exceptions import MATokenExpiredError
+from memealerts.types.exceptions import MATokenExpiredError, MAUserNotFoundError, MAError
 from memealerts.types.user_id import UserID
 from opentelemetry import trace
 from pydantic import BaseModel, PrivateAttr, ValidationError, computed_field, model_validator
+from sqlalchemy.exc import MultipleResultsFound
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from config import memealerts_scope, settings
-from database.models import MemealertsSettings, User
+from database.models import MemealertsSettings, User, MemealertsSupporters
 from exceptions import MARefreshTokenError, MAInvalidTokenError, MAUnavailableError, MAValidationRespError, MANoToken, \
-    MAInvalidScopeError
+    MAInvalidScopeError, MADuplicateUserError
 from schemas.api import BoolResponseSchema
-from schemas.memealerts import MAUserInfo
+from schemas.memealerts import MAUserInfo, MASupportersList, MASupporter
 
 logger = logging.getLogger(__name__)
 tracer = trace.get_tracer(__name__)
@@ -328,6 +331,12 @@ class MemealertsV2Service:
     ):
         self._db_session_factory = db_session_factory
         self._api_semaphore = asyncio.Semaphore(50)
+        self._id_pattern = re.compile("[0-9a-f]{24}")
+        # Защита фоновых задач от сборщика мусора (GC)
+        self._background_tasks: set[asyncio.Task] = set()
+
+    def is_id(self, id_: str) -> bool:
+        return bool(self._id_pattern.fullmatch(id_))
 
     async def get_user_info(self, ma_token: Tokens[str]) -> MAUserInfo:
         """
@@ -352,7 +361,85 @@ class MemealertsV2Service:
             except ValidationError as exc:
                 raise MAValidationRespError from exc
 
-    async def give_bonus(self, ma_token: Tokens[str], user_id: UserID, value: int) -> bool:
+    @tracer.start_as_current_span("MAv2: Give bonus")
+    async def give_bonus(self, ma_token: Tokens[str], streamer: str, supporter: str, amount: int):
+        """
+        Внешний метод начисления бонуса саппортеру от стримера
+        Инитим тут клиент и выполняем с ним поиск и выдачу коинов
+        """
+        logger.info(f"Giving bonus {amount} memecoins from {streamer} to {supporter}")
+        current_span = trace.get_current_span()
+        if current_span.is_recording():
+            current_span.set_attribute("ma.streamer", streamer)
+            current_span.set_attribute("ma.supporter", supporter)
+            current_span.set_attribute("ma.amount", amount)
+
+        try:
+            result: bool = await self.find_and_give_bonus(ma_token, supporter, amount)
+        except MAError as exc:
+            logger.warning(f"Error! Failed to give bonus to `{supporter}` form `{streamer}. Error {exc}")
+            raise exc
+
+        if current_span.is_recording():
+            current_span.set_attribute("ma.success", result)
+        return result
+
+    async def find_and_give_bonus(
+        self,
+        ma_token: Tokens[str],
+        username: str,
+        amount: int,
+    ) -> bool:
+        """
+        Поиск саппортера и выдача ему коинов.
+        """
+        username_clean = username.lower().strip()
+
+        # Если указан айдишник - выдаём сразу по нему
+        if self.is_id(username_clean):
+            logger.info(f"Giving memecoins by user_id=`{username}`")
+            await self._give_bonus(ma_token=ma_token, user_id=UserID(username_clean), value=amount)
+            return True
+
+        # Пытаемся достать из БД закэшированного саппортера
+        try:
+            supporter_from_db = await self.search_supporter_from_db(username_clean)
+        except MultipleResultsFound as exc:
+            logger.warning(f"Found multiple rows in database with username=`{username_clean}`")
+            supporter_from_db = None
+        except Exception:
+            logger.error("Database error during pre-search", exc_info=True)
+            supporter_from_db = None
+
+        if supporter_from_db:
+            logger.info(f"Giving memecoins for supporter from DB cache by username=`{username_clean}`")
+            await self._give_bonus(ma_token=ma_token, user_id=UserID(supporter_from_db.id), value=amount)
+            return True
+
+        # Ищем пользователя среди саппортеров стримера через API (сначала точечно, затем полностью)
+        user_in_supporters = await self.find_user_in_supporters(ma_token, username_clean)
+
+        if user_in_supporters:
+            logger.info(f"Giving memecoins for supporter by username=`{username_clean}`")
+            await self._give_bonus(user_in_supporters.supporter_id, amount)
+            return True
+
+        # Последний шанс: Глобальный поиск через API
+        # api_global_start = time.perf_counter()
+        # try:
+        #     user_in_search: User | None = await cli.find_user(username_clean)
+        #     logger.debug(f"API global search took {time.perf_counter() - api_global_start:.4f}s")
+        # except MAUserNotFoundError:
+        #     user_in_search = None
+        # if user_in_search:
+        #     logger.info(f"Giving memecoins via global search by username=`{username}`")
+        #     await cli.give_bonus(user_in_search.id, amount)
+        #     return True
+
+        logger.info(f"Failed to give bonus")
+        return False
+
+    async def _give_bonus(self, ma_token: Tokens[str], user_id: UserID, value: int) -> bool:
         """
         Выдача бонуса пользователю по ID.
         :param ma_token: OAuth-токен Memealerts;
@@ -377,7 +464,9 @@ class MemealertsV2Service:
             # TODO: Если коллеги из MA согласятся на использование 404 - тут разделить логику
             #  - получаем 404 - идём (извне) запрашиваем, включён ли приветственный бонус
             #  - включён - просим пользака его забрать, выключен - просим его купить коины или кинуть донат
-            if response.status_code != 201:
+            if response.status_code == 404:
+                raise MAUserNotFoundError
+            if response.status_code in {401, 403}:
                 logger.error(f"Access error from MA. Resp: {response.json()}")
                 raise MAInvalidTokenError
             data = response.json()
@@ -386,6 +475,165 @@ class MemealertsV2Service:
             except ValidationError as exc:
                 raise MAValidationRespError from exc
 
-    async def resolve_user_input_to_user_id(self, ma_token, user_input: str):
-        # TODO: convert user input to user_id
-        pass
+    async def _get_supporters(self, ma_token: Tokens[str], skip: int | None = None, limit: int | None = None, query: str | None = None) -> MASupportersList:
+        params = {}
+        if skip is not None:
+            if skip < 0:
+                raise ValueError("Value should be more than 0")
+            params["skip"] = skip
+        if limit is not None:
+            if not (0 < limit <= 100):
+                raise ValueError("Value should be between 0 and 100")
+            params["limit"] = limit
+        if query:
+            params["query"] = query
+        async with self._api_semaphore, httpx.AsyncClient() as client:
+            response = await client.post(
+                "https://memealerts.com/api/v1/user/supporters",
+                timeout=10,
+                headers={"Authorization": f"Bearer {ma_token.access_token}"},
+                params=params,
+            )
+            if response.status_code in {500, 502}:
+                raise MAUnavailableError
+            if response.status_code in {401, 403}:
+                logger.error(f"Access error from MA. Resp: {response.json()}")
+                raise MAInvalidTokenError
+            data = response.json()
+            try:
+                return MASupportersList(**data)
+            except ValidationError as exc:
+                raise MAValidationRespError from exc
+
+    async def load_supporters(self, ma_token: Tokens[str], query: str | None = None) -> list[MASupporter]:
+        limit = 100
+        first_page = await self._get_supporters(ma_token=ma_token, limit=limit, skip=0, query=query)
+        total_count = first_page.total
+        items = first_page.data
+
+        if total_count > limit:
+            remaining_skips = list(range(limit, total_count, limit))
+            tasks = [self._get_supporters(ma_token=ma_token, limit=limit, skip=skip, query=query) for skip in remaining_skips]
+            results = await asyncio.gather(*tasks)
+
+            for page in results:
+                items.extend(page.data)
+
+            if len(items) != total_count:
+                logger.warning("Total count = %s, items = %s", total_count, len(items))
+
+        logger.info(f"Loaded {len(items)} supporters for query='{query}' ({total_count} total)")
+
+        # Безопасный запуск фоновой задачи с сохранением сильной ссылки
+        task = asyncio.create_task(self._safe_save_supporters(items))
+        self._background_tasks.add(task)
+        task.add_done_callback(self._background_tasks.discard)
+
+        return items
+
+    @tracer.start_as_current_span("MA: Find user in supporters")
+    async def find_user_in_supporters(
+        self,
+        ma_token: Tokens[str],
+        username: str,
+    ) -> MASupporter | None:
+        # ШАГ А: Точечный поиск по подстроке через API саппортеров
+        logger.debug(f"Targeted search from supporters with query=`{username}`")
+        with tracer.start_as_current_span("Search by query"):
+            try:
+                targeted_users = await self.load_supporters(ma_token, query=username)
+                target_user = self._pick_user_from_list(targeted_users, username)
+            except:
+                target_user = None
+
+        if target_user:
+            return target_user
+
+        # ШАГ Б: Фолбэк на полный скан, если по query ничего не нашлось
+        logger.warning(f"Targeted search failed for `{username}`. Falling back to full scan.")
+        with tracer.start_as_current_span("Full list search"):
+            all_users = await self.load_supporters(ma_token, query=None)
+            target_user = self._pick_user_from_list(all_users, username)
+        return target_user
+
+    def _pick_user_from_list(self, users: list[MASupporter], username: str) -> MASupporter | None:
+        """Оптимизированный поиск совпадения в списке с защитой от дубликатов"""
+        lookup = {}
+        target_user = None
+
+        for user in users:
+            # 1. Проверяем supporter_link
+            if user.supporter_link:
+                link_clean = user.supporter_link.lower()
+                if link_clean not in lookup:
+                    lookup[link_clean] = user
+                    if link_clean == username:
+                        target_user = user
+                else:
+                    logger.warning(f"Duplicate memealerts link=`{link_clean}`")
+                    if link_clean == username:
+                        raise MADuplicateUserError(username)
+
+            # 2. Проверяем supporter_name
+            if user.supporter_name:
+                name_clean = user.supporter_name.lower()
+                if name_clean not in lookup:
+                    lookup[name_clean] = user
+                    if name_clean == username:
+                        target_user = user
+                else:
+                    logger.warning(f"Duplicate memealerts name=`{name_clean}`")
+                    if name_clean == username:
+                        raise MADuplicateUserError(username)
+
+        return target_user
+
+    @tracer.start_as_current_span("Load supported from db cache")
+    async def search_supporter_from_db(self, username: str) -> MemealertsSupporters | None:
+        """
+        Поиск саппортера в бд
+        """
+        q = sa.select(MemealertsSupporters).where(
+            sa.or_(
+                sa.func.lower(MemealertsSupporters.name) == username,
+                sa.func.lower(MemealertsSupporters.link) == username,
+            )
+        )
+        db: AsyncSession
+        async with self._db_session_factory() as db:
+            result: MemealertsSupporters | None = (await db.execute(q)).scalar_one_or_none()
+            return result
+
+    async def save_all_supporters_into_db(self, supporters: list[MASupporter]) -> None:
+        if not supporters:
+            return
+
+        unique_data = {sup.supporter_id.root: sup for sup in supporters}.values()
+        data = [
+            {
+                "id": sup.supporter_id.root,
+                "link": sup.supporter_link or sup.supporter_name,
+                "name": sup.supporter_name,
+            }
+            for sup in unique_data
+        ]
+        q = pg_insert(MemealertsSupporters).values(data)
+        q = q.on_conflict_do_update(
+            index_elements=(MemealertsSupporters.id,),
+            set_={
+                "link": q.excluded.link,
+                "name": q.excluded.name,
+            },
+        )
+        db: AsyncSession
+        async with self._db_session_factory() as db:
+            await db.execute(q)
+            await db.commit()
+
+    @tracer.start_as_current_span("Saving supporters list to DB")
+    async def _safe_save_supporters(self, items: list[MASupporter]) -> None:
+        """Вспомогательный метод для безопасной фоновой записи"""
+        try:
+            await self.save_all_supporters_into_db(items)
+        except Exception:
+            logger.error("Background error saving supporters to db", exc_info=True)

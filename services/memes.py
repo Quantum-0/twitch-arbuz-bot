@@ -3,23 +3,18 @@ import logging
 import re
 import time
 from collections.abc import Callable
-from datetime import datetime, timezone, timedelta
 
-import httpx
+import sqlalchemy as sa
 from memealerts import MemealertsAsyncClient
 from memealerts.types.exceptions import MAUserNotFoundError, MAError
 from memealerts.types.models import Supporter, User
 from memealerts.types.user_id import UserID
 from opentelemetry import trace
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.exc import MultipleResultsFound
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from sqlalchemy.dialects.postgresql import insert as pg_insert
-
-from config import settings
 from database.models import MemealertsSupporters
-import sqlalchemy as sa
-
 from exceptions import MADuplicateUserError, MATokenInvalidError
 
 logger = logging.getLogger(__name__)

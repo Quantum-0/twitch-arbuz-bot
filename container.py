@@ -86,7 +86,9 @@ class Container(containers.DeclarativeContainer):
         ssem=sse_manager,
         db_session_factory=db_session_factory,
         stickers=stickers_service,
-        memealerts=memealerts
+        memealerts=memealerts,
+        memealerts_v2=memealerts_v2,
+        memealerts_auth=memealerts_auth,
     )
 
     job_store_factory = providers.Factory(
