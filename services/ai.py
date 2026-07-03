@@ -27,7 +27,7 @@ class OpenAIClient:
             (f"image_{i}.png", ref, "image/png") for i, ref in enumerate(refs)
         ]
         result = await self._client.images.edit(
-            model="gpt-image-1-mini",
+            model="gpt-image-2",
             prompt=prompt,
             quality="low",
             image=formatted_refs,
@@ -39,7 +39,7 @@ class OpenAIClient:
     async def generate_sticker(self, prompt: str) -> tuple[bytes, float]:
         logger.info("Start generating image")
         result = await self._client.images.generate(
-            model="gpt-image-1-mini",
+            model="gpt-image-2",
             prompt=prompt,
             quality="low",
             size="1024x1024",
