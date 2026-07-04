@@ -109,13 +109,66 @@ class Twitch:
         )
         return reward
 
+    @classmethod
+    async def update_reward(
+        cls,
+        user: User,
+        reward_id: UUID,
+        *,
+        is_enabled: bool,
+        is_user_input_required: bool,
+        should_redemptions_skip_request_queue: bool,
+    ):
+        twitch_user = await TwitchClient(
+            settings.twitch_client_id, settings.twitch_client_secret
+        )
+        await twitch_user.set_user_authentication(
+            user.access_token, user_scope, user.refresh_token
+        )
+        rewards = await twitch_user.get_custom_reward(
+            user.twitch_id,
+            reward_id=reward_id,
+            only_manageable_rewards=True,
+        )
+        if len(rewards) == 0:
+            raise Exception("Reward not found")
+        await twitch_user.update_custom_reward(
+            broadcaster_id=user.twitch_id,
+            reward_id=str(reward_id),
+            is_enabled=is_enabled,
+            is_user_input_required=is_user_input_required,
+            should_redemptions_skip_request_queue=should_redemptions_skip_request_queue,
+        )
+
+        subs = await twitch_user.get_eventsub_subscriptions(
+            user_id=user.twitch_id,
+        )
+        subs_for_rewards: list[EventSubSubscription] = [
+            sub
+            for sub in subs.data
+            if sub.type == "channel.channel_points_custom_reward_redemption.add"
+               and sub.condition.get("broadcaster_user_id") == user.twitch_id
+        ]
+        memecoins_reward_subscription: EventSubSubscription | None = None
+        for sub in subs_for_rewards:
+            if sub.condition.get("reward_id") not in {str(reward_id)}:
+                continue
+            memecoins_reward_subscription = sub
+
+        if memecoins_reward_subscription and memecoins_reward_subscription.status != "enabled":
+            await twitch_user.delete_eventsub_subscription(memecoins_reward_subscription.id)
+            memecoins_reward_subscription = None
+
+        if not memecoins_reward_subscription:
+            await cls.subscribe_reward(user=user, reward_id=reward_id)
+
+
     @staticmethod
     async def validate_reward_subscription(
         user: User,
         reward_id: str,
         subscription_id: str | None = None,
     ) -> list[str]:
-        # TODO: В идеале отсюда возвращать ошибку, что именно не так
         twitch_user = await TwitchClient(
             settings.twitch_client_id, settings.twitch_client_secret
         )
@@ -129,10 +182,17 @@ class Twitch:
         )
         if len(rewards) == 0:
             return ["Награда не найдена"]
+
+        problems = []
         if not rewards[0].is_enabled:
-            return ["Награда отключена"]
+            problems.append("Награда отключена")
+        if not rewards[0].is_user_input_required:
+            problems.append("Ввод имени пользователя отключён")
         if rewards[0].should_redemptions_skip_request_queue:
-            return ["Включён пропуск очереди на награды"]
+            problems.append("Включён пропуск очереди на награды")
+        if problems:
+            return problems
+
         subs = await twitch_user.get_eventsub_subscriptions(
             user_id=user.twitch_id,
             subscription_id=subscription_id,
@@ -172,6 +232,17 @@ class Twitch:
             user.access_token, user_scope, user.refresh_token
         )
         await twitch_user.delete_custom_reward(user.twitch_id, str(reward_id))
+
+    @staticmethod
+    async def disable_reward(user, reward_id: UUID | str):
+        twitch_user = await TwitchClient(
+            settings.twitch_client_id, settings.twitch_client_secret
+        )
+        await twitch_user.set_user_authentication(
+            user.access_token, user_scope, user.refresh_token
+        )
+        await twitch_user.update_custom_reward(user.twitch_id, str(reward_id), is_enabled=False)
+
 
     @tracer.start_as_current_span("Twitch: Sending message")
     async def send_chat_message(
@@ -272,7 +343,7 @@ class Twitch:
         await self._twitch.delete_eventsub_subscription(str(sub_id))
 
     @staticmethod
-    async def subscribe_reward(user, reward_id: UUID | str):
+    async def subscribe_reward(user: User, reward_id: UUID | str):
         async with httpx.AsyncClient() as client:
             response = await client.post(
                 "https://id.twitch.tv/oauth2/token",

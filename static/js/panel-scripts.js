@@ -339,25 +339,53 @@ async function checkStatus(card) {
         if (data.result === true) {
             indicator.classList.add("active");
 
-            // 🔥 важная логика для heat
+            // Обновляем кнопку управления наградой
+            if (type === "memealerts-reward") {
+                updateRewardButton("delete");
+            }
+
+            // Логика для Heat
             if (type === "heat") {
                 document.querySelectorAll(".plugin-required").forEach(el => {
                     el.style.display = "none";
                 });
             }
 
+            if (problems_list) {
+                problems_list.innerHTML = "";
+            }
+
         } else {
             indicator.classList.add("error");
             problems_list.innerHTML = "";
-            data.problems.forEach(itemText => {
-              const li = document.createElement("li");
-              li.textContent = itemText;
-              problems_list.appendChild(li);
+
+            (data.problems || []).forEach(problem => {
+                const li = document.createElement("li");
+                li.textContent = problem;
+                problems_list.appendChild(li);
             });
+
+            // Обновляем кнопку управления наградой
+            if (type === "memealerts-reward") {
+                switch (data.state) {
+                    case "missing":
+                        updateRewardButton("create");
+                        break;
+                    case "broken":
+                        updateRewardButton("fix");
+                        break;
+                    default:
+                        updateRewardButton("create");
+                        break;
+                }
+            }
         }
 
     } catch (e) {
         indicator.classList.add("error");
+        if (type === "memealerts-reward") {
+            updateRewardButton("loading");
+        }
     }
 }
 
@@ -441,3 +469,114 @@ function initStatusCards() {
 //        setTimeout(() => keyInput.classList.remove("error"), 400);
 //    }
 //};
+
+
+// MEMEALERTS V2 !!!!!!!!
+
+async function memealertsAction(endpoint, method= "POST") {
+    const btn = document.getElementById("memealerts-reward-btn");
+    if (btn) {
+        btn.disabled = true;
+    }
+    try {
+        const response = await fetch(endpoint, {
+            method: method
+        });
+        const data = await response.json();
+        showNotification(
+            data.title || "Memealerts",
+            data.message,
+            !response.ok
+        );
+    } catch (e) {
+        showNotification(
+            "Ошибка",
+            e.message,
+            true
+        );
+    }
+    await refreshMemealertsStatuses();
+}
+
+function createMemealertsReward() {
+    return memealertsAction("/api/user/memealerts/reward", "PUT");
+}
+
+function fixMemealertsReward() {
+    return memealertsAction("/api/user/memealerts/reward", "PATCH");
+}
+
+function deleteMemealertsReward() {
+    return memealertsAction("/api/user/memealerts/reward", "DELETE");
+}
+
+function disconnectMemealerts() {
+    return memealertsAction("/api/user/memealerts", "DELETE");
+}
+
+async function refreshMemealertsStatuses() {
+    const tokenCard = document.querySelector(
+        '.card-status[data-type="memealerts-token"]'
+    );
+
+    const rewardCard = document.querySelector(
+        '.card-status[data-type="memealerts-reward"]'
+    );
+
+    if (tokenCard) {
+        await checkStatus(tokenCard);
+    }
+
+    if (rewardCard) {
+        await checkStatus(rewardCard);
+    }
+}
+
+function updateRewardButton(action) {
+    const btn = document.getElementById("memealerts-reward-btn");
+    if (!btn) return;
+
+    btn.disabled = false;
+    btn.classList.remove("btn-danger");
+    btn.dataset.action = action;
+
+    switch (action) {
+        case "loading":
+            btn.disabled = true;
+            btn.textContent = "Проверка...";
+            break;
+
+        case "create":
+            btn.textContent = "Создать награду";
+            break;
+
+        case "fix":
+            btn.textContent = "Исправить награду";
+            break;
+
+        case "delete":
+            btn.classList.add("btn-danger");
+            btn.textContent = "Отключить награду";
+            break;
+
+        default:
+            btn.disabled = true;
+            btn.textContent = "Неизвестное состояние";
+            break;
+    }
+}
+
+async function handleRewardButton() {
+    const btn = document.getElementById("memealerts-reward-btn");
+
+    switch (btn.dataset.action) {
+        case "create":
+            return createMemealertsReward();
+
+        case "fix":
+            return fixMemealertsReward();
+
+        case "delete":
+            return deleteMemealertsReward();
+    }
+}

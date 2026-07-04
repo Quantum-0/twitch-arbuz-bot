@@ -92,7 +92,7 @@ async def login_callback_task(
     # Получаем фолловеров
     followers = await twitch.get_followers(user)
 
-    # Делаем бота модератором
+    # Делаем бота модератором (ТОЛЬКО ПРИ ЛОГИНЕ)
     await twitch.set_bot_moder(user)
 
     async with db_session_factory() as session:

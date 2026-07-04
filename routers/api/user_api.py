@@ -26,6 +26,7 @@ from schemas.api import (
     BaseErrorSchema,
     UUIDResponseSchema,
     CheckStatusResponseSchema,
+    CheckMemealertsRewardStatusResponseSchema,
 )
 from schemas.enums import FileStorageDir
 from services.memes import MemealertsService
@@ -37,10 +38,13 @@ from twitch.chat.bot import ChatBot
 from twitch.client.twitch import Twitch
 from utils.enums import SSEChannel
 from utils.memes import token_expires_in_days
+from routers.api.user.memealerts import router as memealerts_router
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/user", tags=["User API"])
+
+router.include_router(memealerts_router)
 
 
 @router.get(
@@ -91,7 +95,7 @@ async def slovotron_restart(
     await chat_bot.send_message(res, "!словотрон-рестарт")
 
 
-
+# FIXME: все ручки /check-* перенести в отдельный роутер!
 @router.get(
     "/check-sse",
     response_model=CheckStatusResponseSchema,
@@ -152,17 +156,28 @@ async def check_memealerts_token(
     return CheckStatusResponseSchema(result=True, problems=[])
 
 
-@router.get("/check-memealerts-reward", response_model=CheckStatusResponseSchema)
+# FIXME: все ручки /check-* перенести в отдельный роутер!
+@router.get("/check-memealerts-reward", response_model=CheckMemealertsRewardStatusResponseSchema)
 @inject
 async def check_memealerts_reward(
     twitch: Annotated[Twitch, Depends(Provide[Container.twitch])],
     user: User = Security(user_auth),
-) -> CheckStatusResponseSchema:
+) -> CheckMemealertsRewardStatusResponseSchema:
     problems = await twitch.validate_reward_subscription(
         user = user,
         reward_id=str(user.memealerts.memealerts_reward),
     )
-    return CheckStatusResponseSchema(result=not problems, problems=problems)
+    if not problems:
+        state = "ok"
+    elif "Награда не найдена" in problems:
+        state = "missing"
+    else:
+        state = "broken"
+    return CheckMemealertsRewardStatusResponseSchema(
+        result=not problems,
+        problems=problems,
+        state=state,
+    )
 
 
 @router.get("/install-heat", response_model=BoolResponseSchema)

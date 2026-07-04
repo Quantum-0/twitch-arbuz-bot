@@ -1,3 +1,4 @@
+from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, Field
@@ -54,6 +55,9 @@ class BoolResponseSchema(BaseModel):
 
 class CheckStatusResponseSchema(BoolResponseSchema):
     problems: list[str]
+
+class CheckMemealertsRewardStatusResponseSchema(CheckStatusResponseSchema):
+    state: Literal["missing"] | Literal["broken"] | Literal["ok"]
 
 class UUIDResponseSchema(BaseModel):
     id_: UUID = Field(alias="id")

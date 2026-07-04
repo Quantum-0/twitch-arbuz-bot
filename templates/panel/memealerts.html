@@ -40,8 +40,6 @@
 <p>В будущем подключение через ручное копирование токена будет отключено.</p>
 <p>Пока это подключение ни на что не влияет, но вы можете его тыкнуть, чтоб помочь с тестированием <3</p>
 {% if memealerts.enabled_v2 %}
-    <button class="btn-danger" onclick="window.location.href='/memealerts/disable';">Отключить интеграцию Memealerts</button>
-
     <div class="cards-grid">
         <div class="card-status" data-endpoint="/api/user/check-memealerts-token" data-type="memealerts-token" data-refreshtimer="180">
             <div><h3>Подключение к Memealerts</h3>
@@ -55,6 +53,21 @@
             <ul class="card-status-problems-list" style="margin: 0px"></ul></div>
             <div class="status-indicator tooltip-container"><span class="tooltip-text">Показывает, что награда на Twitch создана и сервис подписан на события о её использовании</span></div>
         </div>
+    </div>
+    <div class="cards-grid">
+        <button
+            class="btn-danger"
+            id="disconnect-memealerts-btn"
+            onclick="disconnectMemealerts()">
+            Отключить интеграцию Memealerts
+        </button>
+
+        <button
+            id="memealerts-reward-btn"
+            data-action=""
+            onclick="handleRewardButton()">
+            Загрузка...
+        </button>
     </div>
 {% else %}
     <button onclick="window.location.href='/memealerts/auth';">Включить интеграцию Memealerts</button>
