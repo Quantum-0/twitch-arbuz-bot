@@ -11,7 +11,7 @@ async def get_twitch_panel():
     return FileResponse(
         "static/ext_panel/panel.html",
         headers={
-            "Content-Security-Policy": "frame-ancestors 'self' https://*.twitch.tv https://*.ext-twitch.tv/ https://twitch.tv http://localhost:* https://localhost:*",
+            "Content-Security-Policy": "frame-ancestors 'self' https://*.twitch.tv https://*.ext-twitch.tv https://twitch.tv http://localhost:* https://localhost:*",
             "Cache-Control": "no-store, no-cache, must-revalidate",
             "Access-Control-Allow-Origin": "*"
         }
