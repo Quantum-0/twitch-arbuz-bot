@@ -15,6 +15,7 @@ from opentelemetry.propagators.composite import CompositePropagator
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapPropagator
+from prometheus_fastapi_instrumentator import Instrumentator as PrometheusInstrumentator
 from sentry_sdk.integrations.fastapi import FastApiIntegration
 from sentry_sdk.integrations.starlette import StarletteIntegration
 from starlette import status
@@ -27,8 +28,6 @@ from config import settings
 from dependencies import lifespan as lifespan_dep
 from routers.routers import api_router, user_router, router_for_robots
 from utils.logging_conf import LOGGING_CONFIG
-
-from prometheus_fastapi_instrumentator import Instrumentator as PrometheusInstrumentator
 
 if settings.sentry_dsn:
     sentry_sdk.init(

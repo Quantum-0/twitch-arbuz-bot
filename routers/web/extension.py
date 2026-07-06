@@ -1,0 +1,25 @@
+from dependency_injector.wiring import inject
+from fastapi import APIRouter
+from starlette.responses import FileResponse
+
+router = APIRouter(prefix="/extension", tags=["Twitch Extension"])
+
+
+@router.get("/panel.html", response_class=FileResponse)
+@inject
+async def get_twitch_panel():
+    return FileResponse(
+        "static/ext_panel/panel.html",
+        headers={
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "POST, GET, OPTIONS",
+            "Access-Control-Allow-Headers": "Content-Type, Authorization",
+            "Cache-Control": "public, max-age=604800",
+        }
+    )
+
+
+@router.get("/control.html", response_class=FileResponse)
+@inject
+async def get_twitch_control():
+    return FileResponse("static/ext_panel/panel.html", headers={"Cache-Control": "public, max-age=604800"})

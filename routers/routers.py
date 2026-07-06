@@ -12,6 +12,7 @@ from routers.sse import router as sse_router
 from routers.web.file_storage import router as files_router
 from routers.web.obs_dock import router as obs_dock_router
 from routers.robots.for_robots import router as router_for_robots  # noqa
+from routers.web.extension import router as extension_router
 
 # API
 api_router = APIRouter(prefix="/api", tags=["API"])
@@ -30,3 +31,4 @@ user_router.include_router(service_routes_router)
 user_router.include_router(files_router)
 user_router.include_router(obs_dock_router)
 user_router.include_router(memealerts_router)
+user_router.include_router(extension_router)
