@@ -11,10 +11,9 @@ async def get_twitch_panel():
     return FileResponse(
         "static/ext_panel/panel.html",
         headers={
-            "Access-Control-Allow-Origin": "*",
-            "Access-Control-Allow-Methods": "POST, GET, OPTIONS",
-            "Access-Control-Allow-Headers": "Content-Type, Authorization",
-            "Cache-Control": "public, max-age=604800",
+            "Content-Security-Policy": "frame-ancestors 'self' https://*.twitch.tv https://twitch.tv http://localhost:* https://localhost:*",
+            "Cache-Control": "no-store, no-cache, must-revalidate",
+            "Access-Control-Allow-Origin": "*"
         }
     )
 
