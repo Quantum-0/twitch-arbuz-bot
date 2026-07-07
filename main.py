@@ -21,7 +21,7 @@ from sentry_sdk.integrations.starlette import StarletteIntegration
 from starlette import status
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.requests import Request
-from starlette.responses import JSONResponse, RedirectResponse, FileResponse
+from starlette.responses import JSONResponse, RedirectResponse, FileResponse, Response
 from starlette.staticfiles import StaticFiles
 
 from config import settings
@@ -85,11 +85,43 @@ async def sentry_request_validation_handler(
 
 
 PrometheusInstrumentator().instrument(app).expose(app)
+# app.add_middleware(
+#     CORSMiddleware,
+#     # Разрешаем все поддомены Twitch через регулярное выражение
+#     allow_origin_regex=r"https://.*\.ext-twitch\.tv",
+#     # Если хотите временно разрешить вообще всё для теста,
+#     # закомментируйте строку выше и раскомментируйте строку ниже:
+#     # allow_origins=["*"],
+#     allow_credentials=True,
+#     allow_methods=["GET", "POST", "OPTIONS"],
+#     allow_headers=["Content-Type", "Authorization"],
+# )
+
 app.add_middleware(SessionMiddleware, secret_key=settings.middleware_secret_key)
 app.include_router(router=api_router)
 app.include_router(router=user_router)
 app.include_router(router=router_for_robots)
 app.mount("/static", StaticFiles(directory="static"), name="static")
+
+# Разрешаем Твичу встраивать этот iframe
+# (Используем те же домены, что Твич просит в своей политике)
+# @app.middleware("http")
+# async def add_security_headers_for_twitch(request: Request, call_next):
+#     response: Response = await call_next(request)
+#
+#     twitch_domains = (
+#         "https://supervisor.ext-twitch.tv "
+#         "https://twitch.tv "
+#         "https://*.twitch.tv "
+#         "https://*.twitch.tech"
+#     )
+#
+#     response.headers["Content-Security-Policy"] = f"frame-ancestors 'self' {twitch_domains};"
+#
+#     if "X-Frame-Options" in response.headers:
+#         del response.headers["X-Frame-Options"]
+#
+#     return response
 
 logging.config.dictConfig(LOGGING_CONFIG)
 logger = logging.getLogger(__name__)
@@ -120,4 +152,6 @@ if __name__ == "__main__":
         port=8000,
         log_level="debug",
         reload=False,
+        # ssl_keyfile="./localhost+2-key.pem",
+        # ssl_certfile="./localhost+2.pem"
     )

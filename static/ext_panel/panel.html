@@ -25,7 +25,7 @@ body {
 /* Контейнер новеллы */
 #novel-container {
   position: relative;
-  width: 320px;
+  width: 318px;
   height: 500px;
   border: 2px solid #9146ff;
 }
@@ -113,11 +113,10 @@ body {
 
   </style>
 
-  
+  <!-- Обязательный скрипт Твича -->
+<script src="https://extension-files.twitch.tv/helper/v1/twitch-ext.min.js"></script>
 </head>
 <body>
-  <!-- Обязательный скрипт Твича -->
-<script src="https://twitch.tv"></script>
 
 <div id="novel-container">
   <!-- Сцена с персонажем -->
@@ -135,10 +134,6 @@ body {
     </div>
   </div>
 </div>
-
-<script src="panel.js"></script>
-
-
   <script>
     // Тестовая база данных "сцен" новеллы
 const story = {
@@ -286,6 +281,14 @@ function sendChoiceToBackend(step, choiceText) {
     }),
   }).catch((err) => console.log('Бэкенд пока не подключен, работаем локально'));
 }
+
+window.Twitch.ext.onAuthorized((auth) => {
+  console.log("Twitch расширение успешно авторизовано!");
+  console.log("Токен пользователя:", auth.token);
+
+  // ТОЛЬКО ПОСЛЕ ЭТОГО момента можно включать ваш интерфейс
+  // Например: document.getElementById('app').style.display = 'block';
+});
 
   </script>
 </body>
