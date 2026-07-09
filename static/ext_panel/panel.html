@@ -194,101 +194,187 @@ function typeWriter(text, element, speed, onComplete) {
 }
 
 // Загрузка сцены персонажа
-function loadScene(stepKey) {
-  const scene = story[stepKey];
-  if (!scene) return;
-
-  // Скрываем кнопки прошлых шагов
-  document.getElementById('choices-container').style.display = 'none';
-
-  // Меняем фон, имя и аватарку стримера
-  document.getElementById('character-stage').style.backgroundImage =
-    `url('${scene.character_img}')`;
-  document.getElementById('speaker-name').innerText = scene.speaker;
-  document.getElementById('avatar').style.backgroundImage =
-    `url('${scene.avatar}')`;
-  document.getElementById('avatar').style.borderColor = '#9146FF'; // Фиолетовый цвет стримера
-
-  // Запускаем печать текста персонажа
-  const textElement = document.getElementById('speech-text');
-  typeWriter(scene.text, textElement, 30, () => {
-    // Когда персонаж договорил — показываем варианты ответа
-    showChoices(scene.choices, stepKey);
-  });
-}
+// function loadScene(stepKey) {
+//   const scene = story[stepKey];
+//   if (!scene) return;
+//
+//   // Скрываем кнопки прошлых шагов
+//   document.getElementById('choices-container').style.display = 'none';
+//
+//   // Меняем фон, имя и аватарку стримера
+//   document.getElementById('character-stage').style.backgroundImage =
+//     `url('${scene.character_img}')`;
+//   document.getElementById('speaker-name').innerText = scene.speaker;
+//   document.getElementById('avatar').style.backgroundImage =
+//     `url('${scene.avatar}')`;
+//   document.getElementById('avatar').style.borderColor = '#9146FF'; // Фиолетовый цвет стримера
+//
+//   // Запускаем печать текста персонажа
+//   const textElement = document.getElementById('speech-text');
+//   typeWriter(scene.text, textElement, 30, () => {
+//     // Когда персонаж договорил — показываем варианты ответа
+//     showChoices(scene.choices, stepKey);
+//   });
+// }
 
 // Показ кнопок выбора
-function showChoices(choices, currentStepKey) {
-  const container = document.getElementById('choices-container');
-  container.innerHTML = '';
+// function showChoices(choices, currentStepKey) {
+//   const container = document.getElementById('choices-container');
+//   container.innerHTML = '';
+//
+//   if (choices.length === 0) return;
+//
+//   choices.forEach((choice) => {
+//     const btn = document.createElement('button');
+//     btn.className = 'choice-btn';
+//     btn.innerText = choice.text;
+//
+//     btn.onclick = () => {
+//       // Имитируем ответ пользователя внутри панели
+//       userReplies(choice.text, () => {
+//         // Опционально: Отправляем выбор на ваш FastAPI бэкенд
+//         sendChoiceToBackend(currentStepKey, choice.text);
+//
+//         // Переходим к следующему шагу персонажа
+//         setTimeout(() => {
+//           loadScene(choice.nextStep);
+//         }, 1000); // Небольшая пауза перед ответом персонажа
+//       });
+//     };
+//
+//     container.appendChild(btn);
+//   });
+//
+//   container.style.display = 'flex';
+// }
 
-  if (choices.length === 0) return;
+function loadScene(stepKey) {
+    if (!twitchAuth) return;
 
-  choices.forEach((choice) => {
-    const btn = document.createElement('button');
-    btn.className = 'choice-btn';
-    btn.innerText = choice.text;
+    // Скрываем кнопки прошлых шагов
+    document.getElementById('choices-container').style.display = 'none';
 
-    btn.onclick = () => {
-      // Имитируем ответ пользователя внутри панели
-      userReplies(choice.text, () => {
-        // Опционально: Отправляем выбор на ваш FastAPI бэкенд
-        sendChoiceToBackend(currentStepKey, choice.text);
+    // Делаем запрос к FastAPI за данными сцены
+    fetch(`/api/extension/scene/${userData.channel_id}/${stepKey}`, {
+        method: 'GET',
+        headers: {
+            'Authorization': 'Bearer ' + twitchAuth.token
+        }
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.success) {
+            const scene = data.scene;
 
-        // Переходим к следующему шагу персонажа
-        setTimeout(() => {
-          loadScene(choice.nextStep);
-        }, 1000); // Небольшая пауза перед ответом персонажа
-      });
-    };
+            // Меняем фон, имя и аватарку персонажа (стримера) из данных бэкенда
+            document.getElementById('character-stage').style.backgroundImage = `url('${scene.character_img}')`;
+            document.getElementById('speaker-name').innerText = scene.speaker;
+            document.getElementById('avatar').style.backgroundImage = `url('${scene.avatar}')`;
+            document.getElementById('avatar').style.borderColor = '#9146FF';
 
-    container.appendChild(btn);
-  });
-
-  container.style.display = 'flex';
+            // Запускаем печать текста персонажа
+            const textElement = document.getElementById('speech-text');
+            typeWriter(scene.text, textElement, 30, () => {
+                // Показываем варианты ответа, которые прислал бэкенд
+                showChoices(scene.choices);
+            });
+        }
+    })
+    .catch(err => console.error('Ошибка загрузки сцены:', err));
 }
 
-// Имитация ответа пользователя
-function userReplies(userText, onDone) {
-  document.getElementById('choices-container').style.display = 'none';
+// Показ кнопок выбора (немного измененная под структуру Python)
+function showChoices(choices) {
+    const container = document.getElementById('choices-container');
+    container.innerHTML = '';
 
-  // Меняем имя на "Вы" (или можно запрашивать ник из Твича)
-  document.getElementById('speaker-name').innerText = 'Вы';
+    if (!choices || choices.length === 0) return;
 
-  // Ставим дефолтную аватарку пользователя (или пустую)
-  document.getElementById('avatar').style.backgroundImage =
-    `url('https://placehold.co')`;
-  document.getElementById('avatar').style.borderColor = '#00FF7F'; // Зеленый цвет для зрителя
+    choices.forEach(choice => {
+        const btn = document.createElement('button');
+        btn.className = 'choice-btn';
+        // Python отдал ключ "text"
+        btn.innerText = choice.text;
 
-  const textElement = document.getElementById('speech-text');
-  typeWriter(userText, textElement, 30, onDone);
+        btn.onclick = () => {
+            // Имитируем ответ пользователя на экране (наш ник и аватарка)
+            userReplies(choice.text, () => {
+                // Делаем паузу в 1 секунду и загружаем СЛЕДУЮЩИЙ шаг, который указал бэкенд
+                setTimeout(() => {
+                    // Python отдал ключ "next_step"
+                    loadScene(choice.next_step);
+                }, 1000);
+            });
+        };
+
+        container.appendChild(btn);
+    });
+
+    container.style.display = 'flex';
 }
 
-// Функция для связи с вашим Python сервером
-function sendChoiceToBackend(step, choiceText) {
-  if (!twitchAuth) return;
+// Переменные для хранения данных пользователя
+let userData = {
+    name: 'Зритель',
+    avatar: 'https://placehold.co',
+    channel_id: null,
+};
 
-  fetch('https://your-server.com', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: 'Bearer ' + twitchAuth.token,
-    },
-    body: JSON.stringify({
-      channel_id: twitchAuth.channelId,
-      step: step,
-      user_choice: choiceText,
-    }),
-  }).catch((err) => console.log('Бэкенд пока не подключен, работаем локально'));
-}
+// Инициализация Twitch Extension
+window.Twitch.ext.onAuthorized(async (auth) => {
+  twitchAuth = auth;
 
-window.Twitch.ext.onAuthorized((auth) => {
-  console.log("Twitch расширение успешно авторизовано!");
-  console.log("Токен пользователя:", auth.token);
+  // Проверяем, дал ли пользователь разрешение на просмотр его ID
+  if (window.Twitch.ext.viewer.isLinked) {
+    // Если доступ есть, запрашиваем данные профиля с нашего FastAPI бэкенда
+    await fetchUserData(twitchAuth);
+  } else {
+    // Если доступа нет, предлагаем привязать аккаунт
+    // Твич сам покажет всплывающее окно
+    window.Twitch.ext.actions.requestIdShare();
+  }
 
-  // ТОЛЬКО ПОСЛЕ ЭТОГО момента можно включать ваш интерфейс
-  // Например: document.getElementById('app').style.display = 'block';
+  // Запускаем новеллу
+  loadScene('start');
 });
+
+// Слушаем событие, если пользователь нажал "Разрешить доступ" прямо во время игры
+window.Twitch.ext.viewer.onChanged(async () => {
+  if (window.Twitch.ext.viewer.isLinked && twitchAuth) {
+    await fetchUserData(twitchAuth);
+  }
+});
+
+// Функция запроса данных пользователя через ваш сервер
+async function fetchUserData(auth) {
+  const endpointUrl = "https://api.twitch.tv/helix/users";
+  const url = `${endpointUrl}?id=${window.Twitch.ext.viewer.id}`;
+  const response = await fetch(url, {
+    headers: {
+      "client-id": auth.clientId,
+      Authorization: `Extension ${auth.helixToken}`,
+    },
+  });
+  const body = await response.json();
+  console.log("Username:", body.data.at(0)?.display_name)
+  console.log("Pfp:", body.data.at(0)?.profile_image_url)
+  console.log(body.data.at(0))
+  userData.name = body.data.at(0)?.display_name
+  userData.avatar = body.data.at(0)?.profile_image_url
+  userData.channel_id = auth.channelId;
+}
+
+// Модифицированная функция ответа пользователя (из прошлого шага)
+function userReplies(userText, onDone) {
+    document.getElementById('choices-container').style.display = 'none';
+
+    document.getElementById('speaker-name').innerText = userData.name;
+    document.getElementById('avatar').style.backgroundImage = `url('${userData.avatar}')`;
+    document.getElementById('avatar').style.borderColor = '#00FF7F';
+
+    const textElement = document.getElementById('speech-text');
+    typeWriter(userText, textElement, 30, onDone);
+}
 
   </script>
 </body>

@@ -80,6 +80,7 @@ class Settings(BaseSettings):
     memealerts_client_id: SecretStr
     memealerts_client_secret: SecretStr
     memealerts_state_secret: SecretStr
+    extension_secret: SecretStr
 
     @property
     def login_twitch_url(self) -> str:
