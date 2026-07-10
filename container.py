@@ -17,6 +17,7 @@ from services.s3 import FileStorage
 from services.slovotron import SlovotronService
 from services.sse_manager import SSEManager
 from services.stickers import StickersService
+from services.stickers_processor import StickerProcessor
 from twitch.chat.bot import ChatBot
 from twitch.client.twitch import Twitch
 
@@ -68,6 +69,7 @@ class Container(containers.DeclarativeContainer):
     memealerts = providers.Singleton(MemealertsService, db_session_factory=db_session_factory)  #deprecated!!!
     memealerts_auth = providers.Singleton(MemealertsOAuthService, db_session_factory=db_session_factory)
     memealerts_v2 = providers.Singleton(MemealertsV2Service, db_session_factory=db_session_factory)
+    stickers_processor = providers.Singleton(StickerProcessor)
 
     boto_session = providers.Singleton(aioboto3.Session)
     s3 = providers.Singleton(
@@ -79,6 +81,7 @@ class Container(containers.DeclarativeContainer):
     stickers_service = providers.Factory(
         StickersService,
         ai=ai, img_resizer=image_resizer, db_session_factory=db_session_factory, s3=s3,
+        sticker_processor=stickers_processor,
     )
     twitch_eventsub_service = providers.Singleton(
         TwitchEventSubService,

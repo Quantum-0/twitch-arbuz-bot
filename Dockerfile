@@ -27,6 +27,12 @@ FROM python:3.11
 
 WORKDIR /app
 
+# Качаем нужные зависимости для запуска нейронки
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    wget \
+    libgl1-mesa-glx \
+    libglib2.0-0 \
+    && rm -rf /var/lib/apt/lists/*
 # Устанавливаем Poetry
 RUN pip install --no-cache-dir poetry
 
@@ -36,6 +42,9 @@ COPY pyproject.toml poetry.lock ./
 # Устанавливаем зависимости глобально, без виртуального окружения, с флагом --no-root
 RUN poetry config virtualenvs.create false \
     && poetry install --no-root --no-interaction --no-ansi
+
+# Создаем папку, куда rembg по умолчанию сохраняет модели (.u2net в домашней директории)
+RUN mkdir -p /root/.u2net
 
 # Копируем остальной код проекта
 COPY . .

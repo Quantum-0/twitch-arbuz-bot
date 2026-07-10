@@ -43,12 +43,14 @@ async def lifespan(app: "FastAPI | None" = None):
     cache = container.cache()
     scheduler = container.scheduler()
     memealerts_auth = container.memealerts_auth()
+    stickers_processor = container.stickers_processor()
 
     await state_manager.startup(redis)
     await cache.startup(redis, binary_redis)
     await twitch.startup()
     await chat_bot.startup(twitch)
     await ai.startup()
+    await stickers_processor.start()
 
     if settings.update_bot_channels_on_startup:
         await chat_bot.update_bot_channels()
@@ -89,6 +91,7 @@ async def lifespan(app: "FastAPI | None" = None):
     scheduler.shutdown()
     print("Планировщик остановлен")
 
+    await stickers_processor.stop()
     await async_engine.dispose()
     container.unwire()
     set_container(None)

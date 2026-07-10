@@ -16,6 +16,7 @@ from schemas.enums import FileStorageDir
 from services.ai import OpenAIClient
 from services.image_resizer import ImageResizer
 from services.s3 import FileStorage, FileNotExistError
+from services.stickers_processor import StickerProcessor
 
 logger = logging.getLogger(__name__)
 tracer = trace.get_tracer(__name__)
@@ -55,11 +56,13 @@ class StickersService:
         img_resizer: ImageResizer,
         db_session_factory: Callable[[], AsyncSession],
         s3: FileStorage,
+        sticker_processor: StickerProcessor,
     ) -> None:
         self._ai = ai
         self._resizer = img_resizer
         self._db_session_factory = db_session_factory
         self._s3 = s3
+        self._sticker_processor = sticker_processor
 
     @tracer.start_as_current_span("Stickers: Get cached by prompt")
     async def _get_cached_by_prompt(self, prompt: str) -> FileID | None:
@@ -184,9 +187,31 @@ class StickersService:
         else:
             descriptions_str = ""
 
+        # if with_files:
+        #     return f"Generate an image of drawn in cartoon style `{prompt}` with transparent background and the white outline like a sticker.{descriptions_str}\n\nThe appearance of the characters in the attached files"
+        # return f"Image of drawn in cartoon style `{prompt}` with transparent background and the white outline like a sticker.{descriptions_str}"
+        # Инструкция для идеального хромакея без спецэффектов
+        bg_instruction = (
+            "The entire background must be a single, solid, uniform bright chroma key green color. "
+            "It must be a completely flat vivid green studio background with absolutely no gradients, "
+            "no textures, no patterns, and no lighting shifts. The character must not cast any shadows "
+            "onto the background, and there must be no outlines, borders, or frames around the character."
+        )
+
         if with_files:
-            return f"Generate an image of drawn in cartoon style `{prompt}` with transparent background and the white outline like a sticker.{descriptions_str}\n\nThe appearance of the characters in the attached files"
-        return f"Image of drawn in cartoon style `{prompt}` with transparent background and the white outline like a sticker.{descriptions_str}"
+            return (
+                f"A high-quality cartoon illustration depicting: `{prompt}`. "
+                f"The illustration should features only the character design isolated on the background. "
+                f"Strictly replicate and lock the character design, appearance, features, and clothing "
+                f"from the attached reference files. "
+                f"{descriptions_str}\n\n[Background Rule]: {bg_instruction}"
+            )
+
+        return (
+            f"A high-quality cartoon illustration depicting: `{prompt}`. "
+            f"The illustration should features only the character design isolated on the background. "
+            f"{descriptions_str}\n\n[Background Rule]: {bg_instruction}"
+        )
 
     @tracer.start_as_current_span("Stickers: Build sticker")
     async def build_sticker(self, channel: User, prompt: str, chatter: str) -> FileID:  # success: bool + file_id + error (for chat)
@@ -207,7 +232,8 @@ class StickersService:
         image, cost = await self._generate_sticker(prompt_for_call, files)
         file_id = uuid4()
         resized_image = await self._resizer.resize(image)
-        await self._save_to_s3(file_id, data=resized_image)
+        sticker = await self._sticker_processor.process(resized_image)
+        await self._save_to_s3(file_id, data=sticker)
         await self._save_to_db(file_id, prompt, chatter, channel, cost)
         return file_id
 
