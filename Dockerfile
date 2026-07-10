@@ -30,9 +30,10 @@ WORKDIR /app
 # Качаем нужные зависимости для запуска нейронки
 RUN apt-get update && apt-get install -y --no-install-recommends \
     wget \
-    libgl1-mesa-glx \
+    libgl1 \
     libglib2.0-0 \
     && rm -rf /var/lib/apt/lists/*
+
 # Устанавливаем Poetry
 RUN pip install --no-cache-dir poetry
 
