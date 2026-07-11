@@ -4,7 +4,7 @@ from typing import AsyncIterator, Optional
 
 import numpy as np
 from PIL import Image, ImageFilter
-from rembg import remove, new_session
+from rembg import new_session, remove
 from scipy.ndimage import binary_dilation, distance_transform_edt, label
 
 
@@ -67,6 +67,11 @@ class StickerProcessor:
             ai_output = remove(
                 img,
                 session=self.session,
+                post_process_mask=True,
+                # alpha_matting=True,
+                # alpha_matting_foreground_threshold=240,  # Защищает основные цвета персонажей
+                # alpha_matting_background_threshold=15,  # Жестко отсекает зеленый фон в петле поводка
+                # alpha_matting_erode_size=5,
             )
 
             data = np.array(img)
@@ -76,50 +81,52 @@ class StickerProcessor:
             r, g, b = data[:, :, 0], data[:, :, 1], data[:, :, 2]
             raw_green_mask = (g > 1.3 * r) & (g > 1.3 * b) & (g > 90)
 
-            # --- УМНЫЙ ФИЛЬТР ДЕТАЛЕЙ ---
+            # --- УМНЫЙ ФИЛЬТР ДЕТАЛЕЙ (ЗАЩИТА РОБОТА И ЛАП) ---
+            # Находим все изолированные зелёные островки на картинке
             labeled_mask, num_features = label(raw_green_mask)
+
+            # Считаем размер каждого островка в пикселях
             feature_sizes = np.bincount(labeled_mask.ravel())
+
+            # Задаем минимальный размер для фоновой зоны (например, 1500 пикселей).
+            # Всё, что меньше этого размера (провода, подушечки лап), код посчитает деталью рисунка.
             min_area_size = 1500
 
+            # Оставляем в маске только КРУПНЫЕ зелёные области (настоящий фон и дыры вроде поводка)
             chromakey_mask = np.zeros_like(raw_green_mask)
             for i in range(1, num_features + 1):
                 if feature_sizes[i] >= min_area_size:
                     chromakey_mask[labeled_mask == i] = True
             # --------------------------------------------------
 
-            # Расширяем зону фона для поиска грязных контуров
+            # Расширяем зону поиска фона на 2 пикселя, ловя грязные контуры
             structure = np.ones((5, 5), dtype=bool)
             extended_green_mask = binary_dilation(chromakey_mask, structure=structure)
 
-            # Выделяем только ГРАНИЧНЫЕ полупрозрачные пиксели для исправления
-            edge_green_pixels = extended_green_mask & (ai_mask < 250) & (ai_mask > 15)
+            # Выделяем пиксели на границе, которые нужно исправить
+            edge_green_pixels = extended_green_mask & (ai_mask < 254) & (ai_mask > 20)
 
-            # 4. АДАПТИВНОЕ ИСПРАВЛЕНИЕ ЦВЕТА
-            # Персонажем считаем всё, что нейросеть уверенно вырезала И что не является фоном
-            clean_character_mask = (ai_mask > 240) & ~chromakey_mask
+            # 4. АДАПТИВНОЕ ИСПРАВЛЕНИЕ ЦВЕТА С ЗАТЕМНЕНИЕМ ЛАЙНА
+            clean_character_mask = (ai_mask > 250) & ~extended_green_mask
 
-            # Если вдруг маска персонажа пустая, делаем заглушку, чтобы distance_transform не упал
-            if not np.any(clean_character_mask):
-                clean_character_mask = (ai_mask > 0)
-
+            # ПРАВИЛЬНАЯ РАСПАКОВКА: явно указываем return_distances=False
+            # и разделяем результат на два независимых массива координат Y и X
             indices = distance_transform_edt(~clean_character_mask, return_distances=False, return_indices=True)
-            nearest_y = indices[0]
-            nearest_x = indices[1]
+            nearest_y = indices[0]  # Индексы по строкам (Y)
+            nearest_x = indices[1]  # Индексы по столбцам (X)
 
-            # Перекрашиваем только если нашли пиксели для исправления
-            if np.any(edge_green_pixels):
-                base_r = data[nearest_y[edge_green_pixels], nearest_x[edge_green_pixels], 0]
-                base_g = data[nearest_y[edge_green_pixels], nearest_x[edge_green_pixels], 1]
-                base_b = data[nearest_y[edge_green_pixels], nearest_x[edge_green_pixels], 2]
+            # Копируем базовый цвет ближайшего родного пикселя
+            base_r = data[nearest_y[edge_green_pixels], nearest_x[edge_green_pixels], 0]
+            base_g = data[nearest_y[edge_green_pixels], nearest_x[edge_green_pixels], 1]
+            base_b = data[nearest_y[edge_green_pixels], nearest_x[edge_green_pixels], 2]
 
-                darken_factor = 0.65
-                data[edge_green_pixels, 0] = np.clip(base_r * darken_factor, 0, 255).astype(np.uint8)
-                data[edge_green_pixels, 1] = np.clip(base_g * darken_factor, 0, 255).astype(np.uint8)
-                data[edge_green_pixels, 2] = np.clip(base_b * darken_factor, 0, 255).astype(np.uint8)
+            darken_factor = 0.65
+            data[edge_green_pixels, 0] = np.clip(base_r * darken_factor, 0, 255).astype(np.uint8)
+            data[edge_green_pixels, 1] = np.clip(base_g * darken_factor, 0, 255).astype(np.uint8)
+            data[edge_green_pixels, 2] = np.clip(base_b * darken_factor, 0, 255).astype(np.uint8)
 
             # 5. Собираем финальную прозрачность персонажа
-            # Убираем только явный хромакей, остальное доверяем rembg
-            final_alpha = np.where(chromakey_mask & (ai_mask < 128), 0, ai_mask)
+            final_alpha = np.where(chromakey_mask, 0, ai_mask)
 
             # --- БЛОК ИДЕАЛЬНО ГЛАДКОЙ БЕЛОЙ ОБВОДКИ ---
             stroke_thickness = 6
