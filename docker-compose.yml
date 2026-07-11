@@ -9,6 +9,8 @@ services:
       - .env
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    volumes:
+      - ./models:/root/.u2net
 
 #  redis:
 #    image: redis:8.8.0-alpine
