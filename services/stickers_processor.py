@@ -171,10 +171,10 @@ class StickerProcessor:
             offset_shadow_layer.paste(shadow_layer, shadow_offset)
             final_result = Image.alpha_composite(offset_shadow_layer, final_result)
 
-            # --- БЛОК ТЕСТОВОГО ФОНА (Уберите или закомментируйте перед финалом) ---
-            background_color = (230, 235, 230, 255)  # Светло-серый
-            test_bg = Image.new("RGBA", final_result.size, background_color)
-            final_result = Image.alpha_composite(test_bg, final_result)
+            # # --- БЛОК ТЕСТОВОГО ФОНА (Уберите или закомментируйте перед финалом) ---
+            # background_color = (230, 235, 230, 255)  # Светло-серый
+            # test_bg = Image.new("RGBA", final_result.size, background_color)
+            # final_result = Image.alpha_composite(test_bg, final_result)
 
             output = io.BytesIO()
             final_result.save(output, format="PNG", optimize=True)
