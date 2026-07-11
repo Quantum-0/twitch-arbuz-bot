@@ -5,11 +5,12 @@ from typing import AsyncIterator, Optional
 import numpy as np
 from PIL import Image, ImageFilter
 from rembg import new_session, remove
+from scipy.ndimage import binary_dilation, distance_transform_edt, label
 
 
 class StickerProcessor:
     def __init__(self, max_queue_size: int = 100):
-        self.session = new_session("silueta")
+        self.session = new_session("isnet-anime") # u2net
 
         # Очередь для входящих задач и ограничение ее размера
         self.queue: asyncio.Queue = asyncio.Queue(maxsize=max_queue_size)
@@ -42,8 +43,8 @@ class StickerProcessor:
         hsv = np.array(small_img.convert("HSV"))
         h, s, v = hsv[:, :, 0], hsv[:, :, 1], hsv[:, :, 2]
 
-        # Диапазон зеленого цвета в PIL HSV (H: ~35-85, S: >50, V: >50)
-        green_mask = (h >= 35) & (h <= 85) & (s > 50) & (v > 50)
+        # Диапазон зеленого цвета в PIL HSV (H: ~35-105, S: >50, V: >50)
+        green_mask = (h >= 65) & (h <= 105) & (s > 75) & (v > 75)
         green_pixels = np.sum(green_mask)
 
         # Если зеленых пикселей больше, чем threshold_pct от всей картинки
@@ -58,55 +59,139 @@ class StickerProcessor:
             # Открываем изображение
             img = Image.open(io.BytesIO(image_bytes)).convert("RGBA")
 
-            # Проверяем, квадратное ли оно и есть ли зеленый фон
-            is_square = img.width == img.height
-            if not is_square or not self._has_green_background(img):
+            if not self._has_green_background(img):
                 # Если не подходит под условия — возвращаем оригинал БЕЗ обработки
                 return image_bytes
 
             # 1. Удаляем фон с помощью rembg
-            no_bg = remove(img, session=self.session)
+            ai_output = remove(
+                img,
+                session=self.session,
+                post_process_mask=True,
+                # alpha_matting=True,
+                # alpha_matting_foreground_threshold=240,  # Защищает основные цвета персонажей
+                # alpha_matting_background_threshold=15,  # Жестко отсекает зеленый фон в петле поводка
+                # alpha_matting_erode_size=5,
+            )
 
-            # Разделяем на каналы, нам нужна маска альфа-канала
-            alpha = no_bg.split()[3]
+            data = np.array(img)
+            ai_mask = np.array(ai_output)[:, :, 3]
 
-            # 2. Создаем обводку (белую)
-            stroke_size = 10
-            # Размываем маску и делаем ее жесткой, чтобы расширить края
-            stroke_mask = alpha.filter(ImageFilter.MaxFilter(stroke_size * 2 + 1))
-            stroke_mask = stroke_mask.point(lambda p: 255 if p > 0 else 0)
+            # 3. Ищем ядовитый хромакейный цвет
+            r, g, b = data[:, :, 0], data[:, :, 1], data[:, :, 2]
+            raw_green_mask = (g > 1.3 * r) & (g > 1.3 * b) & (g > 90)
 
-            white_bg = Image.new("RGBA", img.size, (255, 255, 255, 255))
-            with_stroke = Image.composite(white_bg, Image.new("RGBA", img.size, (0, 0, 0, 0)), stroke_mask)
-            with_stroke.alpha_composite(no_bg)
+            # --- УМНЫЙ ФИЛЬТР ДЕТАЛЕЙ (ЗАЩИТА РОБОТА И ЛАП) ---
+            # Находим все изолированные зелёные островки на картинке
+            labeled_mask, num_features = label(raw_green_mask)
 
-            # 3. Создаем мягкую тень (черную)
-            shadow_offset = (5, 5)
-            shadow_blur = 15
+            # Считаем размер каждого островка в пикселях
+            feature_sizes = np.bincount(labeled_mask.ravel())
 
-            # Снова берем маску обводки, чтобы тень шла от нее
-            shadow_mask = stroke_mask.filter(ImageFilter.GaussianBlur(shadow_blur))
-            # Делаем тень полупрозрачной (например, 40% непрозрачности)
-            shadow_mask = shadow_mask.point(lambda p: int(p * 0.4))
+            # Задаем минимальный размер для фоновой зоны (например, 1500 пикселей).
+            # Всё, что меньше этого размера (провода, подушечки лап), код посчитает деталью рисунка.
+            min_area_size = 1500
 
-            shadow_bg = Image.new("RGBA", img.size, (0, 0, 0, 255))
-            shadow = Image.composite(shadow_bg, Image.new("RGBA", img.size, (0, 0, 0, 0)), shadow_mask)
+            # Оставляем в маске только КРУПНЫЕ зелёные области (настоящий фон и дыры вроде поводка)
+            chromakey_mask = np.zeros_like(raw_green_mask)
+            for i in range(1, num_features + 1):
+                if feature_sizes[i] >= min_area_size:
+                    chromakey_mask[labeled_mask == i] = True
+            # --------------------------------------------------
 
-            # Финальная сборка: накладываем тень со сдвигом, а сверху — стикер с обводкой
-            final_img = Image.new("RGBA", img.size, (0, 0, 0, 0))
-            final_img.paste(shadow, shadow_offset, shadow)
-            final_img.alpha_composite(with_stroke)
+            # Расширяем зону поиска фона на 2 пикселя, ловя грязные контуры
+            structure = np.ones((5, 5), dtype=bool)
+            extended_green_mask = binary_dilation(chromakey_mask, structure=structure)
+
+            # Выделяем пиксели на границе, которые нужно исправить
+            edge_green_pixels = extended_green_mask & (ai_mask < 254) & (ai_mask > 20)
+
+            # 4. АДАПТИВНОЕ ИСПРАВЛЕНИЕ ЦВЕТА С ЗАТЕМНЕНИЕМ ЛАЙНА
+            clean_character_mask = (ai_mask > 250) & ~extended_green_mask
+
+            # ПРАВИЛЬНАЯ РАСПАКОВКА: явно указываем return_distances=False
+            # и разделяем результат на два независимых массива координат Y и X
+            indices = distance_transform_edt(~clean_character_mask, return_distances=False, return_indices=True)
+            nearest_y = indices[0]  # Индексы по строкам (Y)
+            nearest_x = indices[1]  # Индексы по столбцам (X)
+
+            # Копируем базовый цвет ближайшего родного пикселя
+            base_r = data[nearest_y[edge_green_pixels], nearest_x[edge_green_pixels], 0]
+            base_g = data[nearest_y[edge_green_pixels], nearest_x[edge_green_pixels], 1]
+            base_b = data[nearest_y[edge_green_pixels], nearest_x[edge_green_pixels], 2]
+
+            darken_factor = 0.65
+            data[edge_green_pixels, 0] = np.clip(base_r * darken_factor, 0, 255).astype(np.uint8)
+            data[edge_green_pixels, 1] = np.clip(base_g * darken_factor, 0, 255).astype(np.uint8)
+            data[edge_green_pixels, 2] = np.clip(base_b * darken_factor, 0, 255).astype(np.uint8)
+
+            # 5. Собираем финальную прозрачность персонажа
+            final_alpha = np.where(chromakey_mask, 0, ai_mask)
+
+            # --- БЛОК ИДЕАЛЬНО ГЛАДКОЙ БЕЛОЙ ОБВОДКИ ---
+            stroke_thickness = 6
+            anti_aliasing_softness = 1.1
+
+            base_mask_img = Image.fromarray(final_alpha, mode="L")
+            blurred_mask = base_mask_img.filter(ImageFilter.GaussianBlur(radius=stroke_thickness))
+
+            thresh = 8
+            smooth_mask = blurred_mask.point(
+                lambda x: 255 if x > thresh + 10
+                else (int((x - thresh) * (255 / 10) * anti_aliasing_softness) if x > thresh else 0)
+            )
+
+            height, width = final_alpha.shape
+            outline_data = np.zeros((height, width, 4), dtype=np.uint8)
+            outline_data[:, :, :3] = 255
+            outline_data[:, :, 3] = np.array(smooth_mask)
+
+            character_data = data.copy()
+            character_data[:, :, 3] = final_alpha
+
+            outline_img = Image.fromarray(outline_data)
+            character_img = Image.fromarray(character_data)
+            final_result = Image.alpha_composite(outline_img, character_img)
+
+            # --- БЛОК ДОБАВЛЕНИЯ ТЕНИ ---
+            shadow_offset = (5, 8)
+            shadow_blur = 12
+            shadow_opacity = 0.4
+
+            shadow_layer = Image.new("RGBA", final_result.size, (0, 0, 0, 0))
+            shadow_mask = Image.fromarray(np.array(smooth_mask), mode="L")
+            shadow_mask = shadow_mask.filter(ImageFilter.GaussianBlur(radius=shadow_blur))
+            shadow_mask = shadow_mask.point(lambda x: int(x * shadow_opacity))
+
+            shadow_color = Image.new("RGBA", final_result.size, (0, 0, 0, 255))
+            shadow_layer.paste(shadow_color, (0, 0), shadow_mask)
+
+            offset_shadow_layer = Image.new("RGBA", final_result.size, (0, 0, 0, 0))
+            offset_shadow_layer.paste(shadow_layer, shadow_offset)
+            final_result = Image.alpha_composite(offset_shadow_layer, final_result)
 
             # Сохраняем результат в байты
             output = io.BytesIO()
-            final_img.save(output, format="PNG", optimize=True)
+            final_result.save(output, format="PNG", optimize=True)
             return output.getvalue()
-
         finally:
-            # Принудительно очищаем локальные тяжелые объекты в памяти
-            if 'img' in locals(): img.close()
-            if 'no_bg' in locals(): no_bg.close()
-            if 'final_img' in locals(): final_img.close()
+            for name in (
+                "img",
+                "ai_output",
+                "base_mask_img",
+                "blurred_mask",
+                "smooth_mask",
+                "outline_img",
+                "character_img",
+                "shadow_layer",
+                "shadow_mask",
+                "shadow_color",
+                "offset_shadow_layer",
+                "final_result",
+            ):
+                obj = locals().get(name)
+                if isinstance(obj, Image.Image):
+                    obj.close()
 
     async def _worker_loop(self):
         """Бесконечный цикл, обрабатывающий строго по одной задаче из очереди"""
