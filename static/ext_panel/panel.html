@@ -1,7 +1,5 @@
 <!DOCTYPE html>
 <html>
-
-<html>
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -167,16 +165,8 @@ const story = {
 let twitchAuth = null;
 let typingTimer = null;
 
-// Инициализация Twitch Extension
-/*window.Twitch.ext.onAuthorized((auth) => {
-    twitchAuth = auth;
-    // Начинаем новеллу со сцены "start"
-    loadScene('start');
-});*/
-
 loadScene('start');
 
-// Функция плавной печати текста
 function typeWriter(text, element, speed, onComplete) {
   let i = 0;
   element.innerHTML = '';
@@ -192,61 +182,6 @@ function typeWriter(text, element, speed, onComplete) {
     }
   }, speed);
 }
-
-// Загрузка сцены персонажа
-// function loadScene(stepKey) {
-//   const scene = story[stepKey];
-//   if (!scene) return;
-//
-//   // Скрываем кнопки прошлых шагов
-//   document.getElementById('choices-container').style.display = 'none';
-//
-//   // Меняем фон, имя и аватарку стримера
-//   document.getElementById('character-stage').style.backgroundImage =
-//     `url('${scene.character_img}')`;
-//   document.getElementById('speaker-name').innerText = scene.speaker;
-//   document.getElementById('avatar').style.backgroundImage =
-//     `url('${scene.avatar}')`;
-//   document.getElementById('avatar').style.borderColor = '#9146FF'; // Фиолетовый цвет стримера
-//
-//   // Запускаем печать текста персонажа
-//   const textElement = document.getElementById('speech-text');
-//   typeWriter(scene.text, textElement, 30, () => {
-//     // Когда персонаж договорил — показываем варианты ответа
-//     showChoices(scene.choices, stepKey);
-//   });
-// }
-
-// Показ кнопок выбора
-// function showChoices(choices, currentStepKey) {
-//   const container = document.getElementById('choices-container');
-//   container.innerHTML = '';
-//
-//   if (choices.length === 0) return;
-//
-//   choices.forEach((choice) => {
-//     const btn = document.createElement('button');
-//     btn.className = 'choice-btn';
-//     btn.innerText = choice.text;
-//
-//     btn.onclick = () => {
-//       // Имитируем ответ пользователя внутри панели
-//       userReplies(choice.text, () => {
-//         // Опционально: Отправляем выбор на ваш FastAPI бэкенд
-//         sendChoiceToBackend(currentStepKey, choice.text);
-//
-//         // Переходим к следующему шагу персонажа
-//         setTimeout(() => {
-//           loadScene(choice.nextStep);
-//         }, 1000); // Небольшая пауза перед ответом персонажа
-//       });
-//     };
-//
-//     container.appendChild(btn);
-//   });
-//
-//   container.style.display = 'flex';
-// }
 
 function loadScene(stepKey) {
     if (!twitchAuth) return;

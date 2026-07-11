@@ -6,7 +6,6 @@ router = APIRouter(prefix="/extension", tags=["Twitch Extension"])
 
 
 @router.get("/panel.html", response_class=FileResponse)
-@inject
 async def get_twitch_panel():
     return FileResponse(
         "static/ext_panel/panel.html",
@@ -14,6 +13,5 @@ async def get_twitch_panel():
 
 
 @router.get("/control.html", response_class=FileResponse)
-@inject
 async def get_twitch_control():
     return FileResponse("static/ext_panel/panel.html", headers={"Cache-Control": "public, max-age=604800"})
