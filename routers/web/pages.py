@@ -179,7 +179,7 @@ async def profile_page(
         sa.select(GeneratedImage)
         .where(GeneratedImage.on_channel == int(profile_user_data.twitch_id))
         .order_by(GeneratedImage.created_at.desc())
-        .limit(20)
+        .limit(100)  # TODO: сделать потом отдельную страницу, где можно будет посмотреть все генерации, с пагинацией
     )
     ai_stickers = (await db.execute(q)).scalars().all()
     await db.commit()
