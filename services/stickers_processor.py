@@ -248,13 +248,15 @@ class StickerProcessor:
 # async def main():
 #     serv = StickerProcessor()
 #     await serv.start()
-#     with open("/Users/notamedia/img.png", "rb") as image:
+#     with open("/Users/notamedia/img3.png", "rb") as image:
 #         f = image.read()
 #         b = bytes(f)
-#         await serv.process(b)
+#         res = await serv.process(b)
+#         Image.open(io.BytesIO(res)).show()
 #
 # if __name__ == "__main__":
 #     asyncio.run(main())
+#     exit()
 #
 # import numpy as np
 # from PIL import Image, ImageFilter
