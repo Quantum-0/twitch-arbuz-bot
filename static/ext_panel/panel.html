@@ -133,35 +133,6 @@ body {
   </div>
 </div>
   <script>
-    // Тестовая база данных "сцен" новеллы
-const story = {
-  start: {
-    character_img:
-      'https://avatarko.ru/img/kartinka/14/zhivotnye_kot_13379.jpg', // Сюда ссылку на вашего персонажа (радостный)
-    speaker: 'Quantum0',
-    avatar: 'https://avatarko.ru/img/kartinka/14/zhivotnye_kot_13379.jpg', // Ваша аватарка
-    text: 'Привет! Добро пожаловать на мой стрим. Готов проверить, на что способен мой чат-бот?',
-    choices: [
-      { text: 'Да, давай настроим!', nextStep: 'setup_bot' },
-      { text: 'А что он умеет?', nextStep: 'ask_features' },
-    ],
-  },
-  setup_bot: {
-    character_img: 'https://placehold.co',
-    speaker: 'Quantum0',
-    avatar: 'https://placehold.co',
-    text: 'Отлично! Секунду, отправляю запрос на сервер... Всё готово, бот запущен в твоем чате!',
-    choices: [], // Финал ветки, кнопок нет
-  },
-  ask_features: {
-    character_img: 'https://placehold.co', // Персонаж задумался
-    speaker: 'Quantum0',
-    avatar: 'https://placehold.co',
-    text: 'Он умеет модерировать чат, устраивать розыгрыши и выводить кастомные виджеты прямо на экран!',
-    choices: [{ text: 'Круто, запускаем!', nextStep: 'setup_bot' }],
-  },
-};
-
 let twitchAuth = null;
 let typingTimer = null;
 
@@ -231,16 +202,21 @@ function showChoices(choices) {
         // Python отдал ключ "text"
         btn.innerText = choice.text;
 
-        btn.onclick = () => {
+        if (choice.link) {
+          location.href='/about';
+        }
+        else {
+          btn.onclick = () => {
             // Имитируем ответ пользователя на экране (наш ник и аватарка)
             userReplies(choice.text, () => {
-                // Делаем паузу в 1 секунду и загружаем СЛЕДУЮЩИЙ шаг, который указал бэкенд
-                setTimeout(() => {
-                    // Python отдал ключ "next_step"
-                    loadScene(choice.next_step);
-                }, 1000);
+              // Делаем паузу в 1 секунду и загружаем СЛЕДУЮЩИЙ шаг, который указал бэкенд
+              setTimeout(() => {
+                // Python отдал ключ "next_step"
+                loadScene(choice.next_step);
+              }, 1000);
             });
-        };
+          };
+        }
 
         container.appendChild(btn);
     });
