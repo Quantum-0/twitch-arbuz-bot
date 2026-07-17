@@ -153,7 +153,8 @@ function initOverlays() {
 }
 
 function updateDependentTogglesState() {
-    const isEnabled = document.querySelector('.toggle-switch[data-name="enable_chat_bot"]').classList.contains('active');
+    const chatbotToggle = document.querySelector('.toggle-switch[data-name="enable_chat_bot"]');
+    const isEnabled = chatbotToggle ? chatbotToggle.classList.contains('active') : false;
     const container = document.getElementById('dependent-toggles');
     const extraSettingsContainer = document.getElementById('chatbot-extra-settings');
     const extraDivider = document.getElementById('chatbot-extra-divider');
@@ -343,6 +344,9 @@ async function checkStatus(card) {
             if (type === "memealerts-reward") {
                 updateRewardButton("delete");
             }
+            if (type === "ai-stickers-reward" && typeof updateAiStickerRewardButton === "function") {
+                updateAiStickerRewardButton("delete");
+            }
 
             // Логика для Heat
             if (type === "heat") {
@@ -379,12 +383,28 @@ async function checkStatus(card) {
                         break;
                 }
             }
+            if (type === "ai-stickers-reward" && typeof updateAiStickerRewardButton === "function") {
+                switch (data.state) {
+                    case "missing":
+                        updateAiStickerRewardButton("create");
+                        break;
+                    case "broken":
+                        updateAiStickerRewardButton("fix");
+                        break;
+                    default:
+                        updateAiStickerRewardButton("create");
+                        break;
+                }
+            }
         }
 
     } catch (e) {
         indicator.classList.add("error");
         if (type === "memealerts-reward") {
             updateRewardButton("loading");
+        }
+        if (type === "ai-stickers-reward" && typeof updateAiStickerRewardButton === "function") {
+            updateAiStickerRewardButton("loading");
         }
     }
 }

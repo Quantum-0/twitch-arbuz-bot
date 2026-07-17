@@ -3,7 +3,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
-from schemas.enums import ChatbotDefaultTargetBehaviour
+from schemas.enums import ChatbotDefaultTargetBehaviour, AIStickerModel, AIReferenceUsagePolicy
 
 
 class UpdateSettingsForm(BaseModel):
@@ -44,6 +44,11 @@ class UpdateSettingsForm(BaseModel):
     # Extra
     allow_shared_chat: bool | None = Field(None)
     chatbot_default_target_behaviour: ChatbotDefaultTargetBehaviour | None = Field(None)
+
+    ai_stickers_show_in_profile: bool | None = Field(None)
+    ai_reference_show_in_profile: bool | None = Field(None)
+    ai_sticker_model: AIStickerModel | None = Field(None)
+    ai_reference_usage_policy: AIReferenceUsagePolicy | None = Field(None)
 
 
 class UpdateMemealertsCoinsSchema(BaseModel):

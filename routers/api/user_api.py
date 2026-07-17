@@ -15,7 +15,7 @@ from starlette.responses import JSONResponse
 from twitchAPI.type import TwitchAPIException, TwitchResourceNotFound
 
 from container import Container
-from database.models import User, CharacterInfo
+from database.models import User, CharacterInfo, GeneratedImage
 from dependencies import get_db
 from exceptions import MANoToken, MAValidationRespError, MAUnavailableError, MAInvalidTokenError
 from routers.security_helpers import user_auth
@@ -362,6 +362,25 @@ async def setup_memealert(
         return JSONResponse({"title": "Успешно", "message": "Награда удалена."}, 200)
 
 
+
+
+@router.get("/check-ai-stickers-reward", response_model=CheckMemealertsRewardStatusResponseSchema)
+@inject
+async def check_ai_stickers_reward(
+    twitch: Annotated[Twitch, Depends(Provide[Container.twitch])],
+    user: User = Security(user_auth),
+) -> CheckMemealertsRewardStatusResponseSchema:
+    if not user.settings.ai_sticker_reward_id:
+        return CheckMemealertsRewardStatusResponseSchema(result=False, problems=["Награда не создана"], state="missing")
+    problems = await twitch.validate_reward_subscription(user=user, reward_id=str(user.settings.ai_sticker_reward_id))
+    if not problems:
+        state = "ok"
+    elif "Награда не найдена" in problems:
+        state = "missing"
+    else:
+        state = "broken"
+    return CheckMemealertsRewardStatusResponseSchema(result=not problems, problems=problems, state=state)
+
 @router.post("/setup-ai-stickers")
 @inject
 async def setup_ai_stickers(
@@ -371,6 +390,11 @@ async def setup_ai_stickers(
     enable: bool = Query(default=True),
 ):
     reward_id = user.settings.ai_sticker_reward_id
+
+    if not enable == bool(reward_id):
+        pass
+    else:
+        return JSONResponse({"title": "Без изменений", "message": f"Уже {'включено' if enable else 'выключено'}."}, 208)
 
     if enable:
         try:
@@ -406,9 +430,43 @@ async def setup_ai_stickers(
             pass
         user.settings.ai_sticker_reward_id = None
         await db.commit()
-        await db.refresh(user.memealerts)
+        await db.refresh(user.settings)
         return JSONResponse({"title": "Успешно", "message": "Награда удалена."}, 200)
 
+
+
+
+@router.get("/ai-stickers/recent")
+async def get_recent_ai_stickers(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    user: User = Security(user_auth),
+    before: str | None = Query(default=None),
+    limit: int = Query(default=12, ge=1, le=30),
+):
+    q = (
+        sa.select(GeneratedImage)
+        .where(GeneratedImage.on_channel == int(user.twitch_id))
+        .where(GeneratedImage.file_id.is_not(None))
+        .order_by(GeneratedImage.created_at.desc())
+        .limit(limit + 1)
+    )
+    if before:
+        q = q.where(GeneratedImage.created_at < sa.cast(before, sa.DateTime()))
+    rows = (await db.execute(q)).scalars().all()
+    items = rows[:limit]
+    next_cursor = items[-1].created_at.isoformat() if len(rows) > limit and items else None
+    return {
+        "items": [
+            {
+                "file_id": str(item.file_id),
+                "prompt": item.prompt,
+                "by_chatter": item.by_chatter,
+                "created_at": item.created_at.isoformat(),
+            }
+            for item in items
+        ],
+        "next_cursor": next_cursor,
+    }
 
 @router.post("/reference")
 @inject

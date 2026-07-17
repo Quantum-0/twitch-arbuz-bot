@@ -11,8 +11,8 @@ from opentelemetry import trace
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from config import settings
-from database.models import User, GeneratedImage, CharacterInfo
-from schemas.enums import FileStorageDir
+from database.models import User, GeneratedImage, CharacterInfo, TwitchUserSettings
+from schemas.enums import FileStorageDir, AIStickerModel, AIReferenceUsagePolicy
 from services.ai import OpenAIClient
 from services.image_resizer import ImageResizer
 from services.s3 import FileStorage, FileNotExistError
@@ -88,13 +88,13 @@ class StickersService:
                 return None
 
     @tracer.start_as_current_span("Stickers: Generate sticker")
-    async def _generate_sticker(self, prompt: str, files: list[bytes]) -> tuple[bytes, float]:
+    async def _generate_sticker(self, prompt: str, files: list[bytes], model: str) -> tuple[bytes, float]:
         logger.debug("Generating sticker by prompt")
         try:
             if files:
-                image, cost = await self._ai.generate_sticker_by_refs(prompt=prompt, refs=files)
+                image, cost = await self._ai.generate_sticker_by_refs(prompt=prompt, refs=files, model=model)
             else:
-                image, cost = await self._ai.generate_sticker(prompt=prompt)
+                image, cost = await self._ai.generate_sticker(prompt=prompt, model=model)
         except BadRequestError as exc:
             if exc.type == 'image_generation_user_error' and exc.code == 'moderation_blocked':
                 logger.debug("Sticker generation was blocked by AI service moderation")
@@ -135,7 +135,7 @@ class StickersService:
             await session.commit()
 
     @tracer.start_as_current_span("Stickers: Handle refs from prompt")
-    async def _handle_refs_from_prompt(self, prompt) -> tuple[dict[str, str], list[bytes]]:
+    async def _handle_refs_from_prompt(self, prompt: str, channel: User) -> tuple[dict[str, str], list[bytes]]:
         """
         Ищем в промпте указания пользователей, заменяем их на файлы или подробные текстовые описания.
         :param prompt:
@@ -151,20 +151,28 @@ class StickersService:
         # Вытаскиваем их из БД
         async with self._db_session_factory() as session:
             q = (
-                sa.select(CharacterInfo)
+                sa.select(CharacterInfo, User.login_name, TwitchUserSettings.ai_reference_usage_policy)
+                .join(User, sa.func.lower(User.login_name) == CharacterInfo.name)
+                .join(TwitchUserSettings, TwitchUserSettings.user_id == User.id)
                 .where(CharacterInfo.name.in_(search_names))
             )
-            # Используем scalars(), чтобы получить объекты, а не кортежи
-            result = await session.execute(q)
-            chars = result.scalars().all()
+            rows = (await session.execute(q)).all()
 
         # Собираем маппинг описаний и список задач для S3
         descriptions: dict[str, str] = {}
         s3_tasks = []
 
         # Чтобы сохранить оригинальный регистр из промпта сопоставляем найденные объекты с именами из сета
-        for char in chars:
+        channel_name = channel.login_name.lower()
+        channel_is_mentioned = channel_name in search_names
+        for char, owner_login, usage_policy in rows:
             name_in_db = char.name.lower()
+            is_channel_owner = name_in_db == channel_name
+            if not is_channel_owner:
+                if usage_policy == AIReferenceUsagePolicy.DENY:
+                    continue
+                if usage_policy == AIReferenceUsagePolicy.WITH_MY_CHARACTER and not channel_is_mentioned:
+                    continue
             # Находим, как это имя было написано в промпте
             original_name = next((n for n in found_names if n.lower() == name_in_db), char.name)
 
@@ -181,15 +189,16 @@ class StickersService:
 
         return descriptions, refs
 
-    async def _prepare_final_prompt(self, prompt: str, characters: dict[str, str], with_files: bool) -> str:
+    async def _prepare_final_prompt(self, prompt: str, characters: dict[str, str], with_files: bool, transparent_background: bool = False) -> str:
         if characters:
             descriptions_str = "\n\nCharacter descriptions:" + "\n".join([f"- *@{name}*: {description}" for name, description in characters.items()])
         else:
             descriptions_str = ""
 
-        # if with_files:
-        #     return f"Generate an image of drawn in cartoon style `{prompt}` with transparent background and the white outline like a sticker.{descriptions_str}\n\nThe appearance of the characters in the attached files"
-        # return f"Image of drawn in cartoon style `{prompt}` with transparent background and the white outline like a sticker.{descriptions_str}"
+        if transparent_background:
+            if with_files:
+                return f"Generate an image of drawn in cartoon style `{prompt}` with transparent background and the white outline like a sticker.{descriptions_str}\n\nThe appearance of the characters in the attached files"
+            return f"Image of drawn in cartoon style `{prompt}` with transparent background and the white outline like a sticker.{descriptions_str}"
         # Инструкция для идеального хромакея без спецэффектов
         bg_instruction = (
             "The entire background must be a single, solid, uniform bright chroma key green color. "
@@ -227,12 +236,14 @@ class StickersService:
         if channel.balance <= 0:
             raise NegativeBalanceError
 
-        characters, files = await self._handle_refs_from_prompt(prompt)
-        prompt_for_call = await self._prepare_final_prompt(prompt, characters, with_files=bool(files))
-        image, cost = await self._generate_sticker(prompt_for_call, files)
+        use_mini_model = channel.settings.ai_sticker_model == AIStickerModel.MINI
+        model = "gpt-image-1-mini" if use_mini_model else "gpt-image-2"
+        characters, files = await self._handle_refs_from_prompt(prompt, channel)
+        prompt_for_call = await self._prepare_final_prompt(prompt, characters, with_files=bool(files), transparent_background=use_mini_model)
+        image, cost = await self._generate_sticker(prompt_for_call, files, model=model)
         file_id = uuid4()
         resized_image = await self._resizer.resize(image)
-        sticker = await self._sticker_processor.process(resized_image)
+        sticker = resized_image if use_mini_model else await self._sticker_processor.process(resized_image)
         await self._save_to_s3(file_id, data=sticker)
         await self._save_to_db(file_id, prompt, chatter, channel, cost)
         return file_id

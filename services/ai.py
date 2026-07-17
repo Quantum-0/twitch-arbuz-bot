@@ -21,13 +21,13 @@ class OpenAIClient:
             base_url=settings.openai_base_url,
         )
 
-    async def generate_sticker_by_refs(self, prompt: str, refs: list[bytes]) -> tuple[bytes, float]:
+    async def generate_sticker_by_refs(self, prompt: str, refs: list[bytes], model: str = "gpt-image-2") -> tuple[bytes, float]:
         logger.info("Start generating image with refs")
         formatted_refs = [
             (f"image_{i}.png", ref, "image/png") for i, ref in enumerate(refs)
         ]
         result = await self._client.images.edit(
-            model="gpt-image-2",
+            model=model,
             prompt=prompt,
             quality="low",
             image=formatted_refs,
@@ -36,10 +36,10 @@ class OpenAIClient:
         )
         return base64.b64decode(result.data[0].b64_json), result.usage.cost_rub
 
-    async def generate_sticker(self, prompt: str) -> tuple[bytes, float]:
+    async def generate_sticker(self, prompt: str, model: str = "gpt-image-2") -> tuple[bytes, float]:
         logger.info("Start generating image")
         result = await self._client.images.generate(
-            model="gpt-image-2",
+            model=model,
             prompt=prompt,
             quality="low",
             size="1024x1024",

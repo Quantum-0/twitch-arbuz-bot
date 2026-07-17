@@ -157,6 +157,10 @@ class TwitchUserSettings(Base):
     )
 
     ai_sticker_reward_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True, default=None)
+    ai_stickers_show_in_profile: Mapped[bool] = mapped_column(Boolean, default=True, server_default='true', nullable=False)
+    ai_reference_show_in_profile: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false(), nullable=False)
+    ai_sticker_model: Mapped[str] = mapped_column(String, default='quality', server_default='quality', nullable=False)
+    ai_reference_usage_policy: Mapped[str] = mapped_column(String, default='with_my_character', server_default='with_my_character', nullable=False)
 
     allow_shared_chat: Mapped[bool] = mapped_column(Boolean, default=True, server_default=false(), nullable=False)
     chatbot_default_target_behaviour: Mapped[str] = mapped_column(

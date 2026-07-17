@@ -18,7 +18,7 @@ from starlette.templating import Jinja2Templates
 
 from config import settings
 from container import Container
-from database.models import TwitchUserSettings, User, MemealertsSettings, GeneratedImage
+from database.models import TwitchUserSettings, User, MemealertsSettings, GeneratedImage, CharacterInfo
 from dependencies import get_db
 from routers.security_helpers import admin_auth, user_auth, user_auth_optional
 from services.cache import Cache
@@ -86,6 +86,39 @@ async def control_panel(
                 "enabled_v2": user.memealerts.access_token is not None,
             },
             "slovotron_secret": str(uuid3(namespace=settings.slovotron_secret, name=user.login_name)),
+        },
+    )
+
+
+
+
+@router.get("/ai-stickers", response_class=HTMLResponse)
+async def ai_stickers_page(
+    request: Request,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    user: User | None = Security(user_auth_optional),
+):
+    if not user:
+        return RedirectResponse("/")
+    reference = await db.scalar(
+        sa.select(CharacterInfo).where(CharacterInfo.name == user.login_name.lower())
+    )
+    stickers = (
+        await db.execute(
+            sa.select(GeneratedImage)
+            .where(GeneratedImage.on_channel == int(user.twitch_id))
+            .order_by(GeneratedImage.created_at.desc())
+            .limit(12)
+        )
+    ).scalars().all()
+    return templates.TemplateResponse(
+        "ai_stickers.html",
+        {
+            "request": request,
+            "user": user,
+            "settings": user.settings,
+            "reference": reference,
+            "ai_stickers": stickers,
         },
     )
 
@@ -181,7 +214,7 @@ async def profile_page(
         .order_by(GeneratedImage.created_at.desc())
         .limit(100)  # TODO: сделать потом отдельную страницу, где можно будет посмотреть все генерации, с пагинацией
     )
-    ai_stickers = (await db.execute(q)).scalars().all()
+    ai_stickers = (await db.execute(q)).scalars().all() if profile_user_data.settings.ai_stickers_show_in_profile else []
     await db.commit()
     if not profile_user_data:
         raise HTTPException(404, "User not found")

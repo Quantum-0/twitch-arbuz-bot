@@ -1,88 +1,97 @@
 {% extends "base.html" %}
 
-{% block title %}О проекте — Quantum0's Bot{% endblock %}
-{% block description %}О проекте бота Quantum075Bot для начисления мемкоинов за баллы канала, автоматического shoutout зарейды и различных команд в чате, по типу !трусы !кусь !лизь !обнять и т.п.{% endblock %}
+{% block title %}ИИ-стикеры — Quantum0's Bot{% endblock %}
+{% block description %}Настройки награды, персонажа и отображения ИИ-стикеров Quantum0's Bot.{% endblock %}
 
 {% block content %}
-<div class="container">
-    <section>
-        <h2>Настройки</h2>
+<div class="notification-container"></div>
+<section>
+    <h2>Настройки ИИ-стикеров</h2>
+    <p class="overlay-copy-hint">Здесь можно подключить награду Twitch, выбрать модель генерации и настроить, как зрители используют вашего персонажа в промптах.</p>
 
-        Баланс: <!-- Здесь должен отображаться баланс пользователя для генерации -->
-
-        <!--
-        Тут должна быть кнопочка создания и подключения награды
-        А так же панелька для индикации, что всё работает успешно
-        Сделать эту награду нужно ровно по тому же принципу, как работает сейчас memealerts_v2
-        из раздела Нативная интеграция с Memealerts в panel/memealerts.html
-        -->
-
-        <br/>
-
-        <p>Ваш персонаж для генерации в ИИ-стикерах. Можно указать что-то одно, либо оба пункта сразу.</p>
-        <form action="/api/user/reference" method="post" enctype="multipart/form-data">
-          <!-- File Selection Field -->
-          <div>
-            <label for="file">Изображение вашего персонажа</label>
-            <input type="file" id="file" name="file" accept="image/png">
-          </div>
-
-          <!-- Description Textarea Field -->
-          <div>
-            <label for="description">Описание вашего персонажа</label>
-            <textarea id="description" name="description" rows="4" cols="50" placeholder="Enter a description here..."></textarea>
-          </div>
-          <!-- Submit Button -->
-          <button type="submit">Сохранить</button>
-        </form>
-
-        <!--
-        Эти переключатели должны выглядеть аналогично, как в /panel переключатели у чат-бота.
-        Обновлять в бд эту настройку можно даже через ту же ручку, что и чат бот, наверно, и писать в ту же таблицу settings
-        -->
-
-        <div>
-            <input type="checkbox" id="terms" name="terms" value="accepted">
-            <label for="terms">разрешать генерировать себя у других</label>
+    <div class="cards-grid">
+        <div class="card-status" data-endpoint="/api/user/check-ai-stickers-reward" data-type="ai-stickers-reward" data-refreshtimer="180">
+            <div>
+                <h3>Награда на Twitch</h3>
+                <ul class="card-status-problems-list" style="margin: 0"></ul>
+            </div>
+            <div class="status-indicator tooltip-container"><span class="tooltip-text">Показывает, что награда создана и сервис подписан на её использования</span></div>
         </div>
-
-        <div>
-            <input type="checkbox" id="terms" name="terms" value="accepted">
-            <label for="terms">отображать ии стикеры в профиле</label>
+        <div class="card-status">
+            <div>
+                <h3>Баланс генераций</h3>
+                <p style="margin: 0"><b>{{ user.balance }}</b> ₽</p>
+            </div>
         </div>
+    </div>
 
-        <div>
-            <input type="checkbox" id="terms" name="terms" value="accepted">
-            <label for="terms">отображать рефку в профиле</label>
+    <button id="ai-stickers-reward-btn" data-action="loading" onclick="handleAiStickerRewardButton()">Проверка...</button>
+</section>
+
+<section>
+    <h2>Ваш персонаж</h2>
+    <p>Можно сохранить PNG-референс, текстовое описание или оба варианта. При упоминании <b>@{{ user.login_name }}</b> бот добавит эти данные к генерации.</p>
+    <form id="reference-form" class="ai-settings-form">
+        <label>Изображение персонажа (PNG до 10 МБ)</label>
+        <input type="file" id="reference-file" name="file" accept="image/png">
+        <small>Текущий референс: {{ "загружен" if reference and reference.file_id else "не загружен" }}.</small>
+
+        <label for="reference-description">Описание персонажа</label>
+        <textarea id="reference-description" name="description" rows="5" placeholder="Например: маленькая зелёная арбузная лисичка в худи...">{{ reference.description if reference and reference.description else "" }}</textarea>
+        <button type="submit">Сохранить персонажа</button>
+    </form>
+</section>
+
+<section>
+    <h2>Поведение и приватность</h2>
+    <div class="settings-list">
+        <div class="settings-row">
+            <span>Отображать ИИ-стикеры в профиле</span>
+            <div class="toggle-switch {{ 'active' if settings.ai_stickers_show_in_profile }}" data-name="ai_stickers_show_in_profile"></div>
         </div>
-
-        <div>
-            <input type="checkbox" id="terms" name="terms" value="accepted">
-            <label for="terms">использовать модель дороже</label>
+        <div class="settings-row">
+            <span>Отображать референс в профиле</span>
+            <div class="toggle-switch {{ 'active' if settings.ai_reference_show_in_profile }}" data-name="ai_reference_show_in_profile"></div>
         </div>
-        <!-- ^ Настройка для выбора модели должна быть через radio-button и выбираться должно между пунктами "Дешевле, но ниже качество" и "Качественнее, но выше стоимость" -->
+    </div>
 
+    <div class="overlay-control overlay-radio-panel">
+        <div class="target-behaviour-title">Разрешить другим генерировать у меня</div>
+        <fieldset class="overlay-radio-options" id="reference-policy">
+            <label class="overlay-radio-option"><input type="radio" name="ai_reference_usage_policy" value="deny" {{ 'checked' if settings.ai_reference_usage_policy == 'deny' }}> <span>Запретить</span></label>
+            <label class="overlay-radio-option"><input type="radio" name="ai_reference_usage_policy" value="with_my_character" {{ 'checked' if settings.ai_reference_usage_policy == 'with_my_character' }}> <span>Только вместе с персонажем стримера</span></label>
+            <label class="overlay-radio-option"><input type="radio" name="ai_reference_usage_policy" value="allow" {{ 'checked' if settings.ai_reference_usage_policy == 'allow' }}> <span>Разрешить</span></label>
+        </fieldset>
+    </div>
 
-    </section>
-    <section>
-        <h2>Сгенерированные на ваших стримах стикеры :з</h2>
-        <!--
-        TODO:
-        ТУТ ДОЛЖЕН БЫТЬ СПИСОК ИЗ ПОСЛЕДНИХ СТИКЕРОВ
-        Отображать мы их будем так же как в /profile/<username>
-        Но в профиле мы будем отображать 20 последних
-        Здесь же мы должны показать несколько из них
-        А внизу кнопка "Показать ещё",
-        которая будет подгружать ещё стикеры джаваскриптом
-        Если стикеров больше нет и пагинация закончилась - отобразим внизу надпись "На этом всё, ребята ¯\_(ツ)_/¯"
-        Пагинацию лучше делать курсорную, т.к. в момент прогрузки кто-то может сгенерировать стикер сверху
-        И нам нужно чтоб пагинация не съехала
-        В качестве курсора вероятнее всего лучше использовать дату, но надо обдумать этот момент
-        -->
-        <i>Стикеры удаляются через время. Если хотите их сохранить, лучше сделать это сейчас :з</i>
-    </section>
-</div>
+    <div class="overlay-control overlay-radio-panel">
+        <div class="target-behaviour-title">Модель генерации</div>
+        <fieldset class="overlay-radio-options" id="model-choice">
+            <label class="overlay-radio-option"><input type="radio" name="ai_sticker_model" value="mini" {{ 'checked' if settings.ai_sticker_model == 'mini' }}> <span>Дешевле, но ниже качество</span></label>
+            <label class="overlay-radio-option"><input type="radio" name="ai_sticker_model" value="quality" {{ 'checked' if settings.ai_sticker_model == 'quality' }}> <span>Качественнее, но выше стоимость</span></label>
+        </fieldset>
+        <small>Дешёвая модель генерирует прозрачный фон сама; для качественной модели фон вырезается локально после генерации.</small>
+    </div>
+</section>
 
-<!-- После всех этих изменений нам нужно убрать кнопку "Установить" в panel/overlays.html, и добавить там кнопку чтоб перейти на эту страницу
-Сама эта страница должна открываться по адресу my-site/ai-stickers-->
+<section>
+    <h2>Сгенерированные на ваших стримах стикеры :з</h2>
+    <i>Стикеры удаляются через время. Если хотите их сохранить, лучше сделать это сейчас :з</i>
+    <div id="ai-stickers-grid" class="ai-stickers-grid">
+        {% for sticker in ai_stickers %}
+        <div class="ai-sticker">
+            <a href="/files/ai-gen-stickers/{{ sticker.file_id }}"><img src="/files/ai-gen-stickers/{{ sticker.file_id }}" onerror="this.onerror=null; this.src='/static/images/500.png';"></a>
+            <p><i>{{ sticker.prompt }}</i></p>
+            <p>by {{ sticker.by_chatter }}</p>
+        </div>
+        {% endfor %}
+    </div>
+    <button id="load-more-stickers" data-cursor="{{ ai_stickers[-1].created_at.isoformat() if ai_stickers else '' }}">Показать ещё</button>
+    <p id="stickers-end" style="display:none">На этом всё, ребята ¯\_(ツ)_/¯</p>
+</section>
+{% endblock %}
+
+{% block body_scripts %}
+<script src="/static/js/panel-scripts.js"></script>
+<script src="/static/js/ai-stickers.js"></script>
 {% endblock %}

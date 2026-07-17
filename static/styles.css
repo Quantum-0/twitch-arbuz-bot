@@ -1170,3 +1170,31 @@ section h3 {
 .ai-sticker img:hover {
     transform: scale(1.05);
 }
+
+
+.ai-settings-form, .settings-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.ai-settings-form textarea, .ai-settings-form input[type="file"] {
+    max-width: 720px;
+}
+
+.settings-row {
+    align-items: center;
+    display: flex;
+    gap: 16px;
+    justify-content: space-between;
+    max-width: 720px;
+}
+
+.button-like {
+    background: var(--button-bg, var(--color-primary));
+    border-radius: 8px;
+    color: white;
+    display: inline-block;
+    padding: 10px 16px;
+    text-decoration: none;
+}

@@ -10,3 +10,15 @@ class ChatbotDefaultTargetBehaviour(StrEnum):
 class FileStorageDir(StrEnum):
     AI_GENERATED_STICKER = "ai-gen-stickers"
     REFS = "refs"
+
+
+
+class AIStickerModel(StrEnum):
+    MINI = "mini"
+    QUALITY = "quality"
+
+
+class AIReferenceUsagePolicy(StrEnum):
+    DENY = "deny"
+    WITH_MY_CHARACTER = "with_my_character"
+    ALLOW = "allow"
