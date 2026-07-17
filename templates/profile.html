@@ -151,6 +151,13 @@
                 </strong>
             </div>
 
+            <div>
+                ИИ-стикеры:
+                <strong style="color: {{ 'var(--color-primary)' if profile_user.settings.ai_sticker_reward_id else 'var(--color-danger)' }}">
+                    {{ "включены" if profile_user.settings.ai_sticker_reward_id else "выключены" }}
+                </strong>
+            </div>
+
         </div>
     </section>
 
