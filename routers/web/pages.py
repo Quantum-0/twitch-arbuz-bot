@@ -113,7 +113,7 @@ async def ai_stickers_page(
                 > sa.func.now() - sa.text(f"interval '{settings.s3_sticker_expires_days} days'")
             )
             .order_by(GeneratedImage.created_at.desc())
-            .limit(5)
+            .limit(10)
         )
     ).scalars().all()
     return templates.TemplateResponse(

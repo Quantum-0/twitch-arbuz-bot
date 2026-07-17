@@ -17,11 +17,12 @@
             </div>
             <div class="status-indicator tooltip-container"><span class="tooltip-text">Показывает, что награда создана и сервис подписан на её использования</span></div>
         </div>
-        <div class="card-info" id="balance-card" data-balance="{{ user.balance }}">
+        <div class="card-status" id="balance-card" data-balance="{{ user.balance }}">
             <div>
-                <h3>Баланс генераций <span id="balance-indicator" class="balance-bulb" aria-hidden="true"></span></h3>
-                <p style="margin: 0"><b>{{ user.balance }}</b> ₽</p>
+                <h3>Баланс</h3>
+                <p style="margin: 0"><b>{{ user.balance }}</b></p>
             </div>
+            <div id="balance-indicator" class="status-indicator tooltip-container"><span class="tooltip-text">Текущий остаток средств для генерации стикеров</span></div>
         </div>
     </div>
 
@@ -53,6 +54,10 @@
             <span>Отображать референс в профиле</span>
             <div class="toggle-switch {{ 'active' if settings.ai_reference_show_in_profile }}" data-name="ai_reference_show_in_profile" role="switch" aria-checked="{{ 'true' if settings.ai_reference_show_in_profile else 'false' }}" tabindex="0"></div>
         </div>
+        <div class="settings-row">
+            <span>Разрешить моего персонажа генерировать у других</span>
+            <div class="toggle-switch {{ 'active' if settings.ai_reference_allow_on_other_channels }}" data-name="ai_reference_allow_on_other_channels" role="switch" aria-checked="{{ 'true' if settings.ai_reference_allow_on_other_channels else 'false' }}" tabindex="0"></div>
+        </div>
     </div>
 
     <div class="overlay-control overlay-radio-panel">
@@ -70,7 +75,6 @@
             <label class="overlay-radio-option"><input type="radio" name="ai_sticker_model" value="mini" {{ 'checked' if settings.ai_sticker_model == 'mini' }}> <span>Дешевле, но ниже качество</span></label>
             <label class="overlay-radio-option"><input type="radio" name="ai_sticker_model" value="quality" {{ 'checked' if settings.ai_sticker_model == 'quality' }}> <span>Качественнее, но выше стоимость</span></label>
         </fieldset>
-        <small>Дешёвая модель генерирует прозрачный фон сама; для качественной модели фон вырезается локально после генерации.</small>
     </div>
 </section>
 

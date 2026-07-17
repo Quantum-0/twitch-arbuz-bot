@@ -414,6 +414,8 @@ async function checkStatus(card) {
 
 function initStatusCards() {
     document.querySelectorAll(".card-status").forEach(card => {
+        const endpoint = card.dataset.endpoint;
+        if (!endpoint) return;
 
         const type = card.dataset.type;
         const refresh_timer = Number(card.dataset.refreshtimer);

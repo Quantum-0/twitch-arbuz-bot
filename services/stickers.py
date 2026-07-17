@@ -49,6 +49,12 @@ class UnknownRedemptionProcessingException(RewardRedemptionProcessingError):
         super().__init__(f"Неизвестная ошибка. Баллы возвращены!")
 
 
+class ForeignReferenceNotAllowedError(RewardRedemptionProcessingError):
+    """Гейт чужих референсов на канале (deny / with_my_character) либо character-side veto."""
+    def __init__(self, message: str):
+        super().__init__(message)
+
+
 class StickersService:
     def __init__(
         self,
@@ -138,46 +144,57 @@ class StickersService:
     async def _handle_refs_from_prompt(self, prompt: str, channel: User) -> tuple[dict[str, str], list[bytes]]:
         """
         Ищем в промпте указания пользователей, заменяем их на файлы или подробные текстовые описания.
-        :param prompt:
-        :return:
+        Применяются два ортогональных гейта:
+          A) channel-side: channel.settings.ai_reference_usage_policy гейтит ЧУЖИХ персонажей на канале.
+          B) character-side: ai_reference_allow_on_other_channels владельца персонажа (только если @name
+             маппится на реального User; кастомные референсы без владельца разрешены).
+        Собственный персонаж владельца канала на своём канале всегда разрешён.
         """
-        # Ищем упоминания персонажей
         found_names = set(re.findall(r"@(\w+)", prompt))
         if not found_names:
             return {}, []
 
         search_names = {n.lower() for n in found_names}
 
-        # Вытаскиваем их из БД
         async with self._db_session_factory() as session:
             q = (
-                sa.select(CharacterInfo, User.login_name, TwitchUserSettings.ai_reference_usage_policy)
+                sa.select(CharacterInfo, User.login_name, TwitchUserSettings.ai_reference_allow_on_other_channels)
                 .outerjoin(User, sa.func.lower(User.login_name) == CharacterInfo.name)
                 .outerjoin(TwitchUserSettings, TwitchUserSettings.user_id == User.id)
                 .where(CharacterInfo.name.in_(search_names))
             )
             rows = (await session.execute(q)).all()
 
-        # Собираем маппинг описаний и список задач для S3
         descriptions: dict[str, str] = {}
         s3_tasks = []
 
-        # Чтобы сохранить оригинальный регистр из промпта сопоставляем найденные объекты с именами из сета
         channel_name = channel.login_name.lower()
         channel_is_mentioned = channel_name in search_names
-        for char, owner_login, usage_policy in rows:
+        channel_policy = channel.settings.ai_reference_usage_policy
+
+        for char, owner_login, allow_on_other_channels in rows:
             name_in_db = char.name.lower()
             is_channel_owner = name_in_db == channel_name
-            if not is_channel_owner:
-                # Кастомные референсы без зарегистрированного владельца (привилегированный name=...)
-                # считаем разрешёнными по умолчанию
-                effective_policy = usage_policy or AIReferenceUsagePolicy.ALLOW
-                if effective_policy == AIReferenceUsagePolicy.DENY:
-                    continue
-                if effective_policy == AIReferenceUsagePolicy.WITH_MY_CHARACTER and not channel_is_mentioned:
-                    continue
-            # Находим, как это имя было написано в промпте
             original_name = next((n for n in found_names if n.lower() == name_in_db), char.name)
+
+            if not is_channel_owner:
+                # Гейт A — channel-side политика владельца канала.
+                if channel_policy == AIReferenceUsagePolicy.DENY:
+                    raise ForeignReferenceNotAllowedError(
+                        "Стример запретил генерацию стикеров с чужими персонажами"
+                    )
+                if channel_policy == AIReferenceUsagePolicy.WITH_MY_CHARACTER and not channel_is_mentioned:
+                    raise ForeignReferenceNotAllowedError(
+                        "Стример запретил генерировать на своём канале стикеры с другими стримерами, "
+                        "без участия стримера в стикере"
+                    )
+
+                # Гейт B — character-side: владелец персонажа разрешил себя у других?
+                # Если @name не маппится на реального User (кастомный референс) — разрешено.
+                if owner_login is not None and not allow_on_other_channels:
+                    raise ForeignReferenceNotAllowedError(
+                        f"Пользователь @{original_name} не разрешил генерировать стикеры с ним на чужих каналах."
+                    )
 
             if char.description:
                 descriptions[original_name] = char.description
@@ -185,7 +202,6 @@ class StickersService:
             if char.file_id:
                 s3_tasks.append(self._s3.get_object(f"refs/{char.file_id}.png"))
 
-        # Загружаем файлы рефок
         refs: list[bytes] = []
         if s3_tasks:
             refs = list(await asyncio.gather(*s3_tasks))

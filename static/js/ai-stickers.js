@@ -103,10 +103,10 @@ function updateBalanceIndicator() {
     if (!card || !indicator) return;
     const balance = parseFloat(card.dataset.balance);
     if (isNaN(balance)) return;
-    indicator.classList.remove('red', 'yellow', 'green');
-    if (balance < 10) indicator.classList.add('red');
-    else if (balance < 75) indicator.classList.add('yellow');
-    else indicator.classList.add('green');
+    indicator.classList.remove('active', 'error', 'warn');
+    if (balance < 10) indicator.classList.add('error');
+    else if (balance < 75) indicator.classList.add('warn');
+    else indicator.classList.add('active');
 }
 
 function initAiStickerToggles() {

@@ -462,7 +462,7 @@ async def get_recent_ai_stickers(
     db: Annotated[AsyncSession, Depends(get_db)],
     user: User = Security(user_auth),
     before: str | None = Query(default=None),
-    limit: int = Query(default=5, ge=1, le=30),
+    limit: int = Query(default=10, ge=1, le=30),
 ):
     before_dt: datetime | None = None
     if before:
