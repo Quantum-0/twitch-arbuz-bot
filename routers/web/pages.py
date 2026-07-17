@@ -107,8 +107,13 @@ async def ai_stickers_page(
         await db.execute(
             sa.select(GeneratedImage)
             .where(GeneratedImage.on_channel == int(user.twitch_id))
+            .where(GeneratedImage.file_id.is_not(None))
+            .where(
+                GeneratedImage.created_at
+                > sa.func.now() - sa.text(f"interval '{settings.s3_sticker_expires_days} days'")
+            )
             .order_by(GeneratedImage.created_at.desc())
-            .limit(12)
+            .limit(5)
         )
     ).scalars().all()
     return templates.TemplateResponse(
@@ -208,16 +213,28 @@ async def profile_page(
             .filter_by(login_name=profile_user)
         )
     ).scalar_one_or_none()
+    if not profile_user_data:
+        raise HTTPException(404, "User not found")
+    reference = (
+        await db.scalar(
+            sa.select(CharacterInfo).where(CharacterInfo.name == profile_user.lower())
+        )
+        if profile_user_data.settings.ai_reference_show_in_profile
+        else None
+    )
     q = (
         sa.select(GeneratedImage)
         .where(GeneratedImage.on_channel == int(profile_user_data.twitch_id))
+        .where(GeneratedImage.file_id.is_not(None))
+        .where(
+            GeneratedImage.created_at
+            > sa.func.now() - sa.text(f"interval '{settings.s3_sticker_expires_days} days'")
+        )
         .order_by(GeneratedImage.created_at.desc())
-        .limit(100)  # TODO: сделать потом отдельную страницу, где можно будет посмотреть все генерации, с пагинацией
+        .limit(10)
     )
     ai_stickers = (await db.execute(q)).scalars().all() if profile_user_data.settings.ai_stickers_show_in_profile else []
     await db.commit()
-    if not profile_user_data:
-        raise HTTPException(404, "User not found")
     profile_user_dict = profile_user_data.__dict__
     streams = await cache.as_cached(twitch.get_streams, [profile_user_data])
     followers_count = await cache.as_cached(twitch.get_followers_count, profile_user_data)
@@ -237,7 +254,7 @@ async def profile_page(
         pass
     return templates.TemplateResponse(
         "profile.html",
-        {"user": user, "profile_user": profile_user_dict, "request": request, "ai_stickers": ai_stickers or None},
+        {"user": user, "profile_user": profile_user_dict, "request": request, "ai_stickers": ai_stickers or None, "reference": reference},
     )
 
 

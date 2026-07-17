@@ -68,6 +68,9 @@ function initToggles() {
     document.querySelectorAll('.toggle-switch').forEach(toggle => {
         toggle.addEventListener('click', () => {
             toggle.classList.toggle('active');
+            if (toggle.getAttribute('role') === 'switch') {
+                toggle.setAttribute('aria-checked', toggle.classList.contains('active') ? 'true' : 'false');
+            }
             void updateSetting(toggle.dataset.name, toggle.classList.contains('active'));
             if (toggle.dataset.name === 'enable_chat_bot') {
                 if (toggle.classList.contains('active')) {

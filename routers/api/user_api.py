@@ -1,5 +1,6 @@
 import logging
 from collections.abc import Callable
+from datetime import datetime
 from typing import Annotated, Any
 from uuid import uuid4
 
@@ -15,6 +16,7 @@ from starlette.responses import JSONResponse
 from twitchAPI.type import TwitchAPIException, TwitchResourceNotFound
 
 from container import Container
+from config import settings
 from database.models import User, CharacterInfo, GeneratedImage
 from dependencies import get_db
 from exceptions import MANoToken, MAValidationRespError, MAUnavailableError, MAInvalidTokenError
@@ -391,10 +393,29 @@ async def setup_ai_stickers(
 ):
     reward_id = user.settings.ai_sticker_reward_id
 
-    if not enable == bool(reward_id):
-        pass
+    if enable:
+        if reward_id:
+            problems = await twitch.validate_reward_subscription(user=user, reward_id=str(reward_id))
+            if not problems:
+                return JSONResponse(
+                    {"title": "Без изменений", "message": "Уже включено."}, 208
+                )
+            if "Награда не найдена" in problems:
+                user.settings.ai_sticker_reward_id = None
+                await db.commit()
+                await db.refresh(user.settings)
+                reward_id = None
+            else:
+                try:
+                    await twitch.subscribe_reward(user, reward_id)
+                except TwitchAPIException as exc:
+                    return JSONResponse({"title": "Ошибка", "message": str(exc)}, 400)
+                return JSONResponse({"title": "Успешно", "message": "Подписка на награду восстановлена."}, 200)
     else:
-        return JSONResponse({"title": "Без изменений", "message": f"Уже {'включено' if enable else 'выключено'}."}, 208)
+        if not reward_id:
+            return JSONResponse(
+                {"title": "Без изменений", "message": "Уже выключено."}, 208
+            )
 
     if enable:
         try:
@@ -441,17 +462,27 @@ async def get_recent_ai_stickers(
     db: Annotated[AsyncSession, Depends(get_db)],
     user: User = Security(user_auth),
     before: str | None = Query(default=None),
-    limit: int = Query(default=12, ge=1, le=30),
+    limit: int = Query(default=5, ge=1, le=30),
 ):
+    before_dt: datetime | None = None
+    if before:
+        try:
+            before_dt = datetime.fromisoformat(before)
+        except ValueError:
+            raise HTTPException(400, "Неверный формат даты для параметра 'before'. Ожидается ISO формат.")
     q = (
         sa.select(GeneratedImage)
         .where(GeneratedImage.on_channel == int(user.twitch_id))
         .where(GeneratedImage.file_id.is_not(None))
+        .where(
+            GeneratedImage.created_at
+            > sa.func.now() - sa.text(f"interval '{settings.s3_sticker_expires_days} days'")
+        )
         .order_by(GeneratedImage.created_at.desc())
         .limit(limit + 1)
     )
-    if before:
-        q = q.where(GeneratedImage.created_at < sa.cast(before, sa.DateTime()))
+    if before_dt:
+        q = q.where(GeneratedImage.created_at < before_dt)
     rows = (await db.execute(q)).scalars().all()
     items = rows[:limit]
     next_cursor = items[-1].created_at.isoformat() if len(rows) > limit and items else None

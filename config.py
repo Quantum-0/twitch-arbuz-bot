@@ -72,6 +72,7 @@ class Settings(BaseSettings):
     s3_bucket: str = "twibot"
     ai_cost_multiplier: float = 1.3  # 30%
     ai_cost_single_call: float = 0.075  # 7.5kop
+    s3_sticker_expires_days: int = 7
     otel_endpoint: AnyHttpUrl | None = "http://localhost:4317"
     otel_service_name: str = "twitch-bot"
     redis_url: str = "redis://localhost:6379"

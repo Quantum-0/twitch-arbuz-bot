@@ -154,6 +154,23 @@
         </div>
     </section>
 
+    <!-- Персонаж стримера -->
+    {% if reference and (reference.file_id or reference.description) %}
+    <section>
+        <h3>Персонаж стримера</h3>
+        <small>используется для генерации ИИ стикеров</small>
+        {% if reference.file_id %}
+        <img src="/files/refs/{{ reference.file_id }}"
+             alt="Персонаж {{ profile_user.login_name }}"
+             style="width: 100%; max-width: 100%; border-radius: 12px; margin-top: 12px;"
+             onerror="this.onerror=null; this.style.display='none';">
+        {% endif %}
+        {% if reference.description %}
+        <p style="margin-top: 12px;"><b>Описание</b>: <i>{{ reference.description }}</i></p>
+        {% endif %}
+    </section>
+    {% endif %}
+
     <!-- ИИ Стикеры -->
     {% if ai_stickers %}
     <section>

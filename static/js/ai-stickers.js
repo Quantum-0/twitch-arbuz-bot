@@ -1,5 +1,6 @@
 let aiStickersCursor = null;
 let aiStickersFinished = false;
+let aiStickersLoading = false;
 
 function updateAiStickerRewardButton(action) {
     const btn = document.getElementById('ai-stickers-reward-btn');
@@ -46,10 +47,14 @@ async function submitReference(event) {
         showNotification('Ошибка', 'Добавьте PNG-файл или описание персонажа.', true);
         return;
     }
-    const response = await fetch('/api/user/reference', { method: 'POST', body: formData });
     let data = {};
-    try { data = await response.json(); } catch (_) {}
-    showNotification(response.ok ? 'Сохранено' : 'Ошибка', response.ok ? 'Персонаж обновлён.' : (data.detail || 'Не удалось сохранить персонажа.'), !response.ok);
+    try {
+        const response = await fetch('/api/user/reference', { method: 'POST', body: formData });
+        try { data = await response.json(); } catch (_) {}
+        showNotification(response.ok ? 'Сохранено' : 'Ошибка', response.ok ? 'Персонаж обновлён.' : (data.detail || 'Не удалось сохранить персонажа.'), !response.ok);
+    } catch (e) {
+        showNotification('Ошибка', e.message || 'Сетевая ошибка. Попробуйте ещё раз.', true);
+    }
 }
 
 function renderSticker(item) {
@@ -62,19 +67,57 @@ function renderSticker(item) {
 }
 
 async function loadMoreStickers() {
-    if (aiStickersFinished) return;
-    const url = new URL('/api/user/ai-stickers/recent', window.location.origin);
-    if (aiStickersCursor) url.searchParams.set('before', aiStickersCursor);
-    const response = await fetch(url);
-    const data = await response.json();
-    const grid = document.getElementById('ai-stickers-grid');
-    data.items.forEach(item => grid.appendChild(renderSticker(item)));
-    aiStickersCursor = data.next_cursor;
-    if (!aiStickersCursor) {
-        aiStickersFinished = true;
-        document.getElementById('load-more-stickers').style.display = 'none';
-        document.getElementById('stickers-end').style.display = 'block';
+    if (aiStickersFinished || aiStickersLoading) return;
+    aiStickersLoading = true;
+    const btn = document.getElementById('load-more-stickers');
+    if (btn) btn.disabled = true;
+    try {
+        const url = new URL('/api/user/ai-stickers/recent', window.location.origin);
+        if (aiStickersCursor) url.searchParams.set('before', aiStickersCursor);
+        const response = await fetch(url);
+        if (!response.ok) {
+            showNotification('Ошибка', 'Не удалось загрузить стикеры', true);
+            return;
+        }
+        const data = await response.json();
+        if (!data.items) return;
+        const grid = document.getElementById('ai-stickers-grid');
+        data.items.forEach(item => grid.appendChild(renderSticker(item)));
+        aiStickersCursor = data.next_cursor;
+        if (!aiStickersCursor) {
+            aiStickersFinished = true;
+            if (btn) btn.style.display = 'none';
+            document.getElementById('stickers-end').style.display = 'block';
+        }
+    } catch (e) {
+        showNotification('Ошибка', e.message || 'Сетевая ошибка при загрузке стикеров.', true);
+    } finally {
+        aiStickersLoading = false;
+        if (btn) btn.disabled = false;
     }
+}
+
+function updateBalanceIndicator() {
+    const card = document.getElementById('balance-card');
+    const indicator = document.getElementById('balance-indicator');
+    if (!card || !indicator) return;
+    const balance = parseFloat(card.dataset.balance);
+    if (isNaN(balance)) return;
+    indicator.classList.remove('red', 'yellow', 'green');
+    if (balance < 10) indicator.classList.add('red');
+    else if (balance < 75) indicator.classList.add('yellow');
+    else indicator.classList.add('green');
+}
+
+function initAiStickerToggles() {
+    document.querySelectorAll('.toggle-switch[role="switch"]').forEach(toggle => {
+        toggle.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                toggle.click();
+            }
+        });
+    });
 }
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -84,4 +127,6 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('reference-form')?.addEventListener('submit', submitReference);
     aiStickersCursor = document.getElementById('load-more-stickers')?.dataset.cursor || null;
     document.getElementById('load-more-stickers')?.addEventListener('click', loadMoreStickers);
+    initAiStickerToggles();
+    updateBalanceIndicator();
 });

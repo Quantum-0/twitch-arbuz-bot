@@ -152,8 +152,8 @@ class StickersService:
         async with self._db_session_factory() as session:
             q = (
                 sa.select(CharacterInfo, User.login_name, TwitchUserSettings.ai_reference_usage_policy)
-                .join(User, sa.func.lower(User.login_name) == CharacterInfo.name)
-                .join(TwitchUserSettings, TwitchUserSettings.user_id == User.id)
+                .outerjoin(User, sa.func.lower(User.login_name) == CharacterInfo.name)
+                .outerjoin(TwitchUserSettings, TwitchUserSettings.user_id == User.id)
                 .where(CharacterInfo.name.in_(search_names))
             )
             rows = (await session.execute(q)).all()
@@ -169,9 +169,12 @@ class StickersService:
             name_in_db = char.name.lower()
             is_channel_owner = name_in_db == channel_name
             if not is_channel_owner:
-                if usage_policy == AIReferenceUsagePolicy.DENY:
+                # Кастомные референсы без зарегистрированного владельца (привилегированный name=...)
+                # считаем разрешёнными по умолчанию
+                effective_policy = usage_policy or AIReferenceUsagePolicy.ALLOW
+                if effective_policy == AIReferenceUsagePolicy.DENY:
                     continue
-                if usage_policy == AIReferenceUsagePolicy.WITH_MY_CHARACTER and not channel_is_mentioned:
+                if effective_policy == AIReferenceUsagePolicy.WITH_MY_CHARACTER and not channel_is_mentioned:
                     continue
             # Находим, как это имя было написано в промпте
             original_name = next((n for n in found_names if n.lower() == name_in_db), char.name)
@@ -230,8 +233,9 @@ class StickersService:
         """
         file_id: FileID
 
-        if cached_file_id := await self._get_cached_by_prompt(prompt):
-            return cached_file_id
+        if not re.search(r"@\w", prompt):
+            if cached_file_id := await self._get_cached_by_prompt(prompt):
+                return cached_file_id
 
         if channel.balance <= 0:
             raise NegativeBalanceError

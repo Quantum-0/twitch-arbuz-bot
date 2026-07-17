@@ -1198,3 +1198,54 @@ section h3 {
     padding: 10px 16px;
     text-decoration: none;
 }
+
+/* Карточка баланса (не статус-карточка) */
+.card-info {
+    align-items: center;
+    background: var(--card-bg, var(--color-bg, #1e1e1e));
+    border-radius: 12px;
+    display: flex;
+    gap: 12px;
+    justify-content: space-between;
+    padding: 16px;
+}
+
+/* Индикатор баланса генераций */
+.balance-bulb {
+    border-radius: 50%;
+    box-shadow: 0 0 6px currentColor;
+    display: inline-block;
+    height: 12px;
+    margin-left: 6px;
+    vertical-align: middle;
+    width: 12px;
+}
+.balance-bulb.red { background: #e53935; color: #e53935; }
+.balance-bulb.yellow { background: #fdd835; color: #fdd835; }
+.balance-bulb.green { background: #4CAF50; color: #4CAF50; }
+
+/* Квадратная кнопка перехода к настройкам ИИ-стикеров */
+.ai-sticker-settings-btn {
+    align-items: center;
+    background: #000;
+    border: 2px solid var(--color-primary, #4CAF50);
+    border-radius: 8px;
+    color: var(--color-primary, #4CAF50);
+    display: inline-flex;
+    font-size: 20px;
+    height: 44px;
+    justify-content: center;
+    text-decoration: none;
+    transition: background 0.15s, color 0.15s;
+    width: 44px;
+}
+.ai-sticker-settings-btn:hover {
+    background: var(--color-primary, #4CAF50);
+    color: #000;
+}
+
+/* Доступность с клавиатуры для тоглов-свитчей */
+.toggle-switch[role="switch"]:focus-visible {
+    outline: 2px solid var(--color-primary, #4CAF50);
+    outline-offset: 2px;
+}
