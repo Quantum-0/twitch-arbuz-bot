@@ -51,6 +51,7 @@ LOGGING_CONFIG = {
         "botocore": {"level": "WARN", "propagate": False},
         "opentelemetry.exporter.otlp.proto.grpc.exporter": {"level": "ERROR", "propagate": False},
         "aiobotocore.regions": {"level": "WARN", "propagate": False},
+        "openai._base_client": {"level": "INFO", "propagate": False},
         # "twitch.bot": {"level": "DEBUG", "propagate": False},
         "routers.api.twitch_eventsub": {"level": "WARN", "propagate": False},
         "twitch.chat.command_manager": {"level": "INFO", "propagate": False},
