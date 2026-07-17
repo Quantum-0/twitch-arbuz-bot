@@ -36,13 +36,46 @@ class ModerationBlockedException(RewardRedemptionProcessingError):
     def __init__(self):
         super().__init__("Запрос отклонён системой модерации как небезопасный для стрима. Баллы возвращены!")
 
+class AIProviderBudgetExceededError(RewardRedemptionProcessingError):
+    def __init__(self):
+        super().__init__(
+            "Закончился бюджет у провайдера (не ваш), "
+            "передайте @Quatnum075 чтоб он пополнил баланс, пажаласта"
+        )
+
+
+def _extract_api_message(exc: APIStatusError) -> str:
+    body = exc.body
+    if isinstance(body, dict):
+        if (msg := body.get("message")) is not None:
+            return str(msg)
+        err = body.get("error")
+        if isinstance(err, dict):
+            if (msg := err.get("message")) is not None:
+                return str(msg)
+            return str(err)
+        if err is not None:
+            return str(err)
+    return getattr(exc, "message", None) or str(exc)
+
+
+_MODERATION_KEYWORDS = ("safety system", "safety_violation", "moderation", "content policy", "content_filter")
+
+
+def _is_moderation_blocked(exc: BadRequestError) -> bool:
+    if exc.type == "image_generation_user_error" and exc.code == "moderation_blocked":
+        return True
+    text = _extract_api_message(exc).lower()
+    return any(kw in text for kw in _MODERATION_KEYWORDS)
+
+
 class OpenAIBadRequestException(RewardRedemptionProcessingError):
     def __init__(self, exc: BadRequestError):
-        super().__init__(f"Ошибка при генерации изображения: {exc.type} {exc.code}. Баллы возвращены!")
+        super().__init__(f"Ошибка при генерации изображения: {_extract_api_message(exc)}. Баллы возвращены!")
 
 class OpenAIAPIStatusErrorException(RewardRedemptionProcessingError):
     def __init__(self, exc: APIStatusError):
-        super().__init__(f"Ошибка при генерации изображения: {exc.type} {exc.code}. Баллы возвращены!")
+        super().__init__(f"Ошибка при генерации изображения: {_extract_api_message(exc)}. Баллы возвращены!")
 
 class UnknownRedemptionProcessingException(RewardRedemptionProcessingError):
     def __init__(self):
@@ -102,7 +135,7 @@ class StickersService:
             else:
                 image, cost = await self._ai.generate_sticker(prompt=prompt, model=model)
         except BadRequestError as exc:
-            if exc.type == 'image_generation_user_error' and exc.code == 'moderation_blocked':
+            if _is_moderation_blocked(exc):
                 logger.debug("Sticker generation was blocked by AI service moderation")
                 raise ModerationBlockedException from exc
             else:
@@ -110,6 +143,7 @@ class StickersService:
         except APIStatusError as exc:
             if exc.status_code == 402:
                 logger.error("No money Q_Q", exc_info=True)
+                raise AIProviderBudgetExceededError from exc
             else:
                 logger.warning("4XX while generating image", exc_info=True)
             raise OpenAIAPIStatusErrorException(exc) from exc

@@ -66,6 +66,10 @@
     const FADE_OUT_MS = 2_000;
     const RETRY_INTERVAL_MS = 30_000;
 
+    const STICKER_SIZE = {{ sticker_size }};
+    // Запас на анимацию pop (scale до 1.25 → +12.5% с каждой стороны) и поворот (±45°)
+    const EDGE_PADDING = Math.ceil(STICKER_SIZE * 0.15);
+
     let zIndexCounter = 1;
 
     const eventSource = new EventSource(SSE_URL);
@@ -116,11 +120,11 @@
         // Задаем координаты и стили сразу, до вставки в DOM
         img.style.zIndex = zIndexCounter++;
 
-        const maxX = window.innerWidth - 256;
-        const maxY = window.innerHeight - 256;
+        const maxX = Math.max(EDGE_PADDING, window.innerWidth - STICKER_SIZE - EDGE_PADDING);
+        const maxY = Math.max(EDGE_PADDING, window.innerHeight - STICKER_SIZE - EDGE_PADDING);
 
-        const x = Math.random() * maxX;
-        const y = Math.random() * maxY;
+        const x = EDGE_PADDING + Math.random() * (maxX - EDGE_PADDING);
+        const y = EDGE_PADDING + Math.random() * (maxY - EDGE_PADDING);
         const rotation = random(-45, 45);
 
         img.style.left = `${x}px`;
