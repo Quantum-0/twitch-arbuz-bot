@@ -9,7 +9,9 @@ from .horny_good import HornyGoodCommand
 from .horny_bad import HornyBadCommand
 from .hug import HugCommand
 from .lick import LickCommand
+from .links import LinksCommand
 from .lurk import LurkCommand
+from .memealerts import MemealertsLinkCommand
 from .pants import PantsCommand
 from .pants_deny import PantsDenyCommand
 from .pasta import PastaCommand
@@ -21,6 +23,7 @@ from .treat import TreatCommand
 from .tg import LinkTgCommand
 from .tiktok import LinkTiktokCommand
 from .discord import LinkDisCommand
+from .youtube import LinkYoutubeCommand
 
 __all__ = [
     "BananaCommand",
@@ -38,7 +41,10 @@ __all__ = [
     "LinkTgCommand",
     "LinkTiktokCommand",
     "LinkDisCommand",
+    "LinkYoutubeCommand",
+    "LinksCommand",
     "LurkCommand",
+    "MemealertsLinkCommand",
     "PantsCommand",
     "PantsDenyCommand",
     "PastaCommand",

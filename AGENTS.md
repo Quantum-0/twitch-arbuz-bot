@@ -142,6 +142,131 @@ schemas/                 # Pydantic-схемы API
    `twitch.get_followers`. Обязательно соблюдать rate-limit Twitch (на 429 — возвращать
    в очередь).
 
+## Таблица активности `activity_streamer` / `activity_user` (план, не реализовано)
+
+Сейчас учёт активности стримеров и юзеров отсутствует. Цель: выводить «самые активные
+каналы» и «самые активные зрители» на `/streamers` и в профиле, а также использовать
+для рекомендуемой сортировки.
+
+План:
+1. Модели в `database/models.py`:
+   - `ActivityStreamer(user_id FK, total_count int, commands_count int, rewards_count int,`
+     ` memealerts_count int, updated_at)`.
+   - `ActivityUser(twitch_user_id int, channel_id FK, messages_count int,`
+     ` commands_count int, rewards_count int, updated_at)`.
+   - PK `(user_id)` / `(twitch_user_id, channel_id)`.
+2. Миграция через `alembic revision --autogenerate -m "add activity tables"`.
+3. Точки инкремента (через кэш `services.cache.Cache`, не напрямую в БД):
+   - `twitch/chat/command_manager.py:CommandsManager.handle` — после успешной команды
+     инкремент `commands_count` для канала и для юзера (по `chatter_user_id`).
+   - `services/eventsub_service.py` — в `handle_reward_redemption` инкремент
+     `rewards_count`/`memealerts_count` для канала и supporter-а.
+   - (опц.) `twitch/chat/bot.py:on_message` — счётчик входящих сообщений для юзера
+     (без блокировки хендлеров и команд).
+4. Сервис батч-заливки (`services/activity.py`): копит инкременты в Redis-хэшах
+   `activity:streamer:<id>` / `activity:user:<id>:<channel_id>`, а раз в N минут
+   (APScheduler-джоб в `dependencies.py:lifespan`) заливает через `pg_insert(...).on_conflict_do_update()`
+   батчем в одну транзакцию. Метод `inc(channel_id, user_id, *, commands=0, rewards=0, ...)`.
+5. API: `/api/user/streamers` отдаёт `total_count`/`commands_count` для сортировки,
+   `/api/user/profile/<name>` — топ-N активных юзеров канала.
+
+## Таблица статистики сообщений за 10 минут (план, не реализовано)
+
+Полноценная подсистема метрик для графиков активности на странице /monitoring.
+
+План:
+1. Модель `Statistics(bucket_ts timestamptz, type varchar, subtype varchar | null,`
+   ` count int)`. PK `(bucket_ts, type, subtype)`. Index по `type`, по `bucket_ts`.
+2. Сервис `services/metrics.py`:
+   - Держит в оперативке (или в Redis-хэше) счётчики `dict[(bucket_ts, type, subtype), int]`.
+   - Метод `inc(type, subtype=None)` — вычисляет `bucket_ts = floor(now, 10min)`,
+     инкрементит.
+   - APScheduler-джоб раз в 10 минут (в `dependencies.py:lifespan`): сбрасывает кэш
+     (`dict.copy()` + очистка), батчем INSERT в `Statistics`.
+3. Точки вызова `metrics.inc(...)`:
+   - входящее сообщение: `twitch/chat/bot.py:on_message` → `inc("message_incoming", null)`.
+   - исходящее: `ChatBot.send_message` → `inc("message_outgoing", null)`.
+   - награда мемкоинов: `services/eventsub_service.py` → `inc("reward_memealerts", null)`.
+   - команда: `command_manager.handle` → `inc("command_usage", cmd.command_name)`.
+   - и т.п.
+4. API `/api/admin/stats?resolution=10m|1h|1d&type=...&subtype=...&from=...&to=...`:
+   - SQL: `GROUP BY bucket_trunc(bucket_ts, resolution)` через `date_bin` (Postgres).
+   - Возвращает `[{datetime, value}, ...]`.
+5. UI: `templates/monitoring.html` + `static/js/monitoring_stats.js` (Chart.js из CDN).
+
+## Обновление токенов Twitch пользователей (план, не реализовано)
+
+Сейчас в `twitch/client/twitch.py` для каждого запроса от имени пользователя создаётся
+новый `TwitchClient` и вызывается `set_user_authentication(access, scope, refresh)`.
+`twitchAPI` v4.5 автоматически обновляет access-токен (`auto_refresh_auth=True` по
+умолчанию), НО:
+- новый токен после refresh **никуда не сохраняется** — при следующем запросе снова
+  берётся устаревший `access_token` из БД и снова рефрешится через `validate=True`;
+- если refresh-токен истёк или инвалидирован (смена пароля, дисконнект приложения) —
+  `set_user_authentication` кидает `InvalidRefreshTokenException` (refresh истёк) или
+  `UnauthorizedException` (оба токена невалидны). Сейчас исключение всплывает наружу и
+  не обрабатывается централизованно.
+
+Аналогия с `services/memes_v2.py:MemealertsOAuthService`:
+- там токены хранятся в `MemealertsSettings` с `access_token`, `refresh_token`,
+  `token_expires_at`, `token_refresh_expires_at`;
+- `run_periodic_update()` по APScheduler'у раз в N дней выбирает строки, у которых
+  refresh-токен скоро истечёт, и фоном делает `_request_tokens(refresh_token=...)`,
+  сохраняя новые пары `access+refresh` в БД.
+
+Реализация для Twitch (по образцу):
+1. Миграция: в `twitch_bot_users` уже есть `access_token`, `refresh_token` (зашифрован
+   через `EncryptedString`). Нужно добавить колонки `token_expires_at` (если её нет —
+   проверь текущую схему) и `token_refresh_expires_at` для планирования обновлений.
+   Access-токен у Twitch живёт ~4 часа, refresh — ~пользователь может отзывать сам.
+2. Создать сервис `services/twitch_oauth.py` по образцу `MemealertsOAuthService`:
+   - `_request_tokens(refresh_token)` — обёртка над `twitchAPI.oauth.refresh_access_token`,
+     возвращает `(access_token, refresh_token)` плюс `expires_in` (из тела ответа нет
+     `expires_in` для refresh? Twitch возвращает `expires_in` — нужно проверить).
+   - `run_periodic_update()` — APScheduler-джоб в `dependencies.py:lifespan`, выбирает
+     пользователей с `token_refresh_expires_at < now + 1 day` и обновляет их токены
+     батчем через `asyncio.gather` с `Semaphore(N)` (Twitch rate-limited, ~30 req/min
+     для `client_credentials` flow, для refresh-токенов лимиты лояльнее, но осторожно).
+     На `InvalidRefreshTokenException` — помечаем пользователя как нуждающегося в
+     повторном логине (флаг `User.needs_relogin = True` + уведомление при входе в чат).
+     На `UnauthorizedException` — то же, но не пытаемся больше обновлять до повторного
+     OAuth.
+   - `_save_token(user_id, access, refresh, expires_at, refresh_expires_at)` — апдейт БД.
+3. Использовать `user_auth_refresh_callback` в `twitch/client/twitch.py`:
+   - `TwitchClient` принимает `user_auth_refresh_callback: Callable[[str, str], Awaitable[None]]`,
+     который вызывается автоматически при каждом успешном refresh-е прямо в рантайме.
+   - Передать туда асинхронную функцию, которая обновляет БД (через `pg_insert.on_conflict_do_update`).
+   - Включить `auto_refresh_auth=True` (по умолчанию) и убрать ручной `validate=True`,
+     если уверен в сохранённых `scope`.
+4. Централизованная обработка `InvalidRefreshTokenException`/`UnauthorizedException`:
+   - Обернуть все вызовы `set_user_authentication` в `twitch/client/twitch.py` в
+     `try/except` и при инвалидном refresh — пометить `user.needs_relogin = True`,
+     сбросить `access_token`/`refresh_token` в NULL, отписаться от EventSub
+     (`twitch.delete_eventsub_subscription`) и при возможности написать в чат канала
+     уведомление «награды и рейд отключены, перелогиньтесь в панели управления»
+     (используя bot-токен, не юзерский).
+   - Аналогично в `services/eventsub_service.py` при обработке награды: если упало с
+     `InvalidRefreshTokenException` — не пытаться дальше, вернуть баллы и пометить
+     награду отменённой.
+5. Уведомление при смене пароля (`TODO.md` L11): Twitch не присылает событие напрямую,
+   но `UnauthorizedException` кидается именно при инвалидации обоих токенов (что
+   происходит при смене пароля/дисконнекте приложения). Ловим это исключение в
+   централизованном обработчике (см. п.4) и при первом срабатывании шлём в чат
+   сообщение через bot-токен (`ChatBot.send_message`).
+
+Замечания по `twitchAPI`:
+- `TwitchClient(...).set_user_authentication(token, scope, refresh_token, validate=True)`
+  сам валидирует токен через `oauth.validate_token` и при 401 один раз делает
+  `refresh_access_token`. Это означает что на каждый запрос к API Twitch сейчас
+  выполняется лишний HTTP-запрос к `id.twitch.tv/oauth2/validate` — для оптимизации
+  стоит передавать `validate=False` и доверять нашему фоновому обновлению, либо
+  закэшировать результат валидации на TTL.
+- `refresh_access_token` возвращает `(access_token, refresh_token)`, без `expires_in`.
+  Twitch всё-таки возвращает `expires_in` в теле — нужно расширить обёртку в
+  `services/twitch_oauth.py` и дёрнуть JSON напрямую через `httpx` (как
+  `MemealertsOAuthService._request_tokens`), либо парсить из ответа twitchAPI.
+- `InvalidRefreshTokenException` определён в `twitchAPI.type` — импортировать оттуда.
+
 ## Полезные файлы
 
 - `container.py` — DI-контейнер, список wired-модулей.

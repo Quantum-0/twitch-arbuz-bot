@@ -399,6 +399,3 @@ class IAmBotHandler(CommonMessagesHandler):
             return HandlerResult.HANDLED
 
         return HandlerResult.SKIPED
-
-
-# TODO: "спасибо", "пожалуйста", "молодец", "умничка", "пасиба", "спс", "благодарю"

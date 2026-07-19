@@ -21,7 +21,7 @@ from schemas.twitch import ChatMessageWebhookEventSchema
 from services.mqtt import MQTTClient
 from twitch.chat.command_manager import CommandsManager
 from twitch.chat.commands import *
-from twitch.chat.handlers import PantsRaffleHandler
+from twitch.chat.handlers import PantsRaffleHandler, ThanksHandler
 from twitch.chat.handlers.handlers import (
     HelloHandler,
     IAmBotHandler,
@@ -71,6 +71,7 @@ class ChatBot:
         self._handler_manager.register(UnlurkHandler)
         self._handler_manager.register(HelloHandler)
         self._handler_manager.register(IAmBotHandler)
+        self._handler_manager.register(ThanksHandler)
         self._command_manager.register(CmdlistCommand)
         self._command_manager.register(DiceCommand)
         self._command_manager.register(BiteCommand)
@@ -93,6 +94,9 @@ class ChatBot:
         self._command_manager.register(LinkDisCommand)
         self._command_manager.register(LinkTgCommand)
         self._command_manager.register(LinkTiktokCommand)
+        self._command_manager.register(LinkYoutubeCommand)
+        self._command_manager.register(LinksCommand)
+        self._command_manager.register(MemealertsLinkCommand)
 
         # chat.register_event(ChatEvent.MESSAGE, on_message)
         logger.debug("On_message handler registered")

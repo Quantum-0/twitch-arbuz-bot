@@ -131,6 +131,7 @@ class SimpleTargetCommand(Command, ABC):
             "@moobot",
             "@jeetbot",
             "@fossabot",
+            "@lavrikbot",
         }:
             response = await self._bot_call_reply(user, target=targets[0])
             if response:
