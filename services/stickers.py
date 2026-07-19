@@ -263,10 +263,14 @@ class StickersService:
         if with_files:
             return (
                 f"A high-quality cartoon illustration depicting: `{prompt}`. "
-                f"The illustration should features only the character design isolated on the background. "
-                f"Strictly replicate and lock the character design, appearance, features, and clothing "
-                f"from the attached reference files. "
-                f"{descriptions_str}\n\n[Background Rule]: {bg_instruction}"
+                f"The illustration should feature only the character isolated on the background. "
+                f"The attached reference images define ONLY the character's identity and appearance, NOT the final composition. "
+                f"Preserve the character's design exactly (colors, markings, proportions, facial features, hairstyle, clothing, accessories, tail, ears, etc.). "
+                f"Never reuse or imitate the reference pose, body position, camera angle, framing, lighting, facial expression, or scene layout. "
+                f"If the prompt does not explicitly specify a pose, invent a new pose that naturally matches the requested situation. "
+                f"The generated image should look like a new illustration of the same character, not a traced or edited version of the reference image. "
+                f"{descriptions_str}\n\n"
+                f"[Background Rule]: {bg_instruction}"
             )
 
         return (
