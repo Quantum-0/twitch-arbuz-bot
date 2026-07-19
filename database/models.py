@@ -48,6 +48,8 @@ class User(Base):
         nullable=False,
     )
 
+    overlays_last_usage: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, default=None)
+
     total_deposited: Mapped[Decimal] = mapped_column(
         Numeric(12, 2), default=Decimal("0.00"), server_default="0", nullable=False
     )

@@ -158,6 +158,13 @@
                 </strong>
             </div>
 
+            <div>
+                Оверлеи:
+                <strong style="color: {{ 'var(--color-primary)' if profile_user.overlays_used_recently else 'var(--color-danger)' }}">
+                    {{ "используются" if profile_user.overlays_used_recently else "не используются" }}
+                </strong>
+            </div>
+
         </div>
     </section>
 

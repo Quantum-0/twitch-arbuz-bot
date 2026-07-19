@@ -1290,3 +1290,178 @@ section h3 {
     outline: 2px solid var(--color-primary, #4CAF50);
     outline-offset: 2px;
 }
+
+
+/* ===================== Streamers page: controls & filters ===================== */
+
+.streamers-controls {
+    /*
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+    margin-top: 20px;
+    */
+    position: relative;
+}
+
+.streamers-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--color-bg-secondary, #1e1e1e);
+    color: var(--color-text, #fff);
+    border: 2px solid var(--color-primary, #4CAF50);
+    border-radius: 12px;
+    padding: 8px 14px;
+    cursor: pointer;
+    font-size: 14px;
+    line-height: 1;
+    transition: background 0.15s, box-shadow 0.15s, opacity 0.15s;
+    user-select: none;
+}
+.streamers-btn:hover {
+    background: var(--color-bg, #121212);
+    box-shadow: 0 0 8px rgba(76, 175, 80, 0.35);
+}
+.streamers-btn:focus-visible {
+    outline: 2px solid var(--color-primary, #4CAF50);
+    outline-offset: 2px;
+}
+.streamers-btn.active {
+    background: rgba(76, 175, 80, 0.18);
+}
+.streamers-btn[aria-expanded="true"] {
+    background: rgba(76, 175, 80, 0.18);
+}
+.streamers-btn-caret {
+    font-size: 10px;
+    opacity: 0.85;
+}
+
+.streamers-btn-order {
+    padding: 8px 12px;
+    min-width: 44px;
+    justify-content: center;
+    font-size: 16px;
+}
+.streamers-btn-order[disabled],
+.streamers-btn-order.disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    border-color: var(--color-border, #333);
+}
+.streamers-btn-order[disabled]:hover,
+.streamers-btn-order.disabled:hover {
+    background: var(--color-bg-secondary, #1e1e1e);
+    box-shadow: none;
+}
+
+.streamers-dropdown {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    z-index: 50;
+    display: flex;
+    flex-direction: column;
+    min-width: 220px;
+    background: var(--color-bg-secondary, #1e1e1e);
+    border: 1px solid var(--color-border, #333);
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+    padding: 4px;
+}
+.streamers-dropdown[hidden] { display: none; }
+.streamers-dropdown button {
+    text-align: left;
+    background: transparent;
+    color: var(--color-text, #fff);
+    border: none;
+    padding: 8px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 14px;
+}
+.streamers-dropdown button:hover {
+    background: rgba(255, 255, 255, 0.06);
+}
+.streamers-dropdown button.selected {
+    color: var(--color-primary, #4CAF50);
+    font-weight: 600;
+}
+
+.streamers-filters {
+    /*display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 14px;*/
+}
+.streamers-filters[hidden] { display: none; }
+
+.streamer-filter-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--color-bg-secondary, #1e1e1e);
+    color: var(--color-text, #fff);
+    border: 2px solid var(--color-border, #333);
+    border-radius: 26px;
+    padding: 6px 14px 6px 8px;
+    cursor: pointer;
+    font-size: 14px;
+    margin: 3px;
+    transition: border-color 0.15s, background 0.15s;
+}
+.streamer-filter-chip:hover {
+    border-color: var(--color-primary, #4CAF50);
+}
+.streamer-filter-chip.active {
+    border-color: var(--color-primary, #4CAF50);
+    background: rgba(76, 175, 80, 0.10);
+}
+
+.chip-indicator {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    border: 2px solid var(--color-border, #555);
+    background: var(--color-bg, #121212);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    position: relative;
+}
+.chip-indicator[data-state="true"] {
+    border-color: #4CAF50;
+    background: rgba(76, 175, 80, 0.18);
+}
+.chip-indicator[data-state="true"]::after {
+    content: "✓";
+    color: #4CAF50;
+    font-weight: bold;
+    font-size: 14px;
+    line-height: 1;
+}
+.chip-indicator[data-state="false"] {
+    border-color: #ff5b5b;
+    background: rgba(255, 91, 91, 0.18);
+}
+.chip-indicator[data-state="false"]::after {
+    content: "✕";
+    color: #ff5b5b;
+    font-weight: bold;
+    font-size: 12px;
+    line-height: 1;
+}
+
+.streamers-loading,
+.streamers-empty {
+    grid-column: 1 / -1;
+    text-align: center;
+    color: var(--color-text-secondary, #aaa);
+    padding: 40px 0;
+    font-size: 15px;
+}
+

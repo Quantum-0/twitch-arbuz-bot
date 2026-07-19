@@ -369,7 +369,10 @@ async def _resolve_bot_users_data(db: AsyncSession, twitch: Twitch, cache: Cache
             User.donated.label("donated"),
             User.created_at.label("created_at"),
             User.interacted_at.label("interacted_at"),
+            User.overlays_last_usage.label("overlays_last_usage"),
             TwitchUserSettings.enable_chat_bot.label("chat_bot_enabled"),
+            TwitchUserSettings.enable_pants.label("pants_enabled"),
+            TwitchUserSettings.ai_sticker_reward_id.is_not(None).label("ai_stickers_enabled"),
             MemealertsSettings.memealerts_reward.is_not(None).label("memealerts_enabled"),
         )
         .select_from(User)

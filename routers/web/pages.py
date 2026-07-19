@@ -1,4 +1,5 @@
 import logging
+from datetime import datetime, timedelta
 from typing import Annotated, Any
 from uuid import uuid3
 
@@ -15,7 +16,7 @@ from starlette.templating import Jinja2Templates
 
 from config import settings
 from container import Container
-from database.models import TwitchUserSettings, User, MemealertsSettings, GeneratedImage, CharacterInfo
+from database.models import TwitchUserSettings, User, GeneratedImage, CharacterInfo
 from dependencies import get_db
 from routers.security_helpers import admin_auth, user_auth, user_auth_optional
 from services.cache import Cache
@@ -23,7 +24,6 @@ from twitch.chat.bot import ChatBot
 from twitch.client.twitch import Twitch
 from twitch.state_manager import StateManager
 from utils.memes import token_expires_in_days
-from utils.streamers_sort import compute_streamer_score
 
 templates = Jinja2Templates(directory="templates")
 
@@ -241,6 +241,10 @@ async def profile_page(
     # profile_user_dict["followers_count"] = followers_count
     # AND SAVE TO DB
     profile_user_dict["memealerts_enabled"] = profile_user_data.memealerts.memealerts_reward is not None
+    profile_user_dict["overlays_used_recently"] = (
+        profile_user_data.overlays_last_usage is not None
+        and (datetime.now() - profile_user_data.overlays_last_usage) < timedelta(days=14)
+    )
     try:
         async with aiohttp.ClientSession() as http_session:
             async with http_session.get(
@@ -376,70 +380,13 @@ async def command_list_page(
     "/streamers",
     response_class=HTMLResponse,
 )
-@inject
 async def get_streamers(
     request: Request,
-    db: Annotated[AsyncSession, Depends(get_db)],
-    twitch: Annotated[Twitch, Depends(Provide[Container.twitch])],
-    cache: Annotated[Cache, Depends(Provide[Container.cache])],
     user: User | None = Security(user_auth_optional),
 ):
-    q = (
-        sa.select(
-            User.login_name.label("username"),
-            User.profile_image_url.label("avatar_url"),
-            User.followers_count.label("followers"),
-            User.in_beta_test.label("is_beta_tester"),
-            User.donated.label("donated"),
-            User.created_at.label("created_at"),
-            User.interacted_at.label("interacted_at"),
-            TwitchUserSettings.enable_chat_bot.label("chat_bot_enabled"),
-            MemealertsSettings.memealerts_reward.is_not(None).label("memealerts_enabled"),
-        )
-        .select_from(User)
-        .join(TwitchUserSettings)
-        .join(MemealertsSettings)
-        .where(User.followers_count > 2)
-        .limit(500)
+    return templates.TemplateResponse(
+        "streamers.html", {"request": request, "streamers": [], "user": user}
     )
-    res = (await db.execute(q)).all()
-
-    res = [row._asdict() for row in res]
-    online_streams = await cache.get_set("online_streams")
-    if not online_streams:
-        streams = await twitch.get_streams([row["username"] for row in res])
-        online_streams = {row["username"] for row in res if streams.get(row["username"])}
-        await cache.set_set("online_streams", online_streams, ttl=300)
-        logger.info("Online streamers list loaded from twitch")
-    else:
-        logger.info("Online streamers list loaded from cache")
-    for row in res:
-        row["is_live"] = row["username"] in online_streams
-        row["score"] = compute_streamer_score(row)
-
-    res = sorted(res, key=compute_streamer_score, reverse=True)
-
-    # res = [row._asdict() for row in res] * 20
-    # for row in res:
-    #     row["followers"] = random.randint(30, 500)
-    #
-    # # Перемешиваем для случайного порядка
-    # random.shuffle(res)
-    #
-    # # Размер пузырька в зависимости от фолловеров
-    # max_followers = max(s["followers"] for s in res) or 1
-    # min_size, max_size = 20, 150
-    # for s in res:
-    #     ratio = s["followers"] / max_followers
-    #     s["size"] = int(min_size + (max_size - min_size) * ratio)
-
-    for row in res:
-        row["role"] = "beta" if row["is_beta_tester"] else None
-        if row["username"] == "quantum075":
-            row["role"] = "dev"
-        if row["donated"] > 0:
-            row["role"] = "donater"
-    return templates.TemplateResponse("streamers.html", {"request": request, "streamers": res, "user": user})
 
 
 @router.get(

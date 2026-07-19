@@ -2,7 +2,6 @@ from typing import Annotated, Literal
 from uuid import uuid3
 
 import sqlalchemy as sa
-from dependency_injector.wiring import inject
 from fastapi import APIRouter, Query
 from fastapi.params import Depends
 from pydantic.color import Color
@@ -14,6 +13,7 @@ from starlette.templating import Jinja2Templates
 from config import settings
 from database.models import User
 from dependencies import get_db
+from utils.overlays import touch_overlay_usage
 
 templates = Jinja2Templates(directory="templates")
 
@@ -39,6 +39,7 @@ async def overlay_tts(
     request: Request,
     channel_name: str = Query(),
 ):
+    await touch_overlay_usage(channel_name=channel_name)
     return templates.TemplateResponse(
         "overlays/tts.html",
         {
@@ -55,6 +56,7 @@ async def overlay_slovotron(
     inactive_timeout: int = Query(default=20),
     inactive_opacity: float = Query(default=0.4),
 ):
+    await touch_overlay_usage(channel_name=channel_name)
     return RedirectResponse(
         url=f"https://slovotron.fra3a.ru/?obs-overlay=1&"
         f"channel={channel_name}&inactive_timeout={inactive_timeout}&"
@@ -77,6 +79,7 @@ async def overlay_star(
     # 0.015 == 100+4620
     # 1.0 = 100+68 to 50%
 ):
+    await touch_overlay_usage(channel_id=channel_id)
     return templates.TemplateResponse(
         "overlays/star.html",
         {
@@ -96,6 +99,7 @@ async def overlay_start_wait(
     request: Request,
     channel_id: int = Query(),
 ):
+    await touch_overlay_usage(channel_id=channel_id)
     return templates.TemplateResponse(
         "overlays/start_wait.html",
         {
@@ -112,6 +116,7 @@ async def overlay_img_gen(
     sticker_lifetime: int = Query(default=30),
     sticker_size: int = Query(default=192),
 ):
+    await touch_overlay_usage(channel_id=channel_id)
     return templates.TemplateResponse(
         "overlays/imggen.html",
         {
@@ -129,6 +134,7 @@ async def overlay_img_gen(
     channel_id: int = Query(),
     widget_type: Literal["pulsma", "battlebeats"] = Query(default="pulsma", alias="widget-type"),
 ):
+    await touch_overlay_usage(channel_id=channel_id)
     return templates.TemplateResponse(
         f"overlays/ya-music-widget-{widget_type}.html",
         {
@@ -151,6 +157,7 @@ async def overlay_pair(
     offset_bottom: float = Query(0),
     card_scale: float = Query(0.7),
 ):
+    await touch_overlay_usage(channel_id=channel_id)
     if not use_twitch_emoji and not arbuz:
         result = await db.execute(
             sa.union_all(

@@ -22,5 +22,6 @@ def compute_streamer_score(usr: dict) -> float:
         + (1 * usr["is_beta_tester"])
         + (2 * usr["memealerts_enabled"])
         + (3 * usr["chat_bot_enabled"])
+        + (4 * usr["ai_stickers_enabled"])
         + (5 * random.random())
     )
