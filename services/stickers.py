@@ -243,40 +243,88 @@ class StickersService:
         return descriptions, refs
 
     async def _prepare_final_prompt(self, prompt: str, characters: dict[str, str], with_files: bool, transparent_background: bool = False) -> str:
-        if characters:
-            descriptions_str = "\n\nCharacter descriptions:" + "\n".join([f"- *@{name}*: {description}" for name, description in characters.items()])
-        else:
-            descriptions_str = ""
-
+        # Пропмт для дешёвой модели
         if transparent_background:
+            if characters:
+                descriptions_str = "\n\nCharacter descriptions:" + "\n".join(
+                    [f"- *@{name}*: {description}" for name, description in characters.items()])
+            else:
+                descriptions_str = ""
+
             if with_files:
                 return f"Generate an image of drawn in cartoon style `{prompt}` with transparent background and the white outline like a sticker.{descriptions_str}\n\nThe appearance of the characters in the attached files"
             return f"Image of drawn in cartoon style `{prompt}` with transparent background and the white outline like a sticker.{descriptions_str}"
+
         # Инструкция для идеального хромакея без спецэффектов
+        if characters:
+            descriptions_str = (
+                "\n\n[Character Definitions]\n"
+                "The following definitions describe the canonical appearance of the characters. "
+                "These descriptions override any assumptions made by the model. "
+                "Preserve the described appearance exactly unless the prompt explicitly requests a temporary costume, "
+                "facial expression, pose, or other non-permanent change.\n\n"
+                + "\n".join(
+                    f"@{name}:\n{description}"
+                    for name, description in characters.items()
+                )
+            )
+        else:
+            descriptions_str = ""
+
         bg_instruction = (
             "The entire background must be a single, solid, uniform bright chroma key green color. "
             "It must be a completely flat vivid green studio background with absolutely no gradients, "
-            "no textures, no patterns, and no lighting shifts. The character must not cast any shadows "
-            "onto the background, and there must be no outlines, borders, or frames around the character."
+            "no textures, no patterns, and no lighting shifts. "
+            "The character must not cast any shadows onto the background, and there must be no outlines, "
+            "borders, or frames around the character."
+        )
+
+        character_rules = (
+            "[Character Rule]\n"
+            "The attached reference images define ONLY the character's identity and appearance, "
+            "not the final illustration. Preserve the character's design exactly, including species, "
+            "body proportions, facial features, hairstyle, colors, markings, clothing, accessories, "
+            "tail, ears, and any other distinctive traits.\n\n"
+            "Never copy or imitate the pose, body position, composition, camera angle, framing, "
+            "lighting, facial expression, or scene layout from the reference images. "
+            "If the prompt does not explicitly specify a pose, invent a new natural pose that fits "
+            "the requested situation. The final image should look like a completely new illustration "
+            "of the same character, not a traced, edited, or slightly modified version of the reference."
+        )
+
+        composition_rules = (
+            "[Composition Rule]\n"
+            "The final image is intended to be used as a die-cut sticker.\n\n"
+            "By default, generate only the character with no surrounding scenery or decorative objects.\n\n"
+            "If—and only if—the user's prompt explicitly requests environmental elements "
+            "(for example: 'in a forest', 'on a beach', 'inside a bed', 'surrounded by flowers', "
+            "'in front of a giant spaceship'), include only those requested elements.\n\n"
+            "Do NOT generate a full rectangular background or a complete scene. "
+            "Instead, make the environment part of the sticker itself, surrounding or supporting "
+            "the character while leaving transparent space around the outside. "
+            "The character and any requested objects should together form a single cut-out composition "
+            "suitable for a sticker."
         )
 
         if with_files:
             return (
                 f"A high-quality cartoon illustration depicting: `{prompt}`. "
-                f"The illustration should feature only the character isolated on the background. "
-                f"The attached reference images define ONLY the character's identity and appearance, NOT the final composition. "
-                f"Preserve the character's design exactly (colors, markings, proportions, facial features, hairstyle, clothing, accessories, tail, ears, etc.). "
-                f"Never reuse or imitate the reference pose, body position, camera angle, framing, lighting, facial expression, or scene layout. "
-                f"If the prompt does not explicitly specify a pose, invent a new pose that naturally matches the requested situation. "
-                f"The generated image should look like a new illustration of the same character, not a traced or edited version of the reference image. "
                 f"{descriptions_str}\n\n"
-                f"[Background Rule]: {bg_instruction}"
+                f"{character_rules}\n\n"
+                f"{composition_rules}\n\n"
+                f"[Background Rule]\n"
+                f"{bg_instruction}"
             )
 
         return (
             f"A high-quality cartoon illustration depicting: `{prompt}`. "
-            f"The illustration should features only the character design isolated on the background. "
-            f"{descriptions_str}\n\n[Background Rule]: {bg_instruction}"
+            f"The final image is intended to be used as a die-cut sticker. "
+            f"By default, generate only the character with no surrounding scenery or decorative objects. "
+            f"If the user's prompt explicitly requests environmental elements, include only those requested elements "
+            f"as part of the sticker composition rather than generating a full rectangular background.\n\n"
+            f"{descriptions_str}\n\n"
+            f"[Background Rule]\n"
+            f"{bg_instruction}"
         )
 
     @tracer.start_as_current_span("Stickers: Build sticker")
