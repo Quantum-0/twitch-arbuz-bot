@@ -8,7 +8,9 @@
 - **Бэкенд:** FastAPI 0.116
 - **БД:** PostgreSQL (asyncpg + SQLAlchemy 2.x async)
 - **Миграции:** Alembic
-- **Кэш / Pub-Sub:** Redis (через `services.cache.Cache` и `services.redis_state_manager`)
+- **Кэш / стейт:** Redis (`services.cache.Cache`, `services.redis_state_manager.StateManager`) — cooldown команд, лурки, пирамидки и т.п.
+- **Pub-Sub (событий Twitch):** MQTT/EMQX (`services/mqtt.MQTTClient`, `aiomqtt`). Топики: `twitch/<channel>/message`, `twitch/<channel>/reward-redemption`, `twitch/<channel>/raid`, `slovotron/<event>/<channel>`. Webhook'и Twitch EventSub публикуют в MQTT, бот подписывается в `dependencies.py:lifespan`.
+- **Трассировка/ошибки:** Sentry + OpenTelemetry (`tracer`).
 - **DI:** `dependency_injector` (контейнер `container.Container`, wiring в `container.py`)
 - **Шаблоны:** Jinja2 (`templates/`)
 - **Фронтенд:** Vanilla JS + CSS (без фреймворков), статика в `static/`
@@ -57,20 +59,35 @@ alembic/versions/        # миграции
 routers/
     routers.py           # сборка api_router и user_router
     web/                 # HTML-страницы и роуты оверлеев
-        pages.py         # /, /streamers, /profile/<name>, /about и пр.
+        pages.py         # /, /streamers, /profile/<name>, /about, /kinda_roadmap, /cmdlist, /debug, /admin и пр.
         overlays.py      # /overlay/* (OBS browser sources)
         service_routes.py # OAuth callback, login
     api/                 # JSON-API
         user_api.py      # /api/user/* — основной API пользователя
         extension.py     # /api/extension/* — Twitch extension
+        twitch_eventsub.py # EventSub webhook → публикует в MQTT
+        slovotron_webhook.py # Словотрон webhook → публикует в MQTT
         user/            # подроутеры /api/user/*
             memealerts.py
             streamers.py # /api/user/streamers — список стримеров с фильтрами
 services/                # бизнес-логика
     cache.py             # Cache (Redis)
+    redis_state_manager.py # StateManager — стейт в Redis (cooldown, лурки, пирамидка)
+    mqtt.py              # MQTTClient (aiomqtt) — pub-sub событий Twitch
     twitch.py            # Twitch-клиент
-    eventsub_service.py   # обработка EventSub
+    eventsub_service.py  # обработка EventSub (подписка из MQTT)
+    slovotron.py         # словотрон (обработка webhook'ов из MQTT)
+    memes.py / memes_v2.py # Memealerts API (выдача мемкоинов, refresh токенов)
     ...
+twitch/                  # чат-бот
+    chat/
+        bot.py           # ChatBot — подписка на MQTT, диспетчер сообщений
+        command_manager.py
+        commands/        # реализации команд (!трусы, !кусь, !pat, !hug, !cmdlist, !тг, !дис, !tiktok, ...)
+        base/            # базовые классы команд (Command, SimpleCDCommand, TargetCommand, SavingResultCommand)
+        handlers/        # хендлеры сообщений (пирамидка, лурк, привет, "я бот?")
+    state_manager.py     # SMParam, StateManager-обёртка
+    client/twitch.py     # Twitch auth/HTTP-клиент
 templates/               # Jinja2-шаблоны
 static/                  # статика (CSS, JS, изображения)
     styles.css
@@ -130,4 +147,6 @@ schemas/                 # Pydantic-схемы API
 - `container.py` — DI-контейнер, список wired-модулей.
 - `dependencies.py` — lifespan приложения (запуск редиса, mqtt, шедулера).
 - `routers/routers.py` — сборка всех роутеров.
+- `routers/web/pages.py` — HTML-роуты, в т.ч. `/kinda_roadmap` (roadmap + текущие TODO) и `/cmdlist`.
 - `utils/streamers_sort.py` — формула «рекомендуемой» сортировки.
+- `twitch/chat/handlers/handlers.py` — не-командные хендлеры сообщений (привет, "я бот?", unlurk, пирамидка).
