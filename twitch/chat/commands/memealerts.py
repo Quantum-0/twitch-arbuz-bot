@@ -38,7 +38,7 @@ class MemealertsLinkCommand(SimpleCDCommand):
             return "Интеграция с Memealerts не подключена :с"
         if not link:
             return "Ссылка на Memealerts не указана."
-        return "Memealerts: " + link
+        return f"Memealerts: https://memealerts.com/{link}"
 
     async def _cooldown_reply(self, user: str, delay: int) -> str | None:
         return None

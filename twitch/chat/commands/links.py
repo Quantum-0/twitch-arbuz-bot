@@ -33,6 +33,8 @@ class LinksCommand(SimpleCDCommand):
             parts.append(f"TikTok: tiktok.com/@{links.tiktok}")
         if settings.enable_youtube_link and links.youtube:
             parts.append(f"YouTube: youtube.com/{links.youtube}")
+        if settings.enable_memealerts_link and settings.memealerts_link:
+            parts.append(f"Memealerts: https://memealerts.com/{settings.memealerts_link}")
 
         if not parts:
             return "Ссылки не указаны."
