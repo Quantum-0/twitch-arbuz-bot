@@ -165,6 +165,13 @@
                 </strong>
             </div>
 
+            <div>
+                Shoutout на рейды:
+                <strong style="color: {{ 'var(--color-primary)' if profile_user.settings.enable_shoutout_on_raid else 'var(--color-danger)' }}">
+                    {{ "включён" if profile_user.settings.enable_shoutout_on_raid else "выключен" }}
+                </strong>
+            </div>
+
         </div>
     </section>
 

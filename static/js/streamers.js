@@ -10,7 +10,7 @@
 
     const VALID_SORTS = ["recommended", "followers", "created", "name"];
     const VALID_ORDERS = ["asc", "desc"];
-    const FILTER_KEYS = ["bot", "meme", "ai", "overlay", "online", "pants"];
+    const FILTER_KEYS = ["bot", "meme", "ai", "overlay", "online", "pants", "shoutout"];
 
     const TRISTATE_CYCLE = ["null", "true", "false"];
 

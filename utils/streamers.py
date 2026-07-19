@@ -17,7 +17,7 @@ SortKey = Literal["recommended", "followers", "created", "name"]
 SortOrder = Literal["asc", "desc"]
 TriState = bool | None
 
-FILTER_KEYS = ("bot", "meme", "ai", "overlay", "online", "pants")
+FILTER_KEYS = ("bot", "meme", "ai", "overlay", "online", "pants", "shoutout")
 
 
 def _parse_tristate(value: str | None) -> TriState:
@@ -52,6 +52,7 @@ def _build_select_query() -> sa.Select[tuple[Any, ...]]:
             User.overlays_last_usage.label("overlays_last_usage"),
             TwitchUserSettings.enable_chat_bot.label("chat_bot_enabled"),
             TwitchUserSettings.enable_pants.label("pants_enabled"),
+            TwitchUserSettings.enable_shoutout_on_raid.label("shoutout_enabled"),
             TwitchUserSettings.ai_sticker_reward_id.is_not(None).label("ai_stickers_enabled"),
             MemealertsSettings.memealerts_reward.is_not(None).label("memealerts_enabled"),
         )
@@ -93,6 +94,7 @@ _FILTER_FIELD_MAP = {
     "overlay": "overlay_used_recently",
     "online": "is_live",
     "pants": "pants_enabled",
+    "shoutout": "shoutout_enabled",
 }
 
 

@@ -38,13 +38,14 @@ async def list_streamers(
     f_overlay: Annotated[str | None, Query()] = None,
     f_online: Annotated[str | None, Query()] = None,
     f_pants: Annotated[str | None, Query()] = None,
+    f_shoutout: Annotated[str | None, Query()] = None,
 ):
     """Возвращает список стримеров с фильтрами и сортировкой.
 
     Query-параметры:
       sort: recommended | followers | created | name
       order: asc | desc (игнорируется при sort=recommended)
-      f_bot, f_meme, f_ai, f_overlay, f_online, f_pants: true | false | null
+      f_bot, f_meme, f_ai, f_overlay, f_online, f_pants, f_shoutout: true | false | null
     """
     sort_key: SortKey = sort if sort in VALID_SORTS else "recommended"  # type: ignore[assignment]
     sort_order: SortOrder = order if order in VALID_ORDERS else "desc"  # type: ignore[assignment]
@@ -56,6 +57,7 @@ async def list_streamers(
         "overlay": f_overlay,
         "online": f_online,
         "pants": f_pants,
+        "shoutout": f_shoutout,
     }
     filters = {key: _parse_tristate(raw_filters[key]) for key in FILTER_KEYS}
 
