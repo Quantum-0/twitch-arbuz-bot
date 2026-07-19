@@ -72,6 +72,10 @@
                     <button style="background-color:#040404" onclick="location.href='https://www.tiktok.com/@{{ profile_user.links.tiktok }}';"><i class="fa fa-tiktok"></i> Tiktok</button>
                     {% endif %}
 
+                    {% if profile_user.links.youtube %}
+                    <button style="background-color:#ff0000" onclick="location.href='https://youtube.com/{{ profile_user.links.youtube }}';"><i class="fa fa-youtube"></i> YouTube</button>
+                    {% endif %}
+
                     {% if profile_user.links.telegram %}
                     <button style="background-color:#0088cc" onclick="location.href='https://t.me/{{ profile_user.links.telegram }}';"><i class="fa fa-telegram"></i> Telegram</button>
                     {% endif %}

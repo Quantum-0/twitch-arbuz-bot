@@ -27,11 +27,8 @@ class MemealertsLinkCommand(SimpleCDCommand):
     cooldown_timer_per_user = 10
 
     def is_enabled(self, streamer_settings: TwitchUserSettings) -> bool:
-        # Команда доступна только если у стримера подключена интеграция с мемалёртс
-        # (есть настроенная награда ИЛИ OAuth-токен v2) и сохранена ссылка.
-        # streamer здесь — это User, но is_enabled получает только settings,
-        # поэтому проверка самой ссылки выполняется в _handle.
-        return True
+        # Команда доступна только если стример включил её в панели управления
+        return streamer_settings.enable_memealerts_link
 
     async def _handle(self, streamer: User, user: str, message: str) -> str:
         ma = streamer.memealerts

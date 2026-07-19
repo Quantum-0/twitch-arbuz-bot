@@ -24,6 +24,7 @@ class UpdateSettingsForm(BaseModel):
     enable_ds_link: bool | None = Field(None)
     enable_tiktok_link: bool | None = Field(None)
     enable_youtube_link: bool | None = Field(None)
+    enable_memealerts_link: bool | None = Field(None)
 
     enable_banana: bool | None = Field(None)
     enable_treat: bool | None = Field(None)
