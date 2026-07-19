@@ -26,6 +26,7 @@ class Container(containers.DeclarativeContainer):
     wiring_config = containers.WiringConfiguration(
         modules=[
             "routers.api.admin_api",
+            "routers.api.extension",
             "routers.api.twitch_eventsub",
             "routers.api.user_api",
             "routers.api.user.memealerts",

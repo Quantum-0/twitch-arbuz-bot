@@ -1,7 +1,4 @@
 import logging
-import math
-import random
-from datetime import datetime
 from typing import Annotated, Any
 from uuid import uuid3
 
@@ -26,6 +23,7 @@ from twitch.chat.bot import ChatBot
 from twitch.client.twitch import Twitch
 from twitch.state_manager import StateManager
 from utils.memes import token_expires_in_days
+from utils.streamers_sort import compute_streamer_score
 
 templates = Jinja2Templates(directory="templates")
 
@@ -406,27 +404,6 @@ async def get_streamers(
     )
     res = (await db.execute(q)).all()
 
-    def cmp(usr):
-        now = datetime.now()
-        day = 24 * 60 * 60
-        return (
-            (10 * bool(usr["is_live"]))
-            + (4 * bool((now - usr["created_at"]).total_seconds() < day))  # Зареган меньше суток назад
-            + (1.75 * bool((now - usr["created_at"]).total_seconds() < 7 * day))  # Зареган меньше недели назад
-            + (
-                1.75 * bool((now - usr["interacted_at"]).total_seconds() < 30 * day)
-            )  # Заходил в панель управления ботом за последний месяц
-            + (
-                2 * bool((now - usr["interacted_at"]).total_seconds() < day)
-            )  # Заходил в панель управления ботом за последние сутки
-            + (0.6 * math.log10((usr.get("followers", 0) or 0) + 1))
-            + (2 * (usr["username"] == "quantum075" or usr["donated"] > 0))
-            + (1 * usr["is_beta_tester"])
-            + (2 * usr["memealerts_enabled"])
-            + (3 * usr["chat_bot_enabled"])
-            + (5 * random.random())
-        )
-
     res = [row._asdict() for row in res]
     online_streams = await cache.get_set("online_streams")
     if not online_streams:
@@ -438,9 +415,9 @@ async def get_streamers(
         logger.info("Online streamers list loaded from cache")
     for row in res:
         row["is_live"] = row["username"] in online_streams
-        row["score"] = cmp(row)
+        row["score"] = compute_streamer_score(row)
 
-    res = sorted(res, key=cmp, reverse=True)
+    res = sorted(res, key=compute_streamer_score, reverse=True)
 
     # res = [row._asdict() for row in res] * 20
     # for row in res:

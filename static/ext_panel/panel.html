@@ -116,6 +116,11 @@ body {
 </head>
 <body>
 
+<div id="toast" style="position:fixed;bottom:10px;left:50%;transform:translateX(-50%);
+     background:#1f1f23;color:#fff;padding:8px 14px;border-radius:6px;
+     font-size:12px;opacity:0;transition:opacity .25s;pointer-events:none;
+     z-index:9999;max-width:90%;text-align:center;"></div>
+
 <div id="novel-container">
   <!-- Сцена с персонажем -->
   <div id="character-stage"></div>
@@ -207,6 +212,33 @@ function showChoices(choices) {
             window.open(choice.link);
           };
         }
+        else if (choice.action === "send_chat") {
+          btn.onclick = () => {
+            // Имитируем ответ пользователя на экране (наш ник и аватарка)
+            userReplies(choice.text, async () => {
+              try {
+                const r = await fetch(`/api/extension/chat/${userData.channel_id}`, {
+                  method: "POST",
+                  headers: {
+                    "Authorization": "Bearer " + twitchAuth.token,
+                    "Content-Type": "application/json",
+                  },
+                  body: JSON.stringify({text: choice.command}),
+                });
+                if (r.ok) {
+                  setTimeout(() => loadScene(choice.next_step), 800);
+                } else if (r.status === 429) {
+                  showToast("Не удалось отправить сообщение, превышен лимит.", true);
+                } else {
+                  const err = await r.json().catch(() => ({}));
+                  showToast("Не получилось отправить: " + (err.detail || r.status), true);
+                }
+              } catch (e) {
+                showToast("Сетевая ошибка: " + e.message, true);
+              }
+            });
+          };
+        }
         else {
           btn.onclick = () => {
             // Имитируем ответ пользователя на экране (наш ник и аватарка)
@@ -224,6 +256,17 @@ function showChoices(choices) {
     });
 
     container.style.display = 'flex';
+}
+
+// Тост для уведомлений об ошибках/успехе
+let toastTimer = null;
+function showToast(msg, isError) {
+    const toast = document.getElementById('toast');
+    toast.innerText = msg;
+    toast.style.background = isError ? '#a33' : '#1f1f23';
+    toast.style.opacity = '1';
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { toast.style.opacity = '0'; }, 3000);
 }
 
 // Переменные для хранения данных пользователя
