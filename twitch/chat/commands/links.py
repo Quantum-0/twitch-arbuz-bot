@@ -11,15 +11,7 @@ class LinksCommand(SimpleCDCommand):
     cooldown_timer_per_user = 60
 
     def is_enabled(self, streamer_settings: TwitchUserSettings) -> bool:
-        # Доступна когда включена хотя бы одна ссылка
-        return any(
-            (
-                streamer_settings.enable_tg_link,
-                streamer_settings.enable_ds_link,
-                streamer_settings.enable_tiktok_link,
-                streamer_settings.enable_youtube_link,
-            )
-        )
+        return streamer_settings.enable_links_command
 
     async def _handle(self, streamer: User, user: str, message: str) -> str:
         return await self._build_links_list(streamer)

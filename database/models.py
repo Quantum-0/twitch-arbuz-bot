@@ -122,6 +122,7 @@ class TwitchUserSettings(Base):
     enable_tiktok_link: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false(), nullable=False)
     enable_youtube_link: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false(), nullable=False)
     enable_memealerts_link: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false(), nullable=False)
+    enable_links_command: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false(), nullable=False)
 
     enable_bite: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false(), nullable=False)
     enable_lick: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false(), nullable=False)
