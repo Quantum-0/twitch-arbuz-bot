@@ -81,6 +81,17 @@ class Cache:
     async def __get_set(self, name: str) -> set[str]:
         return await self._r.smembers(f'cache:{name}')
 
+    async def check_rate_limit(self, key: str, limit: int, window_s: int) -> bool:
+        key = "rate_limit:" + key
+        try:
+            count = await self._r.incr(key)
+            if count == 1:
+                await self._r.expire(key, window_s)
+            return count <= limit
+        except Exception:
+            logger.error("Error checking rate limit in redis", exc_info=True)
+            return True
+
 
 
 # RESULT of optimization with cache

@@ -1,9 +1,25 @@
 import base64
+import logging
+import random
+import re
+from typing import Annotated
 
 import jwt
-from fastapi import Header, HTTPException, APIRouter
+import sqlalchemy as sa
+from dependency_injector.wiring import Provide
+from fastapi import APIRouter, Depends, Header, HTTPException
+from pydantic import BaseModel, Field
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from config import settings
+from container import Container
+from database.models import MemealertsSettings, TwitchUserSettings, User
+from dependencies import get_db
+from services.cache import Cache
+from twitch.client.twitch import Twitch
+from utils.streamers_sort import compute_streamer_score
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/extension", tags=["Extension API"])
 
@@ -12,7 +28,7 @@ PFP = {
     "Quantum075": "https://static-cdn.jtvnw.net/jtv_user_pictures/29e22097-499e-4b1b-a00b-153519fb95ba-profile_image-150x150.png",
 }
 
-STORY_DATA = {
+STORY_DATA: dict[str, dict] = {
     "start": {
         "character_img": "/static/images/extension/bg_start.png",
         "speaker": "Quantum075Bot",
@@ -245,26 +261,217 @@ STORY_DATA = {
         ],
     },
 
-    # streamer_commands, try_command
+    "try_command": {
+        "character_img": "/static/images/extension/bg_thinking.png",
+        "speaker": "Quantum075Bot",
+        "avatar": PFP["Quantum075Bot"],
+        "text": "Выбирай команду — и я её выполню прямо в чате!",
+        "choices": [],  # заполняется динамически по настройкам стримера
+    },
+    "try_command_done": {
+        "character_img": "/static/images/extension/bg_bot_happy.png",
+        "speaker": "Quantum075Bot",
+        "avatar": PFP["Quantum075Bot"],
+        "text": "Готово! Я отправил сообщение в чат — бот ответит в ближайшую секунду ^w^",
+        "choices": [
+            {"text": "Попробовать ещё!", "next_step": "try_command"},
+            {"text": "Хочу подключить!", "next_step": "connect_bot"},
+        ],
+    },
+    "try_command_unavailable": {
+        "character_img": "/static/images/extension/bg_thinking.png",
+        "speaker": "Quantum075Bot",
+        "avatar": PFP["Quantum075Bot"],
+        "text": "К сожалению, у этого стримера все интерактивные команды выключены. Если хочешь их у себя — подключи бота!",
+        "choices": [
+            {"text": "Хочу подключить!", "next_step": "connect_bot"},
+            {"text": "Вернуться назад", "next_step": "about_commands"},
+        ],
+    },
+
+    # streamer_commands: TODO сцена не реализована
 }
 
 
-# Эндпоинт для получения конкретной сцены
-@router.get("/scene/{channel_id}/{scene_key}")
-async def get_scene(channel_id: int, scene_key: str, authorization: str = Header(None)):
+ALLOWED_COMMANDS = ("кусь", "лизь", "банан")
+TARGET_VARIANTS = ("кого-нибудь", "стримера", "@Quantum075Bot")
+COMMAND_REGEX = re.compile(
+    r"^!(?:кусь|лизь|банан) (?:кого-нибудь|стримера|@Quantum075Bot)$",
+    re.IGNORECASE,
+)
+
+
+def verify_extension_token(authorization: str | None, channel_id: str | int) -> dict:
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Missing token")
 
-    token = authorization.split(" ")[1]
+    token = authorization.split(" ", 1)[1]
     try:
-        # Проверяем токен Твича для безопасности
-        jwt.decode(token, base64.b64decode(settings.extension_secret.get_secret_value()), algorithms=["HS256"])
+        payload = jwt.decode(
+            token,
+            base64.b64decode(settings.extension_secret.get_secret_value()),
+            algorithms=["HS256"],
+        )
     except jwt.PyJWTError:
-        raise HTTPException(status_code=401, detail="Invalid token")
+        raise HTTPException(status_code=401, detail="Invalid token") from None
 
-    # Ищем сцену в нашей "базе данных"
+    if str(payload.get("channel_id")) != str(channel_id):
+        raise HTTPException(status_code=403, detail="channel_id mismatch")
+
+    return payload
+
+
+def _try_commands_enabled(s: TwitchUserSettings | None) -> list[str]:
+    if s is None:
+        return []
+    enabled = []
+    if s.enable_bite:
+        enabled.append("кусь")
+    if s.enable_lick:
+        enabled.append("лизь")
+    if s.enable_banana:
+        enabled.append("банан")
+    return enabled
+
+
+def _build_try_command_choices(enabled_commands: list[str]) -> list[dict]:
+    return [
+        {
+            "text": f"!{cmd}",
+            "action": "send_chat",
+            "command": f"!{cmd} {random.choice(TARGET_VARIANTS)}",
+            "next_step": "try_command_done",
+        }
+        for cmd in enabled_commands
+    ]
+
+
+async def _load_streamer_settings(db: AsyncSession, channel_id: str | int) -> TwitchUserSettings | None:
+    # NOTE: можно закешировать результат в Redis по ключу ext_settings:{channel_id} на ~60с,
+    # чтобы не лезть в БД на каждый запрос сцены about_commands/try_command.
+    result = await db.execute(
+        sa.select(TwitchUserSettings)
+        .join(User, User.id == TwitchUserSettings.user_id)
+        .where(User.twitch_id == str(channel_id))
+    )
+    return result.scalar_one_or_none()
+
+
+async def _resolve_bot_users_data(db: AsyncSession, twitch: Twitch, cache: Cache) -> tuple[int, str]:
+    total_count = (await db.execute(sa.select(sa.func.count()).select_from(User))).scalar() or 0
+
+    q = (
+        sa.select(
+            User.login_name.label("username"),
+            User.profile_image_url.label("avatar_url"),
+            User.followers_count.label("followers"),
+            User.in_beta_test.label("is_beta_tester"),
+            User.donated.label("donated"),
+            User.created_at.label("created_at"),
+            User.interacted_at.label("interacted_at"),
+            TwitchUserSettings.enable_chat_bot.label("chat_bot_enabled"),
+            MemealertsSettings.memealerts_reward.is_not(None).label("memealerts_enabled"),
+        )
+        .select_from(User)
+        .join(TwitchUserSettings)
+        .join(MemealertsSettings)
+        .where(User.followers_count > 2)
+        .limit(500)
+    )
+    res = [row._asdict() for row in (await db.execute(q)).all()]
+
+    online_streams = await cache.get_set("online_streams")
+    if not online_streams and res:
+        streams = await twitch.get_streams([row["username"] for row in res])
+        online_streams = {row["username"] for row in res if streams.get(row["username"])}
+        await cache.set_set("online_streams", online_streams, ttl=300)
+        logger.info("Online streamers list loaded from twitch (extension)")
+    else:
+        logger.info("Online streamers list loaded from cache (extension)")
+
+    for row in res:
+        row["is_live"] = row["username"] in online_streams
+        row["score"] = compute_streamer_score(row)
+
+    res = sorted(res, key=compute_streamer_score, reverse=True)
+    top5 = [row["username"] for row in res[:5]]
+    return total_count, ", ".join(top5)
+
+
+@router.get("/scene/{channel_id}/{scene_key}")
+async def get_scene(
+    channel_id: int,
+    scene_key: str,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    twitch: Annotated[Twitch, Depends(Provide[Container.twitch])],
+    cache: Annotated[Cache, Depends(Provide[Container.cache])],
+    authorization: str = Header(default=None),
+):
+    verify_extension_token(authorization, channel_id)
+
     scene = STORY_DATA.get(scene_key)
     if not scene:
         raise HTTPException(status_code=404, detail="Scene not found")
 
+    scene = dict(scene)  # shallow copy, чтобы не мутировать STORY_DATA
+
+    # Фильтрация кнопки "Хочу попробовать!" если ни одна команда не включена
+    if scene_key in {"about_commands", "about_commands_2"}:
+        settings_row = await _load_streamer_settings(db, channel_id)
+        if not _try_commands_enabled(settings_row):
+            scene["choices"] = [
+                c for c in scene["choices"] if c.get("next_step") != "try_command"
+            ]
+
+    # Динамическая генерация кнопок для try_command
+    if scene_key == "try_command":
+        settings_row = await _load_streamer_settings(db, channel_id)
+        enabled = _try_commands_enabled(settings_row)
+        if not enabled:
+            scene = dict(STORY_DATA["try_command_unavailable"])
+        else:
+            scene["choices"] = _build_try_command_choices(enabled)
+
+    # Подстановка плейсхолдеров %d/%s в bot_users
+    if scene_key == "bot_users":
+        count, names = await _resolve_bot_users_data(db, twitch, cache)
+        scene["text"] %= count, names
+
     return {"success": True, "scene": scene}
+
+
+class SendChatRequest(BaseModel):
+    text: str = Field(min_length=1, max_length=280)
+
+
+@router.post("/chat/{channel_id}")
+async def send_extension_chat(
+    channel_id: int,
+    body: SendChatRequest,
+    twitch: Annotated[Twitch, Depends(Provide[Container.twitch])],
+    cache: Annotated[Cache, Depends(Provide[Container.cache])],
+    authorization: str = Header(default=None),
+):
+    payload = verify_extension_token(authorization, channel_id)
+
+    if not COMMAND_REGEX.match(body.text):
+        raise HTTPException(
+            status_code=400,
+            detail="Message must be one of: '!кусь|!лизь|!банан кого-нибудь|стримера|@Quantum075Bot'",
+        )
+
+    if not await cache.check_rate_limit(f"ext_chat:{channel_id}", 12, 60):
+        raise HTTPException(status_code=429, detail="Rate limit: 12 msgs/min/channel")
+
+    resp = await twitch.send_extension_chat_message(
+        broadcaster_id=str(channel_id),
+        text=body.text,
+        user_id=str(payload.get("user_id") or ""),
+    )
+    if resp.status_code == 204:
+        return {"success": True}
+    if resp.status_code == 400:
+        raise HTTPException(status_code=400, detail=f"Twitch: {resp.text}")
+    if resp.status_code == 401:
+        raise HTTPException(status_code=401, detail=f"Twitch: {resp.text}")
+    raise HTTPException(status_code=502, detail=f"Twitch returned {resp.status_code}: {resp.text}")

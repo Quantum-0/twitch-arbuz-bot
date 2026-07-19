@@ -82,6 +82,8 @@ class Settings(BaseSettings):
     memealerts_client_secret: SecretStr
     memealerts_state_secret: SecretStr
     extension_secret: SecretStr
+    extension_id: str = "ipeaqzfjtnio3taywpj3ktbink8fy4"
+    extension_version: str = "0.0.1"
 
     @property
     def login_twitch_url(self) -> str:

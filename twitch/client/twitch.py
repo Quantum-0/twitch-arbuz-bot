@@ -1,9 +1,12 @@
+import base64
 import logging
+import time
 from collections.abc import AsyncGenerator
 from typing import Any
 from uuid import UUID
 
 import httpx
+import jwt
 from more_itertools.recipes import batched
 from opentelemetry import trace
 from twitchAPI.chat import Chat
@@ -26,6 +29,22 @@ from utils.singleton import singleton
 
 logger = logging.getLogger(__name__)
 tracer = trace.get_tracer(__name__)
+
+
+def make_ebs_jwt(channel_id: str, user_id: str = "") -> str:
+    now = int(time.time())
+    payload = {
+        "role": "external",
+        "user_id": user_id,
+        "channel_id": channel_id,
+        "iat": now,
+        "exp": now + 300,
+    }
+    return jwt.encode(
+        payload,
+        base64.b64decode(settings.extension_secret.get_secret_value()),
+        algorithm="HS256",
+    )
 
 
 @singleton
@@ -75,6 +94,35 @@ class Twitch:
                 raise Exception(f"Twitch error: {resp.status_code} {resp.text}")
 
             return resp.json()
+
+    @tracer.start_as_current_span("Twitch: Sending extension chat message")
+    async def send_extension_chat_message(
+        self,
+        broadcaster_id: str,
+        text: str,
+        user_id: str = "",
+    ) -> httpx.Response:
+        token = make_ebs_jwt(broadcaster_id, user_id)
+        current_span = trace.get_current_span()
+        if current_span.is_recording():
+            current_span.set_attribute("msg.text", text)
+            current_span.set_attribute("msg.broadcaster_id", broadcaster_id)
+
+        async with httpx.AsyncClient() as client:
+            return await client.post(
+                "https://api.twitch.tv/helix/extensions/chat",
+                params={"broadcaster_id": broadcaster_id},
+                headers={
+                    "Authorization": f"Bearer {token}",
+                    "Client-Id": settings.extension_id,
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "text": text[:280],
+                    "extension_id": settings.extension_id,
+                    "extension_version": settings.extension_version,
+                },
+            )
 
     async def build_chat_client(self) -> Chat:
         return await Chat(self._twitch)
