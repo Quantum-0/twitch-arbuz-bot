@@ -172,6 +172,7 @@ class ChatBot:
                 .options(
                     joinedload(User.settings),
                     joinedload(User.links),
+                    joinedload(User.memealerts),
                 )
                 .filter_by(twitch_id=str(channel_id))
             )
