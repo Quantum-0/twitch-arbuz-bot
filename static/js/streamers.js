@@ -3,12 +3,13 @@
 
     const SORT_LABELS = {
         recommended: "Рекомендуемое",
-        followers: "По фолловерам",
-        created: "По дате регистрации",
+        followers: "По количеству фолловеров",
+        created: "По дате регистрации в боте",
         name: "По имени",
+        interacted: "По последней активности на сайте",
     };
 
-    const VALID_SORTS = ["recommended", "followers", "created", "name"];
+    const VALID_SORTS = ["recommended", "followers", "created", "name", "interacted"];
     const VALID_ORDERS = ["asc", "desc"];
     const FILTER_KEYS = ["bot", "meme", "ai", "overlay", "online", "pants", "shoutout"];
 

@@ -20,7 +20,7 @@ from utils.streamers import (
 router = APIRouter(prefix="/streamers", tags=["Streamers list"])
 
 
-VALID_SORTS = ("recommended", "followers", "created", "name")
+VALID_SORTS = ("recommended", "followers", "created", "name", "interacted")
 VALID_ORDERS = ("asc", "desc")
 
 

@@ -13,7 +13,7 @@ from utils.streamers_sort import compute_streamer_score
 # позже этого порога, стример считается «использующим оверлеи».
 OVERLAY_USAGE_FRESHNESS = timedelta(days=14)
 
-SortKey = Literal["recommended", "followers", "created", "name"]
+SortKey = Literal["recommended", "followers", "created", "name", "interacted"]
 SortOrder = Literal["asc", "desc"]
 TriState = bool | None
 
@@ -119,6 +119,9 @@ def _apply_sort(rows: list[dict[str, Any]], sort: SortKey, order: SortOrder) -> 
         # Сортируем по id — он монотонно возрастает и точно отражает порядок регистрации
         # (created_at может совпадать у нескольких пользователей, созданных одновременно).
         rows.sort(key=lambda r: r["id"], reverse=reverse)
+    elif sort == "interacted":
+        # Сортировка по последнему взаимодействию с сервисом (interacted_at).
+        rows.sort(key=lambda r: r["interacted_at"], reverse=reverse)
     elif sort == "name":
         rows.sort(key=lambda r: r["username"].lower(), reverse=reverse)
     return rows
