@@ -1,3 +1,5 @@
+from datetime import datetime
+from enum import StrEnum
 from typing import Literal
 from uuid import UUID
 
@@ -72,3 +74,39 @@ class UUIDResponseSchema(BaseModel):
 
 class BaseErrorSchema(BaseModel):
     detail: str = Field(examples=["Error description"])
+
+
+class StatsType(StrEnum):
+    """Типы метрик, собираемых подсистемой статистики."""
+
+    MESSAGE_INCOMING = "message_incoming"
+    MESSAGE_OUTGOING = "message_outgoing"
+    REWARD_MEMECOINS = "reward_memecoins"
+    REWARD_AI_STICKERS = "reward_ai_stickers"
+    COMMAND_HANDLED = "command_handled"
+
+
+class StatsPeriod(StrEnum):
+    """Период агрегации данных для графика."""
+
+    TEN_MIN = "10m"
+    ONE_HOUR = "1h"
+    THREE_HOURS = "3h"
+    SIX_HOURS = "6h"
+    ONE_DAY = "1d"
+
+
+class StatsPointSchema(BaseModel):
+    """Одна точка графика: начало бакета (UTC) и агрегированное значение."""
+
+    datetime: datetime
+    value: int
+
+
+class StatsResponseSchema(BaseModel):
+    """Ответ ручки /api/user/stats: ряд точек для графика."""
+
+    type: str
+    subtype: str | None = None
+    period: str
+    points: list[StatsPointSchema]

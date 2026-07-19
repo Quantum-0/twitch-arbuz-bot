@@ -3,6 +3,7 @@ from datetime import datetime
 from decimal import Decimal
 
 from sqlalchemy import (
+    BigInteger,
     Boolean,
     DateTime,
     ForeignKey,
@@ -310,6 +311,57 @@ class Links(Base):
     )
 
     user: Mapped["User"] = relationship("User", back_populates="links")
+
+
+class Statistics(Base):
+    """10-минутные бакеты агрегированных метрик мониторинга сервиса.
+
+    Группа ключа (``bucket_ts``, ``type``, ``subtype``, ``channel_id``) уникальна
+    (см. ``statistics_pk`` с ``NULLS NOT DISTINCT`` — иначе ``channel_id=NULL``
+    не схлопывался бы при ``ON CONFLICT DO UPDATE``). ``subtype`` для метрик без
+    разделения хранится как пустая строка (``""``), а не NULL.
+    """
+
+    __tablename__ = "statistics"
+    __table_args__ = (
+        # Уникальный индекс-«первичный ключ» с NULLS NOT DISTINCT, чтобы строки
+        # с channel_id=NULL участвовали в ON CONFLICT DO UPDATE (регулярный PG PK
+        # считает NULL-ы различными и не отрабатывал бы конфликты). Суррогатный
+        # ``id`` ниже нужен только чтобы SQLAlchemy-маппер собрался.
+        Index(
+            "statistics_pk",
+            "bucket_ts",
+            "type",
+            "subtype",
+            "channel_id",
+            unique=True,
+            postgresql_nulls_not_distinct=True,
+        ),
+        Index("ix_statistics_type_bucket", "type", "bucket_ts"),
+        Index("ix_statistics_bucket_ts", "bucket_ts"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    bucket_ts: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        doc="Начало 10-минутного бакета (UTC, округлено вниз).",
+    )
+    type: Mapped[str] = mapped_column(String(64), nullable=False, doc="message_incoming | message_outgoing | reward_memecoins | reward_ai_stickers | command_handled")
+    subtype: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+        default="",
+        server_default="",
+        doc="Для reward_*: received/succeed/failed/failed_on_moderation/success; для command_handled — имя команды; иначе пустая строка.",
+    )
+    channel_id: Mapped[int | None] = mapped_column(
+        BigInteger,
+        nullable=True,
+        default=None,
+        doc="twitch_id канала (на будущее для разбивки по каналам). В MVP всегда NULL — тотал по сервису.",
+    )
+    count: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
 
 
 @event.listens_for(User, "after_insert")

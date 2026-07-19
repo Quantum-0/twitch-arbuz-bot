@@ -6,7 +6,9 @@ from opentelemetry import trace
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database.models import TwitchUserSettings, User
+from schemas.api import StatsType
 from schemas.twitch import ChatMessageWebhookEventSchema
+from services.statistics import StatisticsService
 from twitch.chat.base.base_command import Command
 from twitch.state_manager import StateManager
 
@@ -20,11 +22,13 @@ class CommandsManager:
         storage: StateManager,
         send_message: Callable[..., Awaitable[None]],
         db_session_factory: Callable[[], AsyncSession] | None = None,
+        statistics: StatisticsService | None = None,
     ):
         self.commands: list[Command] = []
         self._sm = storage
         self._send_message = send_message
         self._db_session_factory = db_session_factory
+        self._statistics = statistics
 
     def register(self, command: type[Command]):
         self.commands.append(command(self._sm, self._send_message, self._db_session_factory))
@@ -66,6 +70,8 @@ class CommandsManager:
             ):
                 logger.info(f"Handler for command was found: {cmd.__class__.__name__}")
                 await cmd.handle(streamer, message)
+                if self._statistics is not None:
+                    self._statistics.inc(StatsType.COMMAND_HANDLED, subtype=cmd.command_name)
 
     async def get_commands_of_user(self, user) -> list[tuple[str, str, str]]:
         user_settings: TwitchUserSettings = user.settings

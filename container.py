@@ -16,6 +16,7 @@ from services.redis_state_manager import RedisStateManager, init_redis
 from services.s3 import FileStorage
 from services.slovotron import SlovotronService
 from services.sse_manager import SSEManager
+from services.statistics import StatisticsService
 from services.stickers import StickersService
 from services.stickers_processor import StickerProcessor
 from twitch.chat.bot import ChatBot
@@ -31,6 +32,7 @@ class Container(containers.DeclarativeContainer):
             "routers.api.user_api",
             "routers.api.user.memealerts",
             "routers.api.user.streamers",
+            "routers.api.user.stats",
             "routers.api.slovotron_webhook",
             "routers.web.service_routes",
             "routers.web.memealerts_routes",
@@ -60,10 +62,18 @@ class Container(containers.DeclarativeContainer):
     cache = providers.Singleton(
         Cache,
     )
+    statistics = providers.Singleton(
+        StatisticsService,
+        db_session_factory=db_session_factory,
+    )
     twitch = providers.Singleton(Twitch)
     mqtt = providers.Singleton(MQTTClient)
     chat_bot = providers.Singleton(
-        ChatBot, db_session_factory=db_session_factory, state_manager=state_manager, mqtt=mqtt
+        ChatBot,
+        db_session_factory=db_session_factory,
+        state_manager=state_manager,
+        mqtt=mqtt,
+        statistics=statistics,
     )
     ai = providers.Singleton(OpenAIClient, db_session_factory=db_session_factory)
     sse_manager = providers.Singleton(SSEManager)
@@ -95,6 +105,7 @@ class Container(containers.DeclarativeContainer):
         memealerts=memealerts,
         memealerts_v2=memealerts_v2,
         memealerts_auth=memealerts_auth,
+        statistics=statistics,
     )
 
     job_store_factory = providers.Factory(

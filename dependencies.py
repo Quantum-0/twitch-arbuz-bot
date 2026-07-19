@@ -41,12 +41,14 @@ async def lifespan(app: "FastAPI | None" = None):
     slovotron = container.slovotron()
     state_manager = container.state_manager()
     cache = container.cache()
+    statistics = container.statistics()
     scheduler = container.scheduler()
     memealerts_auth = container.memealerts_auth()
     stickers_processor = container.stickers_processor()
 
     await state_manager.startup(redis)
     await cache.startup(redis, binary_redis)
+    await statistics.startup(redis)
     await twitch.startup()
     await chat_bot.startup(twitch)
     await ai.startup()
@@ -80,6 +82,25 @@ async def lifespan(app: "FastAPI | None" = None):
         minute="0",
         second="0",
         id="update_memealerts_tokens",
+        replace_existing=True,
+    )
+    # Дамп 10-минутных бакетов статистики из Redis в БД.
+    scheduler.add_job(
+        statistics.flush_to_db,
+        trigger="cron",
+        minute="*/10",
+        second="0",
+        id="flush_statistics",
+        replace_existing=True,
+    )
+    # Суточная очистка статистики старше RETENTION_DAYS (~3 месяца).
+    scheduler.add_job(
+        statistics.cleanup_old_data,
+        trigger="cron",
+        hour="4",
+        minute="0",
+        second="0",
+        id="cleanup_old_statistics",
         replace_existing=True,
     )
     scheduler.start()

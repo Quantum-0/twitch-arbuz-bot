@@ -13,11 +13,13 @@ from twitchAPI.type import TwitchResourceNotFound
 
 from database.models import Base, TwitchUserSettings, User
 from exceptions import MADuplicateUserError, MATokenInvalidError
+from schemas.api import StatsType
 from schemas.twitch import PointRewardRedemptionWebhookSchema, RaidWebhookSchema
 from services.memes import MemealertsService
-from services.memes_v2 import MemealertsV2Service, MemealertsOAuthService
+from services.memes_v2 import MemealertsOAuthService, MemealertsV2Service
 from services.sse_manager import SSEManager
-from services.stickers import StickersService, RewardRedemptionProcessingError
+from services.statistics import StatisticsService
+from services.stickers import StickersService, RewardRedemptionProcessingError, ModerationBlockedException
 from twitch.chat.bot import ChatBot
 from twitch.client.twitch import Twitch
 from utils.enums import SSEChannel
@@ -39,6 +41,7 @@ class TwitchEventSubService():
         memealerts: MemealertsService,
         memealerts_v2: MemealertsV2Service,
         memealerts_auth: MemealertsOAuthService,
+        statistics: StatisticsService | None = None,
     ):
         self._twitch = twitch
         self._chatbot = chatbot
@@ -48,6 +51,12 @@ class TwitchEventSubService():
         self._memealerts = memealerts
         self._memealerts_v2 = memealerts_v2
         self._memealerts_auth = memealerts_auth
+        self._statistics = statistics
+
+    def _inc_reward(self, subtype: str, type_: StatsType) -> None:
+        """Fire-and-forget инкремент счётчика наград (без if-обёрток в вызывающем коде)."""
+        if self._statistics is not None:
+            self._statistics.inc(type_, subtype=subtype)
 
     @staticmethod
     def task_wrapper(func):
@@ -123,6 +132,8 @@ class TwitchEventSubService():
             try:
                 await self.reward_ai_sticker(user=user, payload=payload_model)
             except RewardRedemptionProcessingError as exc:
+                if isinstance(exc, ModerationBlockedException):
+                    self._inc_reward("failed_on_moderation", StatsType.REWARD_AI_STICKERS)
                 await self._chatbot.send_message(user, exc.chatbot_response)
                 if exc.cancel_redemption:
                     await self._cancel_redemption(user=user, payload=payload_model)
@@ -152,6 +163,7 @@ class TwitchEventSubService():
         payload: PointRewardRedemptionWebhookSchema,
         user: User,
     ) -> None:
+        self._inc_reward("received", StatsType.REWARD_MEMECOINS)
         try:
             # TODO: Плавно переходим на memealerts_v2
             if user.memealerts.access_token is None:
@@ -198,14 +210,17 @@ class TwitchEventSubService():
                 except:
                     await self._chatbot.send_message(user, f"Мемкоины для {payload.event.user_name} начислены :з")
                 await self._fulfill_redemption(user, payload)
+                self._inc_reward("succeed", StatsType.REWARD_MEMECOINS)
             else:
                 await self._chatbot.send_message(
                     user,
                     "Ошибка начисления >.< Баллы возвращены 👀. Проверьте имя пользователя на мемалёрте!",
                 )
                 await self._cancel_redemption(user, payload)
+                self._inc_reward("failed", StatsType.REWARD_MEMECOINS)
         except MADuplicateUserError as exc:
             logger.warning(f"Found duplicate MA user = {exc.supporter}")
+            self._inc_reward("failed", StatsType.REWARD_MEMECOINS)
             await self._chatbot.send_message(
                 user,
                 f'Найдено несколько пользователей с именем "{exc.supporter}". Баллы возвращены. Для начисления мемкоинов используйте ID.',
@@ -213,6 +228,7 @@ class TwitchEventSubService():
             await self._cancel_redemption(user, payload)
         except MATokenExpiredError:
             logger.warning("MA Token expired")
+            self._inc_reward("failed", StatsType.REWARD_MEMECOINS)
             await self._chatbot.send_message(
                 user,
                 f"Ошибка начисления мемкоинов. @{user.login_name}, истёк срок действия токена. Пожалуйста, обновите токен в панели управления ботом.",
@@ -220,6 +236,7 @@ class TwitchEventSubService():
             await self._cancel_redemption(user, payload)
         except MATokenInvalidError:
             logger.warning("MA Token invalid")
+            self._inc_reward("failed", StatsType.REWARD_MEMECOINS)
             await self._chatbot.send_message(
                 user,
                 f"Ошибка начисления мемкоинов: Memealerts не принял установленный токен. @{user.login_name}, перелогинься на сайте Memealerts и обнови токен, пожалуйста.",
@@ -227,6 +244,7 @@ class TwitchEventSubService():
             await self._cancel_redemption(user, payload)
         except Exception:
             logger.error("Error handling redemption", exc_info=True)
+            self._inc_reward("failed", StatsType.REWARD_MEMECOINS)
             await self._chatbot.send_message(
                 user,
                 "Непредвиденная ошибка начисления мемкоинов! О.О Баллы возвращены!",
@@ -239,9 +257,7 @@ class TwitchEventSubService():
         user: User,
         payload: PointRewardRedemptionWebhookSchema,
     ) -> None:
-        # TODO: пока только для себя разрешаю:
-        if user.login_name not in ["quantum075", "d_e_l_y", "silverosemary", "lunahoomalu", "anna_toad", "mefrusha", "pushishca", "kurosakissora", "hatome"]:
-            return
+        self._inc_reward("received", StatsType.REWARD_AI_STICKERS)
 
         if payload.event.user_input.strip() == "":
             await self._chatbot.send_message(user, "Нужно ввести текст награды О: Баллы возвращены!")
@@ -265,3 +281,4 @@ class TwitchEventSubService():
             SSEChannel.AI_STICKER,
             json.dumps({"sticker_file_id": str(sticker_id)}),
         )
+        self._inc_reward("success", StatsType.REWARD_AI_STICKERS)

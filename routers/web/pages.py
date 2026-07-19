@@ -344,6 +344,25 @@ async def admin_page(
 
 
 @router.get(
+    "/stats",
+    response_class=HTMLResponse,
+)
+async def stats_page(
+    request: Request,
+    user: User | None = Security(user_auth_optional),
+):
+    if not user:
+        return RedirectResponse("/")
+    return templates.TemplateResponse(
+        "stats.html",
+        {
+            "request": request,
+            "user": user,
+        },
+    )
+
+
+@router.get(
     "/cmdlist",
     response_class=HTMLResponse,
 )

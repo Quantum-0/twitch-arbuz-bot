@@ -41,6 +41,7 @@ from twitch.client.twitch import Twitch
 from utils.enums import SSEChannel
 from utils.memes import token_expires_in_days
 from routers.api.user.memealerts import router as memealerts_router
+from routers.api.user.stats import router as stats_router
 from routers.api.user.streamers import router as streamers_router
 
 logger = logging.getLogger(__name__)
@@ -49,6 +50,7 @@ router = APIRouter(prefix="/user", tags=["User API"])
 
 router.include_router(memealerts_router)
 router.include_router(streamers_router)
+router.include_router(stats_router)
 
 
 @router.get(

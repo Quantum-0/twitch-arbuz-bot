@@ -17,8 +17,10 @@ from twitchAPI.chat import Chat
 from config import settings
 from database.models import TwitchUserSettings, User
 from exceptions import UserNotFoundInDatabase, ToManyChatUnsubscribesStartupException
+from schemas.api import StatsType
 from schemas.twitch import ChatMessageWebhookEventSchema
 from services.mqtt import MQTTClient
+from services.statistics import StatisticsService
 from twitch.chat.command_manager import CommandsManager
 from twitch.chat.commands import *
 from twitch.chat.handlers import PantsRaffleHandler, ThanksHandler
@@ -45,15 +47,22 @@ class ChatBot:
     _joined_channels: list[str] = []
     _main_event_loop: asyncio.AbstractEventLoop
 
-    def __init__(self, db_session_factory: Callable[[], AsyncSession], state_manager: StateManager, mqtt: MQTTClient) -> None:
+    def __init__(
+        self,
+        db_session_factory: Callable[[], AsyncSession],
+        state_manager: StateManager,
+        mqtt: MQTTClient,
+        statistics: StatisticsService | None = None,
+    ) -> None:
         self._user_list_manager = UserListManager()
         self._twitch: Twitch = None  # type: ignore
         self._db_session_factory = db_session_factory
+        self._statistics = statistics
         self._handler_manager: MessagesHandlerManager = MessagesHandlerManager(
             state_manager, self.send_message, self._db_session_factory
         )
         self._command_manager = CommandsManager(
-            state_manager, self.send_message, self._db_session_factory
+            state_manager, self.send_message, self._db_session_factory, statistics=statistics
         )
         self._msg_q: deque[UUID] = deque(maxlen=32)
         self._mqtt = mqtt
@@ -118,6 +127,8 @@ class ChatBot:
             await self.send_message_via_api(chat, message)
         else:
             await self.send_message_via_broker(chat, message)
+        if self._statistics is not None:
+            self._statistics.inc(StatsType.MESSAGE_OUTGOING)
 
     async def send_message_via_broker(self, chat: User, message: str) -> None:
         "/twitch/outgoing/chat/+"
@@ -193,12 +204,8 @@ class ChatBot:
         else:
             message = raw_message
 
-        # Filtering duplicates: DISABLED because works bad :<
-        # msg_id = message.source_message_id or message.message_id
-        # if msg_id in self._msg_q:
-        #     logger.info(f"Skip message ID={msg_id} because of already handled")
-        #     return
-        # self._msg_q.append(msg_id)
+        if self._statistics is not None:
+            self._statistics.inc(StatsType.MESSAGE_INCOMING)
 
         channel = message.broadcaster_user_login
 

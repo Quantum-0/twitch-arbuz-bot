@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}Мониторинг сервиса — Quantum0's Bot{% endblock %}
+{% block description %}Графики активности сервиса: входящие/исходящие сообщения, награды и команды.{% endblock %}
+
+{% block styles %}
+.stats-page { max-width: 1100px; margin: 0 auto; }
+.stats-controls {
+    display: flex; flex-wrap: wrap; gap: 12px; align-items: end;
+    margin-bottom: 18px; padding: 16px; border-radius: 12px;
+    background: var(--glass-bg, rgba(255,255,255,0.05));
+}
+.stats-controls label { display: flex; flex-direction: column; gap: 4px; font-size: 0.85em; }
+.stats-controls select, .stats-controls input { padding: 6px 8px; border-radius: 8px; border: 1px solid var(--border, #444); background: var(--bg, #222); color: var(--fg, #eee); }
+.stats-controls button { padding: 8px 18px; border-radius: 8px; border: 0; cursor: pointer; background: #6c4dff; color: white; }
+#statsChart { background: var(--bg, #1a1a1a); border-radius: 12px; }
+.stats-empty { color: var(--muted, #888); padding: 30px; text-align: center; }
+{% endblock %}
+
+{% block content %}
+<div class="stats-page">
+    <h2>Мониторинг сервиса</h2>
+    <p class="muted">Метрики агрегируются по 10-минутным бакетам и сохраняются в БД. Время — UTC, на фронте конвертируется в локальное.</p>
+
+    <div class="stats-controls">
+        <label>Тип
+            <select id="stats-type">
+                <option value="message_incoming">Входящие сообщения</option>
+                <option value="message_outgoing">Исходящие сообщения</option>
+                <option value="reward_memecoins">Награды: мемкоины</option>
+                <option value="reward_ai_stickers">Награды: ИИ-стикеры</option>
+                <option value="command_handled">Команды (по имени)</option>
+            </select>
+        </label>
+        <label>Подтип
+            <select id="stats-subtype">
+                <option value="">(все)</option>
+            </select>
+        </label>
+        <label>Период
+            <select id="stats-period">
+                <option value="10m">10 минут</option>
+                <option value="1h">1 час</option>
+                <option value="3h">3 часа</option>
+                <option value="6h">6 часов</option>
+                <option value="1d">1 день</option>
+            </select>
+        </label>
+        <label>От (UTC)
+            <input type="datetime-local" id="stats-from">
+        </label>
+        <label>До (UTC)
+            <input type="datetime-local" id="stats-to">
+        </label>
+        <button id="stats-refresh">Обновить</button>
+    </div>
+
+    <div class="stats-empty" id="stats-empty">Загрузка…</div>
+    <canvas id="statsChart" height="120"></canvas>
+</div>
+{% endblock %}
+
+{% block head_scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+{% endblock %}
+
+{% block body_scripts %}
+<script src="/static/js/stats.js"></script>
+{% endblock %}
