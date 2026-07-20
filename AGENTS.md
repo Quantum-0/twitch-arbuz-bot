@@ -77,6 +77,7 @@ routers/
         user/            # подроутеры /api/user/*
             memealerts.py
             streamers.py # /api/user/streamers — список стримеров с фильтрами
+            stats.py     # /api/user/stats — метрики мониторинга (графики)
 services/                # бизнес-логика
     cache.py             # Cache (Redis)
     redis_state_manager.py # StateManager — стейт в Redis (cooldown, лурки, пирамидка)
@@ -85,6 +86,7 @@ services/                # бизнес-логика
     eventsub_service.py  # обработка EventSub (подписка из MQTT)
     slovotron.py         # словотрон (обработка webhook'ов из MQTT)
     memes.py / memes_v2.py # Memealerts API (выдача мемкоинов, refresh токенов)
+    statistics.py        # StatisticsService — сбор метрик мониторинга (Redis + дамп в БД)
     ...
 twitch/                  # чат-бот
     chat/
@@ -99,11 +101,15 @@ templates/               # Jinja2-шаблоны
 static/                  # статика (CSS, JS, изображения)
     styles.css
     js/streamers.js      # /streamers page (фильтры + сортировка)
+    js/stats.js          # /stats page (графики Chart.js, синхронизация фильтров с URL)
 utils/                   # хелперы
     streamers.py         # список стримеров с фильтрами/сортировкой
     streamers_sort.py    # compute_streamer_score (рекомендуемая сортировка)
     overlays.py          # touch_overlay_usage — обновление overlays_last_usage
 schemas/                 # Pydantic-схемы API
+    api.py              # StatsType, StatsPeriod, StatsPoint/ResponseSchema и пр.
+templates/
+    stats.html          # /stats — страница графиков мониторинга
 ```
 
 ## Миграции БД
@@ -177,9 +183,80 @@ schemas/                 # Pydantic-схемы API
 5. API: `/api/user/streamers` отдаёт `total_count`/`commands_count` для сортировки,
    `/api/user/profile/<name>` — топ-N активных юзеров канала.
 
-## Таблица статистики сообщений за 10 минут (план, не реализовано)
+## Подсистема статистики мониторинга (реализовано)
 
-Полноценная подсистема метрик для графиков активности на странице /monitoring.
+Полноценная подсистема метрик для графиков активности на странице `/stats`.
+Модель `Statistics` (`database/models.py`), сервис `StatisticsService`
+(`services/statistics.py`), API `/api/user/stats`, фронт `/stats`.
+
+### Модель `Statistics`
+
+Таблица `statistics`:
+- `id` (serial PK, суррогатный — нужен только чтобы SQLAlchemy-маппер собрался).
+- `bucket_ts` (timestamptz, NOT NULL) — начало 10-минутного бакета (UTC, округлено вниз).
+- `type` (varchar(64), NOT NULL) — `message_incoming` | `message_outgoing` | `reward_memecoins` |
+  `reward_ai_stickers` | `command_handled`.
+- `subtype` (varchar(64), NOT NULL, default `""`) — для `reward_*`: `received`/`succeed`/`failed`/
+  `success`/`failed_on_moderation`; для `command_handled` — имя команды; для `message_*` — `""`.
+- `channel_id` (bigint, NULL) — twitch_id канала (на будущее для разбивки по каналам; в MVP всегда NULL).
+- `count` (int, NOT NULL, default 0).
+
+Уникальный индекс `statistics_pk` по `(bucket_ts, type, subtype, channel_id)` с
+`NULLS NOT DISTINCT` (Postgres ≥ 15) — чтобы `ON CONFLICT DO UPDATE` корректно
+схлопывал строки с `channel_id=NULL`. Доп. индексы: `ix_statistics_type_bucket`, `ix_statistics_bucket_ts`.
+
+### `StatisticsService` (`services/statistics.py`)
+
+- Счётчики накапливаются в Redis-хэшах `statistics:bucket:<ISO-UTC>` (один хэш на
+  10-минутный бакет), поле `f"{type}:{subtype}:{channel_id or ''}"`, TTL 2ч.
+  Инкремент — атомарный `hincrby` через `asyncio.create_task` (fire-and-forget, не
+  блокирует обработку сообщений).
+- `inc(type, subtype="", channel_id=None)` — точка инкремента. Метод **синхронный**
+  (возвращает `None`), сам создаёт таску — вызывать без `await`.
+- `flush_to_db()` — APScheduler-джоб раз в 10 мин (`dependencies.py`): SCAN'ит все
+  `statistics:bucket:*` старше текущего бакета, для каждого `HGETALL` + батч
+  `pg_insert(...).on_conflict_do_update(... count = old + EXCLUDED.count)`. После
+  успешного INSERT ключ в Redis удаляется; при ошибке остаётся для переигрывания.
+- `cleanup_old_data()` — APScheduler-джоб раз в сутки (04:00 UTC), удаляет строки
+  старше 90 дней (`RETENTION_DAYS`).
+- `get_chart(type, subtype, channel_id, period, dt_from, dt_to)` — возвращает ряд
+  точек `(bucket_ts, count)` с **zero-fill пустых бакетов** внутри диапазона
+  (чтобы график был непрерывным). Агрегация по периоду через Postgres `date_bin`.
+  Диапазон жёстко ограничен по периоду (10m→1д, 1h→5д, 3h→14д, 6h→30д, 1d→90д).
+
+### Точки инкремента
+
+- `twitch/chat/bot.py:on_message` (после валидации схемы) → `inc("message_incoming")`.
+- `twitch/chat/bot.py:send_message` (после успешной отправки) → `inc("message_outgoing")`.
+- `twitch/chat/command_manager.py:handle` (после `cmd.handle`) → `inc("command_handled", subtype=cmd.command_name)`.
+- `services/eventsub_service.py:reward_buy_memealerts` → `inc("reward_memecoins", subtype="received"|"succeed"|"failed")`.
+- `services/eventsub_service.py:reward_ai_sticker` → `inc("reward_ai_stickers", subtype="received"|"success"|"failed_on_moderation")`.
+
+Инъекция `StatisticsService` — через DI в `ChatBot` и `TwitchEventSubService`
+(см. `container.py`); вызывается как `self._statistics.inc(...)` (без `await`).
+
+### API `/api/user/stats`
+
+`routers/api/user/stats.py` — `GET /api/user/stats` с `Security(user_auth)`.
+Query: `type` (StatsType), `subtype`, `channel`, `period` (10m|1h|3h|6h|1d),
+`from`/`to` (UTC ISO). Возвращает `StatsResponseSchema` (`{type, subtype, period, points}`).
+
+Схемы в `schemas/api.py`: `StatsType` (StrEnum), `StatsPeriod` (StrEnum),
+`StatsPointSchema` (`datetime` UTC, `value` int), `StatsResponseSchema`.
+
+### Фронт `/stats`
+
+`templates/stats.html` + `static/js/stats.js`: Chart.js (CDN v4), селекторы
+type/subtype/period/dates. Фильтры синхронизируются с URL (shareable links).
+Tooltip показывает значение + `Average RPS = value / bucket_seconds`.
+
+### Метрика «среднее время обработки сообщения» (план, не реализовано)
+
+Цель: среднее время (мс) от получения сообщения (`on_message`) до окончания
+обработки, **не учитывая** намеренные `asyncio.sleep` (драматические паузы в
+`IAmBotHandler`, розыгрыш `!трусы`) и fire-and-forget фоновые задачи
+(`!трусы`'s `finish_raffle` через `asyncio.create_task` — уже не блокирует
+`on_message`, поэтому автоматически исключается).
 
 План:
 1. Модель `Statistics(bucket_ts timestamptz, type varchar, subtype varchar | null,`
