@@ -1,3 +1,4 @@
+import asyncio
 from typing import Annotated, AsyncGenerator
 from uuid import UUID, uuid3
 
@@ -17,6 +18,11 @@ from utils.enums import SSEChannel
 import sqlalchemy as sa
 
 router = APIRouter(prefix="/sse", tags=["SSE"])
+
+# Интервал heartbeat-комментария `: ping\n\n` и таймаут чтения из очереди.
+# Keep-alive держит соединение живым через прокси/роутеры и быстро детектит
+# отвалившихся клиентов, а не ждёт следующего сообщения.
+SSE_HEARTBEAT_S = 15
 
 
 @router.get("/{user_id}/{channel}", response_class=StreamingResponse)
@@ -46,13 +52,21 @@ async def sse(
         return "".join(f"data: {line}\n" for line in data.splitlines()) + "\n"
 
     async def event_generator() -> AsyncGenerator[str, None]:
+        # Просим браузер реконнектиться через 1с (дефолт ~3с) — меньше шансов
+        # попасть в окно между дисконнектом и новым connect().
+        yield "retry: 1000\n\n"
         try:
             while True:
                 if await request.is_disconnected():
                     break
 
-                data = await conn.queue.get()
-                yield sse_format(data)
+                try:
+                    data = await asyncio.wait_for(conn.queue.get(), timeout=SSE_HEARTBEAT_S)
+                    yield sse_format(data)
+                except TimeoutError:
+                    # SSE-комментарий-keepalive: не создаёт события у клиента,
+                    # но держит TCP-соединение живым и сбрасывает idle-таймауты прокси.
+                    yield ": ping\n\n"
         finally:
             await ssem.disconnect(user_id, channel, conn)
 

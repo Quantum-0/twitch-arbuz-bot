@@ -264,7 +264,7 @@ class TwitchEventSubService():
             await self._cancel_redemption(user, payload)
             return
 
-        if not self._ssem.has_clients(int(user.twitch_id), SSEChannel.AI_STICKER):
+        if not await self._ssem.has_clients(int(user.twitch_id), SSEChannel.AI_STICKER):
             logger.warning("No user connected to SSE")
             await self._chatbot.send_message(user, "Оверлей для ИИ стикеров не подключён в OBS. Баллы возвращены!")
             await self._cancel_redemption(user, payload)

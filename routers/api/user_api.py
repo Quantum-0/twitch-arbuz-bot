@@ -113,7 +113,7 @@ async def check_user_sse_connected(
     user: User = Security(user_auth),
     channel: SSEChannel | None = None,
 ) -> CheckStatusResponseSchema:
-    result = ssem.has_clients(int(user.twitch_id), channel)
+    result = await ssem.has_clients(int(user.twitch_id), channel)
     return CheckStatusResponseSchema(result=result, problems=["OBS не открыт или оверлей не установлен"] if not result else [])
 
 

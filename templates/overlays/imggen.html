@@ -74,6 +74,13 @@
 
     const eventSource = new EventSource(SSE_URL);
 
+    eventSource.onopen = () => {
+        // При (ре)коннекте сразу проверяем пропущенные стикеры — чтобы те, что
+        // были сгенерированы в окно разрыва соединения, прилетели мгновенно,
+        // не дожидаясь ближайшего 30-секундного опроса.
+        checkMissingStickers();
+    };
+
     eventSource.onmessage = (event) => {
         try {
             const data = JSON.parse(event.data);
