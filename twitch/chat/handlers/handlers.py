@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from database.models import TwitchUserSettings, User
 from schemas.twitch import ChatMessageWebhookEventSchema
 from twitch.state_manager import SMParam, StateManager
+from utils.misc import call_with_delay
 
 logger = logging.getLogger(__name__)
 tracer = trace.get_tracer(__name__)
@@ -376,10 +377,18 @@ class IAmBotHandler(CommonMessagesHandler):
     ) -> HandlerResult:
         if re.match(r"@quantum075bot .{0,5}бот\?", message.message.text.lower()):
             if random.random() < 0.1:
-                await asyncio.sleep(0.5)
-                await self.send_response(chat=streamer, message=f"Конеяно я бот!") # опечатка намеренно
-                await asyncio.sleep(2)
-                await self.send_response(chat=streamer, message=f"конечно* 👀")
+                asyncio.create_task(
+                    call_with_delay(
+                        0.5,
+                        self.send_response(chat=streamer, message="Конеяно я бот!"),  # опечатка намеренно
+                    )
+                )
+                asyncio.create_task(
+                    call_with_delay(
+                        2.5,
+                        self.send_response(chat=streamer, message="конечно* 👀"),
+                    )
+                )
             else:
                 replies = [
                     f"@{message.chatter_user_name}, конечно я бот! Какие могут быть сомнения?",

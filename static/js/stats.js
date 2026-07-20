@@ -12,6 +12,7 @@
         reward_memecoins: ["", "received", "succeed", "failed"],
         reward_ai_stickers: ["", "received", "success", "failed_on_moderation"],
         command_handled: null, // subtype = имя команды; список динамический — оставляем пустым (все)
+        message_processing_time: [""],
     };
 
     const SUBTYPE_LABELS = {
@@ -29,7 +30,12 @@
         reward_memecoins: "Награды: мемкоины",
         reward_ai_stickers: "Награды: ИИ-стикеры",
         command_handled: "Команды",
+        message_processing_time: "Время обработки сообщения",
     };
+
+    // Типы метрик, для которых значение — это «среднее» (мс), а не «количество».
+    // Для них тултип показывает «Avg: X ms», а не RPS.
+    const TIMING_TYPES = new Set(["message_processing_time"]);
 
     // Дефолтный показываемый диапазон при отсутствии ?from= в URL.
     // Не равен максимальному разрешённому окну API — выбран поменьше, чтобы
@@ -219,7 +225,7 @@
         return rps.toFixed(4);
     }
 
-    function renderChart(points, typeLabel, subtypeLabel, period) {
+    function renderChart(points, typeLabel, subtypeLabel, period, typeValue) {
         if (!points || points.length === 0) {
             renderEmpty("Нет данных за выбранный период.");
             return;
@@ -236,6 +242,7 @@
         // (server вернул с zero-fill'ом — должен идти равномерно), берём
         // разницу между соседними точками; для единственной точки — длительность периода.
         const bucketSeconds = PERIOD_SECONDS[period] || 600;
+        const isTiming = TIMING_TYPES.has(typeValue);
 
         destroyChart();
         const colors = themeColors();
@@ -283,6 +290,12 @@
                             title: (items) => items[0].label,
                             label: (item) => {
                                 const value = item.parsed.y;
+                                if (isTiming) {
+                                    // value = avg ms за бакет (уже усреднённое сервером).
+                                    return [
+                                        `${item.dataset.label}: ${value} ms`,
+                                    ];
+                                }
                                 const rps = value / bucketSeconds;
                                 return [
                                     `${item.dataset.label}: ${value}`,
@@ -313,7 +326,7 @@
             const payload = await resp.json();
             const typeLabel = TYPE_LABELS[payload.type] || payload.type;
             const subtypeLabel = payload.subtype ? SUBTYPE_LABELS[payload.subtype] || payload.subtype : "";
-            renderChart(payload.points, typeLabel, subtypeLabel, payload.period);
+            renderChart(payload.points, typeLabel, subtypeLabel, payload.period, payload.type);
         } catch (e) {
             console.error(e);
             renderEmpty("Ошибка сети при загрузке данных.");

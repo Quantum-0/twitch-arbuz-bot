@@ -362,6 +362,17 @@ class Statistics(Base):
         doc="twitch_id канала (на будущее для разбивки по каналам). В MVP всегда NULL — тотал по сервису.",
     )
     count: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    sum_ms: Mapped[int | None] = mapped_column(
+        BigInteger,
+        nullable=True,
+        default=0,
+        server_default="0",
+        doc=(
+            "Сумма миллисекунд для timing-метрик (например, message_processing_time): "
+            "count — число замеров, sum_ms — суммарное время. avg = sum_ms / count. "
+            "Для count-метрик остаётся 0/NULL."
+        ),
+    )
 
 
 @event.listens_for(User, "after_insert")

@@ -48,6 +48,10 @@ PERIOD_CONFIG: dict[StatsPeriod, tuple[int, timedelta]] = {
     StatsPeriod.ONE_DAY: (24 * 60 * 60, timedelta(days=90)),
 }
 
+# Множество типов метрик, для которых ``sum_ms`` несёт смысл (timing-метрики).
+# Для них ``get_chart`` возвращает avg = sum_ms / count, а не sum(count).
+TIMING_TYPES: set[str] = {str(StatsType.MESSAGE_PROCESSING_TIME)}
+
 
 def _floor_to_bucket(dt: datetime, step_seconds: int) -> datetime:
     """Округляет ``dt`` вниз до начала бакета длиной ``step_seconds`` (UTC)."""
@@ -126,6 +130,27 @@ class StatisticsService:
         self._tasks.add(task)
         task.add_done_callback(self._tasks.discard)
 
+    def inc_timing(
+        self,
+        type_: str | StatsType,
+        subtype: str = "",
+        value_ms: int = 0,
+        channel_id: int | None = None,
+    ) -> None:
+        """Fire-and-forget замер времени: инкремент count и sum_ms.
+
+        Аналогично ``inc``, но в Redis-хэше инкрементит сразу два поля — ``count``
+        (число замеров) и ``sum_ms`` (суммарное время в мс). При ``flush_to_db``
+        оба поля пишутся в БД; ``get_chart`` для timing-метрик возвращает avg =
+        ``sum_ms / count`` вместо суммы count.
+        """
+        if self._r is None:
+            return
+        coro = self._inc_timing(str(type_), subtype, channel_id, value_ms)
+        task = asyncio.create_task(coro)
+        self._tasks.add(task)
+        task.add_done_callback(self._tasks.discard)
+
     async def _inc(self, type_: str, subtype: str, channel_id: int | None) -> None:
         if self._r is None:
             return
@@ -139,6 +164,29 @@ class StatisticsService:
             await pipe.execute()
         except Exception:
             logger.error("Statistics inc failed for type=%s subtype=%s", type_, subtype, exc_info=True)
+
+    async def _inc_timing(
+        self, type_: str, subtype: str, channel_id: int | None, value_ms: int
+    ) -> None:
+        if self._r is None:
+            return
+        try:
+            bucket = _floor_to_bucket(datetime.now(UTC), BUCKET_SECONDS)
+            key = self._bucket_key(bucket)
+            count_field = _field_for(type_, subtype, channel_id)
+            sum_ms_field = _field_for(f"{type_}:sum_ms", subtype, channel_id)
+            pipe = self._r.pipeline(transaction=False)
+            pipe.hincrby(key, count_field, 1)
+            pipe.hincrby(key, sum_ms_field, value_ms)
+            pipe.expire(key, self.HASH_TTL_SECONDS)
+            await pipe.execute()
+        except Exception:
+            logger.error(
+                "Statistics inc_timing failed for type=%s subtype=%s",
+                type_,
+                subtype,
+                exc_info=True,
+            )
 
     def _bucket_key(self, bucket: datetime) -> str:
         return self.HASH_KEY_PREFIX + bucket.strftime("%Y-%m-%dT%H:%M:%S")
@@ -190,28 +238,7 @@ class StatisticsService:
             return
         if not raw:
             return
-        rows: list[dict[str, Any]] = []
-        for field, value in raw.items():
-            if isinstance(field, bytes):
-                field = field.decode("utf-8")
-            if isinstance(value, bytes):
-                value_str = value.decode("utf-8")
-            else:
-                value_str = value
-            try:
-                count = int(value_str)
-            except ValueError:
-                continue
-            type_, subtype, channel_id = _parse_field(field)
-            rows.append(
-                {
-                    "bucket_ts": bucket,
-                    "type": type_,
-                    "subtype": subtype,
-                    "channel_id": channel_id,
-                    "count": count,
-                }
-            )
+        rows = self._build_rows_from_hash(raw, bucket)
         if not rows:
             return
         try:
@@ -221,7 +248,10 @@ class StatisticsService:
                     .values(rows)
                     .on_conflict_do_update(
                         index_elements=["bucket_ts", "type", "subtype", "channel_id"],
-                        set_={"count": Statistics.__table__.c.count + pg_insert(Statistics).excluded.count},
+                        set_={
+                            "count": Statistics.__table__.c.count + pg_insert(Statistics).excluded.count,
+                            "sum_ms": Statistics.__table__.c.sum_ms + pg_insert(Statistics).excluded.sum_ms,
+                        },
                     )
                 )
                 await session.execute(stmt)
@@ -229,6 +259,68 @@ class StatisticsService:
             await self._r.delete(key)
         except Exception:
             logger.error("Statistics flush: DB insert failed for bucket=%s", bucket.isoformat(), exc_info=True)
+
+    @staticmethod
+    def _build_rows_from_hash(
+        raw: dict[Any, Any], bucket: datetime
+    ) -> list[dict[str, Any]]:
+        """Превращает HGETALL-ответ Redis в список строк для INSERT.
+
+        Timing-метрики пишутся через ``inc_timing`` двумя полями: ``count`` и
+        ``<type>:sum_ms``. Здесь они джойнятся обратно по ``(type, subtype, channel_id)``.
+       """
+        # Сначала разбиваем поля на count- и sum_ms-карты по общему ключу.
+        counts: dict[tuple[str, str, int | None], int] = {}
+        sum_ms: dict[tuple[str, str, int | None], int] = {}
+        for field, value in raw.items():
+            if isinstance(field, bytes):
+                field = field.decode("utf-8")
+            if isinstance(value, bytes):
+                value_str = value.decode("utf-8")
+            else:
+                value_str = value
+            try:
+                ivalue = int(value_str)
+            except ValueError:
+                continue
+            type_, subtype, channel_id = _parse_field(field)
+            if type_.endswith(":sum_ms"):
+                base_type = type_[: -len(":sum_ms")]
+                sum_ms[(base_type, subtype, channel_id)] = ivalue
+            else:
+                counts[(type_, subtype, channel_id)] = ivalue
+
+        # Собираем строки: для каждого count-поля — его значение; если есть
+        # парный sum_ms — добавляем (timing-метрика); для count-метрик sum_ms
+        # остаётся None (БД хранит default 0).
+        rows: list[dict[str, Any]] = []
+        for key_, count in counts.items():
+            type_, subtype, channel_id = key_
+            row: dict[str, Any] = {
+                "bucket_ts": bucket,
+                "type": type_,
+                "subtype": subtype,
+                "channel_id": channel_id,
+                "count": count,
+            }
+            ms = sum_ms.pop(key_, None)
+            if ms is not None:
+                row["sum_ms"] = ms
+            rows.append(row)
+        # Оставшиеся sum_ms-поля без пары (маловероятно): пишем с count=0,
+        # чтобы не потерять данные.
+        for type_, subtype, channel_id in sum_ms:
+            rows.append(
+                {
+                    "bucket_ts": bucket,
+                    "type": type_,
+                    "subtype": subtype,
+                    "channel_id": channel_id,
+                    "count": 0,
+                    "sum_ms": sum_ms[(type_, subtype, channel_id)],
+                }
+            )
+        return rows
 
     def _parse_bucket_key(self, key: str) -> datetime | None:
         if not key.startswith(self.HASH_KEY_PREFIX):
@@ -303,7 +395,12 @@ class StatisticsService:
         dt_from: datetime | None = None,
         dt_to: datetime | None = None,
     ) -> list[tuple[datetime, int]]:
-        """Возвращает ряд точек (bucket_ts, count) для графика.
+        """Возвращает ряд точек (bucket_ts, value) для графика.
+
+        Для count-метрик ``value`` — сумма ``count`` внутри бакета.
+        Для timing-метрик (``type_`` в ``TIMING_TYPES``) ``value`` — среднее
+        время в мс = ``sum(sum_ms) / sum(count)`` (округляется до int). Если
+        ``count == 0`` в бакете — ``value = 0``.
 
         Гарантированно заполняет нулями пустые бакеты внутри запрошенного
         диапазона (даже те, для которых в БД нет строк) — чтобы на фронте
@@ -311,6 +408,7 @@ class StatisticsService:
         """
         step_seconds, max_window = PERIOD_CONFIG[period]
         type_str = str(type_)
+        is_timing = type_str in TIMING_TYPES
 
         dt_to, dt_from = self._normalize_range(dt_from, dt_to, max_window)
         if dt_from >= dt_to:
@@ -329,23 +427,24 @@ class StatisticsService:
             start=start,
             end=end,
             step_seconds=step_seconds,
+            is_timing=is_timing,
         )
 
-        # Нормализуем ключи к началу бакета и собираем карту bucket -> count.
-        counts: dict[datetime, int] = {}
-        for bucket_ts, count in rows:
+        # Нормализуем ключи к началу бакета и собираем карту bucket -> value.
+        values: dict[datetime, int] = {}
+        for bucket_ts, value in rows:
             if bucket_ts.tzinfo is None:
                 bucket_ts = bucket_ts.replace(tzinfo=UTC)
             else:
                 bucket_ts = bucket_ts.astimezone(UTC)
             floored = _floor_to_bucket(bucket_ts, step_seconds)
-            counts[floored] = counts.get(floored, 0) + count
+            values[floored] = values.get(floored, 0) + value
 
         # Заполняем нулями пустые бакеты в диапазоне.
         result: list[tuple[datetime, int]] = []
         cur = start
         while cur < end:
-            result.append((cur, counts.get(cur, 0)))
+            result.append((cur, values.get(cur, 0)))
             cur = cur + timedelta(seconds=step_seconds)
         return result
 
@@ -358,11 +457,15 @@ class StatisticsService:
         start: datetime,
         end: datetime,
         step_seconds: int,
+        is_timing: bool = False,
     ) -> list[tuple[datetime, int]]:
         """Аггерирует данные из ``statistics`` по бакетам длиной ``step_seconds``.
 
         Использует Postgres-функцию ``date_bin``, чтобы внутри запрошенного
         периода (например, 1d) склеить несколько 10-минутных записей в один бакет.
+
+        Для timing-метрик (``is_timing=True``) возвращает ``sum_ms / count``
+        (avg), для обычных — ``sum(count)``.
         """
         try:
             async with self._db() as session:
@@ -371,8 +474,17 @@ class StatisticsService:
                     Statistics.bucket_ts,
                     sa.text("timestamp '2000-01-01 00:00:00+00'"),
                 ).label("bucket")
+                if is_timing:
+                    # avg = sum(sum_ms) / NULLIF(sum(count), 0) — для пустых бакетов NULL→0
+                    value_expr = sa.func.coalesce(
+                        sa.func.sum(Statistics.sum_ms)
+                        / sa.func.nullif(sa.func.sum(Statistics.count), 0),
+                        0,
+                    ).label("value")
+                else:
+                    value_expr = sa.func.sum(Statistics.count).label("value")
                 stmt = (
-                    sa.select(bucket_expr, sa.func.sum(Statistics.count))
+                    sa.select(bucket_expr, value_expr)
                     .where(Statistics.type == type_str)
                     .where(Statistics.bucket_ts >= start)
                     .where(Statistics.bucket_ts < end)

@@ -84,6 +84,9 @@ class StatsType(StrEnum):
     REWARD_MEMECOINS = "reward_memecoins"
     REWARD_AI_STICKERS = "reward_ai_stickers"
     COMMAND_HANDLED = "command_handled"
+    # Timing-метрика: avg время (мс) от on_message до первого send_message.
+    # В таблице: count — число замеров, sum_ms — суммарное время.
+    MESSAGE_PROCESSING_TIME = "message_processing_time"
 
 
 class StatsPeriod(StrEnum):

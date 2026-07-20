@@ -195,11 +195,13 @@ templates/
 - `id` (serial PK, суррогатный — нужен только чтобы SQLAlchemy-маппер собрался).
 - `bucket_ts` (timestamptz, NOT NULL) — начало 10-минутного бакета (UTC, округлено вниз).
 - `type` (varchar(64), NOT NULL) — `message_incoming` | `message_outgoing` | `reward_memecoins` |
-  `reward_ai_stickers` | `command_handled`.
+  `reward_ai_stickers` | `command_handled` | `message_processing_time`.
 - `subtype` (varchar(64), NOT NULL, default `""`) — для `reward_*`: `received`/`succeed`/`failed`/
   `success`/`failed_on_moderation`; для `command_handled` — имя команды; для `message_*` — `""`.
 - `channel_id` (bigint, NULL) — twitch_id канала (на будущее для разбивки по каналам; в MVP всегда NULL).
 - `count` (int, NOT NULL, default 0).
+- `sum_ms` (bigint, NULL, default 0) — для timing-метрик (`message_processing_time`):
+  суммарное мс замеров в бакете. avg = `sum_ms / count`. Для count-метрик остаётся 0.
 
 Уникальный индекс `statistics_pk` по `(bucket_ts, type, subtype, channel_id)` с
 `NULLS NOT DISTINCT` (Postgres ≥ 15) — чтобы `ON CONFLICT DO UPDATE` корректно
@@ -211,29 +213,49 @@ templates/
   10-минутный бакет), поле `f"{type}:{subtype}:{channel_id or ''}"`, TTL 2ч.
   Инкремент — атомарный `hincrby` через `asyncio.create_task` (fire-and-forget, не
   блокирует обработку сообщений).
-- `inc(type, subtype="", channel_id=None)` — точка инкремента. Метод **синхронный**
-  (возвращает `None`), сам создаёт таску — вызывать без `await`.
+- `inc(type, subtype="", channel_id=None)` — точка инкремента count-метрики. Метод
+  **синхронный** (возвращает `None`), сам создаёт таску — вызывать без `await`.
+- `inc_timing(type, subtype="", value_ms=0, channel_id=None)` — точка инкремента
+  timing-метрики: пишет в Redis два поля (`count` + `sum_ms`). Аналогично
+  синхронный, fire-and-forget. Поле `sum_ms` хранится с суффиксом `:sum_ms` в
+  имени (например, `message_processing_time::sum_ms:`).
 - `flush_to_db()` — APScheduler-джоб раз в 10 мин (`dependencies.py`): SCAN'ит все
   `statistics:bucket:*` старше текущего бакета, для каждого `HGETALL` + батч
-  `pg_insert(...).on_conflict_do_update(... count = old + EXCLUDED.count)`. После
-  успешного INSERT ключ в Redis удаляется; при ошибке остаётся для переигрывания.
+  `pg_insert(...).on_conflict_do_update(... count = old + EXCLUDED.count,
+  sum_ms = old + EXCLUDED.sum_ms)`. После успешного INSERT ключ в Redis
+  удаляется; при ошибке остаётся для переигрывания. Для timing-метрик парные
+  `count` и `sum_ms` поля в Redis-хэше джойнятся по `(type, subtype, channel_id)`.
 - `cleanup_old_data()` — APScheduler-джоб раз в сутки (04:00 UTC), удаляет строки
   старше 90 дней (`RETENTION_DAYS`).
 - `get_chart(type, subtype, channel_id, period, dt_from, dt_to)` — возвращает ряд
-  точек `(bucket_ts, count)` с **zero-fill пустых бакетов** внутри диапазона
+  точек `(bucket_ts, value)` с **zero-fill пустых бакетов** внутри диапазона
   (чтобы график был непрерывным). Агрегация по периоду через Postgres `date_bin`.
   Диапазон жёстко ограничен по периоду (10m→1д, 1h→5д, 3h→14д, 6h→30д, 1d→90д).
+  Для типов из `TIMING_TYPES` (см. ниже) `value` = `sum(sum_ms) / sum(count)` (avg
+  ms), для остальных — `sum(count)`.
+
+### `TIMING_TYPES`
+
+Множество строковых представлений `StatsType`, для которых `sum_ms` несёт смысл
+( timing-метрики). Сейчас: `{str(StatsType.MESSAGE_PROCESSING_TIME)}`. Для них
+`get_chart` возвращает avg, фронт показывает «X ms» вместо RPS. Расширяемо —
+добавить новый timing-тип = добавить значение в `StatsType` + в `TIMING_TYPES`.
 
 ### Точки инкремента
 
 - `twitch/chat/bot.py:on_message` (после валидации схемы) → `inc("message_incoming")`.
+  Также выставляет `_message_processing_start` ContextVar (monotonic) для замера
+  processing time (см. ниже).
 - `twitch/chat/bot.py:send_message` (после успешной отправки) → `inc("message_outgoing")`.
+  При первом ответе в задаче — ещё и `inc_timing("message_processing_time", value_ms=elapsed)`,
+  затем сбрасывает ContextVar в `None`.
 - `twitch/chat/command_manager.py:handle` (после `cmd.handle`) → `inc("command_handled", subtype=cmd.command_name)`.
 - `services/eventsub_service.py:reward_buy_memealerts` → `inc("reward_memecoins", subtype="received"|"succeed"|"failed")`.
 - `services/eventsub_service.py:reward_ai_sticker` → `inc("reward_ai_stickers", subtype="received"|"success"|"failed_on_moderation")`.
 
 Инъекция `StatisticsService` — через DI в `ChatBot` и `TwitchEventSubService`
-(см. `container.py`); вызывается как `self._statistics.inc(...)` (без `await`).
+(см. `container.py`); вызывается как `self._statistics.inc(...)` или
+`self._statistics.inc_timing(...)` (без `await`).
 
 ### API `/api/user/stats`
 
@@ -248,35 +270,52 @@ Query: `type` (StatsType), `subtype`, `channel`, `period` (10m|1h|3h|6h|1d),
 
 `templates/stats.html` + `static/js/stats.js`: Chart.js (CDN v4), селекторы
 type/subtype/period/dates. Фильтры синхронизируются с URL (shareable links).
-Tooltip показывает значение + `Average RPS = value / bucket_seconds`.
+Tooltip показывает значение + `Average RPS = value / bucket_seconds` для
+count-метрик и `X ms` для timing-метрик (см. ниже).
 
-### Метрика «среднее время обработки сообщения» (план, не реализовано)
+### Метрика «среднее время обработки сообщения» (реализовано)
 
-Цель: среднее время (мс) от получения сообщения (`on_message`) до окончания
-обработки, **не учитывая** намеренные `asyncio.sleep` (драматические паузы в
-`IAmBotHandler`, розыгрыш `!трусы`) и fire-and-forget фоновые задачи
-(`!трусы`'s `finish_raffle` через `asyncio.create_task` — уже не блокирует
-`on_message`, поэтому автоматически исключается).
+Цель: среднее время (мс) от получения сообщения (`on_message`) до **первого**
+отправленного ответа (`send_message`). Намеренные драматические паузы
+(`IAmBotHandler`'s «Конеяно я бот!» → `... * 👀`) и fire-and-forget фоновые
+задачи (`!трусы`'s `finish_raffle` через `asyncio.create_task`) в замер **не
+попадают**: они выполняются в detached-тасках, где ContextVar уже сброшен в
+`None`.
 
-План:
-1. Модель `Statistics(bucket_ts timestamptz, type varchar, subtype varchar | null,`
-   ` count int)`. PK `(bucket_ts, type, subtype)`. Index по `type`, по `bucket_ts`.
-2. Сервис `services/metrics.py`:
-   - Держит в оперативке (или в Redis-хэше) счётчики `dict[(bucket_ts, type, subtype), int]`.
-   - Метод `inc(type, subtype=None)` — вычисляет `bucket_ts = floor(now, 10min)`,
-     инкрементит.
-   - APScheduler-джоб раз в 10 минут (в `dependencies.py:lifespan`): сбрасывает кэш
-     (`dict.copy()` + очистка), батчем INSERT в `Statistics`.
-3. Точки вызова `metrics.inc(...)`:
-   - входящее сообщение: `twitch/chat/bot.py:on_message` → `inc("message_incoming", null)`.
-   - исходящее: `ChatBot.send_message` → `inc("message_outgoing", null)`.
-   - награда мемкоинов: `services/eventsub_service.py` → `inc("reward_memealerts", null)`.
-   - команда: `command_manager.handle` → `inc("command_usage", cmd.command_name)`.
-   - и т.п.
-4. API `/api/admin/stats?resolution=10m|1h|1d&type=...&subtype=...&from=...&to=...`:
-   - SQL: `GROUP BY bucket_trunc(bucket_ts, resolution)` через `date_bin` (Postgres).
-   - Возвращает `[{datetime, value}, ...]`.
-5. UI: `templates/monitoring.html` + `static/js/monitoring_stats.js` (Chart.js из CDN).
+Реализация:
+1. **Расширение таблицы `statistics`**: колонка `sum_ms` (bigint, nullable,
+   default 0). Для count-метрик `sum_ms=0`; для timing-метрик `count` = число
+   замеров, `sum_ms` = суммарное мс. avg = `sum_ms / count`.
+   Миграция: `697cc264199c_add_sum_ms_to_statistics.py` (head).
+2. **`StatisticsService.inc_timing(type, subtype, value_ms)`** (`services/statistics.py`):
+   fire-and-forget, аналогично `inc`, но инкрементит в Redis два поля —
+   `count` (через обычное `_field_for` имя) и `sum_ms` (через суффикс
+   `:sum_ms`). `flush_to_db` (`_dump_one`) джойнит эти два поля по
+   `(type, subtype, channel_id)` и пишет обе колонки через `on_conflict_do_update`.
+   `get_chart` для timing-метрик (см. `TIMING_TYPES`) отдаёт avg =
+   `coalesce(sum(sum_ms) / nullif(sum(count), 0), 0)` вместо `sum(count)`.
+3. **`ContextVar` в `twitch/chat/bot.py`**: `_message_processing_start` (monotonic).
+   - `on_message` выставляет старт **до** вызова handlers/commands.
+   - `send_message` при первом отправленном ответе в задаче замеряет elapsed_ms,
+     вызывает `inc_timing(MESSAGE_PROCESSING_TIME, value_ms=...)` и **сбрасывает
+     ContextVar в `None`**. Поэтому:
+       - повторные `send_message` в той же задаче метрику не дублируют;
+       - detached-таски (созданные через `asyncio.create_task` с копией
+         контекста, где уже `None`) — не пишут метрику вообще.
+   - `on_message` в конце (если не было ответа) тоже сбрасывает ContextVar —
+     на случай, если бы event loop переиспользовал задачу.
+4. **`IAmBotHandler` рефакторинг** (`twitch/chat/handlers/handlers.py:IAmBotHandler`):
+   оба сообщения в ветке «Конеяно я бот!» уходят в detached-таски через
+   `asyncio.create_task(call_with_delay(delay, send_response(...)))`. Это
+   значит `on_message` завершается быстро, `send_message` (через
+   `call_with_delay`'s `await func`) уже видит сброшенный ContextVar — метрика
+   не пишется для delayed-сообщений (как и должно быть). Первое сообщение из
+   другой ветки (нормальный ответ) идёт через обычный `await self.send_response`
+   — оно-то и засчитается в processing time.
+5. **API/фронт**: `StatsType.MESSAGE_PROCESSING_TIME` ("message_processing_time"),
+   для него `get_chart` отдаёт avg ms. Фронт показывает «X ms» вместо RPS.
+   `TIMING_TYPES` множество в `services/statistics.py` управляет, какие типы
+   считаются timing-метриками (расширяемо).
 
 ## Обновление токенов Twitch пользователей (план, не реализовано)
 
