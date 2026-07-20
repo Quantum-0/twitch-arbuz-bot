@@ -137,6 +137,12 @@ class ChatBot:
             await self.send_message_via_broker(chat, message)
         if self._statistics is not None:
             self._statistics.inc(StatsType.MESSAGE_OUTGOING)
+            # Уникальный канал для метрики ACTIVE_CHANNELS (subtype=outgoing).
+            if chat.twitch_id is not None:
+                try:
+                    self._statistics.mark_channel("outgoing", int(chat.twitch_id))
+                except (TypeError, ValueError):
+                    pass
 
         # Замер времени обработки сообщения: от on_message до первого send_message.
         # Сбрасываем ContextVar сразу же, чтобы detached-таски (create_task для
@@ -247,6 +253,12 @@ class ChatBot:
             if user.login_name != message.broadcaster_user_login:
                 user.login_name = message.broadcaster_user_login
             user_settings: TwitchUserSettings = user.settings
+            # Уникальный канал для метрики ACTIVE_CHANNELS (subtype=incoming).
+            if self._statistics is not None and user.twitch_id is not None:
+                try:
+                    self._statistics.mark_channel("incoming", int(user.twitch_id))
+                except (TypeError, ValueError):
+                    pass
             await self._user_list_manager.handle(channel, message)
             await self._command_manager.handle(user_settings, user, message)
             await self._handler_manager.handle(user_settings, user, message)
@@ -292,33 +304,26 @@ class ChatBot:
             )
         ):
             if success:
-                logger.info(
-                    f"Subscribed to EventSub chat messages for {channel.login_name}"
-                )
+                logger.info(f"Subscribed to EventSub chat messages for {channel.login_name}")
             else:
-                logger.error(
-                    f"Error to join user's channel as chat bot. User: `{channel.login_name}`"
-                )
-                if response.get("message") == 'subscription missing proper authorization':
+                logger.error(f"Error to join user's channel as chat bot. User: `{channel.login_name}`")
+                if response.get("message") == "subscription missing proper authorization":
                     remove_channels.add(channel.id)
 
         # Отписываемся от ненужных каналов
         for sub in subs:
-            if sub.type == "channel.chat.message" and sub.condition.get(
-                "broadcaster_user_id"
-            ) not in {channel.twitch_id for channel in desired_channels}:
+            if sub.type == "channel.chat.message" and sub.condition.get("broadcaster_user_id") not in {
+                channel.twitch_id for channel in desired_channels
+            }:
                 await self._twitch.unsubscribe_event_sub(sub.id)
                 logger.info(f"Unsubscribed from {sub.condition}")
 
         # Удаляем из БД ненужные подписки
         if remove_channels:
             delete_banned = await session.execute(
-                sa
-                .update(TwitchUserSettings)
+                sa.update(TwitchUserSettings)
                 .values(enable_chat_bot=False)
-                .where(
-                    TwitchUserSettings.user_id.in_(remove_channels)
-                )
+                .where(TwitchUserSettings.user_id.in_(remove_channels))
                 .returning(TwitchUserSettings.user_id)
             )
             banned = delete_banned.scalars().all()

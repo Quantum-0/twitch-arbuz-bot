@@ -71,6 +71,14 @@ def _field_for(type_: str, subtype: str, channel_id: int | None) -> str:
     return f"{type_}:{subtype}:{'' if channel_id is None else channel_id}"
 
 
+# Суффикс, добавляемый к ``type_`` в имени Redis-поля для ``sum_ms`` timing-метрик.
+# Не содержит двоеточия, чтобы ``_parse_field`` не разбивал его на отдельный
+# subtype (баг, из-за которого sum_ms попадал в БД как строка с subtype="sum_ms"
+# и записывался в колонку count). Распознаётся в ``_build_rows_from_hash`` через
+# ``endswith(SUM_MS_SUFFIX)``.
+SUM_MS_SUFFIX = "__sum_ms"
+
+
 def _parse_field(field: str) -> tuple[str, str, int | None]:
     """Обратное преобразование имени поля хэша в кортеж."""
     type_, subtype, channel = field.split(":", 2)
@@ -94,6 +102,10 @@ class StatisticsService:
     """
 
     HASH_KEY_PREFIX = "statistics:bucket:"
+    # Префикс для Redis-множеств (SET) активных каналов: один SET на бакет и
+    # направление (incoming/outgoing), член множества — twitch_id канала.
+    # SCARD даёт число уникальных каналов, которое пишется в БД как count.
+    CHANNELS_KEY_PREFIX = "statistics:channels:"
     # TTL на flush-ключи в Redis — чтобы при сбоях дампа мусор не копился.
     HASH_TTL_SECONDS = 2 * 60 * 60  # 2 часа
 
@@ -173,7 +185,10 @@ class StatisticsService:
             bucket = _floor_to_bucket(datetime.now(UTC), BUCKET_SECONDS)
             key = self._bucket_key(bucket)
             count_field = _field_for(type_, subtype, channel_id)
-            sum_ms_field = _field_for(f"{type_}:sum_ms", subtype, channel_id)
+            # sum_ms-поле: type_ + SUM_MS_SUFFIX (без двоеточия внутри), чтобы
+            # _parse_field не разбил суффикс в отдельный subtype (старый баг:
+            # sum_ms попадал в БД как строка с subtype="sum_ms" и писался в count).
+            sum_ms_field = _field_for(f"{type_}{SUM_MS_SUFFIX}", subtype, channel_id)
             pipe = self._r.pipeline(transaction=False)
             pipe.hincrby(key, count_field, 1)
             pipe.hincrby(key, sum_ms_field, value_ms)
@@ -190,6 +205,50 @@ class StatisticsService:
     def _bucket_key(self, bucket: datetime) -> str:
         return self.HASH_KEY_PREFIX + bucket.strftime("%Y-%m-%dT%H:%M:%S")
 
+    def _channels_key(self, subtype: str, bucket: datetime) -> str:
+        """Ключ SET-а уникальных каналов для направления ``subtype`` и бакета."""
+        return self.CHANNELS_KEY_PREFIX + subtype + ":" + bucket.strftime("%Y-%m-%dT%H:%M:%S")
+
+    # ------------------------------------------------------------------
+    # Уникальные каналы (SET-based метрика)
+    # ------------------------------------------------------------------
+
+    def mark_channel(
+        self,
+        subtype: str,
+        channel_id: int,
+    ) -> None:
+        """Fire-and-forget: добавляет ``channel_id`` в SET уникальных каналов.
+
+        Используется для метрики ``ACTIVE_CHANNELS``: в конце бакета ``SCARD``
+        даёт число уникальных каналов, на которых были сообщения (входящие или
+        исходящие — определяется ``subtype``).
+        """
+        if self._r is None:
+            return
+        coro = self._mark_channel(subtype, channel_id)
+        task = asyncio.create_task(coro)
+        self._tasks.add(task)
+        task.add_done_callback(self._tasks.discard)
+
+    async def _mark_channel(self, subtype: str, channel_id: int) -> None:
+        if self._r is None:
+            return
+        try:
+            bucket = _floor_to_bucket(datetime.now(UTC), BUCKET_SECONDS)
+            key = self._channels_key(subtype, bucket)
+            pipe = self._r.pipeline(transaction=False)
+            pipe.sadd(key, str(channel_id))
+            pipe.expire(key, self.HASH_TTL_SECONDS)
+            await pipe.execute()
+        except Exception:
+            logger.error(
+                "Statistics mark_channel failed for subtype=%s channel=%s",
+                subtype,
+                channel_id,
+                exc_info=True,
+            )
+
     # ------------------------------------------------------------------
     # Дамп в БД
     # ------------------------------------------------------------------
@@ -203,6 +262,10 @@ class StatisticsService:
         UPDATE``. Текущий (ещё живой) бакет пропускается — его польют в следующий
         запуск. Идемпотентен: повторный запуск по тем же ключам безопасен благодаря
         ``ON CONFLICT`` (данные в Redis не удаляются до успешного INSERT).
+
+        Аналогично обрабатываются SET-ключи ``statistics:channels:*``: для каждого
+        ``SCARD`` (число уникальных каналов) записывается в ``count`` с
+        ``type=active_channels`` и ``subtype=incoming``/``outgoing``.
         """
         if self._r is None:
             logger.warning("StatisticsService.flush_to_db called before startup")
@@ -226,6 +289,30 @@ class StatisticsService:
                 # Текущий бакет ещё накапливается — пропускаем.
                 continue
             await self._dump_one(key_str, bucket)
+
+        # SET-метрика активных каналов.
+        await self._flush_channels(current_bucket)
+
+    async def _flush_channels(self, current_bucket: datetime) -> None:
+        """Обрабатывает ``statistics:channels:*`` SET-ключи и заливает SCARD в БД."""
+        if self._r is None:
+            return
+        try:
+            ch_keys = [k async for k in self._r.scan_iter(match=f"{self.CHANNELS_KEY_PREFIX}*")]
+        except Exception:
+            logger.error("Statistics flush: channels scan_iter failed", exc_info=True)
+            return
+        for key in ch_keys:
+            if isinstance(key, bytes):
+                key_str = key.decode("utf-8")
+            else:
+                key_str = key
+            subtype, bucket = self._parse_channels_key(key_str)
+            if subtype is None or bucket is None:
+                continue
+            if bucket >= current_bucket:
+                continue
+            await self._dump_channels_set(key_str, subtype, bucket)
 
     async def _dump_one(self, key: str, bucket: datetime) -> None:
         if self._r is None:
@@ -281,8 +368,8 @@ class StatisticsService:
             except ValueError:
                 continue
             type_, subtype, channel_id = _parse_field(field)
-            if type_.endswith(":sum_ms"):
-                base_type = type_[: -len(":sum_ms")]
+            if type_.endswith(SUM_MS_SUFFIX):
+                base_type = type_[: -len(SUM_MS_SUFFIX)]
                 sum_ms[(base_type, subtype, channel_id)] = ivalue
             else:
                 counts[(type_, subtype, channel_id)] = ivalue
@@ -328,6 +415,66 @@ class StatisticsService:
         except ValueError:
             logger.warning("Statistics flush: cannot parse bucket key %s", key)
             return None
+
+    def _parse_channels_key(self, key: str) -> tuple[str | None, datetime | None]:
+        """Парсит ``statistics:channels:<subtype>:<ISO>`` → (subtype, bucket)."""
+        if not key.startswith(self.CHANNELS_KEY_PREFIX):
+            return None, None
+        rest = key[len(self.CHANNELS_KEY_PREFIX) :]
+        # subtype не содержит ":", поэтому split(":", 1) корректен.
+        if ":" not in rest:
+            return None, None
+        subtype, ts_str = rest.split(":", 1)
+        try:
+            bucket = datetime.strptime(ts_str, "%Y-%m-%dT%H:%M:%S").replace(tzinfo=UTC)
+        except ValueError:
+            logger.warning("Statistics flush: cannot parse channels key %s", key)
+            return None, None
+        return subtype, bucket
+
+    async def _dump_channels_set(self, key: str, subtype: str, bucket: datetime) -> None:
+        """Считает SCARD и пишет строку с type=active_channels, count=scard."""
+        if self._r is None:
+            return
+        try:
+            count = await self._r.scard(key)
+        except Exception:
+            logger.error("Statistics flush: SCARD failed for %s", key, exc_info=True)
+            return
+        if count == 0:
+            # Пустой SET (не было сообщений) — не пишем строку, чтобы не плодить
+            # нули; zero-fill в get_chart отрисует пропуск как 0.
+            await self._r.delete(key)
+            return
+        try:
+            async with self._db() as session:
+                stmt = (
+                    pg_insert(Statistics)
+                    .values(
+                        {
+                            "bucket_ts": bucket,
+                            "type": str(StatsType.ACTIVE_CHANNELS),
+                            "subtype": subtype,
+                            "channel_id": None,
+                            "count": count,
+                            "sum_ms": 0,
+                        }
+                    )
+                    .on_conflict_do_update(
+                        index_elements=["bucket_ts", "type", "subtype", "channel_id"],
+                        set_={"count": pg_insert(Statistics).excluded.count},
+                    )
+                )
+                await session.execute(stmt)
+                await session.commit()
+            await self._r.delete(key)
+        except Exception:
+            logger.error(
+                "Statistics flush: channels DB insert failed for bucket=%s subtype=%s",
+                bucket.isoformat(),
+                subtype,
+                exc_info=True,
+            )
 
     # ------------------------------------------------------------------
     # Очистка старых данных
@@ -379,6 +526,42 @@ class StatisticsService:
             dt_from = dt_to - max_window
         return dt_to, dt_from
 
+    @staticmethod
+    def _compute_bucket_range(
+        dt_from: datetime | None,
+        dt_to: datetime | None,
+        max_window: timedelta,
+        step_seconds: int,
+    ) -> tuple[datetime, datetime] | None:
+        """Нормализует диапазон и округляет к сетке бакетов + отсекает неполные.
+
+        Возвращает ``(start, end)`` — начало первого и конец последнего
+        **полностью завершённого** бакета, или ``None``, если диапазон пуст
+        (``dt_from >= dt_to`` после нормализации, или все бакеты ещё не
+        завершились). Вызывается из ``get_chart`` и ``get_chart_series``,
+        чтобы логика отсечения будущих/неполных бакетов была единой.
+        """
+        dt_to, dt_from = StatisticsService._normalize_range(dt_from, dt_to, max_window)
+        if dt_from >= dt_to:
+            return None
+
+        start = _floor_to_bucket(dt_from, step_seconds)
+        end = _floor_to_bucket(dt_to, step_seconds)
+        if end < dt_to:
+            end = end + timedelta(seconds=step_seconds)
+
+        # Отсекаем неполные и будущие бакеты: начинаем показывать только
+        # полностью завершённые бакеты. ``_floor_to_bucket(now)`` — это начало
+        # текущего (ещё не завершённого) бакета; все бакеты с ``bucket_ts >= end``
+        # должны быть скрыты. Если user запросил ``to=0:21`` при now=0:15,
+        # ``end=min(0:20, 0:10)=0:10``, и последний показанный бакет — 0:00.
+        now_bucket = _floor_to_bucket(datetime.now(UTC), BUCKET_SECONDS)
+        if end > now_bucket:
+            end = now_bucket
+        if start >= end:
+            return None
+        return start, end
+
     @tracer.start_as_current_span("Statistics: get chart")
     async def get_chart(
         self,
@@ -405,15 +588,10 @@ class StatisticsService:
         type_str = str(type_)
         is_timing = type_str in TIMING_TYPES
 
-        dt_to, dt_from = self._normalize_range(dt_from, dt_to, max_window)
-        if dt_from >= dt_to:
+        rng = self._compute_bucket_range(dt_from, dt_to, max_window, step_seconds)
+        if rng is None:
             return []
-
-        # Округляем границы к сетке бакетов.
-        start = _floor_to_bucket(dt_from, step_seconds)
-        end = _floor_to_bucket(dt_to, step_seconds)
-        if end < dt_to:
-            end = end + timedelta(seconds=step_seconds)
+        start, end = rng
 
         rows = await self._query_rows(
             type_str=type_str,
@@ -488,10 +666,182 @@ class StatisticsService:
                 )
                 if subtype_filter is not None:
                     stmt = stmt.where(Statistics.subtype == subtype_filter)
+                elif is_timing:
+                    # Для timing-метрик отбрасываем мусорные строки с
+                    # subtype="sum_ms" (старый баг кодировки до исправления
+                    # SUM_MS_SUFFIX): они содержат в count миллисекунды, а sum_ms=0,
+                    # что ломало avg. Также защищает от любых будущих артефактов.
+                    stmt = stmt.where(Statistics.subtype == "")
                 if channel_id is not None:
                     stmt = stmt.where(Statistics.channel_id == channel_id)
                 result = await session.execute(stmt)
                 return [(row[0], int(row[1] or 0)) for row in result.all()]
         except Exception:
             logger.error("Statistics get_chart query failed", exc_info=True)
+            return []
+
+    # ------------------------------------------------------------------
+    # Multi-line series (топ-N подтипов на одном графике)
+    # ------------------------------------------------------------------
+
+    @tracer.start_as_current_span("Statistics: get chart series")
+    async def get_chart_series(
+        self,
+        type_: str | StatsType,
+        *,
+        channel_id: int | None = None,
+        period: StatsPeriod = StatsPeriod.TEN_MIN,
+        dt_from: datetime | None = None,
+        dt_to: datetime | None = None,
+        top_n: int = 10,
+    ) -> list[tuple[str, list[tuple[datetime, int]]]]:
+        """Возвращает топ-N подтипов с рядами точек для multi-line графика.
+
+        Сначала одним запросом определяются топ-N подтипов по суммарному
+        ``count`` (или ``sum_ms`` для timing-метрик) за диапазон, затем вторым
+        запросом — точки для каждого из них с агрегацией ``date_bin``. Пустые
+        бакеты заполняются нулями (zero-fill), чтобы все ряды имели одинаковую
+        длину и были выровнены по оси X.
+
+        Возвращает список ``(subtype, [(bucket_ts, value), ...])``, упорядоченный
+        по убыванию суммарного значения подтипа (топ-N).
+        """
+        step_seconds, max_window = PERIOD_CONFIG[period]
+        type_str = str(type_)
+        is_timing = type_str in TIMING_TYPES
+
+        rng = self._compute_bucket_range(dt_from, dt_to, max_window, step_seconds)
+        if rng is None:
+            return []
+        start, end = rng
+
+        if top_n < 1:
+            top_n = 10
+
+        # Шаг 1: топ-N подтипов по суммарному count/sum_ms за диапазон.
+        top_subtypes = await self._query_top_subtypes(
+            type_str=type_str,
+            channel_id=channel_id,
+            start=start,
+            end=end,
+            top_n=top_n,
+            is_timing=is_timing,
+        )
+        if not top_subtypes:
+            return []
+
+        # Шаг 2: точки для каждого подтипа из топ-N.
+        rows = await self._query_series_rows(
+            type_str=type_str,
+            subtypes=top_subtypes,
+            channel_id=channel_id,
+            start=start,
+            end=end,
+            step_seconds=step_seconds,
+            is_timing=is_timing,
+        )
+
+        # Группируем по subtype и заполняем нулями пустые бакеты.
+        # Сохраним исходный порядок топ-N (по убыванию суммарного count).
+        result: list[tuple[str, list[tuple[datetime, int]]]] = []
+        for subtype in top_subtypes:
+            points_map: dict[datetime, int] = {}
+            for bucket_ts, st, value in rows:
+                if st != subtype:
+                    continue
+                if bucket_ts.tzinfo is None:
+                    bucket_ts = bucket_ts.replace(tzinfo=UTC)
+                else:
+                    bucket_ts = bucket_ts.astimezone(UTC)
+                floored = _floor_to_bucket(bucket_ts, step_seconds)
+                points_map[floored] = points_map.get(floored, 0) + value
+            points: list[tuple[datetime, int]] = []
+            cur = start
+            while cur < end:
+                points.append((cur, points_map.get(cur, 0)))
+                cur = cur + timedelta(seconds=step_seconds)
+            result.append((subtype, points))
+        return result
+
+    async def _query_top_subtypes(
+        self,
+        *,
+        type_str: str,
+        channel_id: int | None,
+        start: datetime,
+        end: datetime,
+        top_n: int,
+        is_timing: bool,
+    ) -> list[str]:
+        """Возвращает топ-N подтипов по суммарному значению за диапазон."""
+        try:
+            async with self._db() as session:
+                if is_timing:
+                    value_col = sa.func.sum(Statistics.sum_ms)
+                else:
+                    value_col = sa.func.sum(Statistics.count)
+                stmt = (
+                    sa.select(Statistics.subtype, value_col)
+                    .where(Statistics.type == type_str)
+                    .where(Statistics.bucket_ts >= start)
+                    .where(Statistics.bucket_ts < end)
+                    .group_by(Statistics.subtype)
+                    .order_by(value_col.desc())
+                    .limit(top_n)
+                )
+                if channel_id is not None:
+                    stmt = stmt.where(Statistics.channel_id == channel_id)
+                # Для timing-метрик отбрасываем мусорные строки (старый баг).
+                if is_timing:
+                    stmt = stmt.where(Statistics.subtype == "")
+                result = await session.execute(stmt)
+                return [row[0] for row in result.all()]
+        except Exception:
+            logger.error("Statistics _query_top_subtypes failed", exc_info=True)
+            return []
+
+    async def _query_series_rows(
+        self,
+        *,
+        type_str: str,
+        subtypes: list[str],
+        channel_id: int | None,
+        start: datetime,
+        end: datetime,
+        step_seconds: int,
+        is_timing: bool,
+    ) -> list[tuple[datetime, str, int]]:
+        """Возвращает (bucket, subtype, value) для каждого подтипа из списка."""
+        if not subtypes:
+            return []
+        try:
+            async with self._db() as session:
+                bucket_expr = sa.func.date_bin(
+                    sa.text(f"'{step_seconds} seconds'"),
+                    Statistics.bucket_ts,
+                    sa.text("timestamp '2000-01-01 00:00:00+00'"),
+                ).label("bucket")
+                value_expr: Label[Any]
+                if is_timing:
+                    value_expr = sa.func.coalesce(
+                        sa.func.sum(Statistics.sum_ms) / sa.func.nullif(sa.func.sum(Statistics.count), 0),
+                        0,
+                    ).label("value")
+                else:
+                    value_expr = sa.func.sum(Statistics.count).label("value")
+                stmt = (
+                    sa.select(bucket_expr, Statistics.subtype, value_expr)
+                    .where(Statistics.type == type_str)
+                    .where(Statistics.bucket_ts >= start)
+                    .where(Statistics.bucket_ts < end)
+                    .where(Statistics.subtype.in_(subtypes))
+                    .group_by(bucket_expr, Statistics.subtype)
+                    .order_by(bucket_expr, Statistics.subtype)
+                )
+                if channel_id is not None:
+                    stmt = stmt.where(Statistics.channel_id == channel_id)
+                result = await session.execute(stmt)
+                return [(row[0], row[1], int(row[2] or 0)) for row in result.all()]
+        except Exception:
+            logger.error("Statistics _query_series_rows failed", exc_info=True)
             return []

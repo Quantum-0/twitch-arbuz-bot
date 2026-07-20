@@ -195,9 +195,10 @@ templates/
 - `id` (serial PK, суррогатный — нужен только чтобы SQLAlchemy-маппер собрался).
 - `bucket_ts` (timestamptz, NOT NULL) — начало 10-минутного бакета (UTC, округлено вниз).
 - `type` (varchar(64), NOT NULL) — `message_incoming` | `message_outgoing` | `reward_memecoins` |
-  `reward_ai_stickers` | `command_handled` | `message_processing_time`.
+  `reward_ai_stickers` | `command_handled` | `message_processing_time` | `active_channels`.
 - `subtype` (varchar(64), NOT NULL, default `""`) — для `reward_*`: `received`/`succeed`/`failed`/
-  `success`/`failed_on_moderation`; для `command_handled` — имя команды; для `message_*` — `""`.
+  `success`/`failed_on_moderation`; для `command_handled` — имя команды; для `message_*` — `""`;
+  для `active_channels` — `incoming`/`outgoing`.
 - `channel_id` (bigint, NULL) — twitch_id канала (на будущее для разбивки по каналам; в MVP всегда NULL).
 - `count` (int, NOT NULL, default 0).
 - `sum_ms` (bigint, NULL, default 0) — для timing-метрик (`message_processing_time`):
@@ -206,6 +207,18 @@ templates/
 Уникальный индекс `statistics_pk` по `(bucket_ts, type, subtype, channel_id)` с
 `NULLS NOT DISTINCT` (Postgres ≥ 15) — чтобы `ON CONFLICT DO UPDATE` корректно
 схлопывал строки с `channel_id=NULL`. Доп. индексы: `ix_statistics_type_bucket`, `ix_statistics_bucket_ts`.
+
+### `SUM_MS_SUFFIX` и кодировка timing-полей в Redis
+
+Timing-метрики (`inc_timing`) пишут в Redis-хэш два поля: `count` и `sum_ms`.
+Ключ для `sum_ms` формируется как `f"{type_}{SUM_MS_SUFFIX}"` (без двоеточия
+внутри суффикса!), где `SUM_MS_SUFFIX = "__sum_ms"`. Это важно: если бы
+суффикс содержал двоеточие (старый вариант `:sum_ms`), `_parse_field` разбил
+бы его в отдельный `subtype="sum_ms"`, и timing-данные попадали бы в БД как
+мусорные строки с `subtype="sum_ms"` и `sum_ms=0` (баг, исправленный в этой
+итерации). Текущий вариант `_parse_field("message_processing_time__sum_ms:")`
+даёт `type_="message_processing_time__sum_ms"`, который корректно
+распознаётся через `endswith(SUM_MS_SUFFIX)` в `_build_rows_from_hash`.
 
 ### `StatisticsService` (`services/statistics.py`)
 
@@ -232,7 +245,19 @@ templates/
   (чтобы график был непрерывным). Агрегация по периоду через Postgres `date_bin`.
   Диапазон жёстко ограничен по периоду (10m→1д, 1h→5д, 3h→14д, 6h→30д, 1d→90д).
   Для типов из `TIMING_TYPES` (см. ниже) `value` = `sum(sum_ms) / sum(count)` (avg
-  ms), для остальных — `sum(count)`.
+  ms), для остальных — `sum(count)`. Неполные и будущие бакеты отсекаются (через
+  `_compute_bucket_range`): последний показанный бакет — последний полностью
+  завершённый.
+- `mark_channel(subtype, channel_id)` — fire-and-forget: добавляет `channel_id`
+  в Redis SET `statistics:channels:<subtype>:<bucket>` (TTL 2ч). При `flush_to_db`
+  для каждого SET'а `SCARD` даёт число уникальных каналов, которое пишется в БД
+  как `type=active_channels`, `subtype=incoming`/`outgoing`, `count=scard`.
+- `get_chart_series(type, channel_id, period, dt_from, dt_to, top_n=10)` —
+  возвращает топ-N подтипов с рядами точек для multi-line графика: список
+  `(subtype, [(bucket_ts, value), ...])`. Сначала одним запросом определяются
+  топ-N подтипов по суммарному `count` (или `sum_ms` для timing) за диапазон,
+  затем вторым запросом — точки для каждого с `date_bin` агрегацией + zero-fill.
+  Используется ручкой `/api/user/stats/series`.
 
 ### `TIMING_TYPES`
 
@@ -245,10 +270,11 @@ templates/
 
 - `twitch/chat/bot.py:on_message` (после валидации схемы) → `inc("message_incoming")`.
   Также выставляет `_message_processing_start` ContextVar (monotonic) для замера
-  processing time (см. ниже).
-- `twitch/chat/bot.py:send_message` (после успешной отправки) → `inc("message_outgoing")`.
-  При первом ответе в задаче — ещё и `inc_timing("message_processing_time", value_ms=elapsed)`,
-  затем сбрасывает ContextVar в `None`.
+  processing time (см. ниже) и `mark_channel("incoming", twitch_id)`.
+- `twitch/chat/bot.py:send_message` (после успешной отправки) → `inc("message_outgoing")`
+  и `mark_channel("outgoing", twitch_id)`. При первом ответе в задаче — ещё и
+  `inc_timing("message_processing_time", value_ms=elapsed)`, затем сбрасывает
+  ContextVar в `None`.
 - `twitch/chat/command_manager.py:handle` (после `cmd.handle`) → `inc("command_handled", subtype=cmd.command_name)`.
 - `services/eventsub_service.py:reward_buy_memealerts` → `inc("reward_memecoins", subtype="received"|"succeed"|"failed")`.
 - `services/eventsub_service.py:reward_ai_sticker` → `inc("reward_ai_stickers", subtype="received"|"success"|"failed_on_moderation")`.
@@ -263,15 +289,27 @@ templates/
 Query: `type` (StatsType), `subtype`, `channel`, `period` (10m|1h|3h|6h|1d),
 `from`/`to` (UTC ISO). Возвращает `StatsResponseSchema` (`{type, subtype, period, points}`).
 
+`GET /api/user/stats/series` — multi-line вариант: топ-N подтипов с рядами точек.
+Query: `type` (StatsType), `channel`, `period`, `top` (int, default 10, 1..50),
+`from`/`to`. Возвращает `StatsSeriesResponseSchema` (`{type, period, series: [{subtype, points}]}`).
+Один запрос к БД определяет топ-N (по сумме `count` за диапазон), второй — точки
+с `date_bin` агрегацией + zero-fill. Используется фронтом для «раздельно» режима
+(пока только для `command_handled`).
+
 Схемы в `schemas/api.py`: `StatsType` (StrEnum), `StatsPeriod` (StrEnum),
-`StatsPointSchema` (`datetime` UTC, `value` int), `StatsResponseSchema`.
+`StatsPointSchema` (`datetime` UTC, `value` int), `StatsResponseSchema`,
+`StatsSeriesPointSchema`, `StatsSeriesItemSchema` (`subtype` + `points`),
+`StatsSeriesResponseSchema`.
 
 ### Фронт `/stats`
 
 `templates/stats.html` + `static/js/stats.js`: Chart.js (CDN v4), селекторы
 type/subtype/period/dates. Фильтры синхронизируются с URL (shareable links).
 Tooltip показывает значение + `Average RPS = value / bucket_seconds` для
-count-метрик и `X ms` для timing-метрик (см. ниже).
+count-метрик и `X ms` для timing-метрик (см. ниже). Метки на оси X — только
+время, если все точки в один день; иначе дата+время. Tooltip — диапазон
+(`22:00-22:10`). Для `command_handled` доступен режим «раздельно»: фронт идёт к
+`/api/user/stats/series` и рисует до 10 линий (топ-N команд за период).
 
 ### Метрика «среднее время обработки сообщения» (реализовано)
 

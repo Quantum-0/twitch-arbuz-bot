@@ -11,18 +11,31 @@
         message_outgoing: [""],
         reward_memecoins: ["", "received", "succeed", "failed"],
         reward_ai_stickers: ["", "received", "success", "failed_on_moderation"],
-        command_handled: null, // subtype = имя команды; список динамический — оставляем пустым (все)
+        // Для command_handled subtype — имя команды; предлагаем «все» или
+        // «раздельно» (фронт идёт к /api/user/stats/series за топ-N подтипов).
+        command_handled: ["", "__split__"],
         message_processing_time: [""],
+        active_channels: ["", "incoming", "outgoing"],
     };
 
     const SUBTYPE_LABELS = {
         "": "(все)",
+        __split__: "(раздельно)",
         received: "получено",
         succeed: "успешно",
         success: "успешно",
         failed: "ошибки",
         failed_on_moderation: "отклонено модерацией",
+        incoming: "входящие",
+        outgoing: "исходящие",
     };
+
+    // Псевдо-subtype, при котором фронт идёт к series endpoint для multi-line.
+    const SPLIT_SUBTYPE = "__split__";
+
+    // Типы метрик, для которых доступна «раздельно» (multi-line) режим.
+    // Пока только command_handled имеет смысл (у остальных подтипы фиксированы).
+    const SPLITTABLE_TYPES = new Set(["command_handled"]);
 
     const TYPE_LABELS = {
         message_incoming: "Входящие сообщения",
@@ -31,6 +44,7 @@
         reward_ai_stickers: "Награды: ИИ-стикеры",
         command_handled: "Команды",
         message_processing_time: "Время обработки сообщения",
+        active_channels: "Активные каналы",
     };
 
     // Типы метрик, для которых значение — это «среднее» (мс), а не «количество».
@@ -99,6 +113,30 @@
 
     function formatLocal(dt) {
         return `${pad(dt.getDate())}.${pad(dt.getMonth() + 1)} ${pad(dt.getHours())}:${pad(dt.getMinutes())}`;
+    }
+
+    function formatTimeOnly(dt) {
+        return `${pad(dt.getHours())}:${pad(dt.getMinutes())}`;
+    }
+
+    // Если все точки в один день — подписываем только время, иначе дату+время.
+    function labelFormatter(startDts) {
+        if (!startDts || startDts.length === 0) return formatLocal;
+        const first = startDts[0];
+        const last = startDts[startDts.length - 1];
+        const sameDay =
+            first.getFullYear() === last.getFullYear() &&
+            first.getMonth() === last.getMonth() &&
+            first.getDate() === last.getDate();
+        return sameDay ? formatTimeOnly : formatLocal;
+    }
+
+    // Конец бакета для тултипа: начало + period. Если точка = 22:00 и period=10m,
+    // конец = 22:10 → «22:00-22:10». Для period=1h конец = 23:00.
+    function formatRangeLabel(startDt, periodSeconds, fmtFn) {
+        const endDt = new Date(startDt.getTime() + periodSeconds * 1000);
+        const fmt = fmtFn || formatLocal;
+        return `${fmt(startDt)}-${pad(endDt.getHours())}:${pad(endDt.getMinutes())}`;
     }
 
     function defaultRange() {
@@ -182,17 +220,36 @@
     // Построение запроса и отрисовка
     // ------------------------------------------------------------------
 
+    function isSplitMode() {
+        return (
+            subtypeSelect.value === SPLIT_SUBTYPE
+            && SPLITTABLE_TYPES.has(typeSelect.value)
+        );
+    }
+
     function buildUrl() {
         const params = new URLSearchParams();
         params.set("type", typeSelect.value);
         const sub = subtypeSelect.value;
-        if (sub) params.set("subtype", sub);
+        // В split-режиме subtype не передаётся (идём к /series, не к /stats).
+        if (sub && sub !== SPLIT_SUBTYPE) params.set("subtype", sub);
         params.set("period", periodSelect.value);
         const from = isoFromInput(fromInput.value);
         const to = isoFromInput(toInput.value);
         if (from) params.set("from", from);
         if (to) params.set("to", to);
         return `/api/user/stats?${params.toString()}`;
+    }
+
+    function buildSeriesUrl() {
+        const params = new URLSearchParams();
+        params.set("type", typeSelect.value);
+        params.set("period", periodSelect.value);
+        const from = isoFromInput(fromInput.value);
+        const to = isoFromInput(toInput.value);
+        if (from) params.set("from", from);
+        if (to) params.set("to", to);
+        return `/api/user/stats/series?${params.toString()}`;
     }
 
     function destroyChart() {
@@ -225,6 +282,12 @@
         return rps.toFixed(4);
     }
 
+    // Палитра из 10 контрастных цветов для multi-line графика.
+    const SERIES_COLORS = [
+        "#4CAF50", "#2196F3", "#FF9800", "#E91E63", "#9C27B0",
+        "#00BCD4", "#FFC107", "#795548", "#607D8B", "#8BC34A",
+    ];
+
     function renderChart(points, typeLabel, subtypeLabel, period, typeValue) {
         if (!points || points.length === 0) {
             renderEmpty("Нет данных за выбранный период.");
@@ -235,7 +298,11 @@
 
         // Pydantic отдаёт datetime как ISO-строку с таймзоной (+00:00 или Z);
         // дописывать "Z" нельзя — получится невалидная дата (NaN).
-        const labels = points.map((p) => formatLocal(new Date(p.datetime)));
+        // На оси X — только время, если все точки в один день; иначе дата+время.
+        // В tooltip — диапазон (22:00-22:10).
+        const startDts = points.map((p) => new Date(p.datetime));
+        const fmtLabel = labelFormatter(startDts);
+        const labels = startDts.map((dt) => fmtLabel(dt));
         const data = points.map((p) => p.value);
 
         // Длительность бакета для расчёта RPS. Если точки идут неравномерно
@@ -263,57 +330,101 @@
                     },
                 ],
             },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                color: colors.text,
-                scales: {
-                    x: {
-                        ticks: {
-                            color: colors.textMuted,
-                            maxRotation: 45,
-                            autoSkip: true,
-                            maxTicksLimit: 24,
-                        },
-                        grid: { color: colors.border + "55" },
+            options: chartOptions(startDts, bucketSeconds, isTiming, fmtLabel, colors),
+        });
+    }
+
+    function renderChartMulti(series, typeLabel, period, typeValue) {
+        if (!series || series.length === 0) {
+            renderEmpty("Нет данных за выбранный период.");
+            return;
+        }
+        emptyEl.style.display = "none";
+        chartWrap.style.display = "block";
+
+        // Все ряды имеют одинаковую длину и выровнены по оси X (server-side zero-fill).
+        // Метки времени берём из первого ряда.
+        const firstPoints = series[0].points;
+        const startDts = firstPoints.map((p) => new Date(p.datetime));
+        const fmtLabel = labelFormatter(startDts);
+        const labels = startDts.map((dt) => fmtLabel(dt));
+
+        const bucketSeconds = PERIOD_SECONDS[period] || 600;
+        const isTiming = TIMING_TYPES.has(typeValue);
+        const colors = themeColors();
+
+        const datasets = series.map((s, idx) => ({
+            label: s.subtype || "(пусто)",
+            data: s.points.map((p) => p.value),
+            borderColor: SERIES_COLORS[idx % SERIES_COLORS.length],
+            backgroundColor: SERIES_COLORS[idx % SERIES_COLORS.length] + "22",
+            fill: false,
+            tension: 0.25,
+            pointRadius: 1.5,
+            borderWidth: 2,
+        }));
+
+        destroyChart();
+        chart = new Chart(canvas, {
+            type: "line",
+            data: { labels: labels, datasets: datasets },
+            options: chartOptions(startDts, bucketSeconds, isTiming, fmtLabel, colors),
+        });
+    }
+
+    // Общие options для single-line и multi-line графиков.
+    function chartOptions(startDts, bucketSeconds, isTiming, fmtLabel, colors) {
+        return {
+            responsive: true,
+            maintainAspectRatio: false,
+            color: colors.text,
+            scales: {
+                x: {
+                    ticks: {
+                        color: colors.textMuted,
+                        maxRotation: 45,
+                        autoSkip: true,
+                        maxTicksLimit: 24,
                     },
-                    y: {
-                        beginAtZero: true,
-                        ticks: { color: colors.textMuted, precision: 0 },
-                        grid: { color: colors.border + "55" },
-                    },
+                    grid: { color: colors.border + "55" },
                 },
-                plugins: {
-                    legend: { labels: { color: colors.text } },
-                    tooltip: {
-                        callbacks: {
-                            title: (items) => items[0].label,
-                            label: (item) => {
-                                const value = item.parsed.y;
-                                if (isTiming) {
-                                    // value = avg ms за бакет (уже усреднённое сервером).
-                                    return [
-                                        `${item.dataset.label}: ${value} ms`,
-                                    ];
-                                }
-                                const rps = value / bucketSeconds;
-                                return [
-                                    `${item.dataset.label}: ${value}`,
-                                    `Average RPS: ${formatRps(rps)}`,
-                                ];
-                            },
+                y: {
+                    beginAtZero: true,
+                    ticks: { color: colors.textMuted, precision: 0 },
+                    grid: { color: colors.border + "55" },
+                },
+            },
+            plugins: {
+                legend: { labels: { color: colors.text } },
+                tooltip: {
+                    callbacks: {
+                        title: (items) => {
+                            const idx = items[0].dataIndex;
+                            return formatRangeLabel(startDts[idx], bucketSeconds, fmtLabel);
+                        },
+                        label: (item) => {
+                            const value = item.parsed.y;
+                            if (isTiming) {
+                                return [`${item.dataset.label}: ${value} ms`];
+                            }
+                            const rps = value / bucketSeconds;
+                            return [
+                                `${item.dataset.label}: ${value}`,
+                                `Average RPS: ${formatRps(rps)}`,
+                            ];
                         },
                     },
                 },
             },
-        });
+        };
     }
 
     async function refresh() {
         refreshBtn.disabled = true;
         refreshBtn.textContent = "Загрузка…";
         try {
-            const resp = await fetch(buildUrl(), { credentials: "same-origin" });
+            const url = isSplitMode() ? buildSeriesUrl() : buildUrl();
+            const resp = await fetch(url, { credentials: "same-origin" });
             if (resp.status === 401) {
                 renderEmpty("Нужна авторизация. Войдите на сайт и вернитесь на эту страницу.");
                 return;
@@ -325,8 +436,12 @@
             }
             const payload = await resp.json();
             const typeLabel = TYPE_LABELS[payload.type] || payload.type;
-            const subtypeLabel = payload.subtype ? SUBTYPE_LABELS[payload.subtype] || payload.subtype : "";
-            renderChart(payload.points, typeLabel, subtypeLabel, payload.period, payload.type);
+            if (isSplitMode()) {
+                renderChartMulti(payload.series, typeLabel, payload.period, payload.type);
+            } else {
+                const subtypeLabel = payload.subtype ? SUBTYPE_LABELS[payload.subtype] || payload.subtype : "";
+                renderChart(payload.points, typeLabel, subtypeLabel, payload.period, payload.type);
+            }
         } catch (e) {
             console.error(e);
             renderEmpty("Ошибка сети при загрузке данных.");

@@ -91,6 +91,10 @@ class StatsType(StrEnum):
     # Timing-метрика: avg время (мс) от on_message до первого send_message.
     # В таблице: count — число замеров, sum_ms — суммарное время.
     MESSAGE_PROCESSING_TIME = "message_processing_time"
+    # Count-метрика: число уникальных каналов, на которых были входящие/исходящие
+    # сообщения за бакет. В таблице: count = размер сета channel_id, sum_ms=0.
+    # Subtype: "incoming" | "outgoing".
+    ACTIVE_CHANNELS = "active_channels"
 
 
 class StatsPeriod(StrEnum):
@@ -117,3 +121,25 @@ class StatsResponseSchema(BaseModel):
     subtype: str | None = None
     period: str
     points: list[StatsPointSchema]
+
+
+class StatsSeriesPointSchema(BaseModel):
+    """Одна точка multi-line графика (для ручки /api/user/stats/series)."""
+
+    datetime: datetime
+    value: int
+
+
+class StatsSeriesItemSchema(BaseModel):
+    """Один ряд (подтип) multi-line графика."""
+
+    subtype: str
+    points: list[StatsSeriesPointSchema]
+
+
+class StatsSeriesResponseSchema(BaseModel):
+    """Ответ ручки /api/user/stats/series: топ-N подтипов с рядами точек."""
+
+    type: str
+    period: str
+    series: list[StatsSeriesItemSchema]
