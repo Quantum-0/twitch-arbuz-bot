@@ -24,6 +24,7 @@ from opentelemetry import trace
 from redis.asyncio import Redis
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.sql.elements import Label
 
 from database.models import Statistics
 from schemas.api import StatsPeriod, StatsType
@@ -474,6 +475,7 @@ class StatisticsService:
                     Statistics.bucket_ts,
                     sa.text("timestamp '2000-01-01 00:00:00+00'"),
                 ).label("bucket")
+                value_expr: Label[Any]
                 if is_timing:
                     # avg = sum(sum_ms) / NULLIF(sum(count), 0) — для пустых бакетов NULL→0
                     value_expr = sa.func.coalesce(
