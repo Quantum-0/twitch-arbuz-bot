@@ -166,9 +166,7 @@ class StatisticsService:
         except Exception:
             logger.error("Statistics inc failed for type=%s subtype=%s", type_, subtype, exc_info=True)
 
-    async def _inc_timing(
-        self, type_: str, subtype: str, channel_id: int | None, value_ms: int
-    ) -> None:
+    async def _inc_timing(self, type_: str, subtype: str, channel_id: int | None, value_ms: int) -> None:
         if self._r is None:
             return
         try:
@@ -262,14 +260,12 @@ class StatisticsService:
             logger.error("Statistics flush: DB insert failed for bucket=%s", bucket.isoformat(), exc_info=True)
 
     @staticmethod
-    def _build_rows_from_hash(
-        raw: dict[Any, Any], bucket: datetime
-    ) -> list[dict[str, Any]]:
+    def _build_rows_from_hash(raw: dict[Any, Any], bucket: datetime) -> list[dict[str, Any]]:
         """Превращает HGETALL-ответ Redis в список строк для INSERT.
 
         Timing-метрики пишутся через ``inc_timing`` двумя полями: ``count`` и
         ``<type>:sum_ms``. Здесь они джойнятся обратно по ``(type, subtype, channel_id)``.
-       """
+        """
         # Сначала разбиваем поля на count- и sum_ms-карты по общему ключу.
         counts: dict[tuple[str, str, int | None], int] = {}
         sum_ms: dict[tuple[str, str, int | None], int] = {}
@@ -343,9 +339,7 @@ class StatisticsService:
         try:
             async with self._db() as session:
                 cutoff = datetime.now(UTC) - timedelta(days=RETENTION_DAYS)
-                await session.execute(
-                    sa.delete(Statistics).where(Statistics.bucket_ts < cutoff)
-                )
+                await session.execute(sa.delete(Statistics).where(Statistics.bucket_ts < cutoff))
                 await session.commit()
         except Exception:
             logger.error("Statistics cleanup failed", exc_info=True)
@@ -479,8 +473,7 @@ class StatisticsService:
                 if is_timing:
                     # avg = sum(sum_ms) / NULLIF(sum(count), 0) — для пустых бакетов NULL→0
                     value_expr = sa.func.coalesce(
-                        sa.func.sum(Statistics.sum_ms)
-                        / sa.func.nullif(sa.func.sum(Statistics.count), 0),
+                        sa.func.sum(Statistics.sum_ms) / sa.func.nullif(sa.func.sum(Statistics.count), 0),
                         0,
                     ).label("value")
                 else:

@@ -280,7 +280,7 @@ class RaidPasta(Base):
 
 
 class Links(Base):
-    __tablename__ = 'links'
+    __tablename__ = "links"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     user_id: Mapped[int] = mapped_column(Integer, ForeignKey("twitch_bot_users.id", ondelete="CASCADE"), nullable=False)
@@ -347,7 +347,11 @@ class Statistics(Base):
         nullable=False,
         doc="Начало 10-минутного бакета (UTC, округлено вниз).",
     )
-    type: Mapped[str] = mapped_column(String(64), nullable=False, doc="message_incoming | message_outgoing | reward_memecoins | reward_ai_stickers | command_handled")
+    type: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+        doc="message_incoming | message_outgoing | reward_memecoins | reward_ai_stickers | command_handled",
+    )
     subtype: Mapped[str] = mapped_column(
         String(64),
         nullable=False,

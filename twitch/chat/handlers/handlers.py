@@ -52,9 +52,7 @@ class CommonMessagesHandler:
             yield session
 
     @abstractmethod
-    async def handle(
-        self, streamer: User, message: ChatMessageWebhookEventSchema
-    ) -> HandlerResult:
+    async def handle(self, streamer: User, message: ChatMessageWebhookEventSchema) -> HandlerResult:
         raise NotImplementedError
 
 
@@ -64,9 +62,7 @@ class PyramidHandler(CommonMessagesHandler):
     def is_enabled(self, streamer_settings: TwitchUserSettings) -> bool:
         return False  # streamer_settings.enable_pyramid or streamer_settings.enable_pyramid_breaker
 
-    async def handle(
-        self, streamer: User, message: ChatMessageWebhookEventSchema
-    ) -> HandlerResult:
+    async def handle(self, streamer: User, message: ChatMessageWebhookEventSchema) -> HandlerResult:
         # Check if pyramid part
         user = message.chatter_user_name
         if isinstance(message.emotes, dict) and len(message.emotes.keys()) == 1:
@@ -93,9 +89,7 @@ class PyramidHandler(CommonMessagesHandler):
 
         # Load previous state
         channel = streamer.login_name
-        state_user = await self._state_manager.get_state(
-            channel=channel, command=self.COMMAND_NAME, param=SMParam.USER
-        )
+        state_user = await self._state_manager.get_state(channel=channel, command=self.COMMAND_NAME, param=SMParam.USER)
         state_emote = await self._state_manager.get_state(
             channel=channel, command=self.COMMAND_NAME, param=SMParam.EMOTE
         )
@@ -105,26 +99,13 @@ class PyramidHandler(CommonMessagesHandler):
         state_dir = await self._state_manager.get_state(
             channel=channel, command=self.COMMAND_NAME, param=SMParam.DIRECTION
         )
-        state_exists = (
-            bool(state_user)
-            or bool(state_emote)
-            or bool(state_height)
-            or bool(state_dir)
-        )
+        state_exists = bool(state_user) or bool(state_emote) or bool(state_height) or bool(state_dir)
 
         if state_exists and (not emote or emote != state_emote):
-            await self._state_manager.del_state(
-                channel=channel, command=self.COMMAND_NAME, param=SMParam.USER
-            )
-            await self._state_manager.del_state(
-                channel=channel, command=self.COMMAND_NAME, param=SMParam.EMOTE
-            )
-            await self._state_manager.del_state(
-                channel=channel, command=self.COMMAND_NAME, param=SMParam.HEIGHT
-            )
-            await self._state_manager.del_state(
-                channel=channel, command=self.COMMAND_NAME, param=SMParam.DIRECTION
-            )
+            await self._state_manager.del_state(channel=channel, command=self.COMMAND_NAME, param=SMParam.USER)
+            await self._state_manager.del_state(channel=channel, command=self.COMMAND_NAME, param=SMParam.EMOTE)
+            await self._state_manager.del_state(channel=channel, command=self.COMMAND_NAME, param=SMParam.HEIGHT)
+            await self._state_manager.del_state(channel=channel, command=self.COMMAND_NAME, param=SMParam.DIRECTION)
             if state_height >= 3 or state_dir == "DOWN":
                 await self.send_response(
                     chat=streamer,
@@ -232,21 +213,11 @@ class PyramidHandler(CommonMessagesHandler):
             return HandlerResult.HANDLED_AND_CONTINUE
         elif emote == state_emote and (emote_count == 1) and state_dir == "DOWN":
             # закончили пирамидку
-            await self._state_manager.del_state(
-                channel=channel, command=self.COMMAND_NAME, param=SMParam.USER
-            )
-            await self._state_manager.del_state(
-                channel=channel, command=self.COMMAND_NAME, param=SMParam.EMOTE
-            )
-            await self._state_manager.del_state(
-                channel=channel, command=self.COMMAND_NAME, param=SMParam.HEIGHT
-            )
-            await self._state_manager.del_state(
-                channel=channel, command=self.COMMAND_NAME, param=SMParam.DIRECTION
-            )
-            await self.send_response(
-                chat=streamer, message=f"@{user} достроил пирамидку! Молодец!"
-            )
+            await self._state_manager.del_state(channel=channel, command=self.COMMAND_NAME, param=SMParam.USER)
+            await self._state_manager.del_state(channel=channel, command=self.COMMAND_NAME, param=SMParam.EMOTE)
+            await self._state_manager.del_state(channel=channel, command=self.COMMAND_NAME, param=SMParam.HEIGHT)
+            await self._state_manager.del_state(channel=channel, command=self.COMMAND_NAME, param=SMParam.DIRECTION)
+            await self.send_response(chat=streamer, message=f"@{user} достроил пирамидку! Молодец!")
             return HandlerResult.HANDLED
 
         return HandlerResult.SKIPED

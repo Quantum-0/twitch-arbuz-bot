@@ -63,14 +63,18 @@ class UpdateMemealertsCoinsSchema(BaseModel):
 class BoolResponseSchema(BaseModel):
     result: bool
 
+
 class CheckStatusResponseSchema(BoolResponseSchema):
     problems: list[str]
+
 
 class CheckMemealertsRewardStatusResponseSchema(CheckStatusResponseSchema):
     state: Literal["missing"] | Literal["broken"] | Literal["ok"]
 
+
 class UUIDResponseSchema(BaseModel):
     id_: UUID = Field(alias="id")
+
 
 class BaseErrorSchema(BaseModel):
     detail: str = Field(examples=["Error description"])

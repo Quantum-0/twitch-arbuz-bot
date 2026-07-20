@@ -47,9 +47,7 @@ tracer = trace.get_tracer(__name__)
 # Используется только для inc_timing("message_processing_time"); если send_message
 # вызвана не из контекста on_message (например, из detached-таски) — значение None,
 # метрика просто не запишется.
-_message_processing_start: ContextVar[float | None] = ContextVar(
-    "_message_processing_start", default=None
-)
+_message_processing_start: ContextVar[float | None] = ContextVar("_message_processing_start", default=None)
 
 
 class ChatBot:
@@ -148,9 +146,7 @@ class ChatBot:
             elapsed_ms = int((monotonic() - start) * 1000)
             _message_processing_start.set(None)
             if self._statistics is not None:
-                self._statistics.inc_timing(
-                    StatsType.MESSAGE_PROCESSING_TIME, value_ms=elapsed_ms
-                )
+                self._statistics.inc_timing(StatsType.MESSAGE_PROCESSING_TIME, value_ms=elapsed_ms)
 
     async def send_message_via_broker(self, chat: User, message: str) -> None:
         "/twitch/outgoing/chat/+"
@@ -192,7 +188,10 @@ class ChatBot:
         """
 
         await self._twitch.send_chat_message(
-            stream_channel_id=chat.twitch_id, stream_channel_login=chat.login_name, message=message, reply_parent_message_id=None
+            stream_channel_id=chat.twitch_id,
+            stream_channel_login=chat.login_name,
+            message=message,
+            reply_parent_message_id=None,
         )
 
     @asynccontextmanager
@@ -261,9 +260,7 @@ class ChatBot:
         logger.info("Updating bot channels")
         async with self._db_session_factory() as session:
             users_result = await session.execute(
-                sa.select(User)
-                .join(TwitchUserSettings)
-                .filter(TwitchUserSettings.enable_chat_bot == True)
+                sa.select(User).join(TwitchUserSettings).filter(TwitchUserSettings.enable_chat_bot == True)
             )
             users = users_result.scalars().all()
         desired_channels: set[User] = {user for user in users}
@@ -343,7 +340,7 @@ class ChatBot:
     async def get_user_last_active(self, channel: str, user: str) -> float:
         return self._user_list_manager.get_last_active(channel, user)
 
-    async def get_random_active_user(self, channel: User | str, max_period_sec: float = 30*60) -> str:
+    async def get_random_active_user(self, channel: User | str, max_period_sec: float = 30 * 60) -> str:
         users = self._user_list_manager.get_active_users(
             channel.login_name if isinstance(channel, User) else channel,
             timeout=max_period_sec,
