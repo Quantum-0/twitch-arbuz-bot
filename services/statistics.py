@@ -53,6 +53,17 @@ PERIOD_CONFIG: dict[StatsPeriod, tuple[int, timedelta]] = {
 # Для них ``get_chart`` возвращает avg = sum_ms / count, а не sum(count).
 TIMING_TYPES: set[str] = {str(StatsType.MESSAGE_PROCESSING_TIME)}
 
+# Sum-метрики: ``value = sum(sum_ms)`` (суммарный объём, не среднее). ``count``
+# — число событий, ``sum_ms`` — суммарный объём (байты и т.п.). Пишутся через
+# ``inc_timing`` (переиспользуем механику двух полей в Redis-хэше).
+SUM_TYPES: set[str] = {str(StatsType.HEAT_PROXY_BYTES)}
+
+# Gauge-метрики: ``value = avg(count)`` внутри бакета агрегации. Хранят
+# мгновенное значение (snapshot), в Redis пишутся через ``hset`` (overwrite, не
+# инкремент), в БД — через ``ON CONFLICT DO UPDATE set count = EXCLUDED.count``
+# (перезапись, не суммирование). Сейчас: только SSE-подключения.
+GAUGE_TYPES: set[str] = {str(StatsType.SSE_CONNECTIONS)}
+
 
 def _floor_to_bucket(dt: datetime, step_seconds: int) -> datetime:
     """Округляет ``dt`` вниз до начала бакета длиной ``step_seconds`` (UTC)."""
@@ -69,6 +80,36 @@ def _floor_to_bucket(dt: datetime, step_seconds: int) -> datetime:
 def _field_for(type_: str, subtype: str, channel_id: int | None) -> str:
     """Кодирует (type, subtype, channel_id) в имя поля Redis-хэша."""
     return f"{type_}:{subtype}:{'' if channel_id is None else channel_id}"
+
+
+def _value_expr_for(type_str: str) -> Label[Any]:
+    """SQL-выражение для агрегированного ``value`` в зависимости от категории.
+
+    - **Counter** (по умолчанию): ``sum(count)``.
+    - **Gauge** (``GAUGE_TYPES``): ``avg(count)`` — мгновенное значение за бакет
+      усредняется при схлопывании нескольких бакетов в один (period > 10m).
+    - **Timing** (``TIMING_TYPES``): ``sum(sum_ms) / sum(count)`` (avg).
+    - **Sum** (``SUM_TYPES``): ``sum(sum_ms)`` (суммарный объём, не среднее).
+    """
+    if type_str in GAUGE_TYPES:
+        return sa.func.coalesce(sa.func.avg(Statistics.count), 0).label("value")
+    if type_str in TIMING_TYPES:
+        return sa.func.coalesce(
+            sa.func.sum(Statistics.sum_ms) / sa.func.nullif(sa.func.sum(Statistics.count), 0),
+            0,
+        ).label("value")
+    if type_str in SUM_TYPES:
+        return sa.func.coalesce(sa.func.sum(Statistics.sum_ms), 0).label("value")
+    return sa.func.coalesce(sa.func.sum(Statistics.count), 0).label("value")
+
+
+def _needs_empty_subtype_filter(type_str: str) -> bool:
+    """Гарантирует, что timing/sum-метрики не подтянут мусорные строки.
+
+    Старый баг кодировки (до исправления ``SUM_MS_SUFFIX``) оставил в БД строки с
+    ``subtype="sum_ms"``; для timing/sum-метрик нужно фильтровать ``subtype=""``.
+    """
+    return type_str in TIMING_TYPES or type_str in SUM_TYPES
 
 
 # Суффикс, добавляемый к ``type_`` в имени Redis-поля для ``sum_ms`` timing-метрик.
@@ -128,17 +169,19 @@ class StatisticsService:
         type_: str | StatsType,
         subtype: str = "",
         channel_id: int | None = None,
+        amount: int = 1,
     ) -> None:
-        """Fire-and-forget инкремент счётчика.
+        """Fire-and-forget инкремент счётчика на ``amount``.
 
         Безопасно вызывать из горячих путей обработки сообщений: не блокирует
         вызывающий код. Исключения логируются (не всплывают), чтобы падение
-        Redis не роняло обработку чата.
+        Redis не роняло обработку чата. ``amount`` по умолчанию = 1; для
+        byte-счётчиков можно передать размер сообщения.
         """
         if self._r is None:
             # Сервис ещё не стартовал (или Redis умер при init) — теряем метрику.
             return
-        coro = self._inc(str(type_), subtype, channel_id)
+        coro = self._inc(str(type_), subtype, channel_id, amount)
         task = asyncio.create_task(coro)
         self._tasks.add(task)
         task.add_done_callback(self._tasks.discard)
@@ -156,6 +199,9 @@ class StatisticsService:
         (число замеров) и ``sum_ms`` (суммарное время в мс). При ``flush_to_db``
         оба поля пишутся в БД; ``get_chart`` для timing-метрик возвращает avg =
         ``sum_ms / count`` вместо суммы count.
+
+        Та же механика используется для sum-метрик (``SUM_TYPES``), где ``count``
+        — число событий, а ``sum_ms`` — суммарный объём (например, байты Heat).
         """
         if self._r is None:
             return
@@ -164,7 +210,7 @@ class StatisticsService:
         self._tasks.add(task)
         task.add_done_callback(self._tasks.discard)
 
-    async def _inc(self, type_: str, subtype: str, channel_id: int | None) -> None:
+    async def _inc(self, type_: str, subtype: str, channel_id: int | None, amount: int = 1) -> None:
         if self._r is None:
             return
         try:
@@ -172,7 +218,7 @@ class StatisticsService:
             key = self._bucket_key(bucket)
             field = _field_for(type_, subtype, channel_id)
             pipe = self._r.pipeline(transaction=False)
-            pipe.hincrby(key, field, 1)
+            pipe.hincrby(key, field, amount)
             pipe.expire(key, self.HASH_TTL_SECONDS)
             await pipe.execute()
         except Exception:
@@ -248,6 +294,53 @@ class StatisticsService:
                 channel_id,
                 exc_info=True,
             )
+
+    def set_gauge(
+        self,
+        type_: str | StatsType,
+        values: dict[str, int],
+    ) -> None:
+        """Fire-and-forget snapshot gauge-метрики: перезаписывает значения в Redis.
+
+        ``values`` — словарь ``{subtype: value}``. Для каждого подтипа в Redis-хэше
+        текущего бакета поле ``{type}:{subtype}:`` перезаписывается (``hset``, не
+        ``hincrby``) — gauge хранит мгновенное значение, а не накопленную сумму.
+        ``flush_to_db`` для gauge-метрик использует
+        ``ON CONFLICT DO UPDATE set count = EXCLUDED.count`` (перезапись, не +).
+
+        Используется для SSE-подключений: раз в минуту APScheduler-джоб делает
+        snapshot ``SSEManager`` и вызывает этот метод.
+        """
+        if self._r is None:
+            return
+        if not values:
+            return
+        coro = self._set_gauge(str(type_), values)
+        task = asyncio.create_task(coro)
+        self._tasks.add(task)
+        task.add_done_callback(self._tasks.discard)
+
+    async def _set_gauge(self, type_: str, values: dict[str, int]) -> None:
+        if self._r is None:
+            return
+        try:
+            bucket = _floor_to_bucket(datetime.now(UTC), BUCKET_SECONDS)
+            key = self._bucket_key(bucket)
+            mapping: dict[str, str] = {
+                _field_for(type_, subtype, None): str(v) for subtype, v in values.items() if v != 0
+            }
+            # Удаляем нулевые подтипы (если значение сбросилось в 0): иначе в БД
+            # попадёт мусор, а zero-fill в get_chart отрисует как 0.
+            zero_fields = [_field_for(type_, s, None) for s, v in values.items() if v == 0]
+            pipe = self._r.pipeline(transaction=False)
+            if mapping:
+                pipe.hset(key, mapping=mapping)  # type: ignore[arg-type]
+            if zero_fields:
+                pipe.hdel(key, *zero_fields)
+            pipe.expire(key, self.HASH_TTL_SECONDS)
+            await pipe.execute()
+        except Exception:
+            logger.error("Statistics set_gauge failed for type=%s", type_, exc_info=True)
 
     # ------------------------------------------------------------------
     # Дамп в БД
@@ -327,20 +420,35 @@ class StatisticsService:
         rows = self._build_rows_from_hash(raw, bucket)
         if not rows:
             return
+        # Разделяем gauge (перезапись) и counter (сумма) строки.
+        gauge_rows = [r for r in rows if r["type"] in GAUGE_TYPES]
+        counter_rows = [r for r in rows if r["type"] not in GAUGE_TYPES]
         try:
             async with self._db() as session:
-                stmt = (
-                    pg_insert(Statistics)
-                    .values(rows)
-                    .on_conflict_do_update(
-                        index_elements=["bucket_ts", "type", "subtype", "channel_id"],
-                        set_={
-                            "count": Statistics.__table__.c.count + pg_insert(Statistics).excluded.count,
-                            "sum_ms": Statistics.__table__.c.sum_ms + pg_insert(Statistics).excluded.sum_ms,
-                        },
+                if counter_rows:
+                    stmt_counter = (
+                        pg_insert(Statistics)
+                        .values(counter_rows)
+                        .on_conflict_do_update(
+                            index_elements=["bucket_ts", "type", "subtype", "channel_id"],
+                            set_={
+                                "count": Statistics.__table__.c.count + pg_insert(Statistics).excluded.count,
+                                "sum_ms": Statistics.__table__.c.sum_ms + pg_insert(Statistics).excluded.sum_ms,
+                            },
+                        )
                     )
-                )
-                await session.execute(stmt)
+                    await session.execute(stmt_counter)
+                if gauge_rows:
+                    # Gauge: перезаписываем count, не суммируем (мгновенное значение).
+                    stmt_gauge = (
+                        pg_insert(Statistics)
+                        .values(gauge_rows)
+                        .on_conflict_do_update(
+                            index_elements=["bucket_ts", "type", "subtype", "channel_id"],
+                            set_={"count": pg_insert(Statistics).excluded.count},
+                        )
+                    )
+                    await session.execute(stmt_gauge)
                 await session.commit()
             await self._r.delete(key)
         except Exception:
@@ -586,7 +694,6 @@ class StatisticsService:
         """
         step_seconds, max_window = PERIOD_CONFIG[period]
         type_str = str(type_)
-        is_timing = type_str in TIMING_TYPES
 
         rng = self._compute_bucket_range(dt_from, dt_to, max_window, step_seconds)
         if rng is None:
@@ -600,7 +707,6 @@ class StatisticsService:
             start=start,
             end=end,
             step_seconds=step_seconds,
-            is_timing=is_timing,
         )
 
         # Нормализуем ключи к началу бакета и собираем карту bucket -> value.
@@ -630,15 +736,14 @@ class StatisticsService:
         start: datetime,
         end: datetime,
         step_seconds: int,
-        is_timing: bool = False,
     ) -> list[tuple[datetime, int]]:
         """Аггерирует данные из ``statistics`` по бакетам длиной ``step_seconds``.
 
         Использует Postgres-функцию ``date_bin``, чтобы внутри запрошенного
         периода (например, 1d) склеить несколько 10-минутных записей в один бакет.
 
-        Для timing-метрик (``is_timing=True``) возвращает ``sum_ms / count``
-        (avg), для обычных — ``sum(count)``.
+        Категория метрики (counter/gauge/timing/sum) определяется автоматически
+        через ``_value_expr_for(type_str)`` — вызывающий код не передаёт флаги.
         """
         try:
             async with self._db() as session:
@@ -647,15 +752,7 @@ class StatisticsService:
                     Statistics.bucket_ts,
                     sa.text("timestamp '2000-01-01 00:00:00+00'"),
                 ).label("bucket")
-                value_expr: Label[Any]
-                if is_timing:
-                    # avg = sum(sum_ms) / NULLIF(sum(count), 0) — для пустых бакетов NULL→0
-                    value_expr = sa.func.coalesce(
-                        sa.func.sum(Statistics.sum_ms) / sa.func.nullif(sa.func.sum(Statistics.count), 0),
-                        0,
-                    ).label("value")
-                else:
-                    value_expr = sa.func.sum(Statistics.count).label("value")
+                value_expr = _value_expr_for(type_str)
                 stmt = (
                     sa.select(bucket_expr, value_expr)
                     .where(Statistics.type == type_str)
@@ -666,11 +763,7 @@ class StatisticsService:
                 )
                 if subtype_filter is not None:
                     stmt = stmt.where(Statistics.subtype == subtype_filter)
-                elif is_timing:
-                    # Для timing-метрик отбрасываем мусорные строки с
-                    # subtype="sum_ms" (старый баг кодировки до исправления
-                    # SUM_MS_SUFFIX): они содержат в count миллисекунды, а sum_ms=0,
-                    # что ломало avg. Также защищает от любых будущих артефактов.
+                elif _needs_empty_subtype_filter(type_str):
                     stmt = stmt.where(Statistics.subtype == "")
                 if channel_id is not None:
                     stmt = stmt.where(Statistics.channel_id == channel_id)
@@ -708,7 +801,6 @@ class StatisticsService:
         """
         step_seconds, max_window = PERIOD_CONFIG[period]
         type_str = str(type_)
-        is_timing = type_str in TIMING_TYPES
 
         rng = self._compute_bucket_range(dt_from, dt_to, max_window, step_seconds)
         if rng is None:
@@ -725,7 +817,6 @@ class StatisticsService:
             start=start,
             end=end,
             top_n=top_n,
-            is_timing=is_timing,
         )
         if not top_subtypes:
             return []
@@ -738,7 +829,6 @@ class StatisticsService:
             start=start,
             end=end,
             step_seconds=step_seconds,
-            is_timing=is_timing,
         )
 
         # Группируем по subtype и заполняем нулями пустые бакеты.
@@ -771,12 +861,18 @@ class StatisticsService:
         start: datetime,
         end: datetime,
         top_n: int,
-        is_timing: bool,
     ) -> list[str]:
-        """Возвращает топ-N подтипов по суммарному значению за диапазон."""
+        """Возвращает топ-N подтипов по суммарному значению за диапазон.
+
+        Для gauge-метрик усредняем count (мгновенные значения), для timing —
+        ``sum(sum_ms)``, для sum — ``sum(sum_ms)``, для counter — ``sum(count)``.
+        Топ-N определяется по «объёму» за весь диапазон.
+        """
         try:
             async with self._db() as session:
-                if is_timing:
+                if type_str in GAUGE_TYPES:
+                    value_col = sa.func.avg(Statistics.count)
+                elif type_str in TIMING_TYPES or type_str in SUM_TYPES:
                     value_col = sa.func.sum(Statistics.sum_ms)
                 else:
                     value_col = sa.func.sum(Statistics.count)
@@ -791,8 +887,7 @@ class StatisticsService:
                 )
                 if channel_id is not None:
                     stmt = stmt.where(Statistics.channel_id == channel_id)
-                # Для timing-метрик отбрасываем мусорные строки (старый баг).
-                if is_timing:
+                if _needs_empty_subtype_filter(type_str):
                     stmt = stmt.where(Statistics.subtype == "")
                 result = await session.execute(stmt)
                 return [row[0] for row in result.all()]
@@ -809,7 +904,6 @@ class StatisticsService:
         start: datetime,
         end: datetime,
         step_seconds: int,
-        is_timing: bool,
     ) -> list[tuple[datetime, str, int]]:
         """Возвращает (bucket, subtype, value) для каждого подтипа из списка."""
         if not subtypes:
@@ -821,14 +915,7 @@ class StatisticsService:
                     Statistics.bucket_ts,
                     sa.text("timestamp '2000-01-01 00:00:00+00'"),
                 ).label("bucket")
-                value_expr: Label[Any]
-                if is_timing:
-                    value_expr = sa.func.coalesce(
-                        sa.func.sum(Statistics.sum_ms) / sa.func.nullif(sa.func.sum(Statistics.count), 0),
-                        0,
-                    ).label("value")
-                else:
-                    value_expr = sa.func.sum(Statistics.count).label("value")
+                value_expr = _value_expr_for(type_str)
                 stmt = (
                     sa.select(bucket_expr, Statistics.subtype, value_expr)
                     .where(Statistics.type == type_str)

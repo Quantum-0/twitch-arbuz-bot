@@ -1,16 +1,24 @@
 import asyncio
 import logging
 
+from services.statistics import StatisticsService
 from utils.enums import SSEChannel
 
 logger = logging.getLogger(__name__)
 
 
 class HeatUpstreamConnection:
-    def __init__(self, user_id: int, sse_manager: "SSEManager", url: str):
+    def __init__(
+        self,
+        user_id: int,
+        sse_manager: "SSEManager",
+        url: str,
+        statistics: StatisticsService | None = None,
+    ):
         self.user_id = user_id
         self.sse_manager = sse_manager
         self.url = url
+        self._statistics = statistics
 
         self._task: asyncio.Task | None = None
         self._stop_event = asyncio.Event()
@@ -29,6 +37,8 @@ class HeatUpstreamConnection:
     async def _run(self):
         import websockets
         import random
+
+        from schemas.api import StatsType
 
         backoff = 1
 
@@ -51,6 +61,16 @@ class HeatUpstreamConnection:
                             channel=SSEChannel.HEAT,
                             message=msg,
                         )
+
+                        # Метрика проксирования Heat: число сообщений и объём в байтах.
+                        # Сохраняем channel_id для будущей per-channel разбивки.
+                        if self._statistics is not None:
+                            self._statistics.inc(StatsType.HEAT_PROXY_MESSAGES, channel_id=self.user_id)
+                            self._statistics.inc_timing(
+                                StatsType.HEAT_PROXY_BYTES,
+                                value_ms=len(msg.encode("utf-8", errors="ignore")),
+                                channel_id=self.user_id,
+                            )
 
             except asyncio.CancelledError:
                 break

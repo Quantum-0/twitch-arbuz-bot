@@ -16,6 +16,11 @@
         command_handled: ["", "__split__"],
         message_processing_time: [""],
         active_channels: ["", "incoming", "outgoing"],
+        // SSE: можно смотреть total/unique_users/unique_pairs или «раздельно» по
+        // каналам (heat, ai-sticker, ...).
+        sse_connections: ["", "total", "unique_users", "unique_pairs", "__split__"],
+        heat_proxy_messages: [""],
+        heat_proxy_bytes: [""],
     };
 
     const SUBTYPE_LABELS = {
@@ -28,14 +33,16 @@
         failed_on_moderation: "отклонено модерацией",
         incoming: "входящие",
         outgoing: "исходящие",
+        total: "всего",
+        unique_users: "уник. пользователи",
+        unique_pairs: "уник. подключения",
     };
 
     // Псевдо-subtype, при котором фронт идёт к series endpoint для multi-line.
     const SPLIT_SUBTYPE = "__split__";
 
     // Типы метрик, для которых доступна «раздельно» (multi-line) режим.
-    // Пока только command_handled имеет смысл (у остальных подтипы фиксированы).
-    const SPLITTABLE_TYPES = new Set(["command_handled"]);
+    const SPLITTABLE_TYPES = new Set(["command_handled", "sse_connections"]);
 
     const TYPE_LABELS = {
         message_incoming: "Входящие сообщения",
@@ -45,11 +52,20 @@
         command_handled: "Команды",
         message_processing_time: "Время обработки сообщения",
         active_channels: "Активные каналы",
+        sse_connections: "SSE-подключения",
+        heat_proxy_messages: "Heat: сообщения",
+        heat_proxy_bytes: "Heat: данные",
     };
 
     // Типы метрик, для которых значение — это «среднее» (мс), а не «количество».
     // Для них тултип показывает «Avg: X ms», а не RPS.
     const TIMING_TYPES = new Set(["message_processing_time"]);
+
+    // Gauge-метрики: мгновенное значение, не кумулятивное. RPS не имеет смысла.
+    const GAUGE_TYPES = new Set(["sse_connections", "active_channels"]);
+
+    // Sum-метрики: value — суммарный объём (байты). Форматируем в KiB/MiB.
+    const SUM_TYPES = new Set(["heat_proxy_bytes"]);
 
     // Дефолтный показываемый диапазон при отсутствии ?from= в URL.
     // Не равен максимальному разрешённому окну API — выбран поменьше, чтобы
@@ -282,6 +298,22 @@
         return rps.toFixed(4);
     }
 
+    // Форматирование байт для tooltip'а sum-метрик (heat_proxy_bytes).
+    function formatBytes(bytes) {
+        if (bytes < 1024) return `${bytes} B`;
+        if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(2)} KiB`;
+        if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(2)} MiB`;
+        return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GiB`;
+    }
+
+    // Краткий формат для подписей оси Y (без дробной части при больших значениях).
+    function formatBytesShort(bytes) {
+        if (bytes < 1024) return String(bytes);
+        if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KiB`;
+        if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(0)} MiB`;
+        return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GiB`;
+    }
+
     // Палитра из 10 контрастных цветов для multi-line графика.
     const SERIES_COLORS = [
         "#4CAF50", "#2196F3", "#FF9800", "#E91E63", "#9C27B0",
@@ -330,7 +362,7 @@
                     },
                 ],
             },
-            options: chartOptions(startDts, bucketSeconds, isTiming, fmtLabel, colors),
+            options: chartOptions(startDts, bucketSeconds, isTiming, fmtLabel, colors, typeValue),
         });
     }
 
@@ -368,12 +400,14 @@
         chart = new Chart(canvas, {
             type: "line",
             data: { labels: labels, datasets: datasets },
-            options: chartOptions(startDts, bucketSeconds, isTiming, fmtLabel, colors),
+            options: chartOptions(startDts, bucketSeconds, isTiming, fmtLabel, colors, typeValue),
         });
     }
 
     // Общие options для single-line и multi-line графиков.
-    function chartOptions(startDts, bucketSeconds, isTiming, fmtLabel, colors) {
+    function chartOptions(startDts, bucketSeconds, isTiming, fmtLabel, colors, typeValue) {
+        const isGauge = GAUGE_TYPES.has(typeValue);
+        const isSum = SUM_TYPES.has(typeValue);
         return {
             responsive: true,
             maintainAspectRatio: false,
@@ -390,7 +424,11 @@
                 },
                 y: {
                     beginAtZero: true,
-                    ticks: { color: colors.textMuted, precision: 0 },
+                    ticks: {
+                        color: colors.textMuted,
+                        precision: 0,
+                        callback: isSum ? formatBytesShort : undefined,
+                    },
                     grid: { color: colors.border + "55" },
                 },
             },
@@ -406,6 +444,14 @@
                             const value = item.parsed.y;
                             if (isTiming) {
                                 return [`${item.dataset.label}: ${value} ms`];
+                            }
+                            if (isSum) {
+                                return [
+                                    `${item.dataset.label}: ${formatBytes(value)}`,
+                                ];
+                            }
+                            if (isGauge) {
+                                return [`${item.dataset.label}: ${value}`];
                             }
                             const rps = value / bucketSeconds;
                             return [

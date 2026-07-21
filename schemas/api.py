@@ -81,7 +81,17 @@ class BaseErrorSchema(BaseModel):
 
 
 class StatsType(StrEnum):
-    """Типы метрик, собираемых подсистемой статистики."""
+    """Типы метрик, собираемых подсистемой статистики.
+
+    Категории агрегации (см. ``services/statistics.py``):
+    - **Counter** (по умолчанию): ``value = sum(count)`` за бакет (инкрементируются).
+    - **Gauge** (``GAUGE_TYPES``): ``value = avg(count)`` — мгновенное значение
+      (перезаписывается при каждом snapshot'е). Для SSE-подключений.
+    - **Timing** (``TIMING_TYPES``): ``value = sum(sum_ms) / sum(count)`` — среднее
+      время. ``count`` — число замеров, ``sum_ms`` — суммарное время.
+    - **Sum** (``SUM_TYPES``): ``value = sum(sum_ms)`` — суммарный объём (байты и т.п.).
+      ``count`` — число событий, ``sum_ms`` — суммарный объём.
+    """
 
     MESSAGE_INCOMING = "message_incoming"
     MESSAGE_OUTGOING = "message_outgoing"
@@ -95,6 +105,14 @@ class StatsType(StrEnum):
     # сообщения за бакет. В таблице: count = размер сета channel_id, sum_ms=0.
     # Subtype: "incoming" | "outgoing".
     ACTIVE_CHANNELS = "active_channels"
+    # Gauge-метрика: мгновенное число активных SSE-подключений (snapshot раз в
+    # минуту). Subtype: "total" | "unique_users" | "unique_pairs" | <channel_name>.
+    SSE_CONNECTIONS = "sse_connections"
+    # Counter: число проксированных сообщений Heat (upstream → SSE-клиенты).
+    HEAT_PROXY_MESSAGES = "heat_proxy_messages"
+    # Sum-метрика: объём проксированных данных Heat в байтах. count — число
+    # сообщений, sum_ms — суммарные байты.
+    HEAT_PROXY_BYTES = "heat_proxy_bytes"
 
 
 class StatsPeriod(StrEnum):

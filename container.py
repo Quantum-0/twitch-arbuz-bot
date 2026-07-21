@@ -76,7 +76,7 @@ class Container(containers.DeclarativeContainer):
         statistics=statistics,
     )
     ai = providers.Singleton(OpenAIClient, db_session_factory=db_session_factory)
-    sse_manager = providers.Singleton(SSEManager)
+    sse_manager = providers.Singleton(SSEManager, statistics=statistics)
     slovotron = providers.Singleton(SlovotronService, db_session_factory=db_session_factory, chat_bot=chat_bot, ssem=sse_manager)
     memealerts = providers.Singleton(MemealertsService, db_session_factory=db_session_factory)  #deprecated!!!
     memealerts_auth = providers.Singleton(MemealertsOAuthService, db_session_factory=db_session_factory)

@@ -2,6 +2,8 @@ from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from typing import TYPE_CHECKING
 
+import logging
+
 from config import settings
 from container_runtime import get_container, set_container
 from database.database import async_engine
@@ -14,7 +16,6 @@ async def get_db() -> AsyncGenerator:
     session_factory = get_container().db_session_factory()
     async with session_factory() as session:
         yield session
-
 
 
 # TODO: inject по аналогии с ручками, но без depends, просто Provide[Container....]
@@ -103,6 +104,28 @@ async def lifespan(app: "FastAPI | None" = None):
         minute="0",
         second="0",
         id="cleanup_old_statistics",
+        replace_existing=True,
+    )
+    # Ежеминутный snapshot активных SSE-подключений (gauge-метрика).
+    # Раз в минуту берём мгновенное состояние из SSEManager и перезаписываем
+    # значение в Redis-хэше текущего бакета (через set_gauge, не инкремент).
+    # При следующем flush_to_db это значение попадёт в БД как последнее
+    # наблюдаемое в рамках бакета.
+    from schemas.api import StatsType
+
+    async def snapshot_sse_job() -> None:
+        try:
+            values = await sse_manager.snapshot()
+            statistics.set_gauge(StatsType.SSE_CONNECTIONS, values)
+        except Exception:
+            logging.getLogger(__name__).error("snapshot_sse_job failed", exc_info=True)
+
+    scheduler.add_job(
+        snapshot_sse_job,
+        trigger="cron",
+        minute="*",
+        second="0",
+        id="snapshot_sse",
         replace_existing=True,
     )
     scheduler.start()

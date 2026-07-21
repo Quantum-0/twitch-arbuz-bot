@@ -7,6 +7,7 @@ import redis.asyncio as aioredis
 
 from config import settings
 from services.heat_upstream import HeatUpstreamConnection
+from services.statistics import StatisticsService
 from utils.enums import SSEChannel
 
 logger = logging.getLogger(__name__)
@@ -30,15 +31,14 @@ class SSEConnection:
 
 
 class SSEManager:
-    def __init__(self):
+    def __init__(self, statistics: StatisticsService | None = None):
         # user_id -> channel -> set[SSEConnection]
-        self._connections: dict[int, dict[SSEChannel, set[SSEConnection]]] = defaultdict(
-            lambda: defaultdict(set)
-        )
+        self._connections: dict[int, dict[SSEChannel, set[SSEConnection]]] = defaultdict(lambda: defaultdict(set))
         self._heat_connections: dict[int, HeatUpstreamConnection] = {}
         self._lock = asyncio.Lock()
         self._heat_lock = asyncio.Lock()
         self._r: aioredis.Redis | None = None
+        self._statistics = statistics
 
     async def startup(self, redis: aioredis.Redis) -> None:
         self._r = redis
@@ -105,6 +105,7 @@ class SSEManager:
                 user_id=user_id,
                 sse_manager=self,
                 url=settings.heat_url + str(user_id),
+                statistics=self._statistics,
             )
 
             conn.start()
@@ -142,3 +143,43 @@ class SSEManager:
             except Exception:
                 logger.error("Error checking SSE grace key", exc_info=True)
         return False
+
+    async def snapshot(self) -> dict[str, int]:
+        """Возвращает мгновенный снапшот активных SSE-подключений.
+
+        Возвращает словарь ``{subtype: count}`` со следующими подтипами:
+        - ``"total"`` — суммарное число SSE-соединений (включая дубли: один
+          пользователь может держать несколько соединений на одном канале —
+          например, несколько оверлеев OBS).
+        - ``"unique_users"`` — число уникальных ``user_id`` с хотя бы одним
+          активным соединением на любом канале.
+        - ``"unique_pairs"`` — число уникальных пар ``(user_id, channel)`` —
+          то есть «сколько уникальных (стример, sse-канал) комбинаций активны».
+        - ``<channel.value>`` (``heat``, ``ai-sticker``, ``slovotron``, ``msg``)
+          — суммарное число соединений на этом канале (включая дубли по юзерам).
+
+        Используется APScheduler-джобом ``snapshot_sse`` (раз в минуту) для
+        метрики ``StatsType.SSE_CONNECTIONS`` (gauge).
+        """
+        async with self._lock:
+            total = 0
+            unique_users: set[int] = set()
+            unique_pairs = 0
+            per_channel: dict[str, int] = defaultdict(int)
+            for user_id, channels in self._connections.items():
+                for channel, conns in channels.items():
+                    n = len(conns)
+                    if n == 0:
+                        continue
+                    total += n
+                    unique_users.add(user_id)
+                    unique_pairs += 1
+                    per_channel[channel.value] += n
+        result: dict[str, int] = {
+            "total": total,
+            "unique_users": len(unique_users),
+            "unique_pairs": unique_pairs,
+        }
+        for ch_name, count in per_channel.items():
+            result[ch_name] = count
+        return result

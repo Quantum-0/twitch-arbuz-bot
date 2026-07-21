@@ -195,10 +195,12 @@ templates/
 - `id` (serial PK, суррогатный — нужен только чтобы SQLAlchemy-маппер собрался).
 - `bucket_ts` (timestamptz, NOT NULL) — начало 10-минутного бакета (UTC, округлено вниз).
 - `type` (varchar(64), NOT NULL) — `message_incoming` | `message_outgoing` | `reward_memecoins` |
-  `reward_ai_stickers` | `command_handled` | `message_processing_time` | `active_channels`.
+  `reward_ai_stickers` | `command_handled` | `message_processing_time` | `active_channels` |
+  `sse_connections` | `heat_proxy_messages` | `heat_proxy_bytes`.
 - `subtype` (varchar(64), NOT NULL, default `""`) — для `reward_*`: `received`/`succeed`/`failed`/
   `success`/`failed_on_moderation`; для `command_handled` — имя команды; для `message_*` — `""`;
-  для `active_channels` — `incoming`/`outgoing`.
+  для `active_channels` — `incoming`/`outgoing`; для `sse_connections` — `total`/`unique_users`/
+  `unique_pairs`/`<channel_name>` (`heat`/`ai-sticker`/`slovotron`).
 - `channel_id` (bigint, NULL) — twitch_id канала (на будущее для разбивки по каналам; в MVP всегда NULL).
 - `count` (int, NOT NULL, default 0).
 - `sum_ms` (bigint, NULL, default 0) — для timing-метрик (`message_processing_time`):
@@ -259,12 +261,26 @@ Timing-метрики (`inc_timing`) пишут в Redis-хэш два поля:
   затем вторым запросом — точки для каждого с `date_bin` агрегацией + zero-fill.
   Используется ручкой `/api/user/stats/series`.
 
-### `TIMING_TYPES`
+### Категории метрик: `TIMING_TYPES`, `SUM_TYPES`, `GAUGE_TYPES`
 
-Множество строковых представлений `StatsType`, для которых `sum_ms` несёт смысл
-( timing-метрики). Сейчас: `{str(StatsType.MESSAGE_PROCESSING_TIME)}`. Для них
-`get_chart` возвращает avg, фронт показывает «X ms» вместо RPS. Расширяемо —
-добавить новый timing-тип = добавить значение в `StatsType` + в `TIMING_TYPES`.
+В `services/statistics.py` определены три множества, управляющих агрегацией в `get_chart`/`get_chart_series`:
+
+- **Counter** (по умолчанию): `value = sum(count)` за бакет — инкрементируемые метрики
+  (сообщения, награды, команды).
+- **`TIMING_TYPES`** = `{MESSAGE_PROCESSING_TIME}`: timing-метрики, `value = sum(sum_ms) / sum(count)` (avg).
+  `count` — число замеров, `sum_ms` — суммарное мс. Пишутся через `inc_timing()`.
+- **`SUM_TYPES`** = `{HEAT_PROXY_BYTES}`: суммарный объём (байты), `value = sum(sum_ms)`.
+  `count` — число событий, `sum_ms` — суммарный объём. Пишутся через `inc_timing()`
+  (переиспользуем механику двух полей в Redis-хэше).
+- **`GAUGE_TYPES`** = `{SSE_CONNECTIONS, ACTIVE_CHANNELS}`: мгновенные значения
+  (snapshot), `value = avg(count)`. В Redis пишутся через `set_gauge()` (hset, не
+  hincrby — перезапись), в БД через `ON CONFLICT DO UPDATE set count = EXCLUDED.count`
+  (перезапись, не сумма).
+
+Расширяемо: добавить новую категорию = добавить значение в `StatsType` + в
+соответствующее множество + точку инкремента. Фронт различает категории через
+`TIMING_TYPES`/`GAUGE_TYPES`/`SUM_TYPES` JS-множества для tooltip'а
+(«X ms», «X KiB», просто число vs RPS).
 
 ### Точки инкремента
 
@@ -278,10 +294,17 @@ Timing-метрики (`inc_timing`) пишут в Redis-хэш два поля:
 - `twitch/chat/command_manager.py:handle` (после `cmd.handle`) → `inc("command_handled", subtype=cmd.command_name)`.
 - `services/eventsub_service.py:reward_buy_memealerts` → `inc("reward_memecoins", subtype="received"|"succeed"|"failed")`.
 - `services/eventsub_service.py:reward_ai_sticker` → `inc("reward_ai_stickers", subtype="received"|"success"|"failed_on_moderation")`.
+- `services/heat_upstream.py:_run` (после `broadcast` каждого Heat-сообщения) →
+  `inc("heat_proxy_messages", channel_id=user_id)` + `inc_timing("heat_proxy_bytes",
+  value_ms=len(bytes), channel_id=user_id)`.
+- `dependencies.py:snapshot_sse_job` (APScheduler, раз в минуту) →
+  `set_gauge("sse_connections", snapshot)` где `snapshot` — результат
+  `SSEManager.snapshot()`: `{total, unique_users, unique_pairs, <channel_name>}`.
 
-Инъекция `StatisticsService` — через DI в `ChatBot` и `TwitchEventSubService`
-(см. `container.py`); вызывается как `self._statistics.inc(...)` или
-`self._statistics.inc_timing(...)` (без `await`).
+Инъекция `StatisticsService` — через DI в `ChatBot`, `TwitchEventSubService`,
+`SSEManager` (→ в `HeatUpstreamConnection`) (см. `container.py`); вызывается как
+`self._statistics.inc(...)`, `self._statistics.inc_timing(...)`,
+`self._statistics.set_gauge(...)` или `self._statistics.mark_channel(...)` (без `await`).
 
 ### API `/api/user/stats`
 
