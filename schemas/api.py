@@ -113,6 +113,15 @@ class StatsType(StrEnum):
     # Sum-метрика: объём проксированных данных Heat в байтах. count — число
     # сообщений, sum_ms — суммарные байты.
     HEAT_PROXY_BYTES = "heat_proxy_bytes"
+    # Timing-метрика: avg время (мс) этапов генерации ИИ-стикеров.
+    # Subtype: "gen_mini" (gpt-image-1-mini HTTP), "gen_quality" (gpt-image-2
+    # HTTP), "post_processing" (пост-обработка после gpt-image-2: rembg/обводка/тень).
+    AI_STICKER_PROCESSING_TIME = "ai_sticker_processing_time"
+    # Особая кумулятивная метрика: число пользователей бота на момент бакета.
+    # Не хранится в таблице statistics — считается на лету из User.created_at.
+    # В API/фронте обрабатывается отдельным endpoint'ом, тут — только чтобы
+    # попасть в селект типов на фронте.
+    USERS_COUNT = "users_count"
 
 
 class StatsPeriod(StrEnum):

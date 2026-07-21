@@ -3,6 +3,7 @@ import logging
 import re
 from collections.abc import Callable
 from decimal import Decimal
+from time import monotonic
 from uuid import UUID, uuid4
 
 import sqlalchemy as sa
@@ -12,10 +13,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from config import settings
 from database.models import User, GeneratedImage, CharacterInfo, TwitchUserSettings
+from schemas.api import StatsType
 from schemas.enums import FileStorageDir, AIStickerModel, AIReferenceUsagePolicy
 from services.ai import OpenAIClient
 from services.image_resizer import ImageResizer
 from services.s3 import FileStorage, FileNotExistError
+from services.statistics import StatisticsService
 from services.stickers_processor import StickerProcessor
 
 logger = logging.getLogger(__name__)
@@ -23,24 +26,27 @@ tracer = trace.get_tracer(__name__)
 
 FileID = UUID
 
+
 class RewardRedemptionProcessingError(Exception):
     def __init__(self, chatbot_response: str, cancel_redemption: bool = True):
         self.chatbot_response = chatbot_response
         self.cancel_redemption = cancel_redemption
 
+
 class NegativeBalanceError(RewardRedemptionProcessingError):
     def __init__(self):
         super().__init__("Закончились денюшки на генерацию картиночек >.< Стример, пополни баланс, пожалуйста!")
+
 
 class ModerationBlockedException(RewardRedemptionProcessingError):
     def __init__(self):
         super().__init__("Запрос отклонён системой модерации как небезопасный для стрима. Баллы возвращены!")
 
+
 class AIProviderBudgetExceededError(RewardRedemptionProcessingError):
     def __init__(self):
         super().__init__(
-            "Закончился бюджет у провайдера (не ваш), "
-            "передайте @Quatnum075 чтоб он пополнил баланс, пажаласта"
+            "Закончился бюджет у провайдера (не ваш), передайте @Quatnum075 чтоб он пополнил баланс, пажаласта"
         )
 
 
@@ -73,9 +79,11 @@ class OpenAIBadRequestException(RewardRedemptionProcessingError):
     def __init__(self, exc: BadRequestError):
         super().__init__(f"Ошибка при генерации изображения: {_extract_api_message(exc)}. Баллы возвращены!")
 
+
 class OpenAIAPIStatusErrorException(RewardRedemptionProcessingError):
     def __init__(self, exc: APIStatusError):
         super().__init__(f"Ошибка при генерации изображения: {_extract_api_message(exc)}. Баллы возвращены!")
+
 
 class UnknownRedemptionProcessingException(RewardRedemptionProcessingError):
     def __init__(self):
@@ -84,6 +92,7 @@ class UnknownRedemptionProcessingException(RewardRedemptionProcessingError):
 
 class ForeignReferenceNotAllowedError(RewardRedemptionProcessingError):
     """Гейт чужих референсов на канале (deny / with_my_character) либо character-side veto."""
+
     def __init__(self, message: str):
         super().__init__(message)
 
@@ -96,26 +105,23 @@ class StickersService:
         db_session_factory: Callable[[], AsyncSession],
         s3: FileStorage,
         sticker_processor: StickerProcessor,
+        statistics: StatisticsService | None = None,
     ) -> None:
         self._ai = ai
         self._resizer = img_resizer
         self._db_session_factory = db_session_factory
         self._s3 = s3
         self._sticker_processor = sticker_processor
+        self._statistics = statistics
 
     @tracer.start_as_current_span("Stickers: Get cached by prompt")
     async def _get_cached_by_prompt(self, prompt: str) -> FileID | None:
         logger.debug("Trying to get cached sticker by prompt")
         async with self._db_session_factory() as session:
             q = (
-                sa
-                .select(GeneratedImage)
-                .where(
-                    sa.func.lower(GeneratedImage.prompt) == prompt.lower()
-                )
-                .where(
-                    GeneratedImage.created_at >= sa.func.now() - sa.text("interval '7 days'")
-                )
+                sa.select(GeneratedImage)
+                .where(sa.func.lower(GeneratedImage.prompt) == prompt.lower())
+                .where(GeneratedImage.created_at >= sa.func.now() - sa.text("interval '7 days'"))
                 .limit(1)
             )
             cached: GeneratedImage = (await session.execute(q)).scalar_one_or_none()  # type: ignore
@@ -214,9 +220,7 @@ class StickersService:
             if not is_channel_owner:
                 # Гейт A — channel-side политика владельца канала.
                 if channel_policy == AIReferenceUsagePolicy.DENY:
-                    raise ForeignReferenceNotAllowedError(
-                        "Стример запретил генерацию стикеров с чужими персонажами"
-                    )
+                    raise ForeignReferenceNotAllowedError("Стример запретил генерацию стикеров с чужими персонажами")
                 if channel_policy == AIReferenceUsagePolicy.WITH_MY_CHARACTER and not channel_is_mentioned:
                     raise ForeignReferenceNotAllowedError(
                         "Стример запретил генерировать на своём канале стикеры с другими стримерами, "
@@ -242,12 +246,15 @@ class StickersService:
 
         return descriptions, refs
 
-    async def _prepare_final_prompt(self, prompt: str, characters: dict[str, str], with_files: bool, transparent_background: bool = False) -> str:
+    async def _prepare_final_prompt(
+        self, prompt: str, characters: dict[str, str], with_files: bool, transparent_background: bool = False
+    ) -> str:
         # Пропмт для дешёвой модели
         if transparent_background:
             if characters:
                 descriptions_str = "\n\nCharacter descriptions:" + "\n".join(
-                    [f"- *@{name}*: {description}" for name, description in characters.items()])
+                    [f"- *@{name}*: {description}" for name, description in characters.items()]
+                )
             else:
                 descriptions_str = ""
 
@@ -263,10 +270,7 @@ class StickersService:
                 "These descriptions override any assumptions made by the model. "
                 "Preserve the described appearance exactly unless the prompt explicitly requests a temporary costume, "
                 "facial expression, pose, or other non-permanent change.\n\n"
-                + "\n".join(
-                    f"@{name}:\n{description}"
-                    for name, description in characters.items()
-                )
+                + "\n".join(f"@{name}:\n{description}" for name, description in characters.items())
             )
         else:
             descriptions_str = ""
@@ -328,7 +332,9 @@ class StickersService:
         )
 
     @tracer.start_as_current_span("Stickers: Build sticker")
-    async def build_sticker(self, channel: User, prompt: str, chatter: str) -> FileID:  # success: bool + file_id + error (for chat)
+    async def build_sticker(
+        self, channel: User, prompt: str, chatter: str
+    ) -> FileID:  # success: bool + file_id + error (for chat)
         """
         Принимаем запрос на генерацию стикера из дёрнутой награды
         :return: ID файла
@@ -345,11 +351,28 @@ class StickersService:
         use_mini_model = channel.settings.ai_sticker_model == AIStickerModel.MINI
         model = "gpt-image-1-mini" if use_mini_model else "gpt-image-2"
         characters, files = await self._handle_refs_from_prompt(prompt, channel)
-        prompt_for_call = await self._prepare_final_prompt(prompt, characters, with_files=bool(files), transparent_background=use_mini_model)
+        prompt_for_call = await self._prepare_final_prompt(
+            prompt, characters, with_files=bool(files), transparent_background=use_mini_model
+        )
         image, cost = await self._generate_sticker(prompt_for_call, files, model=model)
         file_id = uuid4()
         resized_image = await self._resizer.resize(image)
-        sticker = resized_image if use_mini_model else await self._sticker_processor.process(resized_image)
+        # Пост-обработка (rembg/обводка/тень) выполняется только для gpt-image-2;
+        # для mini-модели пост-обработка пропускается (transparent bg уже в модели).
+        if use_mini_model:
+            sticker = resized_image
+        else:
+            pp_start = monotonic()
+            try:
+                sticker = await self._sticker_processor.process(resized_image)
+            finally:
+                if self._statistics is not None:
+                    elapsed_ms = int((monotonic() - pp_start) * 1000)
+                    self._statistics.inc_timing(
+                        StatsType.AI_STICKER_PROCESSING_TIME,
+                        subtype="post_processing",
+                        value_ms=elapsed_ms,
+                    )
         await self._save_to_s3(file_id, data=sticker)
         await self._save_to_db(file_id, prompt, chatter, channel, cost)
         return file_id
@@ -374,7 +397,6 @@ class StickersService:
                 logger.debug("Send unshown sticker to user")
                 return img.file_id
         return None
-
 
     async def get_sticker(self, file_id: FileID, mark_as_viewed: bool = False) -> bytes | None:
         """

@@ -75,10 +75,12 @@ class Container(containers.DeclarativeContainer):
         mqtt=mqtt,
         statistics=statistics,
     )
-    ai = providers.Singleton(OpenAIClient, db_session_factory=db_session_factory)
+    ai = providers.Singleton(OpenAIClient, db_session_factory=db_session_factory, statistics=statistics)
     sse_manager = providers.Singleton(SSEManager, statistics=statistics)
-    slovotron = providers.Singleton(SlovotronService, db_session_factory=db_session_factory, chat_bot=chat_bot, ssem=sse_manager)
-    memealerts = providers.Singleton(MemealertsService, db_session_factory=db_session_factory)  #deprecated!!!
+    slovotron = providers.Singleton(
+        SlovotronService, db_session_factory=db_session_factory, chat_bot=chat_bot, ssem=sse_manager
+    )
+    memealerts = providers.Singleton(MemealertsService, db_session_factory=db_session_factory)  # deprecated!!!
     memealerts_auth = providers.Singleton(MemealertsOAuthService, db_session_factory=db_session_factory)
     memealerts_v2 = providers.Singleton(MemealertsV2Service, db_session_factory=db_session_factory)
     stickers_processor = providers.Singleton(StickerProcessor)
@@ -92,8 +94,12 @@ class Container(containers.DeclarativeContainer):
     image_resizer = providers.Factory(ImageResizer)
     stickers_service = providers.Factory(
         StickersService,
-        ai=ai, img_resizer=image_resizer, db_session_factory=db_session_factory, s3=s3,
+        ai=ai,
+        img_resizer=image_resizer,
+        db_session_factory=db_session_factory,
+        s3=s3,
         sticker_processor=stickers_processor,
+        statistics=statistics,
     )
     twitch_eventsub_service = providers.Singleton(
         TwitchEventSubService,

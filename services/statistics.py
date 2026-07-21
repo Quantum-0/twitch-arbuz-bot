@@ -28,6 +28,7 @@ from sqlalchemy.sql.elements import Label
 
 from database.models import Statistics
 from schemas.api import StatsPeriod, StatsType
+from utils.enums import SSEChannel
 
 logger = logging.getLogger(__name__)
 tracer = trace.get_tracer(__name__)
@@ -51,7 +52,10 @@ PERIOD_CONFIG: dict[StatsPeriod, tuple[int, timedelta]] = {
 
 # Множество типов метрик, для которых ``sum_ms`` несёт смысл (timing-метрики).
 # Для них ``get_chart`` возвращает avg = sum_ms / count, а не sum(count).
-TIMING_TYPES: set[str] = {str(StatsType.MESSAGE_PROCESSING_TIME)}
+TIMING_TYPES: set[str] = {
+    str(StatsType.MESSAGE_PROCESSING_TIME),
+    str(StatsType.AI_STICKER_PROCESSING_TIME),
+}
 
 # Sum-метрики: ``value = sum(sum_ms)`` (суммарный объём, не среднее). ``count``
 # — число событий, ``sum_ms`` — суммарный объём (байты и т.п.). Пишутся через
@@ -63,6 +67,27 @@ SUM_TYPES: set[str] = {str(StatsType.HEAT_PROXY_BYTES)}
 # инкремент), в БД — через ``ON CONFLICT DO UPDATE set count = EXCLUDED.count``
 # (перезапись, не суммирование). Сейчас: только SSE-подключения.
 GAUGE_TYPES: set[str] = {str(StatsType.SSE_CONNECTIONS)}
+
+# Подтипы ``sse_connections`` (snapshot от ``SSEManager.snapshot``) делятся на
+# служебные агрегаты (``total``, ``unique_users``, ``unique_pairs``) и
+# per-channel значения (по одному на каждый ``SSEChannel``: ``heat``,
+# ``ai-sticker``, ``slovotron``, ``msg``). В split-режиме (multi-line) для
+# ``sse_connections`` показываем только per-channel значения — это то, что
+# хочет видеть пользователь (отдельные линии по каждому SSE-каналу), а не
+# доминирующий ``total``.
+SSE_CONNECTION_PER_CHANNEL_SUBTYPES: set[str] = {ch.value for ch in SSEChannel}
+
+
+def _split_allowed_subtypes(type_str: str) -> set[str] | None:
+    """Возвращает разрешённые подтипы для split-режима или ``None`` (без фильтра).
+
+    Для ``sse_connections`` ограничивает выборку per-channel значениями, чтобы
+    ``total``/``unique_users``/``unique_pairs`` не вытесняли линии каналов
+    из топ-N. Для остальных метрик возвращает ``None`` — без ограничений.
+    """
+    if type_str == str(StatsType.SSE_CONNECTIONS):
+        return SSE_CONNECTION_PER_CHANNEL_SUBTYPES
+    return None
 
 
 def _floor_to_bucket(dt: datetime, step_seconds: int) -> datetime:
@@ -889,6 +914,9 @@ class StatisticsService:
                     stmt = stmt.where(Statistics.channel_id == channel_id)
                 if _needs_empty_subtype_filter(type_str):
                     stmt = stmt.where(Statistics.subtype == "")
+                allowed = _split_allowed_subtypes(type_str)
+                if allowed is not None:
+                    stmt = stmt.where(Statistics.subtype.in_(allowed))
                 result = await session.execute(stmt)
                 return [row[0] for row in result.all()]
         except Exception:
@@ -932,3 +960,110 @@ class StatisticsService:
         except Exception:
             logger.error("Statistics _query_series_rows failed", exc_info=True)
             return []
+
+    # ------------------------------------------------------------------
+    # Кумулятивное число пользователей (не хранится в statistics, читаем из
+    # twitch_bot_users.created_at; используется отдельным API endpoint'ом).
+    # ------------------------------------------------------------------
+
+    # Жёсткий нижний порог: данные о created_at до этой даты не валидны
+    # (бот запущен не раньше). Запросы с from < этого порога будут подняты до него.
+    USERS_COUNT_MIN_DT = datetime(2025, 7, 1, tzinfo=UTC)
+
+    # Своя конфигурация периодов для users_count: длина бакета → max диапазон.
+    # Для users_count длинные периоды имеют смысл (рост аудитории за месяцы),
+    # поэтому 10m-бакеты разрешены только на коротком диапазоне.
+    USERS_COUNT_PERIOD_CONFIG: dict[StatsPeriod, tuple[int, timedelta]] = {
+        StatsPeriod.TEN_MIN: (10 * 60, timedelta(days=1)),
+        StatsPeriod.ONE_HOUR: (60 * 60, timedelta(days=7)),
+        StatsPeriod.THREE_HOURS: (3 * 60 * 60, timedelta(days=30)),
+        StatsPeriod.SIX_HOURS: (6 * 60 * 60, timedelta(days=90)),
+        StatsPeriod.ONE_DAY: (24 * 60 * 60, timedelta(days=365 * 5)),
+    }
+
+    async def get_users_count_chart(
+        self,
+        *,
+        period: StatsPeriod = StatsPeriod.ONE_DAY,
+        dt_from: datetime | None = None,
+        dt_to: datetime | None = None,
+    ) -> list[tuple[datetime, int]]:
+        """Возвращает кумулятивный ряд числа пользователей по ``User.created_at``.
+
+        Каждый бакет содержит суммарное число пользователей, зарегистрированных
+        к началу этого бакета. Между бакетами с регистрациями значение остаётся
+        прежним (не падает), поэтому график — монотонно-возрастающая ступенчатая
+        линия. Пустые бакеты заполняются предыдущим значением (cumulative carry
+        forward).
+
+        ``dt_from`` принудительно не раньше ``USERS_COUNT_MIN_DT`` (1 июля 2025),
+        ``dt_to`` по умолчанию = now(). Период жёстко ограничен
+        ``USERS_COUNT_PERIOD_CONFIG`` (для 10m — 1 день, для 1d — 5 лет).
+        """
+        from database.models import User
+
+        step_seconds, max_window = self.USERS_COUNT_PERIOD_CONFIG[period]
+        dt_to, dt_from = self._normalize_range(dt_from, dt_to, max_window)
+
+        # Принудительный нижний порог: не раньше 1 июля 2025.
+        if dt_from < self.USERS_COUNT_MIN_DT:
+            dt_from = self.USERS_COUNT_MIN_DT
+        if dt_from >= dt_to:
+            return []
+
+        start = _floor_to_bucket(dt_from, step_seconds)
+        end = _floor_to_bucket(dt_to, step_seconds)
+        if end < dt_to:
+            end = end + timedelta(seconds=step_seconds)
+
+        # Не показываем будущие/неполные бакеты — только полностью завершённые.
+        now_bucket = _floor_to_bucket(datetime.now(UTC), BUCKET_SECONDS)
+        if end > now_bucket:
+            end = now_bucket
+        if start >= end:
+            return []
+
+        # 1) Базовое число пользователей на момент start (все с created_at < start).
+        # 2) Per-bucket число новых регистраций в диапазоне.
+        try:
+            async with self._db() as session:
+                base_count_q = sa.select(sa.func.count(User.id)).where(User.created_at < start)
+                base_count = (await session.execute(base_count_q)).scalar_one()
+
+                bucket_expr = sa.func.date_bin(
+                    sa.text(f"'{step_seconds} seconds'"),
+                    User.created_at,
+                    sa.text("timestamp '2000-01-01 00:00:00+00'"),
+                ).label("bucket")
+                per_bucket_q = (
+                    sa.select(bucket_expr, sa.func.count(User.id))
+                    .where(User.created_at >= start)
+                    .where(User.created_at < end)
+                    .group_by(bucket_expr)
+                    .order_by(bucket_expr)
+                )
+                per_bucket_rows = (await session.execute(per_bucket_q)).all()
+        except Exception:
+            logger.error("Statistics get_users_count_chart query failed", exc_info=True)
+            return []
+
+        # Карта bucket → число новых регистраций в этом бакете.
+        new_by_bucket: dict[datetime, int] = {}
+        for bucket_ts, cnt in per_bucket_rows:
+            if bucket_ts.tzinfo is None:
+                bucket_ts = bucket_ts.replace(tzinfo=UTC)
+            else:
+                bucket_ts = bucket_ts.astimezone(UTC)
+            floored = _floor_to_bucket(bucket_ts, step_seconds)
+            new_by_bucket[floored] = new_by_bucket.get(floored, 0) + int(cnt or 0)
+
+        # Кумулятивный ряд с carry-forward: значение растёт только в бакетах,
+        # где были новые регистрации; в остальных остаётся прежним.
+        result: list[tuple[datetime, int]] = []
+        running = int(base_count or 0)
+        cur = start
+        while cur < end:
+            running += new_by_bucket.get(cur, 0)
+            result.append((cur, running))
+            cur = cur + timedelta(seconds=step_seconds)
+        return result

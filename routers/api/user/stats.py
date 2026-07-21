@@ -160,3 +160,52 @@ async def _resolve_channel_id(db: AsyncSession, channel: str | None) -> int | No
     if twitch_id is None:
         raise HTTPException(status_code=404, detail=f"Channel '{channel_login}' not found")
     return int(twitch_id)
+
+
+@router.get(
+    "/users-count",
+    response_model=StatsResponseSchema,
+    responses={401: {"description": "Unauthorized"}},
+)
+@inject
+async def get_users_count(
+    statistics: Annotated[StatisticsService, Depends(Provide[Container.statistics])],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    user: User = Security(user_auth),
+    period: Annotated[
+        StatsPeriod,
+        Query(description="Период агрегации (для users-count разрешены длинные диапазоны)"),
+    ] = StatsPeriod.ONE_DAY,
+    dt_from: Annotated[
+        datetime | None,
+        Query(
+            alias="from",
+            description="Начало диапазона (UTC). Не раньше 1 июля 2025 — принудительно.",
+        ),
+    ] = None,
+    dt_to: Annotated[
+        datetime | None,
+        Query(alias="to", description="Конец диапазона (UTC). По умолчанию — now()."),
+    ] = None,
+) -> StatsResponseSchema:
+    """Возвращает кумулятивный ряд числа пользователей бота по ``User.created_at``.
+
+    Метрика не хранится в таблице ``statistics`` — считается на лету. Каждый
+    бакет содержит суммарное число пользователей, зарегистрированных к началу
+    этого бакета. Пустые бакеты заполняются предыдущим значением (cumulative
+    carry-forward), поэтому график — монотонно-возрастающая линия.
+
+    ``from`` принудительно не раньше 1 июля 2025. Диапазон ограничен в
+    зависимости от ``period`` (см. ``USERS_COUNT_PERIOD_CONFIG``): для 10m —
+    1 день, для 1d — 5 лет.
+    """
+    points = await statistics.get_users_count_chart(
+        period=period,
+        dt_from=dt_from,
+        dt_to=dt_to,
+    )
+    return StatsResponseSchema(
+        type="users_count",
+        period=str(period),
+        points=[StatsPointSchema(datetime=bucket, value=count) for bucket, count in points],
+    )

@@ -21,6 +21,10 @@
         sse_connections: ["", "total", "unique_users", "unique_pairs", "__split__"],
         heat_proxy_messages: [""],
         heat_proxy_bytes: [""],
+        // Timing для ИИ-стикеров: раздельно по этапам gen_mini/gen_quality/post_processing.
+        ai_sticker_processing_time: ["", "gen_mini", "gen_quality", "post_processing", "__split__"],
+        // users_count: кумулятивный график, без подтипов.
+        users_count: [""],
     };
 
     const SUBTYPE_LABELS = {
@@ -35,14 +39,17 @@
         outgoing: "исходящие",
         total: "всего",
         unique_users: "уник. пользователи",
-        unique_pairs: "уник. подключения",
+        unique_pairs: "уник. пары",
+        gen_mini: "генерация (mini)",
+        gen_quality: "генерация (quality)",
+        post_processing: "пост-обработка",
     };
 
     // Псевдо-subtype, при котором фронт идёт к series endpoint для multi-line.
     const SPLIT_SUBTYPE = "__split__";
 
     // Типы метрик, для которых доступна «раздельно» (multi-line) режим.
-    const SPLITTABLE_TYPES = new Set(["command_handled", "sse_connections"]);
+    const SPLITTABLE_TYPES = new Set(["command_handled", "sse_connections", "ai_sticker_processing_time"]);
 
     const TYPE_LABELS = {
         message_incoming: "Входящие сообщения",
@@ -55,17 +62,27 @@
         sse_connections: "SSE-подключения",
         heat_proxy_messages: "Heat: сообщения",
         heat_proxy_bytes: "Heat: данные",
+        ai_sticker_processing_time: "ИИ-стикеры: время",
+        users_count: "Пользователи бота",
     };
 
     // Типы метрик, для которых значение — это «среднее» (мс), а не «количество».
     // Для них тултип показывает «Avg: X ms», а не RPS.
-    const TIMING_TYPES = new Set(["message_processing_time"]);
+    const TIMING_TYPES = new Set(["message_processing_time", "ai_sticker_processing_time"]);
 
     // Gauge-метрики: мгновенное значение, не кумулятивное. RPS не имеет смысла.
     const GAUGE_TYPES = new Set(["sse_connections", "active_channels"]);
 
     // Sum-метрики: value — суммарный объём (байты). Форматируем в KiB/MiB.
     const SUM_TYPES = new Set(["heat_proxy_bytes"]);
+
+    // Кумулятивные метрики: значение растёт со временем, не сумма за бакет.
+    // RPS не имеет смысла — тултип показывает просто значение.
+    const CUMULATIVE_TYPES = new Set(["users_count"]);
+
+    // Типы метрик, которые идут к /api/user/stats/* (не /api/user/stats).
+    // users_count использует отдельный endpoint /users-count, не из таблицы statistics.
+    const SPECIAL_ENDPOINT_TYPES = new Set(["users_count"]);
 
     // Дефолтный показываемый диапазон при отсутствии ?from= в URL.
     // Не равен максимальному разрешённому окну API — выбран поменьше, чтобы
@@ -232,6 +249,15 @@
         }
     }
 
+    // Скрываем селект подтипов для типов с единственным значением, чтобы
+    // не сбивать пользователя (users_count не имеет подтипов).
+    function updateSubtypeVisibility() {
+        const subs = SUBTYPES_BY_TYPE[typeSelect.value];
+        // Скрываем если ровно одна опция и она пустая.
+        const hide = Array.isArray(subs) && subs.length === 1 && subs[0] === "";
+        subtypeSelect.parentElement.style.display = hide ? "none" : "";
+    }
+
     // ------------------------------------------------------------------
     // Построение запроса и отрисовка
     // ------------------------------------------------------------------
@@ -245,6 +271,15 @@
 
     function buildUrl() {
         const params = new URLSearchParams();
+        // users_count идёт к отдельному endpoint /users-count (не из таблицы statistics).
+        if (SPECIAL_ENDPOINT_TYPES.has(typeSelect.value)) {
+            params.set("period", periodSelect.value);
+            const from = isoFromInput(fromInput.value);
+            const to = isoFromInput(toInput.value);
+            if (from) params.set("from", from);
+            if (to) params.set("to", to);
+            return `/api/user/stats/users-count?${params.toString()}`;
+        }
         params.set("type", typeSelect.value);
         const sub = subtypeSelect.value;
         // В split-режиме subtype не передаётся (идём к /series, не к /stats).
@@ -408,6 +443,7 @@
     function chartOptions(startDts, bucketSeconds, isTiming, fmtLabel, colors, typeValue) {
         const isGauge = GAUGE_TYPES.has(typeValue);
         const isSum = SUM_TYPES.has(typeValue);
+        const isCumulative = CUMULATIVE_TYPES.has(typeValue);
         return {
             responsive: true,
             maintainAspectRatio: false,
@@ -450,7 +486,7 @@
                                     `${item.dataset.label}: ${formatBytes(value)}`,
                                 ];
                             }
-                            if (isGauge) {
+                            if (isGauge || isCumulative) {
                                 return [`${item.dataset.label}: ${value}`];
                             }
                             const rps = value / bucketSeconds;
@@ -507,6 +543,7 @@
     typeSelect.addEventListener("change", () => {
         const prevSubtype = subtypeSelect.value;
         subtypeOptions(typeSelect.value);
+        updateSubtypeVisibility();
         // Если прежний подтип не подходит новому типу — он уже сброшен селектом.
         if (subtypeSelect.value !== prevSubtype) {
             // ничего дополнительно делать не надо — subtypeOptions уже выставил дефолт
@@ -529,6 +566,7 @@
     // Инициализация
     // ------------------------------------------------------------------
     readUrlState();
+    updateSubtypeVisibility();
     writeUrlState();
     refresh();
 })();

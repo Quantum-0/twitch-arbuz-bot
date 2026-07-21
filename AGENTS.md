@@ -183,6 +183,99 @@ templates/
 5. API: `/api/user/streamers` отдаёт `total_count`/`commands_count` для сортировки,
    `/api/user/profile/<name>` — топ-N активных юзеров канала.
 
+## SSE — Server-Sent Events (реализовано)
+
+Бот отдаёт стримерам данные для оверлеев OBS через SSE (один HTTP-соединение
+на клиент, сервер пушит события в `text/event-stream`). Это альтернатива
+WebSocket'ам для однонаправленной доставки (сервер → клиент) — проще, не
+нужен WS-фреймворк на фронте, работает через CDN/proxy.
+
+### Роут и каналы
+
+- **Единственный SSE-роут**: `GET /sse/{user_id}/{channel}` в
+  `routers/sse.py:28` (prefix `/sse`). `user_id` — это Twitch channel ID
+  стримера (он же `User.twitch_id`), берётся из URL на фронте (через Jinja
+  `{{ channel_id }}`/`{{ user.twitch_id }}`).
+- **Аутентификации для большинства каналов нет** — любой, кто знает публичный
+  Twitch channel ID стримера, может подключиться. Исключение — `slovotron`
+  (требует query-параметр `?secret=<UUIDv3>`, валидируется как
+  `uuid3(namespace=settings.slovotron_secret, name=user.login_name)`).
+- **Каналы** (`utils/enums.py:SSEChannel`, StrEnum):
+  - `ai-sticker` (`SSEChannel.AI_STICKER`) — ИИ-стикеры, оверлей `overlays/imggen.html`.
+  - `heat` (`SSEChannel.HEAT`) — клики Heat, проксируются из upstream-WS
+    (`services/heat_upstream.py`).
+  - `slovotron` (`SSEChannel.SLOVOTRON`) — Словотрон, защищён `secret`.
+  - `msg` (`SSEChannel.MESSAGE`) — **объявлен, но не используется**
+    (broadcast-источников нет; канал мёртвый).
+- **Фронтенд-потребители** (EventSource): `templates/overlays/imggen.html` (ai-sticker),
+  `templates/docks/slovotron.html` (slovotron), `static/js/heat-ws.js` (heat —
+  primary transport; backup — WS на `wss://heat-api.j38.net`).
+
+### `SSEManager` (`services/sse_manager.py`)
+
+Singleton (DI в `container.py`), инициализируется в `dependencies.py:lifespan`
+через `await sse_manager.startup(redis)`. Хранит активные подключения в памяти:
+
+```
+_connections: dict[user_id (int) -> dict[SSEChannel -> set[SSEConnection]]]
+_heat_connections: dict[user_id (int) -> HeatUpstreamConnection]
+```
+
+`SSEConnection` — dataclass с `queue: asyncio.Queue[str]`, хэшируемый через
+`id(self)` (чтобы можно было положить в `set`).
+
+Ключевые методы:
+- `connect(user_id, channel)` (`sse_manager.py:46`) — создаёт `SSEConnection`,
+  добавляет в `_connections`, удаляет grace-ключ из Redis, для `HEAT` —
+  лениво поднимает `HeatUpstreamConnection` через `_ensure_heat`.
+- `disconnect(user_id, channel, conn)` (`sse_manager.py:65`) — убирает коннект
+  из сета; если канал опустел — кладёт grace-ключ в Redis, для `HEAT` —
+  глушит upstream через `_stop_heat`.
+- `broadcast(user_id, channel, message)` (`sse_manager.py:118`) — `put_nowait`
+  во все очереди канала (неблокирующе, без `await` — один зависший клиент не
+  тормозит остальных).
+- `has_clients(user_id, channel)` (`sse_manager.py:131`) — bool: либо есть
+  живой in-memory коннект, либо активен grace-ключ (см. ниже). Используется в
+  `eventsub_service.py` для gate награды AI-sticker и в `routers/api/user_api.py`
+  в `/check-sse`.
+- `snapshot()` — возвращает мгновенный срез активных подключений для метрики
+  `sse_connections` (см. ниже).
+
+### Grace-период (микро-разрывы EventSource)
+
+Когда последний клиент отключается, в Redis кладётся ключ
+`sse:grace:{user_id}:{channel.value}` с TTL `SSE_GRACE_TTL_S = 15` секунд. В
+течение этого окна `has_clients` всё ещё возвращает `True` — чтобы
+микро-разрывы EventSource (OBS/браузер ~3с реконнектится сам) не приводили к
+отмене наград AI-sticker и не глушили Heat-upstream. Если в течение 15с
+клиент не вернулся — upstream Heat глушится, награды гейтятся.
+
+### Heat upstream lifecycle (`services/heat_upstream.py`)
+
+Heat — единственный канал, где данные приходят **из upstream-WebSocket**
+(`wss://heat-api.j38.net/...`), а не из EventSub-вебхуков. На каждый `user_id`
+с активным SSE-клиентом на канале `HEAT` поднимается **один**
+`HeatUpstreamConnection` (переиспользуется между несколькими браузер-клиентами
+одного стримера). Lifecycle:
+
+- `_ensure_heat(user_id)` (`sse_manager.py:99`) — лениво создаёт
+  `HeatUpstreamConnection` и вызывает `conn.start()` (запускает фоновую таску).
+- `_run()` (`heat_upstream.py:29`) — основной цикл: `websockets.connect`,
+  `async for msg in ws`, `await sse_manager.broadcast(...)`. Каждое сообщение из
+  upstream уходит всем SSE-клиентам канала `HEAT` данного user_id.
+  Экспоненциальный backoff (1→30с) при ошибках. Точка инкремента метрик
+  `heat_proxy_messages` / `heat_proxy_bytes` — после `broadcast`.
+- `_stop_heat(user_id)` (`sse_manager.py:113`) — `conn.stop()` +
+  `_task.cancel()`, вызывается когда последний SSE-клиент канала HEAT ушёл
+  (и grace-период истёк).
+
+### Источники broadcast по каналам
+
+- **HEAT** — `services/heat_upstream.py:49` (через `ssem.broadcast`).
+- **AI_STICKER** — `services/eventsub_service.py:279` (после `build_sticker`).
+- **SLOVOTRON** — `services/slovotron.py:67,79` (после обработки webhook).
+- **MESSAGE** — источников нет (канал мёртвый).
+
 ## Подсистема статистики мониторинга (реализовано)
 
 Полноценная подсистема метрик для графиков активности на странице `/stats`.
@@ -259,7 +352,10 @@ Timing-метрики (`inc_timing`) пишут в Redis-хэш два поля:
   `(subtype, [(bucket_ts, value), ...])`. Сначала одним запросом определяются
   топ-N подтипов по суммарному `count` (или `sum_ms` для timing) за диапазон,
   затем вторым запросом — точки для каждого с `date_bin` агрегацией + zero-fill.
-  Используется ручкой `/api/user/stats/series`.
+  Используется ручкой `/api/user/stats/series`. Для `sse_connections` в split-
+  режиме (subtype=`__split__`) фильтр `_split_allowed_subtypes` ограничивает
+  выборку per-channel значениями (`heat`/`ai-sticker`/`slovotron`/`msg`) —
+  служебные `total`/`unique_users`/`unique_pairs` не попадают в топ-N.
 
 ### Категории метрик: `TIMING_TYPES`, `SUM_TYPES`, `GAUGE_TYPES`
 
