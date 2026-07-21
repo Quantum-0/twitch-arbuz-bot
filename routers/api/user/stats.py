@@ -1,14 +1,11 @@
 from datetime import datetime
 from typing import Annotated
 
-import sqlalchemy as sa
 from dependency_injector.wiring import Provide, inject
-from fastapi import APIRouter, Depends, HTTPException, Query, Security
-from sqlalchemy.ext.asyncio import AsyncSession
+from fastapi import APIRouter, Depends, Query, Security
 
 from container import Container
 from database.models import User
-from dependencies import get_db
 from routers.security_helpers import user_auth
 from schemas.api import (
     StatsPeriod,
@@ -32,18 +29,11 @@ router = APIRouter(prefix="/stats", tags=["Monitoring stats"])
 @inject
 async def get_stats(
     statistics: Annotated[StatisticsService, Depends(Provide[Container.statistics])],
-    db: Annotated[AsyncSession, Depends(get_db)],
     user: User = Security(user_auth),
     type_: Annotated[StatsType, Query(alias="type", description="Тип метрики")] = StatsType.MESSAGE_INCOMING,
     subtype: Annotated[
         str | None,
         Query(description="Подтип метрики (для reward_*/command_handled). None — все подтипы вместе."),
-    ] = None,
-    channel: Annotated[
-        str | None,
-        Query(
-            description=("Логин канала для фильтра. MVP не пишет per-channel данные — пока фильтр вернёт пустой ряд."),
-        ),
     ] = None,
     period: Annotated[StatsPeriod, Query(description="Период агрегации")] = StatsPeriod.TEN_MIN,
     dt_from: Annotated[
@@ -66,18 +56,11 @@ async def get_stats(
     (см. ``PERIOD_CONFIG`` в ``services/statistics.py``): если превышен —
     ``from`` сдвигается вперёд. Пустые бакеты внутри диапазона заполняются
     нулями, чтобы график был непрерывным.
-
-    Параметр ``channel`` зарезервирован на будущее (когда появится per-channel
-    сбор статистики); в текущей MVP-реализации все инкременты пишутся с
-    ``channel_id=NULL`` (тотал по сервису), поэтому фильтр по каналу вернёт
-    пустой ряд.
     """
-    channel_id = await _resolve_channel_id(db, channel)
-
     points = await statistics.get_chart(
         type_,
         subtype=subtype,
-        channel_id=channel_id,
+        channel_id=None,
         period=period,
         dt_from=dt_from,
         dt_to=dt_to,
@@ -98,16 +81,11 @@ async def get_stats(
 @inject
 async def get_stats_series(
     statistics: Annotated[StatisticsService, Depends(Provide[Container.statistics])],
-    db: Annotated[AsyncSession, Depends(get_db)],
     user: User = Security(user_auth),
     type_: Annotated[
         StatsType,
         Query(alias="type", description="Тип метрики (обычно command_handled)"),
     ] = StatsType.COMMAND_HANDLED,
-    channel: Annotated[
-        str | None,
-        Query(description="Логин канала для фильтра (на будущее, MVP — total)."),
-    ] = None,
     period: Annotated[StatsPeriod, Query(description="Период агрегации")] = StatsPeriod.TEN_MIN,
     top: Annotated[
         int,
@@ -128,11 +106,9 @@ async def get_stats_series(
     второй — точки для каждого из них с ``date_bin`` агрегацией. Пустые бакеты
     заполняются нулями (zero-fill), чтобы все ряды имели одинаковую длину.
     """
-    channel_id = await _resolve_channel_id(db, channel)
-
     series = await statistics.get_chart_series(
         type_,
-        channel_id=channel_id,
+        channel_id=None,
         period=period,
         dt_from=dt_from,
         dt_to=dt_to,
@@ -151,17 +127,6 @@ async def get_stats_series(
     )
 
 
-async def _resolve_channel_id(db: AsyncSession, channel: str | None) -> int | None:
-    """Логин канала → twitch_id, для per-channel фильтра (пока возвращает None для MVP)."""
-    if channel is None:
-        return None
-    channel_login = channel.lower()
-    twitch_id = await db.scalar(sa.select(User.twitch_id).where(User.login_name == channel_login))
-    if twitch_id is None:
-        raise HTTPException(status_code=404, detail=f"Channel '{channel_login}' not found")
-    return int(twitch_id)
-
-
 @router.get(
     "/users-count",
     response_model=StatsResponseSchema,
@@ -170,7 +135,6 @@ async def _resolve_channel_id(db: AsyncSession, channel: str | None) -> int | No
 @inject
 async def get_users_count(
     statistics: Annotated[StatisticsService, Depends(Provide[Container.statistics])],
-    db: Annotated[AsyncSession, Depends(get_db)],
     user: User = Security(user_auth),
     period: Annotated[
         StatsPeriod,

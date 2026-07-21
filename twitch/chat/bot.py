@@ -44,10 +44,15 @@ tracer = trace.get_tracer(__name__)
 
 # Moment (monotonic) когда началась обработка текущего сообщения в этом ContextVar-контексте.
 # None — нет активного сообщения (или уже сброшено после первого send_message).
-# Используется только для inc_timing("message_processing_time"); если send_message
-# вызвана не из контекста on_message (например, из detached-таски) — значение None,
-# метрика просто не запишется.
+# Используется только для inc_timing("message_processing_time").
+#
+# ВАЖНО: ContextVar копируется в detached-таски (asyncio.create_task), поэтому
+# одного только _message_processing_start недостаточно — delayed-вызовы send_message
+# (IAmBotHandler 0.5/2.5с, finish_raffle 60с) увидели бы старый start и записали
+# завышенное время. Дополнительно храним id задачи, выставившей start, и в
+# send_message проверяем совпадение с текущей задачей.
 _message_processing_start: ContextVar[float | None] = ContextVar("_message_processing_start", default=None)
+_message_processing_task: ContextVar[int | None] = ContextVar("_message_processing_task", default=None)
 
 
 class ChatBot:
@@ -144,15 +149,19 @@ class ChatBot:
                 except (TypeError, ValueError):
                     pass
 
-        # Замер времени обработки сообщения: от on_message до первого send_message.
-        # Сбрасываем ContextVar сразу же, чтобы detached-таски (create_task для
-        # драматических пауз IAmBotHandler) не породили повторных записей.
+        # Замер времени обработки сообщения: от on_message до первого send_message
+        # в той же задаче. Сбрасываем ContextVar, чтобы detached-таски (create_task
+        # для драматических пауз IAmBotHandler, finish_raffle) не записали
+        # завышенное время. Дополнительно проверяем id задачи — ContextVar
+        # копируется в дочерние таски, но id текущей задачи у них другой.
         start = _message_processing_start.get()
-        if start is not None:
+        task_id = _message_processing_task.get()
+        if start is not None and task_id is not None and task_id == id(asyncio.current_task()):
             elapsed_ms = int((monotonic() - start) * 1000)
-            _message_processing_start.set(None)
             if self._statistics is not None:
                 self._statistics.inc_timing(StatsType.MESSAGE_PROCESSING_TIME, value_ms=elapsed_ms)
+        _message_processing_start.set(None)
+        _message_processing_task.set(None)
 
     async def send_message_via_broker(self, chat: User, message: str) -> None:
         "/twitch/outgoing/chat/+"
@@ -236,9 +245,11 @@ class ChatBot:
 
         # Старт обработки сообщения для метрики message_processing_time.
         # Используется в send_message (см. выше). Сбрасывается в None в момент
-        # первого отправленного ответа, поэтому последующие send_message в той же
-        # задаче (в т.ч. в detached-тасках) метрику не дублируют.
+        # первого отправленного ответа. Дополнительно сохраняем id текущей задачи,
+        # чтобы detached-таски (create_task) не записали завышенное время —
+        # ContextVar копируется, но id задачи у дочерней таски другой.
         _message_processing_start.set(monotonic())
+        _message_processing_task.set(id(asyncio.current_task()))
 
         channel = message.broadcaster_user_login
 
@@ -267,6 +278,7 @@ class ChatBot:
         # чтобы потенциально активная контекстная переменная не «протекла» в
         # следующий вызов этой же задачи (если она переиспользуется event loop'ом).
         _message_processing_start.set(None)
+        _message_processing_task.set(None)
 
     async def update_bot_channels(self):
         logger.info("Updating bot channels")
@@ -285,23 +297,20 @@ class ChatBot:
         #     logger.debug(f"{s.id} | {s.type} | {s.status} | {s.condition}")
         # logger.debug("")
         current_channels = {
-            sub.condition.get("broadcaster_user_id")
-            for sub in subs
-            if sub.type == "channel.chat.message"
+            sub.condition.get("broadcaster_user_id") for sub in subs if sub.type == "channel.chat.message"
         }
         logger.debug(f"desired_channels: {desired_channels}")
         logger.debug(f"current_channels: {current_channels}")
 
-        if settings.exception_to_many_unsubscribes and len(current_channels) - len(desired_channels) > settings.exception_to_many_unsubscribes:
+        if (
+            settings.exception_to_many_unsubscribes
+            and len(current_channels) - len(desired_channels) > settings.exception_to_many_unsubscribes
+        ):
             raise ToManyChatUnsubscribesStartupException
 
         # Присоединяемся к новым каналам
         async for channel, success, response in self._twitch.subscribe_chat_messages(
-            *(
-                channel
-                for channel in desired_channels
-                if channel.twitch_id not in current_channels
-            )
+            *(channel for channel in desired_channels if channel.twitch_id not in current_channels)
         ):
             if success:
                 logger.info(f"Subscribed to EventSub chat messages for {channel.login_name}")

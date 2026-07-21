@@ -1,6 +1,7 @@
 import asyncio
 import logging
 
+from schemas.api import StatsType
 from services.statistics import StatisticsService
 from utils.enums import SSEChannel
 
@@ -38,8 +39,6 @@ class HeatUpstreamConnection:
         import websockets
         import random
 
-        from schemas.api import StatsType
-
         backoff = 1
 
         logger.info("Started new Heat upstream, id=%s", self.user_id)
@@ -63,13 +62,12 @@ class HeatUpstreamConnection:
                         )
 
                         # Метрика проксирования Heat: число сообщений и объём в байтах.
-                        # Сохраняем channel_id для будущей per-channel разбивки.
+                        # channel_id не записываем — собираем только общую статистику.
                         if self._statistics is not None:
-                            self._statistics.inc(StatsType.HEAT_PROXY_MESSAGES, channel_id=self.user_id)
+                            self._statistics.inc(StatsType.HEAT_PROXY_MESSAGES)
                             self._statistics.inc_timing(
                                 StatsType.HEAT_PROXY_BYTES,
                                 value_ms=len(msg.encode("utf-8", errors="ignore")),
-                                channel_id=self.user_id,
                             )
 
             except asyncio.CancelledError:

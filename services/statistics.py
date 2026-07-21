@@ -65,8 +65,8 @@ SUM_TYPES: set[str] = {str(StatsType.HEAT_PROXY_BYTES)}
 # Gauge-метрики: ``value = avg(count)`` внутри бакета агрегации. Хранят
 # мгновенное значение (snapshot), в Redis пишутся через ``hset`` (overwrite, не
 # инкремент), в БД — через ``ON CONFLICT DO UPDATE set count = EXCLUDED.count``
-# (перезапись, не суммирование). Сейчас: только SSE-подключения.
-GAUGE_TYPES: set[str] = {str(StatsType.SSE_CONNECTIONS)}
+# (перезапись, не сумма). SSE-подключения и активные каналы.
+GAUGE_TYPES: set[str] = {str(StatsType.SSE_CONNECTIONS), str(StatsType.ACTIVE_CHANNELS)}
 
 # Подтипы ``sse_connections`` (snapshot от ``SSEManager.snapshot``) делятся на
 # служебные агрегаты (``total``, ``unique_users``, ``unique_pairs``) и
@@ -1003,25 +1003,18 @@ class StatisticsService:
         from database.models import User
 
         step_seconds, max_window = self.USERS_COUNT_PERIOD_CONFIG[period]
-        dt_to, dt_from = self._normalize_range(dt_from, dt_to, max_window)
 
         # Принудительный нижний порог: не раньше 1 июля 2025.
-        if dt_from < self.USERS_COUNT_MIN_DT:
-            dt_from = self.USERS_COUNT_MIN_DT
-        if dt_from >= dt_to:
-            return []
+        # Применяем ДО нормализации, чтобы _compute_bucket_range не отодвинуло
+        # dt_from назад из-за max_window.
+        dt_to_norm, dt_from_norm = self._normalize_range(dt_from, dt_to, max_window)
+        if dt_from_norm < self.USERS_COUNT_MIN_DT:
+            dt_from_norm = self.USERS_COUNT_MIN_DT
 
-        start = _floor_to_bucket(dt_from, step_seconds)
-        end = _floor_to_bucket(dt_to, step_seconds)
-        if end < dt_to:
-            end = end + timedelta(seconds=step_seconds)
-
-        # Не показываем будущие/неполные бакеты — только полностью завершённые.
-        now_bucket = _floor_to_bucket(datetime.now(UTC), BUCKET_SECONDS)
-        if end > now_bucket:
-            end = now_bucket
-        if start >= end:
+        rng = self._compute_bucket_range(dt_from_norm, dt_to_norm, max_window, step_seconds)
+        if rng is None:
             return []
+        start, end = rng
 
         # 1) Базовое число пользователей на момент start (все с created_at < start).
         # 2) Per-bucket число новых регистраций в диапазоне.

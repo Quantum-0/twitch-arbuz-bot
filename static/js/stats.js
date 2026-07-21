@@ -15,10 +15,12 @@
         // «раздельно» (фронт идёт к /api/user/stats/series за топ-N подтипов).
         command_handled: ["", "__split__"],
         message_processing_time: [""],
-        active_channels: ["", "incoming", "outgoing"],
-        // SSE: можно смотреть total/unique_users/unique_pairs или «раздельно» по
-        // каналам (heat, ai-sticker, ...).
-        sse_connections: ["", "total", "unique_users", "unique_pairs", "__split__"],
+        // active_channels: нет смысла в «(все)» — averaging gauge across subtypes
+        // бессмысленно. По умолчанию показываем incoming.
+        active_channels: ["incoming", "outgoing"],
+        // SSE: 3 конкретных подтипа + «раздельно» по каналам (heat/ai-sticker/...).
+        // «(все)» убран — averaging gauge (total + по пользователям + ...) бессмысленно.
+        sse_connections: ["total", "unique_users", "unique_pairs", "__split__"],
         heat_proxy_messages: [""],
         heat_proxy_bytes: [""],
         // Timing для ИИ-стикеров: раздельно по этапам gen_mini/gen_quality/post_processing.
@@ -38,8 +40,8 @@
         incoming: "входящие",
         outgoing: "исходящие",
         total: "всего",
-        unique_users: "уник. пользователи",
-        unique_pairs: "уник. пары",
+        unique_users: "по пользователям",
+        unique_pairs: "по типам",
         gen_mini: "генерация (mini)",
         gen_quality: "генерация (quality)",
         post_processing: "пост-обработка",
@@ -47,6 +49,13 @@
 
     // Псевдо-subtype, при котором фронт идёт к series endpoint для multi-line.
     const SPLIT_SUBTYPE = "__split__";
+
+    // Пояснения для «(раздельно)» режима: что именно разбивается на линии.
+    const SPLIT_DESCRIPTIONS = {
+        command_handled: "по командам",
+        sse_connections: "по каналам",
+        ai_sticker_processing_time: "по этапам",
+    };
 
     // Типы метрик, для которых доступна «раздельно» (multi-line) режим.
     const SPLITTABLE_TYPES = new Set(["command_handled", "sse_connections", "ai_sticker_processing_time"]);
@@ -107,14 +116,27 @@
     const typeSelect = document.getElementById("stats-type");
     const subtypeSelect = document.getElementById("stats-subtype");
     const periodSelect = document.getElementById("stats-period");
+    const rangeSelect = document.getElementById("stats-range");
     const fromInput = document.getElementById("stats-from");
     const toInput = document.getElementById("stats-to");
+    const autoRefreshSelect = document.getElementById("stats-autorefresh");
     const refreshBtn = document.getElementById("stats-refresh");
     const emptyEl = document.getElementById("stats-empty");
     const canvas = document.getElementById("statsChart");
     const chartWrap = canvas.parentElement;
 
     let chart = null;
+    let autoRefreshTimer = null;
+
+    // Длительность preset-диапазонов в часах.
+    const RANGE_PRESET_HOURS = {
+        "1h": 1,
+        "3h": 3,
+        "6h": 6,
+        "24h": 24,
+        "3d": 24 * 3,
+        "7d": 24 * 7,
+    };
 
     // ------------------------------------------------------------------
     // Вспомогательные функции для дат
@@ -181,6 +203,32 @@
         toInput.value = "";
     }
 
+    function applyRangePreset(preset) {
+        if (preset === "custom" || !preset) return;
+        const hours = RANGE_PRESET_HOURS[preset];
+        if (!hours) return;
+        const now = new Date();
+        const from = new Date(now.getTime() - hours * 3600 * 1000);
+        fromInput.value = toLocalInputValue(from);
+        toInput.value = "";
+    }
+
+    function startAutoRefresh(intervalSec) {
+        stopAutoRefresh();
+        if (intervalSec > 0) {
+            autoRefreshTimer = setInterval(() => {
+                refresh();
+            }, intervalSec * 1000);
+        }
+    }
+
+    function stopAutoRefresh() {
+        if (autoRefreshTimer) {
+            clearInterval(autoRefreshTimer);
+            autoRefreshTimer = null;
+        }
+    }
+
     // ------------------------------------------------------------------
     // Синхронизация состояния с URL
     // ------------------------------------------------------------------
@@ -203,6 +251,8 @@
                 subtypeSelect.value = subtype;
             }
         }
+        // Если subtype не задан в URL и первая опция не пустая —
+        // выбираем первую (для gauge-метрик без «(все)» это даёт осмысленный дефолт).
 
         const period = params.get("period");
         if (period && PERIOD_DEFAULT_HOURS[period]) {
@@ -214,8 +264,21 @@
         if (from || to) {
             fromInput.value = isoToLocalInput(from);
             toInput.value = isoToLocalInput(to);
+            rangeSelect.value = "custom";
         } else {
             defaultRange();
+            // Если в URL есть range preset — применяем его
+            const range = params.get("range");
+            if (range && RANGE_PRESET_HOURS[range]) {
+                rangeSelect.value = range;
+                applyRangePreset(range);
+            }
+        }
+
+        const ar = params.get("autorefresh");
+        if (ar) {
+            autoRefreshSelect.value = ar;
+            startAutoRefresh(parseInt(ar, 10) || 0);
         }
     }
 
@@ -225,10 +288,14 @@
         const sub = subtypeSelect.value;
         if (sub) params.set("subtype", sub);
         params.set("period", periodSelect.value);
+        const range = rangeSelect.value;
+        if (range !== "custom") params.set("range", range);
         const from = isoFromInput(fromInput.value);
         const to = isoFromInput(toInput.value);
         if (from) params.set("from", from);
         if (to) params.set("to", to);
+        const ar = autoRefreshSelect.value;
+        if (ar && ar !== "0") params.set("autorefresh", ar);
         const url = `${window.location.pathname}?${params.toString()}`;
         history.replaceState(null, "", url);
     }
@@ -245,12 +312,18 @@
             return;
         }
         for (const s of subs) {
-            subtypeSelect.appendChild(new Option(SUBTYPE_LABELS[s] || s, s));
+            // Для __split__ добавляем пояснение, что именно разбивается.
+            let label = SUBTYPE_LABELS[s] || s;
+            if (s === SPLIT_SUBTYPE) {
+                const splitDesc = SPLIT_DESCRIPTIONS[type];
+                if (splitDesc) label = `(раздельно) ${splitDesc}`;
+            }
+            subtypeSelect.appendChild(new Option(label, s));
         }
     }
 
     // Скрываем селект подтипов для типов с единственным значением, чтобы
-    // не сбивать пользователя (users_count не имеет подтипов).
+    // не сбивать пользователя (users_count, message_incoming и т.п. не имеют подтипов).
     function updateSubtypeVisibility() {
         const subs = SUBTYPES_BY_TYPE[typeSelect.value];
         // Скрываем если ровно одна опция и она пустая.
@@ -552,8 +625,22 @@
     });
     subtypeSelect.addEventListener("change", () => onChange(true));
     periodSelect.addEventListener("change", () => onChange(true));
-    fromInput.addEventListener("change", () => onChange(true));
-    toInput.addEventListener("change", () => onChange(true));
+    rangeSelect.addEventListener("change", () => {
+        applyRangePreset(rangeSelect.value);
+        onChange(true);
+    });
+    fromInput.addEventListener("change", () => {
+        rangeSelect.value = "custom";
+        onChange(true);
+    });
+    toInput.addEventListener("change", () => {
+        rangeSelect.value = "custom";
+        onChange(true);
+    });
+    autoRefreshSelect.addEventListener("change", () => {
+        startAutoRefresh(parseInt(autoRefreshSelect.value, 10) || 0);
+        writeUrlState();
+    });
     refreshBtn.addEventListener("click", () => onChange(true));
 
     // Перерисовка при смене темы — цвета читаются из CSS-переменных.

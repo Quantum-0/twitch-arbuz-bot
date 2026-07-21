@@ -1,12 +1,12 @@
+import logging
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from typing import TYPE_CHECKING
 
-import logging
-
 from config import settings
 from container_runtime import get_container, set_container
 from database.database import async_engine
+from schemas.api import StatsType
 
 if TYPE_CHECKING:
     from fastapi import FastAPI
@@ -106,13 +106,12 @@ async def lifespan(app: "FastAPI | None" = None):
         id="cleanup_old_statistics",
         replace_existing=True,
     )
+
     # Ежеминутный snapshot активных SSE-подключений (gauge-метрика).
     # Раз в минуту берём мгновенное состояние из SSEManager и перезаписываем
     # значение в Redis-хэше текущего бакета (через set_gauge, не инкремент).
     # При следующем flush_to_db это значение попадёт в БД как последнее
     # наблюдаемое в рамках бакета.
-    from schemas.api import StatsType
-
     async def snapshot_sse_job() -> None:
         try:
             values = await sse_manager.snapshot()
