@@ -1025,20 +1025,25 @@ class StatisticsService:
 
         # 1) Базовое число пользователей на момент start (все с created_at < start).
         # 2) Per-bucket число новых регистраций в диапазоне.
+        # ``User.created_at`` хранится как ``timestamp`` (без tz), поэтому
+        # параметры запроса должны быть naive-UTC — asyncpg отказывается
+        # биндить tz-aware datetime в naive-колонку.
+        start_naive = start.replace(tzinfo=None)
+        end_naive = end.replace(tzinfo=None)
         try:
             async with self._db() as session:
-                base_count_q = sa.select(sa.func.count(User.id)).where(User.created_at < start)
+                base_count_q = sa.select(sa.func.count(User.id)).where(User.created_at < start_naive)
                 base_count = (await session.execute(base_count_q)).scalar_one()
 
                 bucket_expr = sa.func.date_bin(
                     sa.text(f"'{step_seconds} seconds'"),
                     User.created_at,
-                    sa.text("timestamp '2000-01-01 00:00:00+00'"),
+                    sa.text("timestamp '2000-01-01 00:00:00'"),
                 ).label("bucket")
                 per_bucket_q = (
                     sa.select(bucket_expr, sa.func.count(User.id))
-                    .where(User.created_at >= start)
-                    .where(User.created_at < end)
+                    .where(User.created_at >= start_naive)
+                    .where(User.created_at < end_naive)
                     .group_by(bucket_expr)
                     .order_by(bucket_expr)
                 )
