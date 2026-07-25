@@ -178,10 +178,10 @@
         <div class="dock-panel-link"></div>
     </div>
 
-    {% if user and user.login_name in ["quantum075", "d_e_l_y", "silverosemary", "lunahoomalu", "anna_toad", "mefrusha", "pushishca", "kurosakissora", "hatome"] %}
     <div class="overlay-card" data-base="{{ request.base_url }}overlay/ai-sticker">
         <h2>⭐ AI Stickers</h2>
-        <p>Позволяет через награду кидать на стрим стикеры, сгенерированные с помощью ИИ.</p>
+        <small>Эксперементальная функция!</small>
+        <p>Позволяет через награду кидать на стрим стикеры, сгенерированные с помощью ИИ. Можно генерировать с персонажами стримеров.</p>
         <a class="ai-sticker-settings-btn" href="/ai-stickers" title="Настройки ИИ-стикеров"><span>⚙</span> Перейти в настройки</a>
         <button class="overlay-toggle-settings">Настройки</button>
         <div class="overlay-settings">
@@ -197,7 +197,6 @@
         <p>Скопируй ссылку и вставь в OBS, растянув на всю сцену:</p>
         <div class="overlay-link"></div>
     </div>
-    {% endif %}
 
     <div class="overlay-card" data-base="{{ request.base_url }}overlay/ya-music-widget">
         <h2>🎵 Виджет Yandex-music</h2>
