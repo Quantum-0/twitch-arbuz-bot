@@ -6,7 +6,7 @@ from typing import Annotated
 
 import jwt
 import sqlalchemy as sa
-from dependency_injector.wiring import Provide
+from dependency_injector.wiring import Provide, inject
 from fastapi import APIRouter, Depends, Header, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -448,6 +448,7 @@ class SendChatRequest(BaseModel):
 
 
 @router.post("/chat/{channel_id}")
+@inject
 async def send_extension_chat(
     channel_id: int,
     body: SendChatRequest,
