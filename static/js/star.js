@@ -16,6 +16,10 @@ const AIR_FORCE = 20;
 const ITERATIONS = 6;
 const MIN_INTERACTIONS_BEFORE_BREAK = 100;
 
+let breakIndexSaved = null;
+let restoreProgress = 0;
+let isRestoring = false;
+
 /* Точка (Verlet) */
 class Point {
     constructor(x, y, pinned = false) {
@@ -127,6 +131,44 @@ function breakString() {
     // дополнительный импульс звезде
     starPoint.oldx -= (Math.random() - 0.5) * 10;
     starPoint.oldy -= Math.random() * 10;
+
+    breakIndexSaved = breakIndex;
+
+    setTimeout(() => {
+        startRestore();
+    }, 5000 + Math.random() * 1000);
+}
+
+function startRestore() {
+    if (breakIndexSaved === null) return;
+
+    const offsetY = -segmentLength * (points.length - breakIndexSaved);
+
+    // Переносим всю нижнюю часть нитки над экран
+    for (let i = breakIndexSaved + 1; i < points.length; i++) {
+        const p = points[i];
+
+        p.x = startX;
+        p.y = startY + i * segmentLength + offsetY;
+
+        // Обнуляем скорость
+        p.oldx = p.x;
+        p.oldy = p.y;
+    }
+
+    // Вставляем обратно порванный сегмент
+    sticks.splice(
+        breakIndexSaved,
+        0,
+        new Stick(
+            points[breakIndexSaved],
+            points[breakIndexSaved + 1],
+            segmentLength
+        )
+    );
+
+    isRestoring = true;
+    restoreProgress = 0;
 }
 
 /* ================== ВЕТЕР ================== */
@@ -263,7 +305,30 @@ function update() {
     for (let i = 0; i < ITERATIONS; i++) {
         for (const s of sticks) s.update();
     }
+    if (isRestoring) {
+        const targetY = points[breakIndexSaved].y + segmentLength;
 
+        const p = points[breakIndexSaved + 1];
+
+        const dy = targetY - p.y;
+
+        // Медленно опускаем нижнюю часть
+        const move = Math.min(4, Math.abs(dy)) * Math.sign(dy);
+
+        for (let i = breakIndexSaved + 1; i < points.length; i++) {
+            points[i].y += move;
+            points[i].oldy += move;
+        }
+
+        spawnParticles(1);
+
+        if (Math.abs(dy) < 2) {
+            isRestoring = false;
+            isBroken = false;
+            breakIndexSaved = null;
+            interactionsBeforeBreak = 0;
+        }
+    }
     /* Ниточка */
     ctx.beginPath();
     ctx.strokeStyle = "#aaa";
