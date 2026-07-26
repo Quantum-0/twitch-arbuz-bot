@@ -62,6 +62,33 @@
         <div class="overlay-link"></div>
     </div>
 
+    <div class="overlay-card" data-base="{{ request.base_url }}overlay/fireworks">
+        <h2>🎆 Салют</h2>
+        <p>Салют, который запускается по клику зрителей через Heat. Для корректной работы оверлей <u><b>должен быть растянут на всю сцену</b></u>. Добавлять можно несколько.</p>
+        <div class="plugin-required">
+            Для использования оверлея <b>обязательно</b> установить Heat
+            <br/>
+            <button class="install-btn" onclick="setupHeat()">Установить Heat</button>
+        </div>
+        <button class="overlay-toggle-settings">Настройки</button>
+        <div class="overlay-settings">
+            <div class="overlay-control">
+                Количество искр
+                <input type="range" min="10" max="300" step="1" value="80" data-param="particle_count"/>
+            </div>
+            <div class="overlay-control">
+                Затухание
+                <input type="range" min="0.005" max="0.05" step="0.001" value="0.015" data-param="decay"/>
+            </div>
+            <div class="overlay-control">
+                Гравитация
+                <input type="range" min="0" max="0.3" step="0.01" value="0.08" data-param="gravity"/>
+            </div>
+        </div>
+        <p>Скопируй ссылку и вставь в OBS, растянув на всю сцену:</p>
+        <div class="overlay-link"></div>
+    </div>
+
     <div class="overlay-card" data-base="{{ request.base_url }}overlay/pair">
         <h2>🃏 Игра "Найди пару"</h2>
         <p>Мини-игра в угадывание двух одинаковых карточек, по которым могут кликать зрители, чтоб не скучать, например, когда вы куда-то отходите 👀<br>Для корректной работы оверлей <u><b>должен быть растянут на всю сцену</b></u>.</p>

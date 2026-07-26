@@ -94,6 +94,27 @@ async def overlay_star(
     )
 
 
+@router.get("/fireworks")
+async def overlay_fireworks(
+    request: Request,
+    channel_id: int = Query(),
+    particle_count: int = Query(default=80, ge=10, le=300),
+    decay: float = Query(default=0.015, ge=0.005, le=0.05),
+    gravity: float = Query(default=0.08, ge=0.0, le=0.3),
+):
+    await touch_overlay_usage(channel_id=channel_id)
+    return templates.TemplateResponse(
+        "overlays/fireworks.html",
+        {
+            "request": request,
+            "channel_id": channel_id,
+            "particle_count": particle_count,
+            "decay": decay,
+            "gravity": gravity,
+        },
+    )
+
+
 @router.get("/start-wait")
 async def overlay_start_wait(
     request: Request,
