@@ -1,0 +1,23 @@
+#repos:
+#  - repo: local
+#    hooks:
+#      - id: tach
+#        name: tach check (module boundaries)
+#        entry: poetry run tach check
+#        language: system
+#        pass_filenames: false
+#        types: [python]
+#        stages: [pre-commit]
+
+repos:
+- repo: https://github.com/astral-sh/ruff-pre-commit
+  # Ruff version.
+  rev: v0.16.0
+  hooks:
+    # Run the linter.
+    - id: ruff-check
+    # Fix imports
+    - id: ruff-check
+      args: [ --fix, "--select=I" ]
+    # Run the formatter.
+    - id: ruff-format
