@@ -23,7 +23,7 @@ async function aiStickerRewardAction(enable) {
     const btn = document.getElementById('ai-stickers-reward-btn');
     if (btn) btn.disabled = true;
     try {
-        const response = await fetch(`/api/user/setup-ai-stickers?enable=${enable}`, { method: 'POST' });
+        const response = await fetch(`/api/user/setup-ai-stickers?enable=${enable}`, {method: 'POST'});
         const data = await response.json();
         showNotification(data.title || 'ИИ-стикеры', data.message, !response.ok);
     } catch (e) {
@@ -57,9 +57,12 @@ async function submitReference(event) {
     }
 
     try {
-        const response = await fetch('/api/user/reference', { method: 'POST', body: formData });
+        const response = await fetch('/api/user/reference', {method: 'POST', body: formData});
         let data = null;
-        try { data = await response.json(); } catch (_) {}
+        try {
+            data = await response.json();
+        } catch (_) {
+        }
         let detail = data && (data.detail || data.message);
         if (!detail) {
             if (response.status === 413) detail = 'Файл слишком большой. Максимальный размер — 10 МБ.';

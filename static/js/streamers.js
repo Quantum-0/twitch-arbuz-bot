@@ -193,7 +193,7 @@
         try {
             const resp = await fetch(`/api/user/streamers?${params.toString()}`, {
                 signal: controller.signal,
-                headers: { Accept: "application/json" },
+                headers: {Accept: "application/json"},
             });
             if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
             const data = await resp.json();

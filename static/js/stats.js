@@ -507,7 +507,7 @@
         destroyChart();
         chart = new Chart(canvas, {
             type: "line",
-            data: { labels: labels, datasets: datasets },
+            data: {labels: labels, datasets: datasets},
             options: chartOptions(startDts, bucketSeconds, isTiming, fmtLabel, colors, typeValue),
         });
     }
@@ -529,7 +529,7 @@
                         autoSkip: true,
                         maxTicksLimit: 24,
                     },
-                    grid: { color: colors.border + "55" },
+                    grid: {color: colors.border + "55"},
                 },
                 y: {
                     beginAtZero: true,
@@ -538,11 +538,11 @@
                         precision: 0,
                         callback: isSum ? formatBytesShort : undefined,
                     },
-                    grid: { color: colors.border + "55" },
+                    grid: {color: colors.border + "55"},
                 },
             },
             plugins: {
-                legend: { labels: { color: colors.text } },
+                legend: {labels: {color: colors.text}},
                 tooltip: {
                     callbacks: {
                         title: (items) => {
@@ -579,7 +579,7 @@
         refreshBtn.textContent = "Загрузка…";
         try {
             const url = isSplitMode() ? buildSeriesUrl() : buildUrl();
-            const resp = await fetch(url, { credentials: "same-origin" });
+            const resp = await fetch(url, {credentials: "same-origin"});
             if (resp.status === 401) {
                 renderEmpty("Нужна авторизация. Войдите на сайт и вернитесь на эту страницу.");
                 return;

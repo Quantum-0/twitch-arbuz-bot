@@ -4,14 +4,14 @@
 //    const BACKUP_SSE = `https://bot.quantum0.ru/sse/heat/${CHANNEL_ID}`;
 
     const PRIMARY_SSE = `https://bot.quantum0.ru/sse/${CHANNEL_ID}/heat`;
-    const BACKUP_WS  = `wss://heat-api.j38.net/channel/${CHANNEL_ID}`;
+    const BACKUP_WS = `wss://heat-api.j38.net/channel/${CHANNEL_ID}`;
 
     const BASE_DELAY = 1000;
-    const MAX_DELAY  = 20000;
+    const MAX_DELAY = 20000;
     const CONNECT_TIMEOUT = 4000;
 
     const HEARTBEAT_CHECK_INTERVAL = 5000;
-    const HEARTBEAT_TIMEOUT        = 30000;
+    const HEARTBEAT_TIMEOUT = 30000;
 
     let transport = null; // WebSocket | EventSource
     let transportType = null; // "ws" | "sse"
@@ -22,7 +22,7 @@
     let forced = false;
 
     let reconnectTimer = null;
-    let connectTimer   = null;
+    let connectTimer = null;
     let heartbeatTimer = null;
 
     let lastMessageAt = 0;
@@ -39,7 +39,7 @@
     }
 
     function emit(name, detail) {
-        window.dispatchEvent(new CustomEvent(name, { detail }));
+        window.dispatchEvent(new CustomEvent(name, {detail}));
     }
 
     function parseForcedUrl() {
@@ -56,15 +56,15 @@
         forced = true;
 
         if (raw.startsWith("sse://")) {
-            return { type: "sse", url: "https://" + raw.slice(6) };
+            return {type: "sse", url: "https://" + raw.slice(6)};
         }
 
         if (raw.startsWith("ws://") || raw.startsWith("wss://")) {
-            return { type: "ws", url: raw };
+            return {type: "ws", url: raw};
         }
 
         if (raw.startsWith("http://") || raw.startsWith("https://")) {
-            return { type: "sse", url: raw };
+            return {type: "sse", url: raw};
         }
 
         warn("unknown url scheme:", raw);
@@ -72,8 +72,8 @@
     }
 
     const AUTO_URLS = [
-        { type: "sse", url: PRIMARY_SSE },
-        { type: "ws", url: BACKUP_WS }
+        {type: "sse", url: PRIMARY_SSE},
+        {type: "ws", url: BACKUP_WS}
     ];
 
     /* ---------------- cleanup ---------------- */
@@ -104,7 +104,7 @@
                     transport.onclose = null;
                 }
                 transport.close();
-            } catch(e) {
+            } catch (e) {
                 warn("Error during transport cleanup:", e);
             }
         }

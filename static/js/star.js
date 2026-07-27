@@ -5,6 +5,7 @@ function resize() {
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
 }
+
 window.addEventListener("resize", resize);
 resize();
 
@@ -231,33 +232,33 @@ window.addEventListener("heat:message", (e) => {
 const particles = [];
 
 class Particle {
-  constructor(x, y) {
-    const angle = Math.random() * Math.PI * 2;
-    const speed = Math.random() * 2 + 1;
+    constructor(x, y) {
+        const angle = Math.random() * Math.PI * 2;
+        const speed = Math.random() * 2 + 1;
 
-    this.x = x;
-    this.y = y;
-    this.vx = Math.cos(angle) * speed;
-    this.vy = Math.sin(angle) * speed;
-    this.life = 1;
-    this.size = Math.random() * 2 + 1;
-  }
+        this.x = x;
+        this.y = y;
+        this.vx = Math.cos(angle) * speed;
+        this.vy = Math.sin(angle) * speed;
+        this.life = 1;
+        this.size = Math.random() * 2 + 1;
+    }
 
-  update() {
-    this.vx *= 0.98;
-    this.vy *= 0.98;
-    this.vy += 0.05;
-    this.x += this.vx;
-    this.y += this.vy;
-    this.life -= 0.02;
-  }
+    update() {
+        this.vx *= 0.98;
+        this.vy *= 0.98;
+        this.vy += 0.05;
+        this.x += this.vx;
+        this.y += this.vy;
+        this.life -= 0.02;
+    }
 
-  draw() {
-    ctx.fillStyle = hexToRgba(COLOR, this.life);
-    ctx.beginPath();
-    ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
-    ctx.fill();
-  }
+    draw() {
+        ctx.fillStyle = hexToRgba(COLOR, this.life);
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+        ctx.fill();
+    }
 }
 
 function hexToRgba(hex, alpha) {
@@ -268,9 +269,9 @@ function hexToRgba(hex, alpha) {
 }
 
 function spawnParticles(count) {
-  for (let i = 0; i < count; i++) {
-    particles.push(new Particle(starPoint.x, starPoint.y));
-  }
+    for (let i = 0; i < count; i++) {
+        particles.push(new Particle(starPoint.x, starPoint.y));
+    }
 }
 
 /* ================== РЕНДЕР ================== */
