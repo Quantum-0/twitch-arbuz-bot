@@ -43,15 +43,32 @@ function handleAiStickerRewardButton() {
 async function submitReference(event) {
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
-    if (!formData.get('file').name && !String(formData.get('description') || '').trim()) {
+    const file = formData.get('file');
+    const hasFile = file && file.name;
+    const hasDescription = !!String(formData.get('description') || '').trim();
+
+    if (!hasFile && !hasDescription) {
         showNotification('Ошибка', 'Добавьте PNG-файл или описание персонажа.', true);
         return;
     }
-    let data = {};
+    if (hasFile && file.size > 10_000_000) {
+        showNotification('Ошибка', 'Файл слишком большой. Максимальный размер — 10 МБ.', true);
+        return;
+    }
+
     try {
         const response = await fetch('/api/user/reference', { method: 'POST', body: formData });
+        let data = null;
         try { data = await response.json(); } catch (_) {}
-        showNotification(response.ok ? 'Сохранено' : 'Ошибка', response.ok ? 'Персонаж обновлён.' : (data.detail || 'Не удалось сохранить персонажа.'), !response.ok);
+        let detail = data && (data.detail || data.message);
+        if (!detail) {
+            if (response.status === 413) detail = 'Файл слишком большой. Максимальный размер — 10 МБ.';
+            else if (response.status === 415) detail = 'Только PNG-изображения.';
+            else if (response.status === 400) detail = 'Добавьте PNG-файл или описание персонажа.';
+            else if (response.status >= 500) detail = 'Серверная ошибка. Попробуйте позже.';
+            else detail = 'Не удалось сохранить персонажа.';
+        }
+        showNotification(response.ok ? 'Сохранено' : 'Ошибка', response.ok ? 'Персонаж обновлён.' : detail, !response.ok);
     } catch (e) {
         showNotification('Ошибка', e.message || 'Сетевая ошибка. Попробуйте ещё раз.', true);
     }

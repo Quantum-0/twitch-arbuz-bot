@@ -513,7 +513,8 @@ async def upload_reference(
     description: str | None = Form(default=None),
     name: str | None = None
 ) -> BoolResponseSchema:
-    if not file and not description:
+    has_file = bool(file and file.filename)
+    if not has_file and not (description or "").strip():
         raise HTTPException(
             status_code=400,
             detail="Either file or description must be provided."
@@ -525,11 +526,12 @@ async def upload_reference(
             detail="You have no access to upload reference by custom name"
         )
 
-    if file:
-        if file.size > 10_000_000:
+    file_bytes = b""
+    if file is not None and file.filename:
+        if file.size is not None and file.size > 10_000_000:
             raise HTTPException(
                 status_code=413,
-                detail="File is too large",
+                detail="File is too large. Maximum size is 10 MB.",
             )
         if file.content_type != "image/png":
             raise HTTPException(
@@ -539,12 +541,12 @@ async def upload_reference(
 
         file_bytes = await file.read()
 
-        if file_bytes[:8] != b'\x89PNG\r\n\x1a\n':
+        if len(file_bytes) < 8 or file_bytes[:8] != b"\x89PNG\r\n\x1a\n":
             raise HTTPException(415, detail="Invalid file type. Only PNG images are allowed.")
         logger.info(f"Reference image from {user.login_name} was loaded to server")
 
     target_username = name or user.login_name.lower()
-    new_image_id = uuid4() if file else None
+    new_image_id = uuid4() if has_file else None
     old_file_id_to_delete = None
 
     async with db_session_factory() as session:
@@ -557,8 +559,9 @@ async def upload_reference(
             if existing_info:
                 logger.info(f"Found already existing character info from {user.login_name}")
                 session.add(existing_info)
-                if file and existing_info.file_id:
-                    old_file_id_to_delete = existing_info.file_id
+                if has_file:
+                    if existing_info.file_id:
+                        old_file_id_to_delete = existing_info.file_id
                     existing_info.file_id = new_image_id
                 if description:
                     existing_info.description = description
@@ -578,7 +581,7 @@ async def upload_reference(
             )
     logger.info(f"Character info from {user.login_name} saved to db")
 
-    if file and new_image_id:
+    if has_file and new_image_id:
         try:
             await s3.put_object(f"{FileStorageDir.REFS}/{new_image_id}.png", file_bytes)
             logger.info(f"Reference image from {user.login_name} uploaded to s3 successfully")
