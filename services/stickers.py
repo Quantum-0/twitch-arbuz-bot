@@ -166,7 +166,13 @@ class StickersService:
     @tracer.start_as_current_span("Stickers: Save to DB")
     async def _save_to_db(self, file_id: FileID, prompt: str, chatter: str, channel: User, cost: float):
         logger.debug("Saving sticker to database")
+        delta = Decimal(cost * settings.ai_cost_multiplier + settings.ai_cost_single_call)
         async with self._db_session_factory() as session, session.begin():
+            locked = (
+                await session.execute(
+                    sa.select(User).where(User.id == channel.id).with_for_update()
+                )
+            ).scalar_one()
             session.add(
                 GeneratedImage(
                     prompt=prompt,
@@ -176,8 +182,7 @@ class StickersService:
                     file_id=file_id,
                 )
             )
-            channel.total_spent += Decimal(cost * settings.ai_cost_multiplier + settings.ai_cost_single_call)
-            session.add(channel)
+            locked.total_spent += delta
             await session.commit()
 
     @tracer.start_as_current_span("Stickers: Handle refs from prompt")

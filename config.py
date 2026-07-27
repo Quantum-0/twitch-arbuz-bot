@@ -70,8 +70,9 @@ class Settings(BaseSettings):
     s3_access_key: SecretStr
     s3_secret_key: SecretStr
     s3_bucket: str = "twibot"
-    ai_cost_multiplier: float = 1.3  # 30%
-    ai_cost_single_call: float = 0.075  # 7.5kop
+    # 0.37-0.54; 2.5-4 => 0.49 -- 4.42
+    ai_cost_multiplier: float = 1.08  # 8%
+    ai_cost_single_call: float = 0.1  # 10kop
     s3_sticker_expires_days: int = 7
     otel_endpoint: AnyHttpUrl | None = "http://localhost:4317"
     otel_service_name: str = "twitch-bot"
