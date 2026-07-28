@@ -37,10 +37,8 @@ STORY_DATA: dict[str, dict] = {
         "choices": [
             {"text": "Давай познакомимся", "next_step": "quantum_intro"},
             {"text": "Хочу узнать о боте", "next_step": "about_bot"},
-        ]
+        ],
     },
-
-
     "quantum_intro": {
         "character_img": "/static/images/extension/bg_start.png",
         "speaker": "Quantum075",
@@ -122,8 +120,6 @@ STORY_DATA: dict[str, dict] = {
             {"text": "Расскажи про бота", "next_step": "about_bot"},
         ],
     },
-
-
     "about_bot": {
         "character_img": "/static/images/extension/bg_bot_happy.png",
         "speaker": "Quantum075Bot",
@@ -159,7 +155,7 @@ STORY_DATA: dict[str, dict] = {
         "character_img": "/static/images/extension/bg_thinking.png",
         "speaker": "Quantum075Bot",
         "avatar": PFP["Quantum075Bot"],
-        "text": "Есть замечательный сервис Memealerts, который позволяет кидать мемы на стрим. А я позволяю зрителям автоматически получать бесплатные мемкоины \"покупая\" их за баллы канала!",
+        "text": 'Есть замечательный сервис Memealerts, который позволяет кидать мемы на стрим. А я позволяю зрителям автоматически получать бесплатные мемкоины "покупая" их за баллы канала!',
         "choices": [
             {"text": "Интересно! А зачем?", "next_step": "about_memealerts_why"},
             {"text": "Круто! А как это подключить?", "next_step": "connect_bot"},
@@ -179,7 +175,7 @@ STORY_DATA: dict[str, dict] = {
         "speaker": "Quantum075",
         "avatar": PFP["Quantum075"],
         "text": "Раньше я частенько выдавал мемкоины бесплатно тем, кто часто заходит ко мне на стримы и активничает в чатике. Для меня цель - чтоб было интереснее смотреть стрим, а не чтоб собрать как можно больше донатов."
-                "И я делал эту функцию, чтоб мои постоянные зрители могли получать мемкоины, не попрошайничая их, а мне не приходилось отвлекаться от стрима и заходить в панель управления Memealerts.",
+        "И я делал эту функцию, чтоб мои постоянные зрители могли получать мемкоины, не попрошайничая их, а мне не приходилось отвлекаться от стрима и заходить в панель управления Memealerts.",
         "choices": [
             {"text": "Круто! А как это подключить?", "next_step": "connect_bot"},
             {"text": "Звучит так себе", "next_step": "about_memealerts_dont_like"},
@@ -190,10 +186,8 @@ STORY_DATA: dict[str, dict] = {
         "speaker": "Quantum075",
         "avatar": PFP["Quantum075"],
         "text": "Ну что сказать, это ваше дело, я вас не заставляю ^w^",
-        "choices": [
-        ],
+        "choices": [],
     },
-
     "about_chat_bot": {
         "character_img": "/static/images/extension/bg_thinking.png",
         "speaker": "Quantum075Bot",
@@ -221,14 +215,13 @@ STORY_DATA: dict[str, dict] = {
         "speaker": "Quantum075Bot",
         "avatar": PFP["Quantum075Bot"],
         "text": "Ну, возьмём например !кусь. Ты можешь написать !кусь себя, !кусь стримера, !кусь кого-нибудь. Можешь указать цель через @. Можно указать несколько целей."
-                "Если будешь часто кусаться, бот ответит тебе, что твои зупки устали кусаться и им нужно отдохнуть. Отдельно есть ответы на !кусь @Quantum075Bot и на !кусь другого бота."
-                "На каждый из этих случаев есть несколько различных ответов. Попробуй!",
+        "Если будешь часто кусаться, бот ответит тебе, что твои зупки устали кусаться и им нужно отдохнуть. Отдельно есть ответы на !кусь @Quantum075Bot и на !кусь другого бота."
+        "На каждый из этих случаев есть несколько различных ответов. Попробуй!",
         "choices": [
             {"text": "Хочу попробовать!", "next_step": "try_command"},
             {"text": "Хочу подключить!", "next_step": "connect_bot"},
         ],
     },
-
     "about_bot_functions_2": {
         "character_img": "/static/images/extension/bg_thinking.png",
         "speaker": "Quantum075Bot",
@@ -245,12 +238,11 @@ STORY_DATA: dict[str, dict] = {
         "speaker": "Quantum075Bot",
         "avatar": PFP["Quantum075Bot"],
         "text": "У меня есть оверлей со звёздочкой, висящей на ниточке, которую зрители могут дёргать прям тыкая мышкой по стриму."
-                "Так же на сайте бота можно подключить Словотрон, сделанный Фразой, как оверлей в OBS.",
+        "Так же на сайте бота можно подключить Словотрон, сделанный Фразой, как оверлей в OBS.",
         "choices": [
             {"text": "Хочу посмотреть и подключить!", "next_step": "connect_bot"},
         ],
     },
-
     "connect_bot": {
         "character_img": "/static/images/extension/bg_thinking.png",
         "speaker": "Quantum075Bot",
@@ -260,7 +252,6 @@ STORY_DATA: dict[str, dict] = {
             {"text": "Let's gooooo", "link": "https://bot.quantum0.ru/"},
         ],
     },
-
     "try_command": {
         "character_img": "/static/images/extension/bg_thinking.png",
         "speaker": "Quantum075Bot",
@@ -288,7 +279,6 @@ STORY_DATA: dict[str, dict] = {
             {"text": "Вернуться назад", "next_step": "about_commands"},
         ],
     },
-
     # streamer_commands: TODO сцена не реализована
 }
 
@@ -402,6 +392,7 @@ async def _resolve_bot_users_data(db: AsyncSession, twitch: Twitch, cache: Cache
 
 
 @router.get("/scene/{channel_id}/{scene_key}")
+@inject
 async def get_scene(
     channel_id: int,
     scene_key: str,
@@ -422,9 +413,7 @@ async def get_scene(
     if scene_key in {"about_commands", "about_commands_2"}:
         settings_row = await _load_streamer_settings(db, channel_id)
         if not _try_commands_enabled(settings_row):
-            scene["choices"] = [
-                c for c in scene["choices"] if c.get("next_step") != "try_command"
-            ]
+            scene["choices"] = [c for c in scene["choices"] if c.get("next_step") != "try_command"]
 
     # Динамическая генерация кнопок для try_command
     if scene_key == "try_command":
