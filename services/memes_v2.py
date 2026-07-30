@@ -5,22 +5,29 @@ from collections.abc import Callable, Sequence
 from datetime import UTC, datetime, timedelta
 from typing import Generic, TypeVar
 
-from sqlalchemy.dialects.postgresql import insert as pg_insert
 import httpx
 import sqlalchemy as sa
-from memealerts.types.exceptions import MATokenExpiredError, MAUserNotFoundError, MAError
+from memealerts.types.exceptions import MAError, MATokenExpiredError, MAUserNotFoundError
 from memealerts.types.user_id import UserID
 from opentelemetry import trace
 from pydantic import BaseModel, PrivateAttr, ValidationError, computed_field, model_validator
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.exc import MultipleResultsFound
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from config import memealerts_scope, settings
-from database.models import MemealertsSettings, User, MemealertsSupporters
-from exceptions import MARefreshTokenError, MAInvalidTokenError, MAUnavailableError, MAValidationRespError, MANoToken, \
-    MAInvalidScopeError, MADuplicateUserError
+from database.models import MemealertsSettings, MemealertsSupporters, User
+from exceptions import (
+    MADuplicateUserError,
+    MAInvalidScopeError,
+    MAInvalidTokenError,
+    MANoToken,
+    MARefreshTokenError,
+    MAUnavailableError,
+    MAValidationRespError,
+)
 from schemas.api import BoolResponseSchema
-from schemas.memealerts import MAUserInfo, MASupportersList, MASupporter
+from schemas.memealerts import MASupporter, MASupportersList, MAUserInfo
 
 logger = logging.getLogger(__name__)
 tracer = trace.get_tracer(__name__)
@@ -198,7 +205,7 @@ class MemealertsOAuthService:
             access_token=ma_settings.access_token,
             refresh_token=ma_settings.refresh_token,
             expires_at=ma_settings.token_expires_at,  # type: ignore
-            _refresh_expires_at=ma_settings.token_refresh_expires_at
+            _refresh_expires_at=ma_settings.token_refresh_expires_at,
         )
 
     async def _save_token(self, tokens: Tokens[str], user_id: int, session: AsyncSession | None = None):
@@ -348,7 +355,7 @@ class MemealertsV2Service:
             response = await client.get(
                 "https://memealerts.com/api/v1/user/oauth",
                 timeout=10,
-                headers={"Authorization": f"Bearer {ma_token.access_token}"}
+                headers={"Authorization": f"Bearer {ma_token.access_token}"},
             )
             if response.status_code in {500, 502}:
                 raise MAUnavailableError
@@ -421,7 +428,7 @@ class MemealertsV2Service:
 
         if user_in_supporters:
             logger.info(f"Giving memecoins for supporter by username=`{username_clean}`")
-            await self._give_bonus(user_in_supporters.supporter_id, amount)
+            await self._give_bonus(ma_token=ma_token, user_id=user_in_supporters.supporter_id, value=amount)
             return True
 
         # Последний шанс: Глобальный поиск через API
@@ -436,7 +443,7 @@ class MemealertsV2Service:
         #     await cli.give_bonus(user_in_search.id, amount)
         #     return True
 
-        logger.info(f"Failed to give bonus")
+        logger.info("Failed to give bonus")
         return False
 
     async def _give_bonus(self, ma_token: Tokens[str], user_id: UserID, value: int) -> bool:
@@ -454,10 +461,10 @@ class MemealertsV2Service:
                 "https://memealerts.com/api/v1/user/give-bonus",
                 timeout=10,
                 headers={"Authorization": f"Bearer {ma_token.access_token}"},
-                params={
+                json={
                     "userId": str(user_id),
                     "value": value,
-                }
+                },
             )
             if response.status_code in {500, 502}:
                 raise MAUnavailableError
@@ -475,7 +482,9 @@ class MemealertsV2Service:
             except ValidationError as exc:
                 raise MAValidationRespError from exc
 
-    async def _get_supporters(self, ma_token: Tokens[str], skip: int | None = None, limit: int | None = None, query: str | None = None) -> MASupportersList:
+    async def _get_supporters(
+        self, ma_token: Tokens[str], skip: int | None = None, limit: int | None = None, query: str | None = None
+    ) -> MASupportersList:
         params = {}
         if skip is not None:
             if skip < 0:
@@ -488,7 +497,7 @@ class MemealertsV2Service:
         if query:
             params["query"] = query
         async with self._api_semaphore, httpx.AsyncClient() as client:
-            response = await client.post(
+            response = await client.get(
                 "https://memealerts.com/api/v1/user/supporters",
                 timeout=10,
                 headers={"Authorization": f"Bearer {ma_token.access_token}"},
@@ -513,7 +522,9 @@ class MemealertsV2Service:
 
         if total_count > limit:
             remaining_skips = list(range(limit, total_count, limit))
-            tasks = [self._get_supporters(ma_token=ma_token, limit=limit, skip=skip, query=query) for skip in remaining_skips]
+            tasks = [
+                self._get_supporters(ma_token=ma_token, limit=limit, skip=skip, query=query) for skip in remaining_skips
+            ]
             results = await asyncio.gather(*tasks)
 
             for page in results:
