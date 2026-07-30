@@ -7,7 +7,7 @@ from uuid import uuid4
 import httpx
 import sqlalchemy as sa
 from dependency_injector.wiring import Provide, inject
-from fastapi import APIRouter, Depends, Form, Query, Security, HTTPException, UploadFile, File
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Security, UploadFile
 from httpx import HTTPStatusError
 from jwt import DecodeError
 from memealerts.types.exceptions import MATokenExpiredError
@@ -15,22 +15,26 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.responses import JSONResponse
 from twitchAPI.type import TwitchAPIException, TwitchResourceNotFound
 
-from container import Container
 from config import settings
-from database.models import User, CharacterInfo, GeneratedImage
+from container import Container
+from database.models import CharacterInfo, GeneratedImage, User
 from dependencies import get_db
-from exceptions import MANoToken, MAValidationRespError, MAUnavailableError, MAInvalidTokenError
+from exceptions import MAInvalidTokenError, MANoToken, MAUnavailableError, MAValidationRespError
+from routers.api.user.memealerts import router as memealerts_router
+from routers.api.user.stats import router as stats_router
+from routers.api.user.streamers import router as streamers_router
 from routers.security_helpers import user_auth
 from schemas.api import (
-    UpdateSettingsForm,
-    UpdateMemealertsCoinsSchema,
-    BoolResponseSchema,
     BaseErrorSchema,
-    UUIDResponseSchema,
-    CheckStatusResponseSchema,
+    BoolResponseSchema,
     CheckMemealertsRewardStatusResponseSchema,
+    CheckStatusResponseSchema,
+    UpdateMemealertsCoinsSchema,
+    UpdateSettingsForm,
+    UUIDResponseSchema,
 )
 from schemas.enums import FileStorageDir
+from schemas.memealerts import MAChannel
 from services.memes import MemealertsService
 from services.memes_v2 import MemealertsOAuthService, MemealertsV2Service
 from services.s3 import FileStorage
@@ -40,9 +44,6 @@ from twitch.chat.bot import ChatBot
 from twitch.client.twitch import Twitch
 from utils.enums import SSEChannel
 from utils.memes import token_expires_in_days
-from routers.api.user.memealerts import router as memealerts_router
-from routers.api.user.stats import router as stats_router
-from routers.api.user.streamers import router as streamers_router
 
 logger = logging.getLogger(__name__)
 
@@ -66,10 +67,7 @@ async def get_not_shown_sticker_id(
     raise HTTPException(404, "No stickers are not shown")
 
 
-@router.post(
-    "/slovotron/tip",
-    status_code=204
-)
+@router.post("/slovotron/tip", status_code=204)
 @inject
 async def slovotron_tip(
     db: Annotated[AsyncSession, Depends(get_db)],
@@ -83,11 +81,7 @@ async def slovotron_tip(
     await chat_bot.send_message(res, "!подсказка")
 
 
-
-@router.post(
-    "/slovotron/restart",
-    status_code=204
-)
+@router.post("/slovotron/restart", status_code=204)
 @inject
 async def slovotron_restart(
     db: Annotated[AsyncSession, Depends(get_db)],
@@ -114,7 +108,9 @@ async def check_user_sse_connected(
     channel: SSEChannel | None = None,
 ) -> CheckStatusResponseSchema:
     result = await ssem.has_clients(int(user.twitch_id), channel)
-    return CheckStatusResponseSchema(result=result, problems=["OBS не открыт или оверлей не установлен"] if not result else [])
+    return CheckStatusResponseSchema(
+        result=result, problems=["OBS не открыт или оверлей не установлен"] if not result else []
+    )
 
 
 @router.get("/check-heat-installed", response_model=CheckStatusResponseSchema)
@@ -152,14 +148,29 @@ async def check_memealerts_token(
     except Exception:
         return CheckStatusResponseSchema(result=False, problems=["Неизвестная ошибка получения токена"])
     try:
-        await memealerts_api.get_user_info(ma_token)
+        ma_user = await memealerts_api.get_user_info(ma_token)
     except MAUnavailableError:
         return CheckStatusResponseSchema(result=False, problems=["Ошибка подключения к Memealerts"])
     except MAInvalidTokenError:
-        return CheckStatusResponseSchema(result=False, problems=["Ошибка авторизации при получении данных о пользователе"])
+        return CheckStatusResponseSchema(
+            result=False, problems=["Ошибка авторизации при получении данных о пользователе"]
+        )
     except MAValidationRespError:
         return CheckStatusResponseSchema(result=False, problems=["Ошибка формирования ответа в Memealerts"])
-    return CheckStatusResponseSchema(result=True, problems=[])
+
+    return CheckStatusResponseSchema(result=True, problems=[], warnings=_ma_channel_warnings(ma_user.channel))
+
+
+def _ma_channel_warnings(channel: MAChannel | None) -> list[str]:
+    """Варнинги по настройкам канала Memealerts (welcome-bonus / стикеры)."""
+    if channel is None:
+        return []
+    warnings: list[str] = []
+    if channel.welcome_bonus_enabled is False:
+        warnings.append("Приветственный бонус выключен — зрители не смогут получить первые мемкоины за награду")
+    if channel.disable_stickers is True:
+        warnings.append("Отправка стикеров выключена на канале Memealerts")
+    return warnings
 
 
 # FIXME: все ручки /check-* перенести в отдельный роутер!
@@ -170,7 +181,7 @@ async def check_memealerts_reward(
     user: User = Security(user_auth),
 ) -> CheckMemealertsRewardStatusResponseSchema:
     problems = await twitch.validate_reward_subscription(
-        user = user,
+        user=user,
         reward_id=str(user.memealerts.memealerts_reward),
     )
     if not problems:
@@ -224,16 +235,15 @@ async def update_settings(
                     return JSONResponse(
                         {
                             "title": "Ошибка",
-                            "message": f"Подписка на уведомления о рейдах уже существует.",
+                            "message": "Подписка на уведомления о рейдах уже существует.",
                         },
                         409,
                     )
-                else:
-                    raise
+                raise
         elif data.enable_shoutout_on_raid is False:
             await twitch.unsubscribe_raid(user=user)
 
-    return JSONResponse({"title": "Сохранено", "message": f"Настройки успешно обновлены."}, 200)
+    return JSONResponse({"title": "Сохранено", "message": "Настройки успешно обновлены."}, 200)
 
 
 @router.post("/memealerts/coins")
@@ -247,7 +257,7 @@ async def update_memealert_coins(
     return JSONResponse(
         {
             "title": "Сохранено",
-            "message": f"Количество выдаваемых мемкоинов за награду обновлено.",
+            "message": "Количество выдаваемых мемкоинов за награду обновлено.",
         },
         200,
     )
@@ -300,18 +310,29 @@ async def setup_memealert(
         except:
             logger.warning("Error authorization on MA", exc_info=True)
             return JSONResponse(
-                {"title": "Ошибка", "message": "Ошибка авторизации пользователя через токен.\nПроверьте корректность скопированного токена.\nЕсли не помогает - попробуйте переавторизоваться на мемалёртсе."},
+                {
+                    "title": "Ошибка",
+                    "message": "Ошибка авторизации пользователя через токен.\nПроверьте корректность скопированного токена.\nЕсли не помогает - попробуйте переавторизоваться на мемалёртсе.",
+                },
                 400,
             )
 
         if memealerts_user.channel:
             user.settings.memealerts_link = memealerts_user.channel.unique_link
             if memealerts_user.channel.currency_name_declensions:
-                user.memealerts.memecoin_name_genitive = memealerts_user.channel.currency_name_declensions.genitive # 2 мемкоина
-                user.memealerts.memecoin_name_accusative = memealerts_user.channel.currency_name_declensions.accusative # 1 мемкоин
+                user.memealerts.memecoin_name_genitive = (
+                    memealerts_user.channel.currency_name_declensions.genitive
+                )  # 2 мемкоина
+                user.memealerts.memecoin_name_accusative = (
+                    memealerts_user.channel.currency_name_declensions.accusative
+                )  # 1 мемкоин
                 if memealerts_user.channel.currency_name_declensions.multiple:
-                    user.memealerts.memecoin_name_genitive_multiple = memealerts_user.channel.currency_name_declensions.multiple.genitive # 5 мемкоинов
-                    user.memealerts.memecoin_name_accusative_multiple = memealerts_user.channel.currency_name_declensions.multiple.accusative # Получить мемкоины
+                    user.memealerts.memecoin_name_genitive_multiple = (
+                        memealerts_user.channel.currency_name_declensions.multiple.genitive
+                    )  # 5 мемкоинов
+                    user.memealerts.memecoin_name_accusative_multiple = (
+                        memealerts_user.channel.currency_name_declensions.multiple.accusative
+                    )  # Получить мемкоины
 
             if memealerts_user.channel.disable_stickers is True:
                 try:
@@ -357,17 +378,14 @@ async def setup_memealert(
         await db.refresh(user.memealerts)
         await twitch.subscribe_reward(user, reward.id)
         return JSONResponse({"title": "Успешно", "message": "Награда создана."}, 201)
-    else:
-        try:
-            await twitch.delete_reward(user, reward_id)
-        except TwitchResourceNotFound:
-            pass
-        user.memealerts.memealerts_reward = None
-        await db.commit()
-        await db.refresh(user.memealerts)
-        return JSONResponse({"title": "Успешно", "message": "Награда удалена."}, 200)
-
-
+    try:
+        await twitch.delete_reward(user, reward_id)
+    except TwitchResourceNotFound:
+        pass
+    user.memealerts.memealerts_reward = None
+    await db.commit()
+    await db.refresh(user.memealerts)
+    return JSONResponse({"title": "Успешно", "message": "Награда удалена."}, 200)
 
 
 @router.get("/check-ai-stickers-reward", response_model=CheckMemealertsRewardStatusResponseSchema)
@@ -387,6 +405,7 @@ async def check_ai_stickers_reward(
         state = "broken"
     return CheckMemealertsRewardStatusResponseSchema(result=not problems, problems=problems, state=state)
 
+
 @router.post("/setup-ai-stickers")
 @inject
 async def setup_ai_stickers(
@@ -401,9 +420,7 @@ async def setup_ai_stickers(
         if reward_id:
             problems = await twitch.validate_reward_subscription(user=user, reward_id=str(reward_id))
             if not problems:
-                return JSONResponse(
-                    {"title": "Без изменений", "message": "Уже включено."}, 208
-                )
+                return JSONResponse({"title": "Без изменений", "message": "Уже включено."}, 208)
             if "Награда не найдена" in problems:
                 user.settings.ai_sticker_reward_id = None
                 await db.commit()
@@ -417,9 +434,7 @@ async def setup_ai_stickers(
                 return JSONResponse({"title": "Успешно", "message": "Подписка на награду восстановлена."}, 200)
     else:
         if not reward_id:
-            return JSONResponse(
-                {"title": "Без изменений", "message": "Уже выключено."}, 208
-            )
+            return JSONResponse({"title": "Без изменений", "message": "Уже выключено."}, 208)
 
     if enable:
         try:
@@ -448,17 +463,14 @@ async def setup_ai_stickers(
         await db.refresh(user.settings)
         await twitch.subscribe_reward(user, reward.id)
         return JSONResponse({"title": "Успешно", "message": "Награда создана."}, 201)
-    else:
-        try:
-            await twitch.delete_reward(user, reward_id)
-        except TwitchResourceNotFound:
-            pass
-        user.settings.ai_sticker_reward_id = None
-        await db.commit()
-        await db.refresh(user.settings)
-        return JSONResponse({"title": "Успешно", "message": "Награда удалена."}, 200)
-
-
+    try:
+        await twitch.delete_reward(user, reward_id)
+    except TwitchResourceNotFound:
+        pass
+    user.settings.ai_sticker_reward_id = None
+    await db.commit()
+    await db.refresh(user.settings)
+    return JSONResponse({"title": "Успешно", "message": "Награда удалена."}, 200)
 
 
 @router.get("/ai-stickers/recent")
@@ -479,8 +491,7 @@ async def get_recent_ai_stickers(
         .where(GeneratedImage.on_channel == int(user.twitch_id))
         .where(GeneratedImage.file_id.is_not(None))
         .where(
-            GeneratedImage.created_at
-            > sa.func.now() - sa.text(f"interval '{settings.s3_sticker_expires_days} days'")
+            GeneratedImage.created_at > sa.func.now() - sa.text(f"interval '{settings.s3_sticker_expires_days} days'")
         )
         .order_by(GeneratedImage.created_at.desc())
         .limit(limit + 1)
@@ -503,6 +514,7 @@ async def get_recent_ai_stickers(
         "next_cursor": next_cursor,
     }
 
+
 @router.post("/reference")
 @inject
 async def upload_reference(
@@ -511,20 +523,14 @@ async def upload_reference(
     user: User = Security(user_auth),
     file: UploadFile | None = File(default=None),
     description: str | None = Form(default=None),
-    name: str | None = None
+    name: str | None = None,
 ) -> BoolResponseSchema:
     has_file = bool(file and file.filename)
     if not has_file and not (description or "").strip():
-        raise HTTPException(
-            status_code=400,
-            detail="Either file or description must be provided."
-        )
+        raise HTTPException(status_code=400, detail="Either file or description must be provided.")
 
     if name is not None and user.login_name != "quantum075":
-        raise HTTPException(
-            status_code=403,
-            detail="You have no access to upload reference by custom name"
-        )
+        raise HTTPException(status_code=403, detail="You have no access to upload reference by custom name")
 
     file_bytes = b""
     if file is not None and file.filename:
@@ -534,10 +540,7 @@ async def upload_reference(
                 detail="File is too large. Maximum size is 10 MB.",
             )
         if file.content_type != "image/png":
-            raise HTTPException(
-                status_code=415,
-                detail="Invalid file type. Only PNG images are allowed."
-            )
+            raise HTTPException(status_code=415, detail="Invalid file type. Only PNG images are allowed.")
 
         file_bytes = await file.read()
 
@@ -551,9 +554,7 @@ async def upload_reference(
 
     async with db_session_factory() as session:
         try:
-            result = await session.execute(
-                sa.select(CharacterInfo).where(CharacterInfo.name == target_username)
-            )
+            result = await session.execute(sa.select(CharacterInfo).where(CharacterInfo.name == target_username))
             existing_info = result.scalar_one_or_none()
 
             if existing_info:
@@ -575,22 +576,16 @@ async def upload_reference(
             await session.commit()
         except Exception:
             await session.rollback()
-            raise HTTPException(
-                status_code=500,
-                detail="Database error occurred."
-            )
+            raise HTTPException(status_code=500, detail="Database error occurred.")
     logger.info(f"Character info from {user.login_name} saved to db")
 
     if has_file and new_image_id:
         try:
             await s3.put_object(f"{FileStorageDir.REFS}/{new_image_id}.png", file_bytes)
             logger.info(f"Reference image from {user.login_name} uploaded to s3 successfully")
-        except Exception as e:
+        except Exception:
             logger.critical("Failed to upload S3 reference")
-            raise HTTPException(
-                status_code=500,
-                detail="File saved to DB, but failed to upload to storage."
-            )
+            raise HTTPException(status_code=500, detail="File saved to DB, but failed to upload to storage.")
 
     if old_file_id_to_delete:
         try:

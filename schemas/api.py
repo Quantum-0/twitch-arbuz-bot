@@ -5,7 +5,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
-from schemas.enums import ChatbotDefaultTargetBehaviour, AIStickerModel, AIReferenceUsagePolicy
+from schemas.enums import AIReferenceUsagePolicy, AIStickerModel, ChatbotDefaultTargetBehaviour
 
 
 class UpdateSettingsForm(BaseModel):
@@ -65,7 +65,8 @@ class BoolResponseSchema(BaseModel):
 
 
 class CheckStatusResponseSchema(BoolResponseSchema):
-    problems: list[str]
+    problems: list[str] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
 
 
 class CheckMemealertsRewardStatusResponseSchema(CheckStatusResponseSchema):

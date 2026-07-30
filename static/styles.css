@@ -517,6 +517,10 @@ section h3 {
           font-size: 75%;
           color: var(--color-danger);
       }
+
+      & .card-status-warnings-list {
+          color: #e6a800;
+      }
 }
 
 .card-status:hover {
@@ -1464,4 +1468,3 @@ section h3 {
     padding: 40px 0;
     font-size: 15px;
 }
-

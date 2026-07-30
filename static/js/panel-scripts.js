@@ -330,18 +330,22 @@ function updateOverlayLink(card) {
 async function checkStatus(card) {
     const indicator = card.querySelector(".status-indicator");
     const problems_list = card.querySelector(".card-status-problems-list");
+    const warnings_list = card.querySelector(".card-status-warnings-list");
     const endpoint = card.dataset.endpoint;
     const type = card.dataset.type;
 
     // состояние загрузки
-    indicator.classList.remove("active", "error");
+    indicator.classList.remove("active", "error", "warn");
 
     try {
         const res = await fetch(endpoint);
         const data = await res.json();
 
         if (data.result === true) {
-            indicator.classList.add("active");
+            // Варнинги не делают результат невалидным, но подсвечивают нюансы
+            // (например, выключенный welcome-bonus на Memealerts).
+            const hasWarnings = Array.isArray(data.warnings) && data.warnings.length > 0;
+            indicator.classList.add(hasWarnings ? "warn" : "active");
 
             // Обновляем кнопку управления наградой
             if (type === "memealerts-reward") {
@@ -361,10 +365,21 @@ async function checkStatus(card) {
             if (problems_list) {
                 problems_list.innerHTML = "";
             }
+            if (warnings_list) {
+                warnings_list.innerHTML = "";
+                (data.warnings || []).forEach(warning => {
+                    const li = document.createElement("li");
+                    li.textContent = warning;
+                    warnings_list.appendChild(li);
+                });
+            }
 
         } else {
             indicator.classList.add("error");
             problems_list.innerHTML = "";
+            if (warnings_list) {
+                warnings_list.innerHTML = "";
+            }
 
             (data.problems || []).forEach(problem => {
                 const li = document.createElement("li");
@@ -403,6 +418,9 @@ async function checkStatus(card) {
 
     } catch (e) {
         indicator.classList.add("error");
+        if (warnings_list) {
+            warnings_list.innerHTML = "";
+        }
         if (type === "memealerts-reward") {
             updateRewardButton("loading");
         }
