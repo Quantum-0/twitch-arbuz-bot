@@ -9,8 +9,10 @@
     const SUBTYPES_BY_TYPE = {
         message_incoming: [""],
         message_outgoing: [""],
-        reward_memecoins: ["", "received", "succeed", "failed"],
-        reward_ai_stickers: ["", "received", "success", "failed_on_moderation"],
+        // reward_*: «(все)» убрано — succeed/success ⊆ received, суммирование
+        // double-count'ит. Показываем только конкретные подтипы.
+        reward_memecoins: ["received", "succeed", "failed"],
+        reward_ai_stickers: ["received", "success", "failed_on_moderation"],
         // Для command_handled subtype — имя команды; предлагаем «все» или
         // «раздельно» (фронт идёт к /api/user/stats/series за топ-N подтипов).
         command_handled: ["", "__split__"],
@@ -23,8 +25,10 @@
         sse_connections: ["total", "unique_users", "unique_pairs", "__split__"],
         heat_proxy_messages: [""],
         heat_proxy_bytes: [""],
-        // Timing для ИИ-стикеров: раздельно по этапам gen_mini/gen_quality/post_processing.
-        ai_sticker_processing_time: ["", "gen_mini", "gen_quality", "post_processing", "__split__"],
+        // Timing для ИИ-стикеров: подтипы — разные стадии (gen_mini/gen_quality/
+        // post_processing), их нельзя усреднять вместе → «(все)» убрано.
+        // Доступен только режим «раздельно» (top-N подтипов).
+        ai_sticker_processing_time: ["gen_mini", "gen_quality", "post_processing", "__split__"],
         // users_count: кумулятивный график, без подтипов.
         users_count: [""],
     };
@@ -470,7 +474,7 @@
                     },
                 ],
             },
-            options: chartOptions(startDts, bucketSeconds, isTiming, fmtLabel, colors, typeValue),
+            options: chartOptions(startDts, bucketSeconds, isTiming, fmtLabel, colors, typeValue, data),
         });
     }
 
@@ -508,15 +512,42 @@
         chart = new Chart(canvas, {
             type: "line",
             data: {labels: labels, datasets: datasets},
-            options: chartOptions(startDts, bucketSeconds, isTiming, fmtLabel, colors, typeValue),
+            options: chartOptions(startDts, bucketSeconds, isTiming, fmtLabel, colors, typeValue, null),
         });
     }
 
     // Общие options для single-line и multi-line графиков.
-    function chartOptions(startDts, bucketSeconds, isTiming, fmtLabel, colors, typeValue) {
+    function chartOptions(startDts, bucketSeconds, isTiming, fmtLabel, colors, typeValue, dataValues) {
         const isGauge = GAUGE_TYPES.has(typeValue);
         const isSum = SUM_TYPES.has(typeValue);
         const isCumulative = CUMULATIVE_TYPES.has(typeValue);
+
+        // Для кумулятивных метрик (users_count) не начинаем ось Y с нуля —
+        // иначе небольшой рост на больших значениях выглядит как плоская линия.
+        // Добавляем 2% padding снизу и сверху от диапазона данных.
+        let yScaleConfig = {
+            ticks: {
+                color: colors.textMuted,
+                precision: 0,
+                callback: isSum ? formatBytesShort : undefined,
+            },
+            grid: {color: colors.border + "55"},
+        };
+        if (isCumulative && dataValues && dataValues.length > 0) {
+            const min = Math.min(...dataValues);
+            const max = Math.max(...dataValues);
+            if (min === max) {
+                // Все точки одинаковые — показываем ±1 вокруг значения.
+                yScaleConfig.suggestedMin = min - 1;
+                yScaleConfig.suggestedMax = max + 1;
+            } else {
+                const padding = Math.max(1, Math.round((max - min) * 0.02));
+                yScaleConfig.suggestedMin = Math.max(0, min - padding);
+                yScaleConfig.suggestedMax = max + padding;
+            }
+        } else {
+            yScaleConfig.beginAtZero = true;
+        }
         return {
             responsive: true,
             maintainAspectRatio: false,
@@ -531,15 +562,7 @@
                     },
                     grid: {color: colors.border + "55"},
                 },
-                y: {
-                    beginAtZero: true,
-                    ticks: {
-                        color: colors.textMuted,
-                        precision: 0,
-                        callback: isSum ? formatBytesShort : undefined,
-                    },
-                    grid: {color: colors.border + "55"},
-                },
+                y: yScaleConfig,
             },
             plugins: {
                 legend: {labels: {color: colors.text}},

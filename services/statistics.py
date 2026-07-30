@@ -129,11 +129,18 @@ def _value_expr_for(type_str: str) -> Label[Any]:
 
 
 def _needs_empty_subtype_filter(type_str: str) -> bool:
-    """Гарантирует, что timing/sum-метрики не подтянут мусорные строки.
+    """Гарантирует, что timing/sum-метрики без подтипов не подтянут мусорные строки.
 
     Старый баг кодировки (до исправления ``SUM_MS_SUFFIX``) оставил в БД строки с
-    ``subtype="sum_ms"``; для timing/sum-метрик нужно фильтровать ``subtype=""``.
+    ``subtype="sum_ms"``; для timing/sum-метрик, которые используют только
+    ``subtype=""`` (``message_processing_time``, ``heat_proxy_bytes``), нужно
+    фильтровать ``subtype=""``.
+
+    ``ai_sticker_processing_time`` — исключение: использует осмысленные подтипы
+    (``gen_mini``/``gen_quality``/``post_processing``), поэтому фильтр не нужен.
     """
+    if type_str == str(StatsType.AI_STICKER_PROCESSING_TIME):
+        return False
     return type_str in TIMING_TYPES or type_str in SUM_TYPES
 
 
