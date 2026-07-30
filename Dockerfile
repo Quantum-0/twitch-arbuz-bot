@@ -53,8 +53,8 @@ COPY . .
 # Подменяем JS
 COPY --from=js-builder /app/static_dist/js /app/static/js
 
-# Накатываем миграции
-RUN alembic upgrade head
+# Миграции накатываются при старте контейнера (runtime, когда доступна сеть internal-net)
+# RUN alembic upgrade head
 
 # Запускаем Uvicorn
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--ws", "websockets", "--timeout-keep-alive", "600", "--proxy-headers", "--forwarded-allow-ips", "*"]
+CMD alembic upgrade head && exec uvicorn main:app --host 0.0.0.0 --port 8000 --ws websockets --timeout-keep-alive 600 --proxy-headers --forwarded-allow-ips "*"
