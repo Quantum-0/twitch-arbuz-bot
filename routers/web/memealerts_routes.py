@@ -19,6 +19,7 @@ from database.models import MemealertsSettings, TwitchUserSettings
 from routers.security_helpers import user_auth
 from schemas.memealerts import MAChannel
 from services.memes_v2 import MemealertsOAuthService, MemealertsV2Service
+from twitch.client.twitch import Twitch
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +45,7 @@ async def memealerts_auth(
 async def callback(
     memealerts: Annotated[MemealertsOAuthService, Depends(Provide[Container.memealerts_auth])],
     memealerts_v2: Annotated[MemealertsV2Service, Depends(Provide[Container.memealerts_v2])],
+    twitch: Annotated[Twitch, Depends(Provide[Container.twitch])],
     db_session_factory: Annotated[Callable[[], AsyncSession], Depends(Provide[Container.db_session_factory])],
     code: str,
     state: str,
@@ -70,6 +72,18 @@ async def callback(
 
     if ma_user is not None and ma_user.channel is not None:
         await _store_channel_info(db_session_factory, user.id, ma_user.channel)
+
+    if user.memealerts.memealerts_reward:
+        try:
+            await twitch.update_reward(
+                user,
+                user.memealerts.memealerts_reward,
+                is_enabled=True,
+                is_user_input_required=True,
+                should_redemptions_skip_request_queue=False,
+            )
+        except Exception:
+            logger.warning("Не удалось включить награду при подключении Memealerts", exc_info=True)
 
     return RedirectResponse(url="/panel")
 

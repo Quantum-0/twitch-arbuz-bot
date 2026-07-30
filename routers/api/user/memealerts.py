@@ -1,18 +1,21 @@
+import logging
 from collections.abc import Callable
 from typing import Annotated
 
+import sqlalchemy as sa
 from dependency_injector.wiring import Provide, inject
-from fastapi import APIRouter, Security, Depends
+from fastapi import APIRouter, Depends, Security
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.responses import JSONResponse
 from twitchAPI.type import TwitchAPIException
 
 from container import Container
-from database.models import User, MemealertsSettings
+from database.models import MemealertsSettings, User
 from routers.security_helpers import user_auth
 from services.memes_v2 import MemealertsOAuthService
 from twitch.client.twitch import Twitch
-import sqlalchemy as sa
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/memealerts", tags=["Memealerts"])
 
@@ -21,9 +24,18 @@ router = APIRouter(prefix="/memealerts", tags=["Memealerts"])
 @inject
 async def delete_ma_tokens(
     memealerts: Annotated[MemealertsOAuthService, Depends(Provide[Container.memealerts_auth])],
+    twitch: Annotated[Twitch, Depends(Provide[Container.twitch])],
     user: User = Security(user_auth),
 ):
     await memealerts.delete_token(user)
+    # Отключаем награду на Twitch, чтобы зрители не могли её использовать,
+    # пока интеграция с Memealerts отключена. Награда не удаляется —
+    # при повторном подключении она будет включена обратно.
+    if user.memealerts.memealerts_reward:
+        try:
+            await twitch.disable_reward(user, user.memealerts.memealerts_reward)
+        except Exception:
+            logger.warning("Не удалось отключить награду при отвязке Memealerts", exc_info=True)
     return JSONResponse(
         content={
             "title": "Memealerts",
@@ -89,9 +101,7 @@ async def create_reward(
         await db.execute(
             sa.update(MemealertsSettings)
             .where(MemealertsSettings.user_id == user.id)
-            .values(
-                memealerts_reward=reward.id
-            )
+            .values(memealerts_reward=reward.id)
         )
         await db.commit()
     await twitch.subscribe_reward(user, reward.id)

@@ -443,7 +443,7 @@ function initStatusCards() {
 
         console.log("Установлен рефреш таймер для карточки", card, "в", refresh_timer, "секунд");
 
-        setInterval(() => checkStatus(card), refresh_timer * 1000);
+        card._statusInterval = setInterval(() => checkStatus(card), refresh_timer * 1000);
     });
 }
 
@@ -554,7 +554,46 @@ function deleteMemealertsReward() {
 }
 
 function disconnectMemealerts() {
-    return memealertsAction("/api/user/memealerts", "DELETE");
+    return memealertsDisconnectAction("/api/user/memealerts", "DELETE");
+}
+
+async function memealertsDisconnectAction(endpoint, method) {
+    const btn = document.getElementById("disconnect-memealerts-btn");
+    if (btn) {
+        btn.disabled = true;
+    }
+    let ok = false;
+    try {
+        const response = await fetch(endpoint, { method: method });
+        const data = await response.json();
+        showNotification(
+            data.title || "Memealerts",
+            data.message,
+            !response.ok
+        );
+        ok = response.ok;
+    } catch (e) {
+        showNotification("Ошибка", e.message, true);
+    }
+    if (ok) {
+        // Скрываем интерфейс подключённой интеграции, показываем кнопку «Подключить».
+        // Останавливаем периодические опросы статус-карточек.
+        const connected = document.getElementById("memealerts-v2-connected");
+        const disconnected = document.getElementById("memealerts-v2-disconnected");
+        if (connected) {
+            connected.querySelectorAll(".card-status").forEach(card => {
+                if (card._statusInterval) {
+                    clearInterval(card._statusInterval);
+                }
+            });
+            connected.style.display = "none";
+        }
+        if (disconnected) {
+            disconnected.style.display = "";
+        }
+    } else if (btn) {
+        btn.disabled = false;
+    }
 }
 
 async function refreshMemealertsStatuses() {

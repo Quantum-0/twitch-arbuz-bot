@@ -39,35 +39,40 @@
 <p>В будущем подключение через ручное копирование токена будет отключено.</p>
 <p>Пока это подключение ни на что не влияет, но вы можете его тыкнуть, чтоб помочь с тестированием <3</p>
 {% if memealerts.enabled_v2 %}
-    <div class="cards-grid">
-        <div class="card-status" data-endpoint="/api/user/check-memealerts-token" data-type="memealerts-token" data-refreshtimer="180">
-            <div><h3>Подключение к Memealerts</h3>
-            <ul class="card-status-problems-list" style="margin: 0px"></ul>
-            <ul class="card-status-warnings-list" style="margin: 0px"></ul>
+    <div id="memealerts-v2-connected">
+        <div class="cards-grid">
+            <div class="card-status" data-endpoint="/api/user/check-memealerts-token" data-type="memealerts-token" data-refreshtimer="180">
+                <div><h3>Подключение к Memealerts</h3>
+                <ul class="card-status-problems-list" style="margin: 0px"></ul>
+                <ul class="card-status-warnings-list" style="margin: 0px"></ul>
+                </div>
+                    <div class="status-indicator tooltip-container"><span class="tooltip-text">Показывает, что подключение к Memealerts активно и выдача мемкоинов работает</span></div>
             </div>
-                <div class="status-indicator tooltip-container"><span class="tooltip-text">Показывает, что подключение к Memealerts активно и выдача мемкоинов работает</span></div>
-        </div>
 
-        <div class="card-status" data-endpoint="/api/user/check-memealerts-reward" data-type="memealerts-reward" data-refreshtimer="180">
-            <div><h3>Награда на Twitch</h3>
-            <ul class="card-status-problems-list" style="margin: 0px"></ul></div>
-            <div class="status-indicator tooltip-container"><span class="tooltip-text">Показывает, что награда на Twitch создана и сервис подписан на события о её использовании</span></div>
+            <div class="card-status" data-endpoint="/api/user/check-memealerts-reward" data-type="memealerts-reward" data-refreshtimer="180">
+                <div><h3>Награда на Twitch</h3>
+                <ul class="card-status-problems-list" style="margin: 0px"></ul></div>
+                <div class="status-indicator tooltip-container"><span class="tooltip-text">Показывает, что награда на Twitch создана и сервис подписан на события о её использовании</span></div>
+            </div>
+        </div>
+        <div class="cards-grid">
+            <button
+                class="btn-danger"
+                id="disconnect-memealerts-btn"
+                onclick="disconnectMemealerts()">
+                Отключить интеграцию Memealerts
+            </button>
+
+            <button
+                id="memealerts-reward-btn"
+                data-action=""
+                onclick="handleRewardButton()">
+                Загрузка...
+            </button>
         </div>
     </div>
-    <div class="cards-grid">
-        <button
-            class="btn-danger"
-            id="disconnect-memealerts-btn"
-            onclick="disconnectMemealerts()">
-            Отключить интеграцию Memealerts
-        </button>
-
-        <button
-            id="memealerts-reward-btn"
-            data-action=""
-            onclick="handleRewardButton()">
-            Загрузка...
-        </button>
+    <div id="memealerts-v2-disconnected" style="display: none">
+        <button onclick="window.location.href='/memealerts/auth';">Включить интеграцию Memealerts</button>
     </div>
 {% else %}
     <button onclick="window.location.href='/memealerts/auth';">Включить интеграцию Memealerts</button>
