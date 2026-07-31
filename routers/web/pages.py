@@ -9,14 +9,14 @@ from dependency_injector.wiring import Provide, inject
 from fastapi import APIRouter, HTTPException, Query, Security
 from fastapi.params import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload, joinedload
+from sqlalchemy.orm import joinedload, selectinload
 from starlette.requests import Request
 from starlette.responses import HTMLResponse, RedirectResponse
 from starlette.templating import Jinja2Templates
 
 from config import settings
 from container import Container
-from database.models import TwitchUserSettings, User, GeneratedImage, CharacterInfo
+from database.models import CharacterInfo, GeneratedImage, TwitchUserSettings, User
 from dependencies import get_db
 from routers.security_helpers import admin_auth, user_auth, user_auth_optional
 from services.cache import Cache
@@ -88,8 +88,6 @@ async def control_panel(
     )
 
 
-
-
 @router.get("/ai-stickers", response_class=HTMLResponse)
 async def ai_stickers_page(
     request: Request,
@@ -98,22 +96,24 @@ async def ai_stickers_page(
 ):
     if not user:
         return RedirectResponse("/")
-    reference = await db.scalar(
-        sa.select(CharacterInfo).where(CharacterInfo.name == user.login_name.lower())
-    )
+    reference = await db.scalar(sa.select(CharacterInfo).where(CharacterInfo.name == user.login_name.lower()))
     stickers = (
-        await db.execute(
-            sa.select(GeneratedImage)
-            .where(GeneratedImage.on_channel == int(user.twitch_id))
-            .where(GeneratedImage.file_id.is_not(None))
-            .where(
-                GeneratedImage.created_at
-                > sa.func.now() - sa.text(f"interval '{settings.s3_sticker_expires_days} days'")
+        (
+            await db.execute(
+                sa.select(GeneratedImage)
+                .where(GeneratedImage.on_channel == int(user.twitch_id))
+                .where(GeneratedImage.file_id.is_not(None))
+                .where(
+                    GeneratedImage.created_at
+                    > sa.func.now() - sa.text(f"interval '{settings.s3_sticker_expires_days} days'")
+                )
+                .order_by(GeneratedImage.created_at.desc())
+                .limit(10)
             )
-            .order_by(GeneratedImage.created_at.desc())
-            .limit(10)
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     return templates.TemplateResponse(
         "ai_stickers.html",
         {
@@ -157,19 +157,19 @@ async def read_faq(request: Request):
         },
         {
             "question": "Как работает выдача мемкоинов?",
-            "answer": "Вы подключаете интеграцию с Memealerts, после чего зрители смогут покупать мемкоины за баллы канала. Выдача будет автоматической. Важно: для получения мемкоинов зритель ОБЯЗАТЕЛЬНО должен получить приветственный бонус на мемалертсе."
+            "answer": "Вы подключаете интеграцию с Memealerts, после чего зрители смогут покупать мемкоины за баллы канала. Выдача будет автоматической. Важно: для получения мемкоинов зритель ОБЯЗАТЕЛЬНО должен получить приветственный бонус на мемалертсе.",
         },
         {
             "question": "Как подключить автоматическую выдачу мемкоинов на Twitch?",
-            "answer": "Перейдите на сайт сервиса bot.quantum0.ru, авторизуйтесь через твич, перейдите в раздел \"настройка мемалёртов\" в панели управления ботом, вставьте токен с сервиса Memealerts. После этого у вас появится соответствующая награда на Twitch.",
+            "answer": 'Перейдите на сайт сервиса bot.quantum0.ru, авторизуйтесь через твич, перейдите в раздел "настройка мемалёртов" в панели управления ботом, вставьте токен с сервиса Memealerts. После этого у вас появится соответствующая награда на Twitch.',
         },
         {
             "question": "Могу ли я переименовать награду для автоматической выдачи мемкоинов?",
-            "answer": "Да, вы можете менять название, описание, цену и изображение награды. Пропускать очередь на обработку наград выключать не нужно - бот определяет, успешно ли выданы мемкоины. В случае успеха - сам помечает награду выполненно, а в случае ошибки - возвращает баллы канала зрителю."
+            "answer": "Да, вы можете менять название, описание, цену и изображение награды. Пропускать очередь на обработку наград выключать не нужно - бот определяет, успешно ли выданы мемкоины. В случае успеха - сам помечает награду выполненно, а в случае ошибки - возвращает баллы канала зрителю.",
         },
         {
             "question": "Как настроить команды !паста, !тг, !дис?",
-            "answer": "Эти команды сохраняют значение, введённое стримером, после чего пользователи могут вызывать её, и бот будет выдавать сохранённое ранее значение. То есть стример пишет: \"!паста всем кусь\", после этого зрители пишут \"!паста\" и получают от бота ответ: \"всем кусь\"",
+            "answer": 'Эти команды сохраняют значение, введённое стримером, после чего пользователи могут вызывать её, и бот будет выдавать сохранённое ранее значение. То есть стример пишет: "!паста всем кусь", после этого зрители пишут "!паста" и получают от бота ответ: "всем кусь"',
         },
         {
             "question": "Насколько сервис безопаснен?",
@@ -177,10 +177,7 @@ async def read_faq(request: Request):
         },
     ]
 
-    return templates.TemplateResponse(
-        "faq.html",
-        {"request": request, "faq_items": faq_items}
-    )
+    return templates.TemplateResponse("faq.html", {"request": request, "faq_items": faq_items})
 
 
 @router.get(
@@ -203,20 +200,14 @@ async def profile_page(
     profile_user_data: User = (  # type: ignore
         await db.execute(
             sa.select(User)
-            .options(
-                joinedload(User.settings),
-                joinedload(User.memealerts),
-                joinedload(User.links)
-            )
+            .options(joinedload(User.settings), joinedload(User.memealerts), joinedload(User.links))
             .filter_by(login_name=profile_user)
         )
     ).scalar_one_or_none()
     if not profile_user_data:
         raise HTTPException(404, "User not found")
     reference = (
-        await db.scalar(
-            sa.select(CharacterInfo).where(CharacterInfo.name == profile_user.lower())
-        )
+        await db.scalar(sa.select(CharacterInfo).where(CharacterInfo.name == profile_user.lower()))
         if profile_user_data.settings.ai_reference_show_in_profile
         else None
     )
@@ -225,13 +216,14 @@ async def profile_page(
         .where(GeneratedImage.on_channel == int(profile_user_data.twitch_id))
         .where(GeneratedImage.file_id.is_not(None))
         .where(
-            GeneratedImage.created_at
-            > sa.func.now() - sa.text(f"interval '{settings.s3_sticker_expires_days} days'")
+            GeneratedImage.created_at > sa.func.now() - sa.text(f"interval '{settings.s3_sticker_expires_days} days'")
         )
         .order_by(GeneratedImage.created_at.desc())
         .limit(10)
     )
-    ai_stickers = (await db.execute(q)).scalars().all() if profile_user_data.settings.ai_stickers_show_in_profile else []
+    ai_stickers = (
+        (await db.execute(q)).scalars().all() if profile_user_data.settings.ai_stickers_show_in_profile else []
+    )
     await db.commit()
     profile_user_dict = profile_user_data.__dict__
     streams = await cache.as_cached(twitch.get_streams, [profile_user_data])
@@ -241,10 +233,9 @@ async def profile_page(
     # profile_user_dict["followers_count"] = followers_count
     # AND SAVE TO DB
     profile_user_dict["memealerts_enabled"] = profile_user_data.memealerts.memealerts_reward is not None
-    profile_user_dict["overlays_used_recently"] = (
-        profile_user_data.overlays_last_usage is not None
-        and (datetime.now() - profile_user_data.overlays_last_usage) < timedelta(days=14)
-    )
+    profile_user_dict["overlays_used_recently"] = profile_user_data.overlays_last_usage is not None and (
+        datetime.now() - profile_user_data.overlays_last_usage
+    ) < timedelta(days=14)
     try:
         async with aiohttp.ClientSession() as http_session:
             async with http_session.get(
@@ -256,7 +247,13 @@ async def profile_page(
         pass
     return templates.TemplateResponse(
         "profile.html",
-        {"user": user, "profile_user": profile_user_dict, "request": request, "ai_stickers": ai_stickers or None, "reference": reference},
+        {
+            "user": user,
+            "profile_user": profile_user_dict,
+            "request": request,
+            "ai_stickers": ai_stickers or None,
+            "reference": reference,
+        },
     )
 
 
@@ -403,9 +400,7 @@ async def get_streamers(
     request: Request,
     user: User | None = Security(user_auth_optional),
 ):
-    return templates.TemplateResponse(
-        "streamers.html", {"request": request, "streamers": [], "user": user}
-    )
+    return templates.TemplateResponse("streamers.html", {"request": request, "streamers": [], "user": user})
 
 
 @router.get(
@@ -507,26 +502,29 @@ async def roadmap_page(
                 {
                     "date": "Май 2026",
                     "text": "Вебхук для словотрона. AI стикеры переключены на S3. AI стикеры теперь умеют работать со ссылками на стримеров, подтягивая их рефы. "
-                            "Сортировка стримеров по их последнему активу в панели управления ботом. Оптимизирован запрос в мемалёртс, добавлен кэш."
-                            "Убраны дубликаты ответов для общих чатов.",
+                    "Сортировка стримеров по их последнему активу в панели управления ботом. Оптимизирован запрос в мемалёртс, добавлен кэш."
+                    "Убраны дубликаты ответов для общих чатов.",
                 },
                 {
                     "date": "Июнь 2026",
                     "text": "Теперь команды умеют использовать алиас `себя` (напр. `!кусь себя`)"
-                            "Исправлены мелкие баги в ответах. Переделана логика алиаса `всех`."
-                            "Хранение временных данных, таких как cooldown по командам перенесено в Redis."
-                            "Добавил в профиль ссылку на МА. Оптимизация скорости работы сервиса."
-                            ""
+                    "Исправлены мелкие баги в ответах. Переделана логика алиаса `всех`."
+                    "Хранение временных данных, таких как cooldown по командам перенесено в Redis."
+                    "Добавил в профиль ссылку на МА. Оптимизация скорости работы сервиса."
+                    "",
                 },
                 {
                     "date": "Июль 2026",
                     "text": "Переработана интеграция с Memealerts (v2): новый oAuth-флоу, фоновое обновление токенов"
-                            " , контроль награды для начисления мемкоинов из панели управления."
-                            " Оптимизация кэша для AI-стикеров, переключение на gpt-image-2, локальное удаление фона,"
-                            " Docker-кэш для AI-модели. Настройки AI-стикеров вынесены в отдельную страницу в профиле."
-                            " Развитие Twitch-расширения: обновление заголовков EBS."
-                            " Новые команды чат-бота: !ютуб, !мемы, !ссылки."
-                            " Страница /streamers: Добавлены фильтры и сортировка."
+                    " , контроль награды для начисления мемкоинов из панели управления."
+                    " Оптимизация кэша для AI-стикеров, переключение на gpt-image-2, локальное удаление фона,"
+                    " Docker-кэш для AI-модели. Настройки AI-стикеров вынесены в отдельную страницу в профиле."
+                    " Развитие Twitch-расширения: обновление заголовков EBS."
+                    " Новые команды чат-бота: !ютуб, !мемы, !ссылки."
+                    " Страница /streamers: Добавлены фильтры и сортировка."
+                    " Реализована генерация статистики по боку:"
+                    " суммарное количество обрабатываемых сообщений/наград, время обработки и т.п."
+                    " Доработаны промпты и алгоритмы очистки ИИ-стикеров.",
                 },
             ],
             "todos": [
