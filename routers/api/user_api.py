@@ -4,7 +4,6 @@ from datetime import datetime
 from typing import Annotated, Any
 from uuid import uuid4
 
-import httpx
 import sqlalchemy as sa
 from dependency_injector.wiring import Provide, inject
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Security, UploadFile
@@ -19,36 +18,30 @@ from config import settings
 from container import Container
 from database.models import CharacterInfo, GeneratedImage, User
 from dependencies import get_db
-from exceptions import MAInvalidTokenError, MANoToken, MAUnavailableError, MAValidationRespError
+from routers.api.user.checks import router as checks_router
 from routers.api.user.memealerts import router as memealerts_router
 from routers.api.user.stats import router as stats_router
 from routers.api.user.streamers import router as streamers_router
 from routers.security_helpers import user_auth
 from schemas.api import (
-    BaseErrorSchema,
     BoolResponseSchema,
-    CheckMemealertsRewardStatusResponseSchema,
-    CheckStatusResponseSchema,
     UpdateMemealertsCoinsSchema,
     UpdateSettingsForm,
     UUIDResponseSchema,
 )
 from schemas.enums import FileStorageDir
-from schemas.memealerts import MAChannel
 from services.memes import MemealertsService
-from services.memes_v2 import MemealertsOAuthService, MemealertsV2Service
 from services.s3 import FileStorage
-from services.sse_manager import SSEManager
 from services.stickers import StickersService
 from twitch.chat.bot import ChatBot
 from twitch.client.twitch import Twitch
-from utils.enums import SSEChannel
 from utils.memes import token_expires_in_days
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/user", tags=["User API"])
 
+router.include_router(checks_router)
 router.include_router(memealerts_router)
 router.include_router(streamers_router)
 router.include_router(stats_router)
@@ -93,108 +86,6 @@ async def slovotron_restart(
     if not res:
         raise HTTPException(status_code=404, detail="User not found")
     await chat_bot.send_message(res, "!словотрон-рестарт")
-
-
-# FIXME: все ручки /check-* перенести в отдельный роутер!
-@router.get(
-    "/check-sse",
-    response_model=CheckStatusResponseSchema,
-    responses={401: {"description": "Unauthorized", "model": BaseErrorSchema}},
-)
-@inject
-async def check_user_sse_connected(
-    ssem: Annotated[SSEManager, Depends(Provide[Container.sse_manager])],
-    user: User = Security(user_auth),
-    channel: SSEChannel | None = None,
-) -> CheckStatusResponseSchema:
-    result = await ssem.has_clients(int(user.twitch_id), channel)
-    return CheckStatusResponseSchema(
-        result=result, problems=["OBS не открыт или оверлей не установлен"] if not result else []
-    )
-
-
-@router.get("/check-heat-installed", response_model=CheckStatusResponseSchema)
-@inject
-async def check_heat_installed(
-    twitch: Annotated[Twitch, Depends(Provide[Container.twitch])],
-    user: User = Security(user_auth),
-) -> CheckStatusResponseSchema:
-    exts = await twitch.get_user_active_ext(user)
-    overlay = exts.overlay.get("1")
-    if not overlay:
-        return CheckStatusResponseSchema(result=False, problems=["Расширение твича не установлено"])
-    if not overlay.active:
-        return CheckStatusResponseSchema(result=False, problems=["Расширение твича не активно"])
-    if overlay.id != "cr20njfkgll4okyrhag7xxph270sqk":
-        CheckStatusResponseSchema(result=False, problems=["Установлено другое расширение"])
-    return CheckStatusResponseSchema(result=True, problems=[])
-
-
-@router.get("/check-memealerts-token", response_model=CheckStatusResponseSchema)
-@inject
-async def check_memealerts_token(
-    memealerts_auth: Annotated[MemealertsOAuthService, Depends(Provide[Container.memealerts_auth])],
-    memealerts_api: Annotated[MemealertsV2Service, Depends(Provide[Container.memealerts_v2])],
-    user: User = Security(user_auth),
-) -> CheckStatusResponseSchema:
-    try:
-        ma_token = await memealerts_auth.get_token_of_user(user)
-    except MANoToken:
-        return CheckStatusResponseSchema(result=False, problems=["Токен OAuth отсутствует"])
-    except MATokenExpiredError:
-        return CheckStatusResponseSchema(result=False, problems=["Токен невалидный, требуется переавторизация"])
-    except httpx.HTTPError:
-        return CheckStatusResponseSchema(result=False, problems=["Ошибка подключения к Memealerts"])
-    except Exception:
-        return CheckStatusResponseSchema(result=False, problems=["Неизвестная ошибка получения токена"])
-    try:
-        ma_user = await memealerts_api.get_user_info(ma_token)
-    except MAUnavailableError:
-        return CheckStatusResponseSchema(result=False, problems=["Ошибка подключения к Memealerts"])
-    except MAInvalidTokenError:
-        return CheckStatusResponseSchema(
-            result=False, problems=["Ошибка авторизации при получении данных о пользователе"]
-        )
-    except MAValidationRespError:
-        return CheckStatusResponseSchema(result=False, problems=["Ошибка формирования ответа в Memealerts"])
-
-    return CheckStatusResponseSchema(result=True, problems=[], warnings=_ma_channel_warnings(ma_user.channel))
-
-
-def _ma_channel_warnings(channel: MAChannel | None) -> list[str]:
-    """Варнинги по настройкам канала Memealerts (welcome-bonus / стикеры)."""
-    if channel is None:
-        return []
-    warnings: list[str] = []
-    if channel.welcome_bonus_enabled is False:
-        warnings.append("Приветственный бонус выключен — зрители не смогут получить первые мемкоины за награду")
-    if channel.disable_stickers is True:
-        warnings.append("Отправка стикеров выключена на канале Memealerts")
-    return warnings
-
-
-# FIXME: все ручки /check-* перенести в отдельный роутер!
-@router.get("/check-memealerts-reward", response_model=CheckMemealertsRewardStatusResponseSchema)
-@inject
-async def check_memealerts_reward(
-    twitch: Annotated[Twitch, Depends(Provide[Container.twitch])],
-    user: User = Security(user_auth),
-) -> CheckMemealertsRewardStatusResponseSchema:
-    problems = await twitch.validate_reward_subscription(
-        user=user,
-        reward_id=str(user.memealerts.memealerts_reward),
-    )
-    if not problems:
-        state = "ok"
-    elif "Награда не найдена" in problems:
-        state = "missing"
-    else:
-        state = "broken"
-    return CheckMemealertsRewardStatusResponseSchema(
-        result=not problems,
-        problems=problems,
-        state=state,
-    )
 
 
 @router.get("/install-heat", response_model=BoolResponseSchema)
@@ -386,24 +277,6 @@ async def setup_memealert(
     await db.commit()
     await db.refresh(user.memealerts)
     return JSONResponse({"title": "Успешно", "message": "Награда удалена."}, 200)
-
-
-@router.get("/check-ai-stickers-reward", response_model=CheckMemealertsRewardStatusResponseSchema)
-@inject
-async def check_ai_stickers_reward(
-    twitch: Annotated[Twitch, Depends(Provide[Container.twitch])],
-    user: User = Security(user_auth),
-) -> CheckMemealertsRewardStatusResponseSchema:
-    if not user.settings.ai_sticker_reward_id:
-        return CheckMemealertsRewardStatusResponseSchema(result=False, problems=["Награда не создана"], state="missing")
-    problems = await twitch.validate_reward_subscription(user=user, reward_id=str(user.settings.ai_sticker_reward_id))
-    if not problems:
-        state = "ok"
-    elif "Награда не найдена" in problems:
-        state = "missing"
-    else:
-        state = "broken"
-    return CheckMemealertsRewardStatusResponseSchema(result=not problems, problems=problems, state=state)
 
 
 @router.post("/setup-ai-stickers")

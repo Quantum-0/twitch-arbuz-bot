@@ -1,0 +1,141 @@
+from typing import Annotated
+
+import httpx
+from dependency_injector.wiring import Provide, inject
+from fastapi import APIRouter, Depends, Security
+from memealerts.types.exceptions import MATokenExpiredError
+
+from container import Container
+from database.models import User
+from exceptions import MAInvalidTokenError, MANoToken, MAUnavailableError, MAValidationRespError
+from routers.security_helpers import user_auth
+from schemas.api import (
+    BaseErrorSchema,
+    CheckMemealertsRewardStatusResponseSchema,
+    CheckStatusResponseSchema,
+)
+from schemas.memealerts import MAChannel
+from services.memes_v2 import MemealertsOAuthService, MemealertsV2Service
+from services.sse_manager import SSEManager
+from twitch.client.twitch import Twitch
+from utils.enums import SSEChannel
+
+router = APIRouter(prefix="/check", tags=["User checks"])
+
+
+@router.get(
+    "/sse",
+    response_model=CheckStatusResponseSchema,
+    responses={401: {"description": "Unauthorized", "model": BaseErrorSchema}},
+)
+@inject
+async def check_user_sse_connected(
+    ssem: Annotated[SSEManager, Depends(Provide[Container.sse_manager])],
+    user: User = Security(user_auth),
+    channel: SSEChannel | None = None,
+) -> CheckStatusResponseSchema:
+    result = await ssem.has_clients(int(user.twitch_id), channel)
+    return CheckStatusResponseSchema(
+        result=result, problems=["OBS не открыт или оверлей не установлен"] if not result else []
+    )
+
+
+@router.get("/heat-installed", response_model=CheckStatusResponseSchema)
+@inject
+async def check_heat_installed(
+    twitch: Annotated[Twitch, Depends(Provide[Container.twitch])],
+    user: User = Security(user_auth),
+) -> CheckStatusResponseSchema:
+    exts = await twitch.get_user_active_ext(user)
+    overlay = exts.overlay.get("1")
+    if not overlay:
+        return CheckStatusResponseSchema(result=False, problems=["Расширение твича не установлено"])
+    if not overlay.active:
+        return CheckStatusResponseSchema(result=False, problems=["Расширение твича не активно"])
+    if overlay.id != "cr20njfkgll4okyrhag7xxph270sqk":
+        return CheckStatusResponseSchema(result=False, problems=["Установлено другое расширение"])
+    return CheckStatusResponseSchema(result=True, problems=[])
+
+
+@router.get("/memealerts-token", response_model=CheckStatusResponseSchema)
+@inject
+async def check_memealerts_token(
+    memealerts_auth: Annotated[MemealertsOAuthService, Depends(Provide[Container.memealerts_auth])],
+    memealerts_api: Annotated[MemealertsV2Service, Depends(Provide[Container.memealerts_v2])],
+    user: User = Security(user_auth),
+) -> CheckStatusResponseSchema:
+    try:
+        ma_token = await memealerts_auth.get_token_of_user(user)
+    except MANoToken:
+        return CheckStatusResponseSchema(result=False, problems=["Токен OAuth отсутствует"])
+    except MATokenExpiredError:
+        return CheckStatusResponseSchema(result=False, problems=["Токен невалидный, требуется переавторизация"])
+    except httpx.HTTPError:
+        return CheckStatusResponseSchema(result=False, problems=["Ошибка подключения к Memealerts"])
+    except Exception:
+        return CheckStatusResponseSchema(result=False, problems=["Неизвестная ошибка получения токена"])
+    try:
+        ma_user = await memealerts_api.get_user_info(ma_token)
+    except MAUnavailableError:
+        return CheckStatusResponseSchema(result=False, problems=["Ошибка подключения к Memealerts"])
+    except MAInvalidTokenError:
+        return CheckStatusResponseSchema(
+            result=False, problems=["Ошибка авторизации при получении данных о пользователе"]
+        )
+    except MAValidationRespError:
+        return CheckStatusResponseSchema(result=False, problems=["Ошибка формирования ответа в Memealerts"])
+
+    return CheckStatusResponseSchema(result=True, problems=[], warnings=_ma_channel_warnings(ma_user.channel))
+
+
+def _ma_channel_warnings(channel: MAChannel | None) -> list[str]:
+    """Варнинги по настройкам канала Memealerts (welcome-bonus / стикеры)."""
+    if channel is None:
+        return []
+    warnings: list[str] = []
+    if channel.welcome_bonus_enabled is False:
+        warnings.append("Приветственный бонус выключен — зрители не смогут получить первые мемкоины за награду")
+    if channel.disable_stickers is True:
+        warnings.append("Отправка стикеров выключена на канале Memealerts")
+    return warnings
+
+
+@router.get("/memealerts-reward", response_model=CheckMemealertsRewardStatusResponseSchema)
+@inject
+async def check_memealerts_reward(
+    twitch: Annotated[Twitch, Depends(Provide[Container.twitch])],
+    user: User = Security(user_auth),
+) -> CheckMemealertsRewardStatusResponseSchema:
+    problems = await twitch.validate_reward_subscription(
+        user=user,
+        reward_id=str(user.memealerts.memealerts_reward),
+    )
+    if not problems:
+        state = "ok"
+    elif "Награда не найдена" in problems:
+        state = "missing"
+    else:
+        state = "broken"
+    return CheckMemealertsRewardStatusResponseSchema(
+        result=not problems,
+        problems=problems,
+        state=state,
+    )
+
+
+@router.get("/ai-stickers-reward", response_model=CheckMemealertsRewardStatusResponseSchema)
+@inject
+async def check_ai_stickers_reward(
+    twitch: Annotated[Twitch, Depends(Provide[Container.twitch])],
+    user: User = Security(user_auth),
+) -> CheckMemealertsRewardStatusResponseSchema:
+    if not user.settings.ai_sticker_reward_id:
+        return CheckMemealertsRewardStatusResponseSchema(result=False, problems=["Награда не создана"], state="missing")
+    problems = await twitch.validate_reward_subscription(user=user, reward_id=str(user.settings.ai_sticker_reward_id))
+    if not problems:
+        state = "ok"
+    elif "Награда не найдена" in problems:
+        state = "missing"
+    else:
+        state = "broken"
+    return CheckMemealertsRewardStatusResponseSchema(result=not problems, problems=problems, state=state)

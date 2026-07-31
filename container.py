@@ -33,6 +33,7 @@ class Container(containers.DeclarativeContainer):
             "routers.api.user.memealerts",
             "routers.api.user.streamers",
             "routers.api.user.stats",
+            "routers.api.user.checks",
             "routers.api.slovotron_webhook",
             "routers.web.service_routes",
             "routers.web.memealerts_routes",
