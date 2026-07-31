@@ -4,7 +4,7 @@ from typing import AsyncIterator, Optional
 
 import numpy as np
 from PIL import Image, ImageFilter
-from rembg import remove, new_session
+from rembg import new_session, remove
 from scipy.ndimage import binary_dilation, distance_transform_edt, label
 
 
@@ -58,6 +58,7 @@ class StickerProcessor:
         try:
             # Открываем изображение
             img = Image.open(io.BytesIO(image_bytes)).convert("RGBA")
+            # img.show()
             data = np.array(img)
 
             # Проверяем, квадратное ли оно и есть ли зеленый фон
@@ -78,13 +79,12 @@ class StickerProcessor:
 
             ai_mask = np.array(ai_output)[:, :, 3]
 
-            # 3. Ищем ядовитый хромакейный цвет
-            r, g, b = data[:, :, 0], data[:, :, 1], data[:, :, 2]
-            raw_green_mask = (
-                (r <= 8) &
-                (g >= 247) &
-                (b <= 8)
-            )
+            # 3. Ищем ядовитый хромакейный цвет.
+            # Критерий: G экстремально доминирует над обоими остальными каналами (g_excess > 150),
+            # что ловит грязные края бывшего фона (антиалиасинг, JPEG-артефакты) с R/B до 40-80,
+            # но не задевает зелёные детали персонажа (костюм, волосы) с умеренным g_excess.
+            r, g, b = data[:, :, 0].astype(np.int16), data[:, :, 1].astype(np.int16), data[:, :, 2].astype(np.int16)
+            raw_green_mask = (g - np.maximum(r, b) > 150) & (g > 170)
 
             # --- УМНЫЙ ФИЛЬТР ДЕТАЛЕЙ (ЗАЩИТА РОБОТА И ЛАП) ---
             # Находим все изолированные зелёные островки на картинке
@@ -95,7 +95,7 @@ class StickerProcessor:
 
             # Задаем минимальный размер для фоновой зоны (например, 1500 пикселей).
             # Всё, что меньше этого размера (провода, подушечки лап), код посчитает деталью рисунка.
-            min_area_size = 1500
+            min_area_size = 50
 
             # Оставляем в маске только КРУПНЫЕ зелёные области (настоящий фон и дыры вроде поводка)
             chromakey_mask = np.zeros_like(raw_green_mask)
@@ -108,11 +108,13 @@ class StickerProcessor:
             structure = np.ones((5, 5), dtype=bool)
             extended_green_mask = binary_dilation(chromakey_mask, structure=structure)
 
+            # Image.fromarray((ai_mask).astype(np.uint8)).show()
+
             # Выделяем пиксели на границе, которые нужно исправить
             edge_green_pixels = extended_green_mask & (ai_mask < 254) & (ai_mask > 20)
 
             # 4. АДАПТИВНОЕ ИСПРАВЛЕНИЕ ЦВЕТА С ЗАТЕМНЕНИЕМ ЛАЙНА
-            clean_character_mask = (ai_mask > 250) & ~extended_green_mask
+            clean_character_mask = (ai_mask > 245) & ~extended_green_mask
 
             # ПРАВИЛЬНАЯ РАСПАКОВКА: явно указываем return_distances=False
             # и разделяем результат на два независимых массива координат Y и X
@@ -142,8 +144,11 @@ class StickerProcessor:
 
             thresh = 8
             smooth_mask = blurred_mask.point(
-                lambda x: 255 if x > thresh + 10
-                else (int((x - thresh) * (255 / 10) * anti_aliasing_softness) if x > thresh else 0)
+                lambda x: (
+                    255
+                    if x > thresh + 10
+                    else (int((x - thresh) * (255 / 10) * anti_aliasing_softness) if x > thresh else 0)
+                )
             )
 
             height, width = final_alpha.shape
@@ -252,7 +257,7 @@ class StickerProcessor:
 # async def main():
 #     serv = StickerProcessor()
 #     await serv.start()
-#     with open("/Users/notamedia/img3.png", "rb") as image:
+#     with open("/Users/notamedia/Downloads/5bb41087-b538-4b34-92eb-095a86d953c2.png", "rb") as image:
 #         f = image.read()
 #         b = bytes(f)
 #         res = await serv.process(b)
