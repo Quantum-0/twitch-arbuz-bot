@@ -45,7 +45,8 @@ class MAUserInfo(BaseModel):
 class MASupporter(BaseModel):
     supporter_id: UserID = Field(..., alias="supporterId")
     supporter_name: str = Field(..., alias="supporterName")
-    supporter_avatar: AnyHttpUrl | None = Field(None, alias="supporterAvatar")
+    # supporter_avatar: AnyHttpUrl | None = Field(None, alias="supporterAvatar")
+    # ^ не всего имеет формат URL
     supporter_link: str | None = Field(None, alias="supporterLink")
     spent: NonNegativeInt
     purchased: NonNegativeInt | NonNegativeFloat
