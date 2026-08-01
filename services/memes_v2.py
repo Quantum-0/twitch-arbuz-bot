@@ -554,7 +554,10 @@ class MemealertsV2Service:
             try:
                 targeted_users = await self.load_supporters(ma_token, query=username)
                 target_user = self._pick_user_from_list(targeted_users, username)
-            except:
+            except MADuplicateUserError:
+                raise
+            except Exception:
+                logger.warning(f"Targeted search error for `{username}`", exc_info=True)
                 target_user = None
 
         if target_user:
@@ -568,33 +571,27 @@ class MemealertsV2Service:
         return target_user
 
     def _pick_user_from_list(self, users: list[MASupporter], username: str) -> MASupporter | None:
-        """Оптимизированный поиск совпадения в списке с защитой от дубликатов"""
-        lookup = {}
+        """Поиск совпадения в списке с защитой от дубликатов.
+
+        Дубликатом считается совпадение значения (link или name) у двух *разных*
+        пользователей. Если у одного пользователя link и name совпадают — это не дубликат.
+        """
+        lookup: dict[str, MASupporter] = {}
         target_user = None
 
         for user in users:
-            # 1. Проверяем supporter_link
-            if user.supporter_link:
-                link_clean = user.supporter_link.lower()
-                if link_clean not in lookup:
-                    lookup[link_clean] = user
-                    if link_clean == username:
+            for field_value in (user.supporter_link, user.supporter_name):
+                if not field_value:
+                    continue
+                value_clean = field_value.lower()
+                existing = lookup.get(value_clean)
+                if existing is None:
+                    lookup[value_clean] = user
+                    if value_clean == username:
                         target_user = user
-                else:
-                    logger.warning(f"Duplicate memealerts link=`{link_clean}`")
-                    if link_clean == username:
-                        raise MADuplicateUserError(username)
-
-            # 2. Проверяем supporter_name
-            if user.supporter_name:
-                name_clean = user.supporter_name.lower()
-                if name_clean not in lookup:
-                    lookup[name_clean] = user
-                    if name_clean == username:
-                        target_user = user
-                else:
-                    logger.warning(f"Duplicate memealerts name=`{name_clean}`")
-                    if name_clean == username:
+                elif existing.supporter_id != user.supporter_id:
+                    logger.warning(f"Duplicate memealerts value=`{value_clean}`")
+                    if value_clean == username:
                         raise MADuplicateUserError(username)
 
         return target_user
