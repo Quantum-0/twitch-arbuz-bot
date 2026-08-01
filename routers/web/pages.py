@@ -211,19 +211,7 @@ async def profile_page(
         if profile_user_data.settings.ai_reference_show_in_profile
         else None
     )
-    q = (
-        sa.select(GeneratedImage)
-        .where(GeneratedImage.on_channel == int(profile_user_data.twitch_id))
-        .where(GeneratedImage.file_id.is_not(None))
-        .where(
-            GeneratedImage.created_at > sa.func.now() - sa.text(f"interval '{settings.s3_sticker_expires_days} days'")
-        )
-        .order_by(GeneratedImage.created_at.desc())
-        .limit(10)
-    )
-    ai_stickers = (
-        (await db.execute(q)).scalars().all() if profile_user_data.settings.ai_stickers_show_in_profile else []
-    )
+    ai_stickers_enabled = profile_user_data.settings.ai_stickers_show_in_profile
     await db.commit()
     profile_user_dict = profile_user_data.__dict__
     streams = await cache.as_cached(twitch.get_streams, [profile_user_data])
@@ -251,7 +239,7 @@ async def profile_page(
             "user": user,
             "profile_user": profile_user_dict,
             "request": request,
-            "ai_stickers": ai_stickers or None,
+            "ai_stickers_enabled": ai_stickers_enabled,
             "reference": reference,
         },
     )

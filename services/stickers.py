@@ -7,17 +7,17 @@ from time import monotonic
 from uuid import UUID, uuid4
 
 import sqlalchemy as sa
-from openai import BadRequestError, APIStatusError
+from openai import APIStatusError, BadRequestError
 from opentelemetry import trace
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from config import settings
-from database.models import User, GeneratedImage, CharacterInfo, TwitchUserSettings
+from database.models import CharacterInfo, GeneratedImage, TwitchUserSettings, User
 from schemas.api import StatsType
-from schemas.enums import FileStorageDir, AIStickerModel, AIReferenceUsagePolicy
+from schemas.enums import AIReferenceUsagePolicy, AIStickerModel, FileStorageDir
 from services.ai import OpenAIClient
 from services.image_resizer import ImageResizer
-from services.s3 import FileStorage, FileNotExistError
+from services.s3 import FileNotExistError, FileStorage
 from services.statistics import StatisticsService
 from services.stickers_processor import StickerProcessor
 
@@ -93,8 +93,13 @@ class UnknownRedemptionProcessingException(RewardRedemptionProcessingError):
 class ForeignReferenceNotAllowedError(RewardRedemptionProcessingError):
     """Гейт чужих референсов на канале (deny / with_my_character) либо character-side veto."""
 
-    def __init__(self, message: str):
-        super().__init__(message)
+
+class OwnCharacterRequiredError(RewardRedemptionProcessingError):
+    def __init__(self, login: str):
+        super().__init__(
+            f"На этом канале генерация разрешена только с участием персонажа стримера — "
+            f"упомяните @{login} в промпте! Баллы возвращены!"
+        )
 
 
 class StickersService:
@@ -169,9 +174,7 @@ class StickersService:
         delta = Decimal(cost * settings.ai_cost_multiplier + settings.ai_cost_single_call)
         async with self._db_session_factory() as session, session.begin():
             locked = (
-                await session.execute(
-                    sa.select(User).where(User.id == channel.id).with_for_update()
-                )
+                await session.execute(sa.select(User).where(User.id == channel.id).with_for_update())
             ).scalar_one()
             session.add(
                 GeneratedImage(
@@ -345,6 +348,11 @@ class StickersService:
         :return: ID файла
         """
         file_id: FileID
+
+        if channel.settings.ai_require_own_character:
+            mentioned = {n.lower() for n in re.findall(r"@(\w+)", prompt)}
+            if channel.login_name.lower() not in mentioned:
+                raise OwnCharacterRequiredError(channel.login_name)
 
         if not re.search(r"@\w", prompt):
             if cached_file_id := await self._get_cached_by_prompt(prompt):

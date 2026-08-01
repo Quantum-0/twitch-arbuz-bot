@@ -54,6 +54,7 @@ class UpdateSettingsForm(BaseModel):
     ai_sticker_model: AIStickerModel | None = Field(None)
     ai_reference_usage_policy: AIReferenceUsagePolicy | None = Field(None)
     ai_reference_allow_on_other_channels: bool | None = Field(None)
+    ai_require_own_character: bool | None = Field(None)
 
 
 class UpdateMemealertsCoinsSchema(BaseModel):

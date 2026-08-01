@@ -58,6 +58,10 @@
             <span>Разрешить моего персонажа генерировать у других</span>
             <div class="toggle-switch {{ 'active' if settings.ai_reference_allow_on_other_channels }}" data-name="ai_reference_allow_on_other_channels" role="switch" aria-checked="{{ 'true' if settings.ai_reference_allow_on_other_channels else 'false' }}" tabindex="0"></div>
         </div>
+        <div class="settings-row">
+            <span>Генерация только с моим персонажем</span>
+            <div class="toggle-switch {{ 'active' if settings.ai_require_own_character }}" data-name="ai_require_own_character" role="switch" aria-checked="{{ 'true' if settings.ai_require_own_character else 'false' }}" tabindex="0"></div>
+        </div>
     </div>
 
     <div class="overlay-control overlay-radio-panel">
@@ -79,14 +83,19 @@
 </section>
 
 <section>
-    <h2>Сгенерированные на ваших стримах стикеры :з</h2>
+    <h2>Сгенерированные стикеры :з</h2>
     <i>Стикеры удаляются через время. Если хотите их сохранить, лучше сделать это сейчас :з</i>
+    <div class="stickers-tabs" data-tabs>
+        <button type="button" class="tab active" data-mode="mine">У меня</button>
+        <button type="button" class="tab" data-mode="with_me">Со мной</button>
+        <button type="button" class="tab" data-mode="from_me">От меня</button>
+    </div>
     <div id="ai-stickers-grid" class="ai-stickers-grid">
         {% for sticker in ai_stickers %}
         <div class="ai-sticker">
-            <a href="/files/ai-gen-stickers/{{ sticker.file_id }}"><img src="/files/ai-gen-stickers/{{ sticker.file_id }}" onerror="this.onerror=null; this.src='/static/images/500.png';"></a>
-            <p><i>{{ sticker.prompt }}</i></p>
-            <p>by {{ sticker.by_chatter }}</p>
+            <a href="/files/ai-gen-stickers/{{ sticker.file_id }}" class="ai-sticker-img-wrap"><img src="/files/ai-gen-stickers/{{ sticker.file_id }}" loading="lazy" onerror="this.onerror=null; this.src='/static/images/500.png';"></a>
+            <p class="ai-sticker-prompt"><i>{{ sticker.prompt }}</i></p>
+            <p class="ai-sticker-meta">by <a href="https://twitch.tv/{{ sticker.by_chatter }}" target="_blank" rel="noopener">{{ sticker.by_chatter }}</a></p>
         </div>
         {% endfor %}
     </div>

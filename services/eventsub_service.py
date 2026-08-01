@@ -19,7 +19,7 @@ from services.memes import MemealertsService
 from services.memes_v2 import MemealertsOAuthService, MemealertsV2Service
 from services.sse_manager import SSEManager
 from services.statistics import StatisticsService
-from services.stickers import StickersService, RewardRedemptionProcessingError, ModerationBlockedException
+from services.stickers import ModerationBlockedException, RewardRedemptionProcessingError, StickersService
 from twitch.chat.bot import ChatBot
 from twitch.client.twitch import Twitch
 from utils.enums import SSEChannel
@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
 tracer = trace.get_tracer(__name__)
 
 
-class TwitchEventSubService():
+class TwitchEventSubService:
     # startup - subscribe topics if need
 
     def __init__(
@@ -61,9 +61,7 @@ class TwitchEventSubService():
     @staticmethod
     def task_wrapper(func):
         async def wrapped(*args, **kwargs):
-            asyncio.create_task(
-                func(*args, **kwargs)
-            )
+            asyncio.create_task(func(*args, **kwargs))
 
         return wrapped
 
@@ -83,9 +81,9 @@ class TwitchEventSubService():
         for selectin in selectins:
             query = query.options(selectinload(selectin))
         if isinstance(id_or_login, str):
-            query = query.where(User.login_name==id_or_login.lower())
+            query = query.where(User.login_name == id_or_login.lower())
         else:
-            query = query.where(User.twitch_id==str(id_or_login))
+            query = query.where(User.twitch_id == str(id_or_login))
         async with self._db_session_factory() as db:
             result = await db.execute(query)
             user = result.scalar_one_or_none()
@@ -103,15 +101,11 @@ class TwitchEventSubService():
         user_settings: TwitchUserSettings = user.settings
 
         if not user_settings.enable_shoutout_on_raid:
-            await self._twitch.unsubscribe_raid(
-                subscription_id=payload.subscription.subscription_id
-            )
+            await self._twitch.unsubscribe_raid(subscription_id=payload.subscription.subscription_id)
             logger.warning("Handle raid event from user, who didn't enabled shoutout on raid. Unsubscribed")
             return
 
-        await self._twitch.shoutout(
-            user=user, shoutout_to=payload.event.from_broadcaster_user_id
-        )
+        await self._twitch.shoutout(user=user, shoutout_to=payload.event.from_broadcaster_user_id)
 
     @task_wrapper
     @tracer.start_as_current_span("Twitch Eventsub: Reward redemption")
@@ -186,6 +180,8 @@ class TwitchEventSubService():
                     )
                 except Exception:
                     logger.error("Error with memealerts v2!", exc_info=True)
+                    if not user.memealerts.memealerts_token:
+                        raise
                     result = await self._memealerts.give_bonus(
                         user.memealerts.memealerts_token,
                         user.login_name,
@@ -271,9 +267,7 @@ class TwitchEventSubService():
             return
 
         sticker_id = await self._stickers.build_sticker(
-            prompt=payload.event.user_input,
-            channel=user,
-            chatter=payload.event.user_login
+            prompt=payload.event.user_input, channel=user, chatter=payload.event.user_login
         )
 
         await self._ssem.broadcast(

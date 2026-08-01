@@ -1,6 +1,7 @@
 let aiStickersCursor = null;
 let aiStickersFinished = false;
 let aiStickersLoading = false;
+let aiStickersMode = 'mine';
 
 function updateAiStickerRewardButton(action) {
     const btn = document.getElementById('ai-stickers-reward-btn');
@@ -77,12 +78,25 @@ async function submitReference(event) {
     }
 }
 
+function escapeHtml(s) {
+    return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
 function renderSticker(item) {
     const div = document.createElement('div');
     div.className = 'ai-sticker';
-    div.innerHTML = `<a href="/files/ai-gen-stickers/${item.file_id}"><img src="/files/ai-gen-stickers/${item.file_id}" onerror="this.onerror=null; this.src='/static/images/500.png';"></a><p><i></i></p><p></p>`;
+    div.innerHTML = `<a href="/files/ai-gen-stickers/${item.file_id}" class="ai-sticker-img-wrap"><img src="/files/ai-gen-stickers/${item.file_id}" loading="lazy" onerror="this.onerror=null; this.src='/static/images/500.png';"></a><p class="ai-sticker-prompt"><i></i></p><p class="ai-sticker-meta"></p>`;
     div.querySelector('i').textContent = item.prompt;
-    div.querySelector('p:last-child').textContent = `by ${item.by_chatter}`;
+
+    const meta = div.querySelector('.ai-sticker-meta');
+    const parts = [];
+    if (aiStickersMode !== 'from_me' && item.by_chatter) {
+        parts.push(`by <a href="https://twitch.tv/${encodeURIComponent(item.by_chatter)}" target="_blank" rel="noopener">${escapeHtml(item.by_chatter)}</a>`);
+    }
+    if (aiStickersMode !== 'mine' && item.channel_login) {
+        parts.push(`на канале <a href="/profile/${encodeURIComponent(item.channel_login)}">${escapeHtml(item.channel_login)}</a>`);
+    }
+    meta.innerHTML = parts.join(' ') || '\u00A0';
     return div;
 }
 
@@ -93,6 +107,7 @@ async function loadMoreStickers() {
     if (btn) btn.disabled = true;
     try {
         const url = new URL('/api/user/ai-stickers/recent', window.location.origin);
+        url.searchParams.set('mode', aiStickersMode);
         if (aiStickersCursor) url.searchParams.set('before', aiStickersCursor);
         const response = await fetch(url);
         if (!response.ok) {
@@ -115,6 +130,34 @@ async function loadMoreStickers() {
         aiStickersLoading = false;
         if (btn) btn.disabled = false;
     }
+}
+
+function resetStickersView() {
+    const grid = document.getElementById('ai-stickers-grid');
+    if (grid) grid.innerHTML = '';
+    aiStickersCursor = document.getElementById('load-more-stickers')?.dataset.cursor || null;
+    aiStickersFinished = false;
+    const btn = document.getElementById('load-more-stickers');
+    const end = document.getElementById('stickers-end');
+    if (end) end.style.display = 'none';
+    if (btn) {
+        btn.style.display = aiStickersCursor ? '' : 'none';
+        btn.disabled = false;
+    }
+    if (!aiStickersCursor) {
+        aiStickersFinished = true;
+        if (end) end.style.display = 'block';
+    }
+}
+
+async function switchStickersTab(mode) {
+    if (mode === aiStickersMode) return;
+    aiStickersMode = mode;
+    document.querySelectorAll('.stickers-tabs .tab').forEach(t => {
+        t.classList.toggle('active', t.dataset.mode === mode);
+    });
+    resetStickersView();
+    if (!aiStickersFinished) await loadMoreStickers();
 }
 
 function updateBalanceIndicator() {
@@ -146,7 +189,14 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     document.getElementById('reference-form')?.addEventListener('submit', submitReference);
     aiStickersCursor = document.getElementById('load-more-stickers')?.dataset.cursor || null;
+    if (!aiStickersCursor) {
+        aiStickersFinished = true;
+        document.getElementById('stickers-end').style.display = 'block';
+    }
     document.getElementById('load-more-stickers')?.addEventListener('click', loadMoreStickers);
+    document.querySelectorAll('.stickers-tabs .tab').forEach(t => {
+        t.addEventListener('click', () => switchStickersTab(t.dataset.mode));
+    });
     initAiStickerToggles();
     updateBalanceIndicator();
 });

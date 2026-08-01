@@ -5,17 +5,17 @@ from decimal import Decimal
 from sqlalchemy import (
     BigInteger,
     Boolean,
+    Computed,
     DateTime,
-    ForeignKey,
     Float,
+    ForeignKey,
+    Index,
     Integer,
+    Numeric,
     String,
     event,
     false,
     func,
-    Numeric,
-    Computed,
-    Index,
 )
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
@@ -162,11 +162,22 @@ class TwitchUserSettings(Base):
     )
 
     ai_sticker_reward_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True, default=None)
-    ai_stickers_show_in_profile: Mapped[bool] = mapped_column(Boolean, default=True, server_default='true', nullable=False)
-    ai_reference_show_in_profile: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false(), nullable=False)
-    ai_sticker_model: Mapped[str] = mapped_column(String, default='quality', server_default='quality', nullable=False)
-    ai_reference_usage_policy: Mapped[str] = mapped_column(String, default='with_my_character', server_default='with_my_character', nullable=False)
-    ai_reference_allow_on_other_channels: Mapped[bool] = mapped_column(Boolean, default=True, server_default='true', nullable=False)
+    ai_stickers_show_in_profile: Mapped[bool] = mapped_column(
+        Boolean, default=True, server_default="true", nullable=False
+    )
+    ai_reference_show_in_profile: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default=false(), nullable=False
+    )
+    ai_sticker_model: Mapped[str] = mapped_column(String, default="quality", server_default="quality", nullable=False)
+    ai_reference_usage_policy: Mapped[str] = mapped_column(
+        String, default="with_my_character", server_default="with_my_character", nullable=False
+    )
+    ai_reference_allow_on_other_channels: Mapped[bool] = mapped_column(
+        Boolean, default=True, server_default="true", nullable=False
+    )
+    ai_require_own_character: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default="false", nullable=False
+    )
 
     allow_shared_chat: Mapped[bool] = mapped_column(Boolean, default=True, server_default=false(), nullable=False)
     chatbot_default_target_behaviour: Mapped[str] = mapped_column(
@@ -189,15 +200,25 @@ class MemealertsSettings(Base):
     coins_for_reward: Mapped[int] = mapped_column(
         "coins_for_reward", Integer, nullable=False, server_default="2", default=2
     )
-    memecoin_name_genitive: Mapped[str | None] = mapped_column("memecoin_name_genitive", String, nullable=True, default=None)
-    memecoin_name_accusative: Mapped[str | None] = mapped_column("memecoin_name_accusative", String, nullable=True, default=None)
-    memecoin_name_genitive_multiple: Mapped[str | None] = mapped_column("memecoin_name_genitive_multiple", String, nullable=True, default=None)
-    memecoin_name_accusative_multiple:  Mapped[str | None] = mapped_column("memecoin_name_accusative_multiple", String, nullable=True, default=None)
+    memecoin_name_genitive: Mapped[str | None] = mapped_column(
+        "memecoin_name_genitive", String, nullable=True, default=None
+    )
+    memecoin_name_accusative: Mapped[str | None] = mapped_column(
+        "memecoin_name_accusative", String, nullable=True, default=None
+    )
+    memecoin_name_genitive_multiple: Mapped[str | None] = mapped_column(
+        "memecoin_name_genitive_multiple", String, nullable=True, default=None
+    )
+    memecoin_name_accusative_multiple: Mapped[str | None] = mapped_column(
+        "memecoin_name_accusative_multiple", String, nullable=True, default=None
+    )
 
     access_token: Mapped[str | None] = mapped_column("access_token", EncryptedString, nullable=True, default=None)
     refresh_token: Mapped[str | None] = mapped_column("refresh_token", EncryptedString, nullable=True, default=None)
     token_expires_at: Mapped[datetime | None] = mapped_column("token_expires_at", DateTime, nullable=True, default=None)
-    token_refresh_expires_at: Mapped[datetime | None] = mapped_column("token_refresh_expires_at", DateTime, nullable=True, default=None)
+    token_refresh_expires_at: Mapped[datetime | None] = mapped_column(
+        "token_refresh_expires_at", DateTime, nullable=True, default=None
+    )
     token_created_at: Mapped[datetime | None] = mapped_column("token_created_at", DateTime, nullable=True, default=None)
     token_scopes: Mapped[str | None] = mapped_column("token_scopes", String, nullable=True, default=None)
 

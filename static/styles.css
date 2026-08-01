@@ -1164,15 +1164,69 @@ section h3 {
 
 .ai-sticker img {
     width: 100%;
+    aspect-ratio: 1 / 1;
+    object-fit: contain;
     height: auto;
     display: block;
     border-radius: 4px;
     transition: transform 0.2s;
+    background: var(--color-bg-secondary, rgba(255,255,255,0.03));
+}
+
+.ai-sticker-img-wrap {
+    display: block;
+}
+
+.ai-sticker-prompt {
+    word-break: break-word;
+}
+
+.ai-sticker-meta {
+    font-size: 13px;
+    opacity: 0.85;
+}
+.ai-sticker-meta a {
+    color: var(--color-primary, #4CAF50);
+    text-decoration: none;
+}
+.ai-sticker-meta a:hover {
+    text-decoration: underline;
 }
 
 /* Эффект при наведении, раз уж это стикеры */
 .ai-sticker img:hover {
     transform: scale(1.05);
+}
+
+.stickers-tabs {
+    display: flex;
+    gap: 2px;
+    border-bottom: 2px solid var(--color-border, #333);
+    margin: 16px 0 0;
+    padding: 0 4px;
+}
+.stickers-tabs .tab {
+    appearance: none;
+    background: transparent;
+    color: var(--color-text-muted, #999);
+    border: none;
+    border-bottom: 3px solid transparent;
+    margin-bottom: -2px;
+    padding: 8px 24px;
+    cursor: pointer;
+    font-size: 14px;
+    border-radius: 8px 8px 0 0;
+    transition: color 0.15s, background 0.15s, border-color 0.15s;
+    min-width: 130px;
+}
+.stickers-tabs .tab:hover {
+    color: var(--color-text, #fff);
+    background: rgba(255, 255, 255, 0.04);
+}
+.stickers-tabs .tab.active {
+    color: var(--color-text, #fff);
+    border-bottom-color: var(--color-primary, #4CAF50);
+    background: rgba(76, 175, 80, 0.06);
 }
 
 

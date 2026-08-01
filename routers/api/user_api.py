@@ -1,7 +1,7 @@
 import logging
 from collections.abc import Callable
 from datetime import datetime
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 from uuid import uuid4
 
 import sqlalchemy as sa
@@ -36,6 +36,7 @@ from services.stickers import StickersService
 from twitch.chat.bot import ChatBot
 from twitch.client.twitch import Twitch
 from utils.memes import token_expires_in_days
+from utils.stickers_query import build_stickers_query, serialize_sticker_rows
 
 logger = logging.getLogger(__name__)
 
@@ -350,6 +351,7 @@ async def setup_ai_stickers(
 async def get_recent_ai_stickers(
     db: Annotated[AsyncSession, Depends(get_db)],
     user: User = Security(user_auth),
+    mode: Literal["mine", "with_me", "from_me"] = Query(default="mine"),
     before: str | None = Query(default=None),
     limit: int = Query(default=10, ge=1, le=30),
 ):
@@ -359,33 +361,9 @@ async def get_recent_ai_stickers(
             before_dt = datetime.fromisoformat(before)
         except ValueError:
             raise HTTPException(400, "Неверный формат даты для параметра 'before'. Ожидается ISO формат.")
-    q = (
-        sa.select(GeneratedImage)
-        .where(GeneratedImage.on_channel == int(user.twitch_id))
-        .where(GeneratedImage.file_id.is_not(None))
-        .where(
-            GeneratedImage.created_at > sa.func.now() - sa.text(f"interval '{settings.s3_sticker_expires_days} days'")
-        )
-        .order_by(GeneratedImage.created_at.desc())
-        .limit(limit + 1)
-    )
-    if before_dt:
-        q = q.where(GeneratedImage.created_at < before_dt)
-    rows = (await db.execute(q)).scalars().all()
-    items = rows[:limit]
-    next_cursor = items[-1].created_at.isoformat() if len(rows) > limit and items else None
-    return {
-        "items": [
-            {
-                "file_id": str(item.file_id),
-                "prompt": item.prompt,
-                "by_chatter": item.by_chatter,
-                "created_at": item.created_at.isoformat(),
-            }
-            for item in items
-        ],
-        "next_cursor": next_cursor,
-    }
+    q = build_stickers_query(mode, int(user.twitch_id), user.login_name, before=before_dt, limit=limit)
+    rows = (await db.execute(q)).all()
+    return serialize_sticker_rows(rows, limit)
 
 
 @router.post("/reference")

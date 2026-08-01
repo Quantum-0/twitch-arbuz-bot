@@ -197,28 +197,25 @@
     {% endif %}
 
     <!-- ИИ Стикеры -->
-    {% if ai_stickers %}
+    {% if ai_stickers_enabled %}
     <section>
         <h3>ИИ-стикеры</h3>
-        <div class="ai-stickers-grid">
-            {% for sticker in ai_stickers %}
-            <div class="ai-sticker">
-                <a href="/files/ai-gen-stickers/{{ sticker.file_id }}">
-                    <img
-                        src="/files/ai-gen-stickers/{{ sticker.file_id }}"
-                        onerror="this.onerror=null; this.src='/static/images/500.png';"
-                    >
-                </a>
-                <p><i>{{ sticker.prompt }}</i></p>
-                <p>by {{ sticker.by_chatter }}</p>
-                <p>at {{ sticker.created_at }}</p>
-            </div>
-            {% endfor %}
+        <div class="stickers-tabs" data-tabs data-profile="{{ profile_user.login_name }}">
+            <button type="button" class="tab active" data-mode="mine">На канале</button>
+            <button type="button" class="tab" data-mode="with_me">С персонажем</button>
+            <button type="button" class="tab" data-mode="from_me">От пользователя</button>
         </div>
+        <div id="ai-stickers-grid" class="ai-stickers-grid"></div>
+        <button id="load-more-stickers" style="display:none" data-cursor="">Показать ещё</button>
+        <p id="stickers-end" style="display:none">На этом всё, ребята ¯\_(ツ)_/¯</p>
     </section>
     {% endif %}
 
 
 
 </div>
+{% endblock %}
+
+{% block body_scripts %}
+<script src="/static/js/profile-stickers.js"></script>
 {% endblock %}
