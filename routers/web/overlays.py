@@ -74,8 +74,8 @@ async def overlay_tts_speech(
     channel_name: Annotated[str, Query()],
     payload: Annotated[TTSSpeechSchema, Body()],
 ):
-    if channel_name not in {"quantum075", "lul0k"}:
-        raise HTTPException(status_code=403, detail="TTS is not enabled for this channel")
+    # if channel_name not in {"quantum075", "lul0k"}:
+    #     raise HTTPException(status_code=403, detail="TTS is not enabled for this channel")
     text = payload.input.strip()
     if not text:
         raise HTTPException(status_code=400, detail="Empty input")
