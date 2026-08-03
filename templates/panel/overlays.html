@@ -152,6 +152,37 @@
         <div class="overlay-link"></div>
     </div>
 
+    {% if user.login_name in ("quantum075", "lul0k") %}
+    <div class="overlay-card" data-base="{{ request.base_url }}overlay/tts">
+        <h2>🗣 TTS</h2>
+        <p>Text-To-Speech оверлей, озвучивающий сообщения из чата через внешний TTS-движок. Сообщения читаются только если начинаются с указанного префикса команды.</p>
+        <button class="overlay-toggle-settings">Настройки</button>
+        <div class="overlay-settings">
+            <div class="overlay-control">
+              Префикс команды
+              <input type="text" value="!!!" data-param="command_prefix"/>
+            </div>
+            <div class="overlay-control">
+              Максимальная длина текста
+              <input type="range" min="1" max="2000" step="1" value="500" data-param="max_length"/>
+            </div>
+            <div class="overlay-control">
+              Озвучивать ник отправителя
+              <label class="switch">
+                <input type="checkbox" data-param="read_username" />
+                <span class="slider"></span>
+              </label>
+            </div>
+            <div class="overlay-control">
+              Модель голоса
+              <input type="text" value="neco-arc" data-param="model"/>
+            </div>
+        </div>
+        <p>Скопируй ссылку и вставь в OBS, растянув на всю сцену:</p>
+        <div class="overlay-link"></div>
+    </div>
+    {% endif %}
+
     <!--
     <div class="overlay-card" data-base="{{ request.base_url }}overlay/tts">
         <h2>🗣 TTS</h2>

@@ -1,104 +1,149 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <title>Title</title>
-    <script src="https://github.com/tmijs/tmi.js/releases/download/v1.8.5/tmi.min.js"></script>
-<script>
-    const CHANNEL_NAME = "{{ channel_name }}";   // twitch channel
-    const MAX_LENGTH = 200;                      // максимум символов
-    const COOLDOWN = 2000;                       // задержка между сообщениями
-    const READ_USERNAME = true;                  // читать ник
-
-    const synth = window.speechSynthesis;
-
-let queue = [];
-let speaking = false;
-let lastSpeak = 0;
-
-function cleanMessage(text) {
-
-    // удаляем ссылки
-    text = text.replace(/https?:\/\/\S+/g, '');
-
-    // удаляем twitch emotes типа Kappa
-    text = text.replace(/:[^\s:]+:/g, '');
-
-    // ограничиваем длину
-    if (text.length > MAX_LENGTH) {
-        text = text.substring(0, MAX_LENGTH);
-    }
-
-    return text.trim();
-}
-
-function processQueue() {
-
-    if (speaking) return;
-    if (queue.length === 0) return;
-
-    const now = Date.now();
-    if (now - lastSpeak < COOLDOWN) {
-        setTimeout(processQueue, 200);
-        return;
-    }
-
-    const text = queue.shift();
-
-    const utter = new SpeechSynthesisUtterance(text);
-
-    utter.rate = 1.05;
-    utter.pitch = 1;
-    utter.volume = 1;
-
-    utter.onstart = () => {
-        speaking = true;
-        lastSpeak = Date.now();
-    };
-
-    utter.onend = () => {
-        speaking = false;
-        processQueue();
-    };
-
-    synth.speak(utter);
-}
-
-function addToQueue(text) {
-
-    if (!text) return;
-
-    queue.push(text);
-
-    processQueue();
-}
-
-
-// Twitch chat connection
-
-const client = new tmi.Client({
-    channels: [CHANNEL_NAME]
-});
-
-client.connect();
-
-client.on("message", (channel, tags, message, self) => {
-
-    if (self) return;
-
-    let clean = cleanMessage(message);
-    if (!clean) return;
-
-    let text = READ_USERNAME
-        ? `${tags["display-name"]} says ${clean}`
-        : clean;
-
-    console.log("TTS:", text);
-
-    addToQueue(text);
-});
-</script>
+    <title>OBS TTS Overlay</title>
+    <style>
+        body { background: transparent; margin: 0; padding: 0; overflow: hidden; }
+        #unlock {
+            position: fixed; inset: 0;
+            display: flex; align-items: center; justify-content: center;
+            background: rgba(0,0,0,0.85); color: #fff;
+            font: 16px sans-serif; cursor: pointer; z-index: 999;
+        }
+        #unlock.hidden { display: none; }
+    </style>
+    <script src="https://slovotron.fra3a.ru/js/libs/tmi-v1.8.5.min.js"></script>
 </head>
 <body>
+<div id="unlock">Click to enable TTS</div>
+<script>
+    // ── Настройки ──────────────────────────────────────────────
+    const CHANNEL = {{ channel_name|tojson }};
+    const API_URL = {{ tts_speech_url|tojson }};
+    const MODEL = {{ model|tojson }};
+    const RESPONSE_FORMAT = "mp3";
+    const COMMAND_PREFIX = {{ command_prefix|tojson }};
+    const MAX_TEXT_LENGTH = {{ max_length }};
+    const READ_USERNAME = {{ read_username|tojson }};
+    // ───────────────────────────────────────────────────────────
+
+    // ── Очередь воспроизведения ────────────────────────────────
+    const queue = [];
+    let isPlaying = false;
+
+    function enqueue(text, username) {
+        queue.push({ text, username });
+        processQueue();
+    }
+
+    async function processQueue() {
+        if (isPlaying || queue.length === 0) return;
+        isPlaying = true;
+
+        const { text, username } = queue.shift();
+        try {
+            await fetchAndPlaySpeech(text, username);
+        } catch (error) {
+            console.error("TTS error:", error);
+        } finally {
+            isPlaying = false;
+            processQueue();
+        }
+    }
+
+    async function fetchAndPlaySpeech(text, username) {
+        const payload = READ_USERNAME ? `${username} says ${text}` : text;
+        console.log(`[TTS] ${username}: ${text}`);
+
+        const url = `${API_URL}?channel_name=${encodeURIComponent(CHANNEL)}`;
+        const response = await fetch(url, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                model: MODEL,
+                response_format: RESPONSE_FORMAT,
+                input: payload,
+            }),
+        });
+
+        if (!response.ok) {
+            throw new Error(`Server error: ${response.status}`);
+        }
+
+        const blob = await response.blob();
+        const audioUrl = URL.createObjectURL(blob);
+
+        await new Promise((resolve) => {
+            const audio = new Audio(audioUrl);
+            audio.onended = () => { URL.revokeObjectURL(audioUrl); resolve(); };
+            audio.onerror = () => { URL.revokeObjectURL(audioUrl); resolve(); };
+            audio.play().catch((err) => {
+                console.warn("play() blocked:", err);
+                URL.revokeObjectURL(audioUrl);
+                resolve();
+            });
+        });
+    }
+    // ───────────────────────────────────────────────────────────
+
+    // ── Разблокировка аудио (политика автозапуска) ─────────────
+    const unlockEl = document.getElementById("unlock");
+
+    function startWidget() {
+        unlockEl.classList.add("hidden");
+        connectTMI();
+    }
+
+    // ── TMI клиент ─────────────────────────────────────────────
+    let tmi_client = null;
+
+    function connectTMI() {
+        if (tmi_client) {
+            tmi_client.disconnect().catch((err) => console.error("Disconnect error:", err));
+        }
+
+        tmi_client = new tmi.Client({
+            channels: [CHANNEL],
+        });
+
+        tmi_client.connect();
+
+        tmi_client.on("connected", (addr, port) => {
+            console.log(`[TMI] Connected to #${CHANNEL} (${addr}:${port})`);
+        });
+
+        tmi_client.on("disconnected", (reason) => {
+            console.warn(`[TMI] Disconnected: ${reason}. Reconnecting in 5s...`);
+            setTimeout(connectTMI, 5000);
+        });
+
+        tmi_client.on("message", (channel, user, message, self) => {
+            if (self) return;
+
+            const text = message.trim();
+            if (!text.startsWith(COMMAND_PREFIX)) return;
+
+            const content = text.slice(COMMAND_PREFIX.length).trim();
+            if (!content) return;
+            if (content.length > MAX_TEXT_LENGTH) return;
+
+            enqueue(content, user.username);
+        });
+    }
+
+    // ── Запуск ─────────────────────────────────────────────────
+    const isOBS = window.obsstudio || navigator.userAgent.includes("OBS") || navigator.userAgent.includes("CefSharp");
+
+    if (isOBS) {
+        if (window.obsstudio && window.obsstudio.onActiveChange) {
+            window.obsstudio.onActiveChange((active) => { if (active) startWidget(); });
+        } else {
+            startWidget();
+        }
+    } else {
+        unlockEl.addEventListener("click", startWidget);
+    }
+</script>
 </body>
 </html>

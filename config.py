@@ -85,6 +85,9 @@ class Settings(BaseSettings):
     extension_secret: SecretStr
     extension_id: str = "ipeaqzfjtnio3taywpj3ktbink8fy4"
     extension_version: str = "0.0.1"
+    tts_api_url: str = "http://157.22.205.183:8000/v1/audio/speech"
+    tts_api_token: SecretStr = SecretStr("")
+    tts_model: str = "neco-arc"
 
     @property
     def login_twitch_url(self) -> str:
