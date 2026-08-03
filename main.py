@@ -6,7 +6,7 @@ import uvicorn
 from fastapi import FastAPI, HTTPException
 from fastapi.exception_handlers import request_validation_exception_handler
 from fastapi.exceptions import RequestValidationError
-from opentelemetry import trace, propagate
+from opentelemetry import propagate, trace
 from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
@@ -21,12 +21,12 @@ from sentry_sdk.integrations.starlette import StarletteIntegration
 from starlette import status
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.requests import Request
-from starlette.responses import JSONResponse, RedirectResponse, FileResponse, Response
+from starlette.responses import FileResponse, JSONResponse, RedirectResponse, Response
 from starlette.staticfiles import StaticFiles
 
 from config import settings
 from dependencies import lifespan as lifespan_dep
-from routers.routers import api_router, user_router, router_for_robots
+from routers.routers import api_router, router_for_robots, user_router
 from utils.logging_conf import LOGGING_CONFIG
 
 if settings.sentry_dsn:
@@ -54,23 +54,24 @@ trace.set_tracer_provider(trace_provider)
 tracer = trace.get_tracer(__name__)
 
 propagate.set_global_textmap(
-    CompositePropagator([
-        TraceContextTextMapPropagator(),  # Читает/пишет W3C (traceparent)
-        B3MultiFormat()                   # Читает/пишет B3 (x-b3-traceid)
-    ])
+    CompositePropagator(
+        [
+            TraceContextTextMapPropagator(),  # Читает/пишет W3C (traceparent)
+            B3MultiFormat(),  # Читает/пишет B3 (x-b3-traceid)
+        ]
+    )
 )
 
 FastAPIInstrumentor.instrument_app(
     app,
     excluded_urls="/sse/.*,/static.*",
 )
-HTTPXClientInstrumentor().instrument()
+if not HTTPXClientInstrumentor().is_instrumented_by_opentelemetry:
+    HTTPXClientInstrumentor().instrument()
 
 
 @app.exception_handler(RequestValidationError)
-async def sentry_request_validation_handler(
-    request: Request, exc: RequestValidationError
-):
+async def sentry_request_validation_handler(request: Request, exc: RequestValidationError):
     with sentry_sdk.new_scope() as scope:
         scope.set_tag("type", "request_validation_error")
         scope.set_extra("path", str(request.url))
@@ -133,8 +134,7 @@ async def http_exception_handler(request: Request, exc: Exception):
         return JSONResponse(
             content={
                 "title": "Простите, но всё сломалося",
-                "message": "Создатель сервиса дурачок и не обработал ошибку:<br>"
-                + str(exc),
+                "message": "Создатель сервиса дурачок и не обработал ошибку:<br>" + str(exc),
             },
             status_code=500,
         )
