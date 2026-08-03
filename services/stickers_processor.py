@@ -1,24 +1,53 @@
 import asyncio
 import io
-from typing import AsyncIterator, Optional
+import logging
+import threading
+from collections.abc import AsyncIterator
+from typing import Any
 
 import numpy as np
 from PIL import Image, ImageFilter
 from rembg import new_session, remove
 from scipy.ndimage import binary_dilation, distance_transform_edt, label
 
+logger = logging.getLogger(__name__)
+
 
 class StickerProcessor:
     def __init__(self, max_queue_size: int = 100):
-        self.session = new_session("isnet-anime")
+        # Модель onnx загружается лениво в фоновом потоке, чтобы не блокировать
+        # запуск FastAPI (создание сессии isnet-anime занимает несколько секунд).
+        self._session: Any = None
+        self._session_lock = threading.Lock()
+        self._session_ready = threading.Event()
 
         # Очередь для входящих задач и ограничение ее размера
         self.queue: asyncio.Queue = asyncio.Queue(maxsize=max_queue_size)
-        self.worker_task: Optional[asyncio.Task] = None
+        self.worker_task: asyncio.Task | None = None
         self.is_running = False
+
+    @property
+    def session(self):
+        # Блокируем поток до завершения фоновой загрузки модели.
+        self._session_ready.wait()
+        return self._session
+
+    def _load_session(self) -> None:
+        """Синхронная загрузка onnx-сессии. Запускается в фоне, не блокирует startup."""
+        try:
+            session = new_session("isnet-anime")
+            with self._session_lock:
+                self._session = session
+            logger.info("rembg ai model is loaded")
+        except Exception:
+            logger.exception("Не удалось загрузить rembg-сессию")
+        finally:
+            self._session_ready.set()
 
     async def start(self):
         """Запуск фонового воркера, который обрабатывает задачи по очереди"""
+        # Запускаем загрузку модели в отдельном потоке, чтобы не блокировать lifespan.
+        threading.Thread(target=self._load_session, daemon=True, name="rembg-loader").start()
         if not self.is_running:
             self.is_running = True
             self.worker_task = asyncio.create_task(self._worker_loop())
