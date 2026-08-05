@@ -17,10 +17,12 @@ from config import settings
 from database.models import User
 from dependencies import get_db
 from utils.overlays import touch_overlay_usage
+from utils.template_globals import register_template_globals
 
 logger = logging.getLogger(__name__)
 
 templates = Jinja2Templates(directory="templates")
+register_template_globals(templates)
 
 router = APIRouter(prefix="/overlay", tags=["OBS overlays and widgets"])
 

@@ -8,7 +8,7 @@
 {% endblock %}
 
 {% block head_scripts %}
-<script src="/static/js/panel-scripts.js"></script>
+<script src="{{ static_url('js/panel-scripts.js') }}"></script>
 <script>
     const channel_id = {{ user.twitch_id }};
     const channel_name = "{{ user.login_name }}";

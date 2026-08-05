@@ -24,8 +24,10 @@ from twitch.chat.bot import ChatBot
 from twitch.client.twitch import Twitch
 from twitch.state_manager import StateManager
 from utils.memes import token_expires_in_days
+from utils.template_globals import register_template_globals
 
 templates = Jinja2Templates(directory="templates")
+register_template_globals(templates)
 
 router = APIRouter(prefix="", tags=["Basic Front-end"])
 
