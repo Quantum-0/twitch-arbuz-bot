@@ -3,18 +3,47 @@
 <head>
     <meta charset="UTF-8"/>
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-    <meta property="og:title" content="Quantum0's Bot" />
-    <meta property="og:description" content="Твич-бот Quantum075Bot: мемкоины за баллы канала, авто-shoutout на рейды, словотрон, оверлеи и веселые интерактивные команды в чате!" />
-    <meta property="og:url" content="https://bot.quantum0.ru/" />
-    <meta property="og:type" content="website" />
-    <meta property="og:image" content="https://bot.quantum0.ru/static/images/og-image.jpg" />
-    <meta property="og:image:width" content="1200" />
-    <meta property="og:image:height" content="630" />
+    <meta name="theme-color" content="#4CAF50"/>
     <title>{% block title %}Quantum0's Bot{% endblock %}</title>
     <meta name="description" content="{% block description %}Бот Quantum075Bot для начисления мемкоинов за баллы канала, автоматического shoutout за рейды и различных команд в чате, по типу !трусы !кусь !лизь !обнять и других, оверлей со звёздочкой на ниточке и словотрон.{% endblock %}"/>
+
+    {% set _url = "https://bot.quantum0.ru/" %}
+    {% set _site_name = "Quantum0's Bot" %}
+    {% set _title = self.title() | trim %}
+    {% set _desc = self.description() | trim %}
+    {% set _image = "https://bot.quantum0.ru/static/images/og-image.jpg" %}
+
+    <link rel="canonical" href="{{ _url }}"/>
+
+    <meta property="og:site_name" content="{{ _site_name }}"/>
+    <meta property="og:locale" content="ru_RU"/>
+    <meta property="og:title" content="{{ _title }}"/>
+    <meta property="og:description" content="{{ _desc }}"/>
+    <meta property="og:url" content="{{ _url }}"/>
+    <meta property="og:type" content="website"/>
+    <meta property="og:image" content="{{ _image }}"/>
+    <meta property="og:image:width" content="1200"/>
+    <meta property="og:image:height" content="630"/>
+    <meta property="og:image:alt" content="Логотип Quantum0's Bot — твич-бот с мемкоинами, shoutout'ами и оверлеями"/>
+
+    <meta name="twitter:card" content="summary_large_image"/>
+    <meta name="twitter:title" content="{{ _title }}"/>
+    <meta name="twitter:description" content="{{ _desc }}"/>
+    <meta name="twitter:image" content="{{ _image }}"/>
+    <meta name="twitter:image:alt" content="Логотип Quantum0's Bot"/>
+
+    <link rel="icon" href="/favicon.ico" sizes="any"/>
+    <link rel="icon" type="image/png" sizes="32x32" href="/static/images/favicon-32x32.png"/>
+    <link rel="icon" type="image/svg+xml" href="/static/images/favicon.svg"/>
+    <link rel="apple-touch-icon" sizes="180x180" href="/static/images/apple-touch-icon.png"/>
+    <link rel="manifest" href="/static/site.webmanifest"/>
+
+    <script type="application/ld+json">
+    {"@context":"https://schema.org","@type":"WebSite","name":"Quantum0's Bot","alternateName":"Quantum075Bot","url":"https://bot.quantum0.ru/","description":"Твич-бот Quantum075Bot: мемкоины за баллы канала, авто-shoutout на рейды, словотрон, оверлеи и интерактивные команды.","inLanguage":"ru","potentialAction":{"@type":"SearchAction","target":"https://bot.quantum0.ru/streamers?q={search_term_string}","query-input":"required name=search_term_string"}}
+    </script>
+
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css"/>
     <link rel="stylesheet" href="/static/styles.css"/>
-    <link rel="icon" href="https://bot.quantum0.ru/favicon.ico" type="image/x-icon"/>
     <style> {% block styles %}{% endblock %} </style>
     {% block head_scripts %}{% endblock %}
 
@@ -58,7 +87,7 @@
         </filter>
     </svg>
     <header class="bg-liquid-glass">
-    <h1>Quantum0's Bot</h1>
+    <div class="site-title" aria-label="Quantum0's Bot">Quantum0's Bot</div>
     <nav>
         <a href="/" style="color: white; text-decoration: none;">Главная</a>
         <a href="/streamers" style="color: white; text-decoration: none;">Стримеры</a>

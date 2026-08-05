@@ -1,0 +1,16 @@
+{
+  "name": "Quantum0's Bot",
+  "short_name": "Q0 Bot",
+  "description": "Твич-бот Quantum075Bot: мемкоины за баллы канала, авто-shoutout на рейды, словотрон, оверлеи и интерактивные команды.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#121212",
+  "theme_color": "#4CAF50",
+  "lang": "ru",
+  "icons": [
+    { "src": "/static/images/favicon-32x32.png", "sizes": "32x32", "type": "image/png" },
+    { "src": "/static/images/apple-touch-icon.png", "sizes": "180x180", "type": "image/png" },
+    { "src": "/static/images/favicon.svg", "sizes": "any", "type": "image/svg+xml" }
+  ]
+}
