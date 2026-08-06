@@ -158,10 +158,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Тумблеры TTS (не обрабатываются panel-scripts.js, т.к. не в /update_settings)
     document.querySelectorAll('.toggle-switch[data-name^="tts_"]').forEach(toggle => {
-        toggle.addEventListener('click', () => {
+        const applyToggle = () => {
             toggle.classList.toggle('active');
             toggle.setAttribute('aria-checked', toggle.classList.contains('active') ? 'true' : 'false');
             toggleTtsSetting(toggle.dataset.name, toggle.classList.contains('active'));
+        };
+        toggle.addEventListener('click', applyToggle);
+        toggle.addEventListener('keydown', event => {
+            if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                applyToggle();
+            }
         });
     });
 });

@@ -269,8 +269,8 @@ class Twitch:
         await twitch_user.update_custom_reward(user.twitch_id, str(reward_id), is_enabled=False)
 
     @tracer.start_as_current_span("Twitch: Send warning")
-    @staticmethod
     async def send_warning(
+        self,
         user: User,
         warned_user_id: str,
         reason: str = "Нарушение правил площадки Twitch",
@@ -279,34 +279,21 @@ class Twitch:
         if current_span.is_recording():
             current_span.set_attribute("warn.user_id", warned_user_id)
             current_span.set_attribute("warn.reason", reason)
-        twitch_user = await TwitchClient(settings.twitch_client_id, settings.twitch_client_secret)
-        await twitch_user.set_user_authentication(
-            user.access_token,
-            [AuthScope.MODERATOR_MANAGE_WARNINGS],
-            user.refresh_token,
-        )
-        await twitch_user.warn_chat_user(
+        await self._twitch.warn_chat_user(
             broadcaster_id=user.twitch_id,
-            moderator_id=user.twitch_id,
+            moderator_id="957818216",
             user_id=warned_user_id,
             reason=reason,
         )
 
     @tracer.start_as_current_span("Twitch: Delete message")
-    @staticmethod
-    async def delete_message(user: User, message_id: str) -> None:
+    async def delete_message(self, user: User, message_id: str) -> None:
         current_span = trace.get_current_span()
         if current_span.is_recording():
             current_span.set_attribute("msg.deleted_id", message_id)
-        twitch_user = await TwitchClient(settings.twitch_client_id, settings.twitch_client_secret)
-        await twitch_user.set_user_authentication(
-            user.access_token,
-            [AuthScope.MODERATOR_MANAGE_CHAT_MESSAGES],
-            user.refresh_token,
-        )
-        await twitch_user.delete_chat_message(
+        await self._twitch.delete_chat_message(
             broadcaster_id=user.twitch_id,
-            moderator_id=user.twitch_id,
+            moderator_id="957818216",
             message_id=message_id,
         )
 

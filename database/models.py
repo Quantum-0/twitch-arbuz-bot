@@ -1,3 +1,4 @@
+import json
 import uuid
 from datetime import datetime
 from decimal import Decimal
@@ -344,9 +345,10 @@ class Links(Base):
 
 # Дефолтная матрица разрешений TTS: 6 ролей × 4 триггера.
 # Награда не входит в матрицу — доступна всем, если создана.
+# Единый каноничный источник: миграция и ORM server_default используют этот dict.
 DEFAULT_TTS_PERMISSIONS: dict[str, Any] = {
     "roles": {
-        "streamer": {"all": False, "all_no_replies": True, "streamer_tag": False, "command": False},
+        "streamer": {"all": False, "all_no_replies": False, "streamer_tag": False, "command": True},
         "moderator": {"all": False, "all_no_replies": False, "streamer_tag": True, "command": True},
         "vip": {"all": False, "all_no_replies": False, "streamer_tag": False, "command": True},
         "subscriber": {"all": False, "all_no_replies": False, "streamer_tag": False, "command": True},
@@ -354,6 +356,10 @@ DEFAULT_TTS_PERMISSIONS: dict[str, Any] = {
         "chatter": {"all": False, "all_no_replies": False, "streamer_tag": False, "command": False},
     },
 }
+
+# JSON-литерал для server_default ORM (dollar-quoting чтобы не экранировать кавычки).
+_DEFAULT_TTS_PERMS_JSON = json.dumps(DEFAULT_TTS_PERMISSIONS, ensure_ascii=False)
+_DEFAULT_TTS_PERMS_SERVER_DEFAULT = text(f"$${_DEFAULT_TTS_PERMS_JSON}$$::jsonb")
 
 
 class TTSSettings(Base):
@@ -378,7 +384,7 @@ class TTSSettings(Base):
     # Матрица разрешений 6 ролей × 4 триггера.
     # Структура: {"roles": {"<role>": {"all","all_no_replies","streamer_tag","command"}}}
     permissions: Mapped[dict[str, Any]] = mapped_column(
-        JSONB, nullable=False, default=DEFAULT_TTS_PERMISSIONS, server_default=text(" '{}'::jsonb ")
+        JSONB, nullable=False, default=DEFAULT_TTS_PERMISSIONS, server_default=_DEFAULT_TTS_PERMS_SERVER_DEFAULT
     )
     cooldown_per_user: Mapped[int] = mapped_column(Integer, default=0, server_default="0", nullable=False)
     cooldown_per_channel: Mapped[int] = mapped_column(Integer, default=0, server_default="0", nullable=False)

@@ -65,7 +65,7 @@ async function updateSetting(name, value) {
 }
 
 function initToggles() {
-    document.querySelectorAll('.toggle-switch').forEach(toggle => {
+    document.querySelectorAll('.toggle-switch:not([data-name^="tts_"])').forEach(toggle => {
         toggle.addEventListener('click', () => {
             toggle.classList.toggle('active');
             if (toggle.getAttribute('role') === 'switch') {
@@ -323,13 +323,13 @@ function updateOverlayLink(card) {
 
     const link = base + "?" + params.toString();
     const linkDiv = card.querySelector(".overlay-link");
-    linkDiv.textContent = link;
+    if (linkDiv) linkDiv.textContent = link;
 
     if (base_dock) {
         params.set("secret", slovotron_secret);
-        const link = base_dock + "?" + params.toString();
-        const linkDiv = card.querySelector(".dock-panel-link");
-        linkDiv.textContent = link;
+        const dockLink = base_dock + "?" + params.toString();
+        const dockLinkDiv = card.querySelector(".dock-panel-link");
+        if (dockLinkDiv) dockLinkDiv.textContent = dockLink;
     }
 }
 

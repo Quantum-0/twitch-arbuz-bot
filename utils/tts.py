@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import re
 
+import sqlalchemy as sa
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database.models import DEFAULT_TTS_PERMISSIONS, TTSSettings, User
@@ -73,19 +75,24 @@ async def ensure_tts_settings(db: AsyncSession, user: User) -> TTSSettings:
     зафиксировать. Возвращает persisted-объект (привязанный к user.tts)."""
     if user.tts is not None:
         return user.tts
-    obj = TTSSettings(
-        user_id=user.id,
-        enabled=DEFAULT_TTS["enabled"],
-        tts_reward_id=None,
-        read_username=DEFAULT_TTS["read_username"],
-        permissions=DEFAULT_TTS_PERMISSIONS,
-        cooldown_per_user=DEFAULT_TTS["cooldown_per_user"],
-        cooldown_per_channel=DEFAULT_TTS["cooldown_per_channel"],
-        max_length=DEFAULT_TTS["max_length"],
-        model=DEFAULT_TTS["model"],
-        external_key=DEFAULT_TTS["external_key"],
+    stmt = (
+        pg_insert(TTSSettings)
+        .values(
+            user_id=user.id,
+            enabled=DEFAULT_TTS["enabled"],
+            tts_reward_id=None,
+            read_username=DEFAULT_TTS["read_username"],
+            permissions=DEFAULT_TTS_PERMISSIONS,
+            cooldown_per_user=DEFAULT_TTS["cooldown_per_user"],
+            cooldown_per_channel=DEFAULT_TTS["cooldown_per_channel"],
+            max_length=DEFAULT_TTS["max_length"],
+            model=DEFAULT_TTS["model"],
+            external_key=DEFAULT_TTS["external_key"],
+        )
+        .on_conflict_do_nothing(index_elements=["user_id"])
     )
-    db.add(obj)
+    await db.execute(stmt)
+    result = await db.execute(sa.select(TTSSettings).where(TTSSettings.user_id == user.id))
+    obj = result.scalar_one()
     user.tts = obj
-    await db.flush()
     return obj

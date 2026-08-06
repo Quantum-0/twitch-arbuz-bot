@@ -82,13 +82,11 @@ async def overlay_tts_speech(
     text = payload.input.strip()
     if not text:
         raise HTTPException(status_code=400, detail="Empty input")
-    token = settings.tts_api_token.get_secret_value()
-    if not token:
-        raise HTTPException(status_code=503, detail="TTS service is not configured")
     try:
         audio, content_type = await tts_service.synthesize(text, model=payload.model)
     except TTSServiceError as exc:
-        raise HTTPException(status_code=502, detail=str(exc)) from exc
+        status_code = 503 if "not configured" in str(exc) else 502
+        raise HTTPException(status_code=status_code, detail=str(exc)) from exc
     return Response(content=audio, media_type=content_type)
 
 

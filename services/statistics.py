@@ -55,6 +55,7 @@ PERIOD_CONFIG: dict[StatsPeriod, tuple[int, timedelta]] = {
 TIMING_TYPES: set[str] = {
     str(StatsType.MESSAGE_PROCESSING_TIME),
     str(StatsType.AI_STICKER_PROCESSING_TIME),
+    str(StatsType.TTS_PROCESSING_TIME),
 }
 
 # Sum-метрики: ``value = sum(sum_ms)`` (суммарный объём, не среднее). ``count``

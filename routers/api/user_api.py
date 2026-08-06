@@ -483,7 +483,13 @@ async def setup_tts(
                 reward_id = None
             else:
                 try:
-                    await twitch.subscribe_reward(user, reward_id)
+                    await twitch.update_reward(
+                        user,
+                        reward_id,
+                        is_enabled=True,
+                        is_user_input_required=True,
+                        should_redemptions_skip_request_queue=False,
+                    )
                 except TwitchAPIException as exc:
                     return JSONResponse({"title": "Ошибка", "message": str(exc)}, 400)
                 return JSONResponse({"title": "Успешно", "message": "Подписка на награду восстановлена."}, 200)

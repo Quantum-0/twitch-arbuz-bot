@@ -15,9 +15,6 @@ user_scope = [
     # user:read:chat?
     AuthScope.USER_READ_BROADCAST,
     AuthScope.USER_EDIT_BROADCAST,
-    # Модерация чата (warn / delete message) — для ModerationService и TTS
-    AuthScope.MODERATOR_MANAGE_WARNINGS,
-    AuthScope.MODERATOR_MANAGE_CHAT_MESSAGES,
 ]
 bot_scope = [
     # AuthScope.USER_CHAT_READ,
@@ -30,6 +27,9 @@ bot_scope = [
     AuthScope.USER_WRITE_CHAT,
     AuthScope.USER_READ_CHAT,
     AuthScope.CHANNEL_BOT,
+    # Модерация чата (warn / delete message) — выполняется от имени бота-модератора.
+    AuthScope.MODERATOR_MANAGE_WARNINGS,
+    AuthScope.MODERATOR_MANAGE_CHAT_MESSAGES,
 ]
 memealerts_scope = [
     "oauth-user-show",

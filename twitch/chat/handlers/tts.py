@@ -17,6 +17,7 @@ from typing import TYPE_CHECKING
 from opentelemetry import trace
 
 from database.models import TwitchUserSettings, User
+from schemas.api import StatsType
 from schemas.enums import TTSTrigger
 from schemas.twitch import ChatMessageWebhookEventSchema
 from services.moderation import ModerationService
@@ -120,7 +121,7 @@ class TTSHandler(CommonMessagesHandler):
             json.dumps({"text": text, "model": tts.model}),
         )
         if self._statistics is not None:
-            self._statistics.inc("tts_messages")
+            self._statistics.inc(StatsType.TTS_MESSAGES)
 
         # Не блокируем команды/другие handlers.
         return HandlerResult.HANDLED_AND_CONTINUE
@@ -202,7 +203,7 @@ class TTSHandler(CommonMessagesHandler):
         result = moderation.validate(text)
         if result.is_banned:
             if self._statistics is not None:
-                self._statistics.inc("tts_blocked", subtype="command")
+                self._statistics.inc(StatsType.TTS_BLOCKED, subtype="command")
             await self.send_response(chat=streamer, message="⚠️ TTS: сообщение заблокировано модерацией.")
             return None
 
@@ -230,4 +231,7 @@ class TTSHandler(CommonMessagesHandler):
         for frag in message.message.fragments:
             if frag.type == "text":
                 parts.append(frag.text)
-        return " ".join(parts)
+        text = " ".join(parts)
+        if text.lstrip().startswith(TTS_COMMAND_PREFIX):
+            text = text.lstrip()[len(TTS_COMMAND_PREFIX) :]
+        return text

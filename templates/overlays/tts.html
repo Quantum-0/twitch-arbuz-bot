@@ -26,9 +26,13 @@
 
     // ── Очередь воспроизведения (по одному за раз) ──────────────
     const queue = [];
+    const MAX_QUEUE = 10;
     let isPlaying = false;
 
     function enqueue(text, model) {
+        if (queue.length >= MAX_QUEUE) {
+            queue.shift();
+        }
         queue.push({ text, model });
         processQueue();
     }

@@ -6,12 +6,14 @@ Create Date: 2026-08-06 01:40:37.437033
 
 """
 
+import json
 from typing import Sequence, Union
 
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 from alembic import op
+from database.models import DEFAULT_TTS_PERMISSIONS
 
 # revision identifiers, used by Alembic.
 revision: str = "0dfd8c9adf27"
@@ -20,21 +22,7 @@ branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
 
-# Дефолтная матрица разрешений TTS (6 ролей × 4 триггера + reward).
-DEFAULT_PERMISSIONS = {
-    "roles": {
-        "streamer": {"all": False, "all_no_replies": False, "streamer_tag": False, "command": True},
-        "moderator": {"all": False, "all_no_replies": False, "streamer_tag": True, "command": True},
-        "vip": {"all": False, "all_no_replies": False, "streamer_tag": False, "command": True},
-        "subscriber": {"all": False, "all_no_replies": False, "streamer_tag": False, "command": True},
-        "bot": {"all": False, "all_no_replies": False, "streamer_tag": False, "command": False},
-        "chatter": {"all": False, "all_no_replies": False, "streamer_tag": False, "command": True},
-    },
-}
-
-import json
-
-_DEFAULT_PERMS_JSON = json.dumps(DEFAULT_PERMISSIONS, ensure_ascii=False)
+_DEFAULT_PERMS_JSON = json.dumps(DEFAULT_TTS_PERMISSIONS, ensure_ascii=False)
 # Dollar-quoting чтобы не экранировать кавычки внутри JSON.
 _PERMISSIONS_SERVER_DEFAULT = sa.text(f"$${_DEFAULT_PERMS_JSON}$$::jsonb")
 

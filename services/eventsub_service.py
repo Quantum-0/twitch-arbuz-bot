@@ -332,10 +332,13 @@ class TwitchEventSubService:
                 user,
                 "⚠️ TTS: сообщение заблокировано модерацией.",
             )
-            await self._twitch.send_warning(
-                user,
-                str(payload.event.user_id),
-            )
+            try:
+                await self._twitch.send_warning(
+                    user,
+                    str(payload.event.user_id),
+                )
+            except Exception:
+                logger.error("TTS: failed to send warning to chatter", exc_info=True)
             await self._fulfill_redemption(user, payload)
             return
 

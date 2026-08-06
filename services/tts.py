@@ -37,6 +37,8 @@ class TTSService:
     async def startup(self) -> None:
         self._token = settings.tts_api_token.get_secret_value()
         self._url = settings.tts_api_url
+        if not self._url:
+            raise TTSServiceError("TTS service is not configured (no URL)")
         self._model = settings.tts_model
 
     async def shutdown(self) -> None:
@@ -55,7 +57,7 @@ class TTSService:
 
         start = monotonic()
         try:
-            async with httpx.AsyncClient(timeout=30.0) as client:
+            async with httpx.AsyncClient(timeout=30.0, follow_redirects=False) as client:
                 resp = await client.post(
                     self._url,
                     headers={
