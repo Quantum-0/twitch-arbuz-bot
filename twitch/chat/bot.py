@@ -17,7 +17,7 @@ from twitchAPI.chat import Chat
 
 from config import settings
 from database.models import TwitchUserSettings, User
-from exceptions import UserNotFoundInDatabase, ToManyChatUnsubscribesStartupException
+from exceptions import ToManyChatUnsubscribesStartupException, UserNotFoundInDatabase
 from schemas.api import StatsType
 from schemas.twitch import ChatMessageWebhookEventSchema
 from services.mqtt import MQTTClient
@@ -32,6 +32,7 @@ from twitch.chat.handlers.handlers import (
     PyramidHandler,
     UnlurkHandler,
 )
+from twitch.chat.handlers.tts import TTSHandler
 from twitch.client.twitch import Twitch
 from twitch.state_manager import StateManager
 from twitch.user_list_manager import UserListManager
@@ -94,6 +95,7 @@ class ChatBot:
         self._handler_manager.register(HelloHandler)
         self._handler_manager.register(IAmBotHandler)
         self._handler_manager.register(ThanksHandler)
+        self._handler_manager.register(TTSHandler)
         self._command_manager.register(CmdlistCommand)
         self._command_manager.register(DiceCommand)
         self._command_manager.register(BiteCommand)
@@ -220,6 +222,7 @@ class ChatBot:
                     joinedload(User.settings),
                     joinedload(User.links),
                     joinedload(User.memealerts),
+                    joinedload(User.tts),
                 )
                 .filter_by(twitch_id=str(channel_id))
             )

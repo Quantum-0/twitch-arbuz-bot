@@ -1,4 +1,5 @@
 from datetime import datetime
+from decimal import Decimal
 from enum import StrEnum
 from typing import Literal
 from uuid import UUID
@@ -124,6 +125,13 @@ class StatsType(StrEnum):
     # В API/фронте обрабатывается отдельным endpoint'ом, тут — только чтобы
     # попасть в селект типов на фронте.
     USERS_COUNT = "users_count"
+    # Counter: число сообщений, озвученных через TTS (handler / награда / внешний ключ).
+    TTS_MESSAGES = "tts_messages"
+    # Counter: число сообщений, заблокированных модерацией при попытке TTS.
+    # Subtype — триггер ("command" / "reward" / "external" / ...).
+    TTS_BLOCKED = "tts_blocked"
+    # Timing-метрика: avg время (мс) синтеза TTS во внешнем API.
+    TTS_PROCESSING_TIME = "tts_processing_time"
 
 
 class StatsPeriod(StrEnum):
@@ -172,3 +180,73 @@ class StatsSeriesResponseSchema(BaseModel):
     type: str
     period: str
     series: list[StatsSeriesItemSchema]
+
+
+class TTSRoleTriggerSchema(BaseModel):
+    """Разрешения одной роли по триггерам (строка матрицы 6×4)."""
+
+    all: bool = False
+    all_no_replies: bool = False
+    streamer_tag: bool = False
+    command: bool = False
+
+
+class TTSPermissionsSchema(BaseModel):
+    """Матрица TTS-разрешений (6 ролей × 4 триггера). Награда доступна всем, если включена."""
+
+    roles: dict[str, TTSRoleTriggerSchema] = Field(default_factory=dict)
+
+
+class TTSSettingsSchema(BaseModel):
+    """Все скалярные настройки TTS для страницы /tts (lazy-defaults подставляются)."""
+
+    enabled: bool = False
+    read_username: bool = False
+    cooldown_per_user: int = 0
+    cooldown_per_channel: int = 0
+    max_length: int = 500
+    model: str | None = None
+    external_key: str | None = None
+    permissions: TTSPermissionsSchema = Field(default_factory=TTSPermissionsSchema)
+
+
+class TTSSettingsUpdateSchema(BaseModel):
+    """Частичное обновление скалярных TTS-настроек."""
+
+    enabled: bool | None = None
+    read_username: bool | None = None
+    cooldown_per_user: int | None = Field(None, ge=0, le=3600)
+    cooldown_per_channel: int | None = Field(None, ge=0, le=3600)
+    max_length: int | None = Field(None, ge=10, le=2000)
+    model: str | None = None
+
+
+class TTSExternalSpeechSchema(BaseModel):
+    """Тело POST /api/user/tts/{key} — внешний ключ для озвучки."""
+
+    input: str
+    model: str | None = None
+
+
+class AdminBalanceResponseSchema(BaseModel):
+    """Ответ ручки просмотра баланса стримера /api/admin/balance."""
+
+    twitch_login: str
+    total_deposited: Decimal
+    total_spent: Decimal
+    balance: Decimal
+
+
+class AdminDepositRequestSchema(BaseModel):
+    """Тело POST /api/admin/balance/deposit — пополнение баланса стримера."""
+
+    twitch_login: str
+    amount: Decimal = Field(..., gt=0, le=500, max_digits=12, decimal_places=2)
+
+
+class AdminDepositResponseSchema(BaseModel):
+    """Ответ ручки пополнения: фактически начисленная сумма и итоговый баланс."""
+
+    twitch_login: str
+    deposited: Decimal
+    balance: Decimal

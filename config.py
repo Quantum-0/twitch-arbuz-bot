@@ -15,6 +15,9 @@ user_scope = [
     # user:read:chat?
     AuthScope.USER_READ_BROADCAST,
     AuthScope.USER_EDIT_BROADCAST,
+    # Модерация чата (warn / delete message) — для ModerationService и TTS
+    AuthScope.MODERATOR_MANAGE_WARNINGS,
+    AuthScope.MODERATOR_MANAGE_CHAT_MESSAGES,
 ]
 bot_scope = [
     # AuthScope.USER_CHAT_READ,

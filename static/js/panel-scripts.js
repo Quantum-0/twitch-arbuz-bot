@@ -124,20 +124,26 @@ function initOverlays() {
             });
         });
 
-        card.querySelector(".overlay-toggle-settings").addEventListener("click", () => {
-            card.querySelector(".overlay-settings").classList.toggle("active");
-        });
+        const toggleBtn = card.querySelector(".overlay-toggle-settings");
+        if (toggleBtn) {
+            toggleBtn.addEventListener("click", () => {
+                const settings = card.querySelector(".overlay-settings");
+                if (settings) settings.classList.toggle("active");
+            });
+        }
 
-        linkDiv.addEventListener("click", () => {
-            navigator.clipboard.writeText(linkDiv.textContent);
-            linkDiv.classList.add("copied");
-            linkDiv.textContent = "Скопировано!";
-            setTimeout(() => {
-                updateOverlayLink(card);
-                linkDiv.classList.remove("copied");
-            }, 1000);
-            ym(108266334, 'reachGoal', 'copiedOverlayLink');
-        });
+        if (linkDiv) {
+            linkDiv.addEventListener("click", () => {
+                navigator.clipboard.writeText(linkDiv.textContent);
+                linkDiv.classList.add("copied");
+                linkDiv.textContent = "Скопировано!";
+                setTimeout(() => {
+                    updateOverlayLink(card);
+                    linkDiv.classList.remove("copied");
+                }, 1000);
+                ym(108266334, 'reachGoal', 'copiedOverlayLink');
+            });
+        }
 
         if (linkDockDiv) {
             linkDockDiv.addEventListener("click", () => {

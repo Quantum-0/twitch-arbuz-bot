@@ -19,6 +19,7 @@ from services.memes_v2 import MemealertsOAuthService, MemealertsV2Service
 from services.sse_manager import SSEManager
 from twitch.client.twitch import Twitch
 from utils.enums import SSEChannel
+from utils.tts import get_tts_settings
 
 router = APIRouter(prefix="/check", tags=["User checks"])
 
@@ -139,3 +140,32 @@ async def check_ai_stickers_reward(
     else:
         state = "broken"
     return CheckMemealertsRewardStatusResponseSchema(result=not problems, problems=problems, state=state)
+
+
+@router.get("/tts-reward", response_model=CheckMemealertsRewardStatusResponseSchema)
+@inject
+async def check_tts_reward(
+    twitch: Annotated[Twitch, Depends(Provide[Container.twitch])],
+    user: User = Security(user_auth),
+) -> CheckMemealertsRewardStatusResponseSchema:
+    tts = get_tts_settings(user)
+    if not tts.tts_reward_id:
+        return CheckMemealertsRewardStatusResponseSchema(result=False, problems=["Награда не создана"], state="missing")
+    problems = await twitch.validate_reward_subscription(user=user, reward_id=str(tts.tts_reward_id))
+    if not problems:
+        state = "ok"
+    elif "Награда не найдена" in problems:
+        state = "missing"
+    else:
+        state = "broken"
+    return CheckMemealertsRewardStatusResponseSchema(result=not problems, problems=problems, state=state)
+
+
+@router.get("/tts-overlay", response_model=CheckStatusResponseSchema)
+@inject
+async def check_tts_overlay(
+    ssem: Annotated[SSEManager, Depends(Provide[Container.sse_manager])],
+    user: User = Security(user_auth),
+) -> CheckStatusResponseSchema:
+    result = await ssem.has_clients(int(user.twitch_id), SSEChannel.TTS)
+    return CheckStatusResponseSchema(result=result, problems=["TTS-оверлей не подключён к OBS"] if not result else [])

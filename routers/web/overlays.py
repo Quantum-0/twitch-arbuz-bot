@@ -2,22 +2,26 @@ import logging
 from typing import Annotated, Literal
 from uuid import uuid3
 
-import httpx
 import sqlalchemy as sa
+from dependency_injector.wiring import Provide, inject
 from fastapi import APIRouter, Body, HTTPException, Query
 from fastapi.params import Depends
 from pydantic import BaseModel
 from pydantic.color import Color
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import joinedload
 from starlette.requests import Request
 from starlette.responses import RedirectResponse, Response
 from starlette.templating import Jinja2Templates
 
 from config import settings
+from container import Container
 from database.models import User
 from dependencies import get_db
+from services.tts import TTSService, TTSServiceError
 from utils.overlays import touch_overlay_usage
 from utils.template_globals import register_template_globals
+from utils.tts import get_tts_settings
 
 logger = logging.getLogger(__name__)
 
@@ -44,22 +48,20 @@ async def overlay_jumping_chibi(
 @router.get("/tts")
 async def overlay_tts(
     request: Request,
-    channel_name: str = Query(),
-    command_prefix: str = Query(default="!!!"),
-    max_length: int = Query(default=500, ge=1, le=2000),
-    read_username: bool = Query(default=False),
-    model: str | None = Query(default=None),
+    db: Annotated[AsyncSession, Depends(get_db)],
+    channel_id: int = Query(),
 ):
-    await touch_overlay_usage(channel_name=channel_name)
+    await touch_overlay_usage(channel_id=channel_id)
+    user = (
+        await db.execute(sa.select(User).options(joinedload(User.tts)).where(User.twitch_id == str(channel_id)))
+    ).scalar_one_or_none()
+    tts = get_tts_settings(user) if user else None
     return templates.TemplateResponse(
         "overlays/tts.html",
         {
             "request": request,
-            "channel_name": channel_name,
-            "command_prefix": command_prefix,
-            "max_length": max_length,
-            "read_username": read_username,
-            "model": model or settings.tts_model,
+            "channel_id": channel_id,
+            "model": (tts.model if tts and tts.model else settings.tts_model),
             "tts_speech_url": f"{request.base_url}overlay/tts/speech",
         },
     )
@@ -72,12 +74,11 @@ class TTSSpeechSchema(BaseModel):
 
 
 @router.post("/tts/speech")
+@inject
 async def overlay_tts_speech(
-    channel_name: Annotated[str, Query()],
+    tts_service: Annotated[TTSService, Depends(Provide[Container.tts_service])],
     payload: Annotated[TTSSpeechSchema, Body()],
 ):
-    # if channel_name not in {"quantum075", "lul0k"}:
-    #     raise HTTPException(status_code=403, detail="TTS is not enabled for this channel")
     text = payload.input.strip()
     if not text:
         raise HTTPException(status_code=400, detail="Empty input")
@@ -85,26 +86,10 @@ async def overlay_tts_speech(
     if not token:
         raise HTTPException(status_code=503, detail="TTS service is not configured")
     try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            resp = await client.post(
-                settings.tts_api_url,
-                headers={
-                    "Authorization": f"Bearer {token}",
-                    "Content-Type": "application/json",
-                },
-                json={
-                    "model": payload.model or settings.tts_model,
-                    "input": text,
-                    "response_format": payload.response_format,
-                },
-            )
-    except httpx.HTTPError as exc:
-        logger.warning("TTS upstream request failed: %s", exc)
-        raise HTTPException(status_code=502, detail="TTS upstream request failed") from exc
-    if resp.status_code != 200:
-        logger.warning("TTS upstream returned %s: %s", resp.status_code, resp.text[:200])
-        raise HTTPException(status_code=502, detail=f"TTS upstream error: {resp.status_code}")
-    return Response(content=resp.content, media_type=resp.headers.get("content-type", "audio/mpeg"))
+        audio, content_type = await tts_service.synthesize(text, model=payload.model)
+    except TTSServiceError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    return Response(content=audio, media_type=content_type)
 
 
 @router.get("/slovotron")

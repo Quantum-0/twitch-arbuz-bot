@@ -6,11 +6,12 @@ from time import time
 from opentelemetry import trace
 
 from database.models import User
-from schemas.twitch import ChatMessageWebhookEventSchema
 from schemas.enums import ChatbotDefaultTargetBehaviour
+from schemas.twitch import ChatMessageWebhookEventSchema
 from twitch.chat.base.base_command import Command
 from twitch.state_manager import SMParam
 from twitch.utils import extract_targets
+from utils.chat_roles import KNOWN_BOTS
 
 logger = logging.getLogger(__name__)
 tracer = trace.get_tracer(__name__)
@@ -34,11 +35,7 @@ class SimpleTargetCommand(Command, ABC):
     @tracer.start_as_current_span("ChatBot: SimpleTarget Command: Handle")
     async def handle(self, streamer: User, message: ChatMessageWebhookEventSchema):
         await super().handle(streamer, message)
-        targets = (
-            [f"@{message.reply.parent_user_name}"]
-            if message.reply and message.reply.parent_user_name
-            else []
-        )
+        targets = [f"@{message.reply.parent_user_name}"] if message.reply and message.reply.parent_user_name else []
         user: str = message.chatter_user_name
         user_id: int = int(message.chatter_user_id)
 
@@ -75,15 +72,8 @@ class SimpleTargetCommand(Command, ABC):
             param=SMParam.CALL_COUNT,
         )
 
-        if (
-            last_command_call
-            and self.cooldown_timer
-            and time() - last_command_call < self.cooldown_timer
-        ):
-            if (
-                self.cooldown_count == 1
-                or (command_calls_count or 1) >= self.cooldown_count
-            ):
+        if last_command_call and self.cooldown_timer and time() - last_command_call < self.cooldown_timer:
+            if self.cooldown_count == 1 or (command_calls_count or 1) >= self.cooldown_count:
                 delay = self.cooldown_timer - int(time() - last_command_call)
                 response = await self._cooldown_reply(user, delay)
                 await self.send_response(chat=streamer, message=response)
@@ -119,20 +109,7 @@ class SimpleTargetCommand(Command, ABC):
             if response:
                 await self.send_response(chat=streamer, message=response)
                 return
-        if len(targets) == 1 and targets[0].lower() in {
-            "@streamelements",
-            "@wisebot",
-            "@wizebot",
-            "@WSBot",
-            "@alurarin",
-            "@nightbot",
-            "@botrixoficial",
-            "@dustyfox_bot",
-            "@moobot",
-            "@jeetbot",
-            "@fossabot",
-            "@lavrikbot",
-        }:
+        if len(targets) == 1 and targets[0].lower().lstrip("@") in KNOWN_BOTS:
             response = await self._bot_call_reply(user, target=targets[0])
             if response:
                 await self.send_response(chat=streamer, message=response)

@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+
+{% block title %}TTS — Quantum0's Bot{% endblock %}
+{% block description %}Настройки Text-To-Speech оверлея для Twitch-чата.{% endblock %}
+
+{% block content %}
+<div class="notification-container"></div>
+<section>
+    <h2>TTS — Text-To-Speech</h2>
+    <p class="overlay-copy-hint">
+        Оверлей озвучивает сообщения из чата через внешний TTS-движок.
+        Токен API хранится серверно, оверлей обращается через прокси.
+        <b>Функционал в бета-тесте.</b>
+    </p>
+
+    <div class="cards-grid">
+        <div class="card-status" data-endpoint="/api/user/check/tts-overlay" data-type="tts-overlay" data-refreshtimer="5">
+            <div>
+                <h3>Оверлей подключён</h3>
+                <ul class="card-status-problems-list" style="margin: 0"></ul>
+            </div>
+            <div class="status-indicator tooltip-container"><span class="tooltip-text">TTS-оверлей добавлен в OBS и подключён к SSE</span></div>
+        </div>
+        <div class="card-status" id="tts-reward-card" data-endpoint="/api/user/check/tts-reward" data-type="tts-reward" data-refreshtimer="180">
+            <div>
+                <h3>Награда TTS</h3>
+                <ul class="card-status-problems-list" style="margin: 0"></ul>
+            </div>
+            <div class="status-indicator tooltip-container"><span class="tooltip-text">Награда для озвучки за баллы канала создана и подписана</span></div>
+        </div>
+    </div>
+
+    <button id="tts-reward-btn" data-action="loading" onclick="handleTtsRewardButton()">Проверка...</button>
+</section>
+
+<section>
+    <h2>Основные настройки</h2>
+    <div class="settings-list">
+        <div class="settings-row">
+            <span>TTS включён</span>
+            <div class="toggle-switch {{ 'active' if tts.enabled }}" data-name="tts_enabled" role="switch" aria-checked="{{ 'true' if tts.enabled else 'false' }}" tabindex="0"></div>
+        </div>
+        <div class="settings-row">
+            <span>Озвучивать ник отправителя</span>
+            <div class="toggle-switch {{ 'active' if tts.read_username }}" data-name="tts_read_username" role="switch" aria-checked="{{ 'true' if tts.read_username else 'false' }}" tabindex="0"></div>
+        </div>
+    </div>
+
+    <form id="tts-settings-form" class="ai-settings-form">
+        <label for="tts-model">Модель голоса</label>
+        <input type="text" id="tts-model" name="model" value="{{ tts.model or '' }}" placeholder="По умолчанию">
+
+        <label for="tts-max-length">Максимальная длина текста (символов)</label>
+        <input type="number" id="tts-max-length" name="max_length" value="{{ tts.max_length }}" min="10" max="2000">
+
+        <label for="tts-cd-user">КД на пользователя (сек)</label>
+        <input type="number" id="tts-cd-user" name="cooldown_per_user" value="{{ tts.cooldown_per_user }}" min="0" max="3600">
+
+        <label for="tts-cd-channel">КД на канал (сек)</label>
+        <input type="number" id="tts-cd-channel" name="cooldown_per_channel" value="{{ tts.cooldown_per_channel }}" min="0" max="3600">
+
+        <button type="submit">Сохранить настройки</button>
+    </form>
+</section>
+
+<section>
+    <h2>Матрица разрешений</h2>
+    <p class="overlay-copy-hint">Какие роли могут озвучивать сообщения и по каким триггерам. Награда доступна всем, если создана — отдельной настройки роли не требуется.</p>
+    <table class="tts-permissions-table" id="tts-permissions">
+        <thead>
+            <tr>
+                <th>Роль</th>
+                <th>Реплаи</th>
+                <th>Обычные сообщения</th>
+                <th>Тег стримера</th>
+                <th>Команда (!!!)</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for role_key, role_label in tts_roles.items() %}
+            <tr data-role="{{ role_key }}">
+                <td>{{ role_label }}</td>
+                {% for trigger_key in trigger_keys %}
+                <td>
+                    <label class="switch">
+                        <input type="checkbox"
+                               data-role="{{ role_key }}"
+                               data-trigger="{{ trigger_key }}"
+                               {% set role_perms = tts.permissions.roles[role_key] if tts.permissions and tts.permissions.roles and role_key in tts.permissions.roles else none %}
+                               {{ 'checked' if role_perms and role_perms[trigger_key] }}>
+                        <span class="slider"></span>
+                    </label>
+                </td>
+                {% endfor %}
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <button id="tts-save-permissions">Сохранить матрицу</button>
+</section>
+
+<section>
+    <h2>Внешний ключ</h2>
+    <p class="overlay-copy-hint">
+        Ключ позволяет озвучивать текст через <code>POST /api/user/tts/&#123;key&#125;</code> без проверки ролей.
+        Используется для внешних интеграций (боты, скрипты).
+    </p>
+    <div class="settings-row">
+        <span>Текущий ключ:</span>
+        <code id="tts-external-key">{{ tts.external_key or 'не задан' }}</code>
+    </div>
+    <button id="tts-reset-key">Сгенерировать новый ключ</button>
+</section>
+{% endblock %}
+
+{% block body_scripts %}
+<script src="/static/js/panel-scripts.js"></script>
+<script src="/static/js/tts.js"></script>
+{% endblock %}
