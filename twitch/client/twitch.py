@@ -21,7 +21,7 @@ from twitchAPI.object.api import (
     UserActiveExtensions,
 )
 from twitchAPI.twitch import Twitch as TwitchClient
-from twitchAPI.type import AuthScope, CustomRewardRedemptionStatus, UnauthorizedException
+from twitchAPI.type import AuthScope, CustomRewardRedemptionStatus, TwitchResourceNotFound, UnauthorizedException
 
 from config import bot_scope, settings, user_scope
 from database.models import User
@@ -167,7 +167,7 @@ class Twitch:
             only_manageable_rewards=True,
         )
         if len(rewards) == 0:
-            raise Exception("Reward not found")
+            raise TwitchResourceNotFound("Reward not found")
         await twitch_user.update_custom_reward(
             broadcaster_id=user.twitch_id,
             reward_id=str(reward_id),

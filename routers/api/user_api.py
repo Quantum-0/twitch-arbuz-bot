@@ -490,9 +490,15 @@ async def setup_tts(
                         is_user_input_required=True,
                         should_redemptions_skip_request_queue=False,
                     )
+                except TwitchResourceNotFound:
+                    tts.tts_reward_id = None
+                    await db.commit()
+                    await db.refresh(tts)
+                    reward_id = None
                 except TwitchAPIException as exc:
                     return JSONResponse({"title": "Ошибка", "message": str(exc)}, 400)
-                return JSONResponse({"title": "Успешно", "message": "Подписка на награду восстановлена."}, 200)
+                else:
+                    return JSONResponse({"title": "Успешно", "message": "Подписка на награду восстановлена."}, 200)
     else:
         if not reward_id:
             return JSONResponse({"title": "Без изменений", "message": "Награда уже выключена."}, 208)
