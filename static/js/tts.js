@@ -38,8 +38,6 @@ function handleTtsRewardButton() {
 }
 
 // ── Обновление кнопки награды через MutationObserver ────────
-// Вместо monkey-patch checkStatus: наблюдаем за классами индикатора
-// карточки награды и обновляем кнопку при изменении статуса.
 function initTtsRewardObserver() {
     const card = document.querySelector('.card-status[data-type="tts-reward"]');
     if (!card) return;
@@ -60,12 +58,30 @@ function initTtsRewardObserver() {
     new MutationObserver(sync).observe(indicator, {attributes: true, attributeFilter: ['class']});
 }
 
+// ── Синхронизация значений ползунков ────────────────────────
+function initTtsSliders() {
+    const pairs = [
+        ['tts-max-length', 'tts-max-length-out'],
+        ['tts-cd-user', 'tts-cd-user-out'],
+        ['tts-cd-channel', 'tts-cd-channel-out'],
+    ];
+    for (const [sliderId, outId] of pairs) {
+        const slider = document.getElementById(sliderId);
+        const out = document.getElementById(outId);
+        if (slider && out) {
+            out.textContent = slider.value;
+            slider.addEventListener('input', () => { out.textContent = slider.value; });
+        }
+    }
+}
+
 // ── Основные настройки (форма) ──────────────────────────────
 async function submitTtsSettings(event) {
     event.preventDefault();
     const form = event.currentTarget;
+    const modelInput = form.querySelector('input[name="tts_model"]:checked');
     const payload = {
-        model: form.model.value.trim() || null,
+        model: modelInput ? modelInput.value : null,
         max_length: parseInt(form.max_length.value, 10),
         cooldown_per_user: parseInt(form.cooldown_per_user.value, 10),
         cooldown_per_channel: parseInt(form.cooldown_per_channel.value, 10),
@@ -128,12 +144,34 @@ async function savePermissions() {
 }
 
 // ── Внешний ключ ────────────────────────────────────────────
+function ttsKeyState() {
+    const box = document.getElementById('tts-external-key');
+    if (!box) return {box: null, key: ''};
+    return {box, key: box.dataset.key || ''};
+}
+
+function setTtsKeyUI(key) {
+    const box = document.getElementById('tts-external-key');
+    if (!box) return;
+    box.dataset.key = key;
+    box.textContent = key || 'не задан';
+    if (key) {
+        box.classList.remove('tts-key-empty');
+    } else {
+        box.classList.add('tts-key-empty');
+    }
+    const deleteBtn = document.getElementById('tts-delete-key');
+    const curlBtn = document.getElementById('tts-copy-curl');
+    if (deleteBtn) deleteBtn.disabled = !key;
+    if (curlBtn) curlBtn.disabled = !key;
+}
+
 async function resetExternalKey() {
     try {
         const res = await fetch('/api/user/tts/reset-key', {method: 'POST'});
         const data = await res.json();
         if (res.ok && data.key) {
-            document.getElementById('tts-external-key').textContent = data.key;
+            setTtsKeyUI(data.key);
             showNotification('TTS', 'Новый ключ сгенерирован', false);
         } else {
             showNotification(data.title || 'TTS', data.message || 'Ошибка', !res.ok);
@@ -143,9 +181,50 @@ async function resetExternalKey() {
     }
 }
 
+async function deleteExternalKey() {
+    try {
+        const res = await fetch('/api/user/tts/delete-key', {method: 'POST'});
+        const data = await res.json();
+        if (res.ok) {
+            setTtsKeyUI('');
+            showNotification('TTS', 'Ключ удалён', false);
+        } else {
+            showNotification(data.title || 'TTS', data.message || 'Ошибка', !res.ok);
+        }
+    } catch (e) {
+        showNotification('Ошибка', e.message, true);
+    }
+}
+
+function copyTtsKey() {
+    const {box, key} = ttsKeyState();
+    if (!box || !key) return;
+    navigator.clipboard.writeText(key).then(() => {
+        box.classList.add('copied');
+        const orig = box.textContent;
+        box.textContent = 'Скопировано!';
+        setTimeout(() => {
+            box.textContent = orig;
+            box.classList.remove('copied');
+        }, 1000);
+    }).catch(() => showNotification('Ошибка', 'Не удалось скопировать', true));
+}
+
+function copyTtsCurl() {
+    const {key} = ttsKeyState();
+    if (!key) return;
+    const base = window.location.origin;
+    const url = `${base}/api/user/tts/${key}`;
+    const curl = `curl -X POST '${url}' -H 'Content-Type: application/json' -d '{"input":"привет"}'`;
+    navigator.clipboard.writeText(curl).then(() => {
+        showNotification('TTS', 'curl-команда скопирована', false);
+    }).catch(() => showNotification('Ошибка', 'Не удалось скопировать', true));
+}
+
 // ── Инициализация ───────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
     initTtsRewardObserver();
+    initTtsSliders();
 
     const settingsForm = document.getElementById('tts-settings-form');
     if (settingsForm) settingsForm.addEventListener('submit', submitTtsSettings);
@@ -155,6 +234,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const resetKeyBtn = document.getElementById('tts-reset-key');
     if (resetKeyBtn) resetKeyBtn.addEventListener('click', resetExternalKey);
+
+    const deleteKeyBtn = document.getElementById('tts-delete-key');
+    if (deleteKeyBtn) deleteKeyBtn.addEventListener('click', deleteExternalKey);
+
+    const copyCurlBtn = document.getElementById('tts-copy-curl');
+    if (copyCurlBtn) copyCurlBtn.addEventListener('click', copyTtsCurl);
+
+    const keyBox = document.getElementById('tts-external-key');
+    if (keyBox) keyBox.addEventListener('click', copyTtsKey);
 
     // Тумблеры TTS (не обрабатываются panel-scripts.js, т.к. не в /update_settings)
     document.querySelectorAll('.toggle-switch[data-name^="tts_"]').forEach(toggle => {

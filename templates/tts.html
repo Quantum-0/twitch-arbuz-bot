@@ -35,31 +35,59 @@
 
 <section>
     <h2>Основные настройки</h2>
-    <div class="settings-list">
-        <div class="settings-row">
+    <div class="tts-toggles-grid">
+        <div class="toggle-label">
             <span>TTS включён</span>
             <div class="toggle-switch {{ 'active' if tts.enabled }}" data-name="tts_enabled" role="switch" aria-checked="{{ 'true' if tts.enabled else 'false' }}" tabindex="0"></div>
         </div>
-        <div class="settings-row">
+        <div class="toggle-label">
             <span>Озвучивать ник отправителя</span>
             <div class="toggle-switch {{ 'active' if tts.read_username }}" data-name="tts_read_username" role="switch" aria-checked="{{ 'true' if tts.read_username else 'false' }}" tabindex="0"></div>
         </div>
     </div>
 
-    <form id="tts-settings-form" class="ai-settings-form">
-        <label for="tts-model">Модель голоса</label>
-        <input type="text" id="tts-model" name="model" value="{{ tts.model or '' }}" placeholder="По умолчанию">
+    <form id="tts-settings-form" class="tts-settings-form">
+        <div class="target-behaviour-card tts-model-card">
+            <div class="target-behaviour-title">Модель голоса</div>
+            <fieldset class="target-behaviour-options">
+                <label class="target-behaviour-option" for="tts-model-neco">
+                    <input
+                        type="radio"
+                        id="tts-model-neco"
+                        name="tts_model"
+                        value="neco-arc"
+                        {{ 'checked' if (tts.model or 'neco-arc') == 'neco-arc' else '' }}
+                    >
+                    <span>neco-arc</span>
+                </label>
+            </fieldset>
+        </div>
 
-        <label for="tts-max-length">Максимальная длина текста (символов)</label>
-        <input type="number" id="tts-max-length" name="max_length" value="{{ tts.max_length }}" min="10" max="2000">
+        <div class="tts-sliders-grid">
+            <div class="tts-slider-control">
+                <div class="control-header">
+                    <span>Максимальная длина текста</span>
+                    <span class="control-output" id="tts-max-length-out">{{ tts.max_length }}</span>
+                </div>
+                <input type="range" id="tts-max-length" name="max_length" min="10" max="500" step="1" value="{{ tts.max_length }}"/>
+            </div>
+            <div class="tts-slider-control">
+                <div class="control-header">
+                    <span>КД на пользователя (сек)</span>
+                    <span class="control-output" id="tts-cd-user-out">{{ tts.cooldown_per_user }}</span>
+                </div>
+                <input type="range" id="tts-cd-user" name="cooldown_per_user" min="0" max="600" step="1" value="{{ tts.cooldown_per_user }}"/>
+            </div>
+            <div class="tts-slider-control">
+                <div class="control-header">
+                    <span>КД на канал (сек)</span>
+                    <span class="control-output" id="tts-cd-channel-out">{{ tts.cooldown_per_channel }}</span>
+                </div>
+                <input type="range" id="tts-cd-channel" name="cooldown_per_channel" min="0" max="300" step="1" value="{{ tts.cooldown_per_channel }}"/>
+            </div>
+        </div>
 
-        <label for="tts-cd-user">КД на пользователя (сек)</label>
-        <input type="number" id="tts-cd-user" name="cooldown_per_user" value="{{ tts.cooldown_per_user }}" min="0" max="3600">
-
-        <label for="tts-cd-channel">КД на канал (сек)</label>
-        <input type="number" id="tts-cd-channel" name="cooldown_per_channel" value="{{ tts.cooldown_per_channel }}" min="0" max="3600">
-
-        <button type="submit">Сохранить настройки</button>
+        <button type="submit" class="tts-save-btn">Сохранить настройки</button>
     </form>
 </section>
 
@@ -79,17 +107,20 @@
         <tbody>
             {% for role_key, role_label in tts_roles.items() %}
             <tr data-role="{{ role_key }}">
-                <td>{{ role_label }}</td>
+                <td class="tts-role-cell">
+                    {% if role_key in tts_role_icons %}
+                    <img src="{{ tts_role_icons[role_key] }}" alt="" class="tts-role-badge"/>
+                    {% endif %}
+                    <span>{{ role_label }}</span>
+                </td>
                 {% for trigger_key in trigger_keys %}
                 <td>
-                    <label class="switch">
-                        <input type="checkbox"
-                               data-role="{{ role_key }}"
-                               data-trigger="{{ trigger_key }}"
-                               {% set role_perms = tts.permissions.roles[role_key] if tts.permissions and tts.permissions.roles and role_key in tts.permissions.roles else none %}
-                               {{ 'checked' if role_perms and role_perms[trigger_key] }}>
-                        <span class="slider"></span>
-                    </label>
+                    {% set role_perms = tts.permissions.roles[role_key] if tts.permissions and tts.permissions.roles and role_key in tts.permissions.roles else none %}
+                    <input type="checkbox"
+                           class="tts-perm-checkbox"
+                           data-role="{{ role_key }}"
+                           data-trigger="{{ trigger_key }}"
+                           {{ 'checked' if role_perms and role_perms[trigger_key] }}>
                 </td>
                 {% endfor %}
             </tr>
@@ -97,20 +128,24 @@
         </tbody>
     </table>
 
-    <button id="tts-save-permissions">Сохранить матрицу</button>
+    <button id="tts-save-permissions" class="tts-save-btn">Сохранить матрицу</button>
 </section>
 
 <section>
     <h2>Внешний ключ</h2>
     <p class="overlay-copy-hint">
         Ключ позволяет озвучивать текст через <code>POST /api/user/tts/&#123;key&#125;</code> без проверки ролей.
-        Используется для внешних интеграций (боты, скрипты).
+        Используется для внешних интеграций (боты, скрипты). Клик по ключу копирует его в буфер обмена.
     </p>
-    <div class="settings-row">
-        <span>Текущий ключ:</span>
-        <code id="tts-external-key">{{ tts.external_key or 'не задан' }}</code>
+    <div class="tts-key-row">
+        <span class="tts-key-label">Текущий ключ:</span>
+        <code id="tts-external-key" class="tts-key-box {{ 'tts-key-empty' if not tts.external_key }}" data-key="{{ tts.external_key or '' }}">{{ tts.external_key or 'не задан' }}</code>
     </div>
-    <button id="tts-reset-key">Сгенерировать новый ключ</button>
+    <div class="tts-key-buttons">
+        <button id="tts-reset-key">Сгенерировать новый ключ</button>
+        <button id="tts-delete-key" {{ '' if tts.external_key else 'disabled' }}>Удалить ключ</button>
+        <button id="tts-copy-curl" {{ '' if tts.external_key else 'disabled' }}>Скопировать curl</button>
+    </div>
 </section>
 {% endblock %}
 

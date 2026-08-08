@@ -576,6 +576,18 @@ async def reset_tts_external_key(
     return JSONResponse({"title": "Готово", "message": "Новый ключ сгенерирован.", "key": tts.external_key}, 200)
 
 
+@router.post("/tts/delete-key")
+async def delete_tts_external_key(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    user: Any = Security(user_auth),
+):
+    """Удалить внешний ключ для TTS (отозвать доступ внешних интеграций)."""
+    tts = await ensure_tts_settings(db, user)
+    tts.external_key = None
+    await db.commit()
+    return JSONResponse({"title": "Готово", "message": "Внешний ключ удалён."}, 200)
+
+
 @router.post("/tts/{key}")
 @inject
 async def tts_external_speech(
