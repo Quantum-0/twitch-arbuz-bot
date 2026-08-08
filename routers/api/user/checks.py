@@ -1,10 +1,12 @@
 from typing import Annotated
+from urllib.parse import urlsplit, urlunsplit
 
 import httpx
 from dependency_injector.wiring import Provide, inject
 from fastapi import APIRouter, Depends, Security
 from memealerts.types.exceptions import MATokenExpiredError
 
+from config import settings
 from container import Container
 from database.models import User
 from exceptions import MAInvalidTokenError, MANoToken, MAUnavailableError, MAValidationRespError
@@ -169,3 +171,18 @@ async def check_tts_overlay(
 ) -> CheckStatusResponseSchema:
     result = await ssem.has_clients(int(user.twitch_id), SSEChannel.TTS)
     return CheckStatusResponseSchema(result=result, problems=["TTS-оверлей не подключён к OBS"] if not result else [])
+
+
+@router.get("/tts-server", response_model=CheckStatusResponseSchema)
+async def check_tts_server() -> CheckStatusResponseSchema:
+    """Проверить доступность внешнего TTS-сервера через /healthcheck."""
+    parts = urlsplit(settings.tts_api_url)
+    healthcheck_url = urlunsplit((parts.scheme, parts.netloc, "/healthcheck", "", ""))
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            resp = await client.get(healthcheck_url)
+    except httpx.HTTPError:
+        return CheckStatusResponseSchema(result=False, problems=["TTS-сервер недоступен"])
+    if resp.status_code != 200:
+        return CheckStatusResponseSchema(result=False, problems=[f"TTS-сервер вернул {resp.status_code}"])
+    return CheckStatusResponseSchema(result=True, problems=[])

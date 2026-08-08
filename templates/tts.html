@@ -28,6 +28,20 @@
             </div>
             <div class="status-indicator tooltip-container"><span class="tooltip-text">Награда для озвучки за баллы канала создана и подписана</span></div>
         </div>
+        <div class="card-status" data-endpoint="/api/user/check/tts-server" data-type="tts-server" data-refreshtimer="60">
+            <div>
+                <h3>TTS-сервер</h3>
+                <ul class="card-status-problems-list" style="margin: 0"></ul>
+            </div>
+            <div class="status-indicator tooltip-container"><span class="tooltip-text">Внешний сервер синтеза речи доступен</span></div>
+        </div>
+        <div class="card-status" id="tts-balance-card" data-balance="{{ user.balance }}">
+            <div>
+                <h3>Баланс</h3>
+                <p style="margin: 0"><b>{{ user.balance }}</b></p>
+            </div>
+            <div id="tts-balance-indicator" class="status-indicator tooltip-container"><span class="tooltip-text">Текущий остаток средств для TTS</span></div>
+        </div>
     </div>
 
     <button id="tts-reward-btn" data-action="loading" onclick="handleTtsRewardButton()">Проверка...</button>

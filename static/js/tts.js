@@ -221,10 +221,24 @@ function copyTtsCurl() {
     }).catch(() => showNotification('Ошибка', 'Не удалось скопировать', true));
 }
 
+// ── Индикатор баланса ───────────────────────────────────────
+function updateTtsBalanceIndicator() {
+    const card = document.getElementById('tts-balance-card');
+    const indicator = document.getElementById('tts-balance-indicator');
+    if (!card || !indicator) return;
+    const balance = parseFloat(card.dataset.balance);
+    if (isNaN(balance)) return;
+    indicator.classList.remove('active', 'error', 'warn');
+    if (balance < 10) indicator.classList.add('error');
+    else if (balance < 75) indicator.classList.add('warn');
+    else indicator.classList.add('active');
+}
+
 // ── Инициализация ───────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
     initTtsRewardObserver();
     initTtsSliders();
+    updateTtsBalanceIndicator();
 
     const settingsForm = document.getElementById('tts-settings-form');
     if (settingsForm) settingsForm.addEventListener('submit', submitTtsSettings);

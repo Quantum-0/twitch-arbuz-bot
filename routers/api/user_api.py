@@ -508,7 +508,7 @@ async def setup_tts(
             reward = await twitch.create_reward(
                 user,
                 "TTS — озвучить сообщение",
-                500,
+                50,
                 "Введи текст, который будет озвучен на стриме через TTS.",
                 is_user_input_required=True,
             )

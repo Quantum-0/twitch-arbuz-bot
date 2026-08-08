@@ -4,12 +4,16 @@
 В дальнейшем планируется подключить к StickersService (валидация prompt) и к
 on_message (автомодерация + автобан повторных нарушителей).
 
-Алгоритм (MVP):
-1. Нормализация: lower-case, удалить эмодзи и пунктуацию.
+Алгоритм:
+1. Нормализация: lower-case, NFKC, удалить эмодзи и пунктуацию.
 2. De-space: склеить без пробелов (ловит «черепа хохлов» → «черепахохлов»).
 3. Транслитерация латиницы → кирилица (ловит «yapi door» → «япидор»).
 4. Схлопывание подряд одинаковых символов («доор» → «дор»).
 5. Поиск banned-слов как substring в нормализованных вариантах.
+6. Фонетическая нормализация (о→а, в→ф, б→п, г→к, д→т, ж→ш, з→с) и повторный
+   поиск phonetic-форм banned-слов в phonetic-форме текста. Ловит звуковые
+   обфускации вроде «черепаха хлофф» → фонетически «черепахахлаф», где «хахлаф»
+   совпадает с фонетической формой «хохлов» → «хахлаф».
 
 TODO (будущее):
 - ИИ-модерация через внешний сервис → заполнение ``ModerationResult.confidence``.
@@ -106,6 +110,28 @@ _BANNED_WORDS: tuple[str, ...] = (
     "downy",
 )
 
+# ── Фонетическая нормализация ───────────────────────────────────────────
+# Сводит похожие по звучанию русские фонемы к одному символу, чтобы ловить
+# звуковые обфускации. Применяется к уже-нормализованному (squeezed) тексту.
+#
+# Гласные: о→а (безударное слияние, основная подмена в рус. речи).
+# Согласные (звонкие→глухие пары): в→ф, б→п, г→к, д→т, ж→ш, з→с.
+#
+# Это позволяет поймать «черепаха хлофф»: squeezed → «черепахахлоф»,
+# phonetic → «черепахахлаф». Banned «хохлов» → phonetic «хахлаф».
+# «хахлаф» содержится в «черепахахлаф» → бан.
+_PHONETIC_MAP = str.maketrans(
+    {
+        "о": "а",
+        "в": "ф",
+        "б": "п",
+        "г": "к",
+        "д": "т",
+        "ж": "ш",
+        "з": "с",
+    }
+)
+
 
 @dataclass(frozen=True)
 class ModerationResult:
@@ -138,6 +164,7 @@ class ModerationService:
 
     def __init__(self) -> None:
         self._banned: tuple[str, ...] = _BANNED_WORDS
+        self._banned_pairs: list[tuple[str, str]] = [(w, w.translate(_PHONETIC_MAP)) for w in _BANNED_WORDS]
 
     def validate(self, text: str) -> ModerationResult:
         """Проверить текст на запретки. Возвращает frozen ModerationResult."""
@@ -149,16 +176,25 @@ class ModerationService:
         translit = self._translit(despaced)
         # Схлопывание повторов ловит «доор» (из «door») → «дор», «пиидор» → «пидор».
         squeezed = _SQUEEZE_RE.sub(r"\1", translit)
+        # Фонетическая форма — дополнительный вариант для звуковых обфускаций.
+        phonetic = squeezed.translate(_PHONETIC_MAP)
 
-        for variant in (despaced, translit, squeezed):
-            for word in self._banned:
-                if word in variant:
+        for original, phon in self._banned_pairs:
+            for variant in (despaced, translit, squeezed):
+                if original in variant:
                     return ModerationResult(
                         is_allowed=False,
                         is_banned=True,
-                        found_word=word,
+                        found_word=original,
                         confidence=1.0,
                     )
+            if phon in phonetic:
+                return ModerationResult(
+                    is_allowed=False,
+                    is_banned=True,
+                    found_word=original,
+                    confidence=0.8,
+                )
         return ModerationResult(is_allowed=True, is_banned=False, found_word=None, confidence=0.0)
 
     @staticmethod
