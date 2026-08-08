@@ -28,21 +28,21 @@ KNOWN_BOTS: frozenset[str] = frozenset(
 
 
 def classify_chatter(badges: list[ChatMessageBadge], login: str) -> ChatterRole:
-    """Определить роль чаттера по старшинству: Streamer > Mod > VIP > Sub > Bot > Chatter.
+    """Определить роль чаттера по старшинству: Streamer > Bot > Mod > VIP > Sub > Chatter.
 
-    Боты не имеют badge у Twitch — классифицируются по списку KNOWN_BOTS (только если
-    нет role-badge выше: например, если бот является модератором канала, он классифицируется
-    как модератор).
+    Боты классифицируются по списку KNOWN_BOTS или по значку бота (set_id == "bot")
+    ДО проверки модератора — бот с badge модератора всё равно классифицируется как бот.
+    Только broadcaster (стример) имеет приоритет над ботом.
     """
     set_ids = {b.set_id for b in badges}
     if "broadcaster" in set_ids:
         return ChatterRole.STREAMER
+    if login.lower() in KNOWN_BOTS or "bot" in set_ids:
+        return ChatterRole.BOT
     if "moderator" in set_ids:
         return ChatterRole.MODERATOR
     if "vip" in set_ids:
         return ChatterRole.VIP
     if "subscriber" in set_ids or "founder" in set_ids:
         return ChatterRole.SUBSCRIBER
-    if login.lower() in KNOWN_BOTS:
-        return ChatterRole.BOT
     return ChatterRole.CHATTER
