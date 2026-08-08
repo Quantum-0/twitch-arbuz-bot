@@ -13,27 +13,27 @@
         }
         #unlock.hidden { display: none; }
     </style>
-    <script src="https://slovotron.fra3a.ru/js/libs/tmi-v1.8.5.min.js"></script>
 </head>
 <body>
 <div id="unlock">Click to enable TTS</div>
 <script>
-    // ── Настройки ──────────────────────────────────────────────
-    const CHANNEL = {{ channel_name|tojson }};
+    // ── Настройки из сервера ───────────────────────────────────
+    const CHANNEL_ID = {{ channel_id|tojson }};
+    const SSE_URL = `{{ request.base_url }}sse/${CHANNEL_ID}/tts`;
     const API_URL = {{ tts_speech_url|tojson }};
     const MODEL = {{ model|tojson }};
-    const RESPONSE_FORMAT = "mp3";
-    const COMMAND_PREFIX = {{ command_prefix|tojson }};
-    const MAX_TEXT_LENGTH = {{ max_length }};
-    const READ_USERNAME = {{ read_username|tojson }};
     // ───────────────────────────────────────────────────────────
 
-    // ── Очередь воспроизведения ────────────────────────────────
+    // ── Очередь воспроизведения (по одному за раз) ──────────────
     const queue = [];
+    const MAX_QUEUE = 10;
     let isPlaying = false;
 
-    function enqueue(text, username) {
-        queue.push({ text, username });
+    function enqueue(text, model) {
+        if (queue.length >= MAX_QUEUE) {
+            queue.shift();
+        }
+        queue.push({ text, model });
         processQueue();
     }
 
@@ -41,9 +41,9 @@
         if (isPlaying || queue.length === 0) return;
         isPlaying = true;
 
-        const { text, username } = queue.shift();
+        const { text, model } = queue.shift();
         try {
-            await fetchAndPlaySpeech(text, username);
+            await fetchAndPlaySpeech(text, model);
         } catch (error) {
             console.error("TTS error:", error);
         } finally {
@@ -52,21 +52,17 @@
         }
     }
 
-    async function fetchAndPlaySpeech(text, username) {
-        const payload = READ_USERNAME ? `${username} says ${text}` : text;
-        console.log(`[TTS] ${username}: ${text}`);
-
-        const url = `${API_URL}?channel_name=${encodeURIComponent(CHANNEL)}`;
-        const response = await fetch(url, {
+    async function fetchAndPlaySpeech(text, model) {
+        console.log(`[TTS] ${text}`);
+        const response = await fetch(API_URL, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-                model: MODEL,
-                response_format: RESPONSE_FORMAT,
-                input: payload,
+                model: model || MODEL,
+                response_format: "mp3",
+                input: text,
             }),
         });
-
         if (!response.ok) {
             throw new Error(`Server error: ${response.status}`);
         }
@@ -87,49 +83,42 @@
     }
     // ───────────────────────────────────────────────────────────
 
+    // ── SSE-клиент ──────────────────────────────────────────────
+    let eventSource = null;
+
+    function connectSSE() {
+        if (eventSource) {
+            eventSource.close();
+        }
+        eventSource = new EventSource(SSE_URL);
+
+        eventSource.onopen = () => {
+            console.log("[SSE] Connected to TTS channel");
+        };
+
+        eventSource.onmessage = (event) => {
+            try {
+                const data = JSON.parse(event.data);
+                if (data.text) {
+                    enqueue(data.text, data.model);
+                }
+            } catch (e) {
+                console.error("SSE parse error:", e);
+            }
+        };
+
+        eventSource.onerror = (e) => {
+            console.warn("[SSE] error:", e);
+        };
+    }
+    // ───────────────────────────────────────────────────────────
+
     // ── Разблокировка аудио (политика автозапуска) ─────────────
     const unlockEl = document.getElementById("unlock");
 
     function startWidget() {
         unlockEl.classList.add("hidden");
-        connectTMI();
-    }
-
-    // ── TMI клиент ─────────────────────────────────────────────
-    let tmi_client = null;
-
-    function connectTMI() {
-        if (tmi_client) {
-            tmi_client.disconnect().catch((err) => console.error("Disconnect error:", err));
-        }
-
-        tmi_client = new tmi.Client({
-            channels: [CHANNEL],
-        });
-
-        tmi_client.connect();
-
-        tmi_client.on("connected", (addr, port) => {
-            console.log(`[TMI] Connected to #${CHANNEL} (${addr}:${port})`);
-        });
-
-        tmi_client.on("disconnected", (reason) => {
-            console.warn(`[TMI] Disconnected: ${reason}. Reconnecting in 5s...`);
-            setTimeout(connectTMI, 5000);
-        });
-
-        tmi_client.on("message", (channel, user, message, self) => {
-            if (self) return;
-
-            const text = message.trim();
-            if (!text.startsWith(COMMAND_PREFIX)) return;
-
-            const content = text.slice(COMMAND_PREFIX.length).trim();
-            if (!content) return;
-            if (content.length > MAX_TEXT_LENGTH) return;
-
-            enqueue(content, user.username);
-        });
+        connectSSE();
     }
 
     // ── Запуск ─────────────────────────────────────────────────

@@ -13,15 +13,15 @@ from twitchAPI.chat import Chat
 from twitchAPI.object.api import (
     ChannelFollowersResult,
     CustomReward,
+    EventSubSubscription,
     Moderator,
     SendMessageResponse,
     Stream,
     TwitchUser,
-    EventSubSubscription,
     UserActiveExtensions,
 )
 from twitchAPI.twitch import Twitch as TwitchClient
-from twitchAPI.type import AuthScope, CustomRewardRedemptionStatus, UnauthorizedException
+from twitchAPI.type import AuthScope, CustomRewardRedemptionStatus, TwitchResourceNotFound, UnauthorizedException
 
 from config import bot_scope, settings, user_scope
 from database.models import User
@@ -55,12 +55,8 @@ class Twitch:
         pass
 
     async def startup(self):
-        twitch = await TwitchClient(
-            settings.twitch_client_id, settings.twitch_client_secret
-        )
-        await twitch.set_user_authentication(
-            settings.bot_access_token, bot_scope, settings.bot_refresh_token
-        )
+        twitch = await TwitchClient(settings.twitch_client_id, settings.twitch_client_secret)
+        await twitch.set_user_authentication(settings.bot_access_token, bot_scope, settings.bot_refresh_token)
         self._twitch = twitch
 
     async def send_chat_message_raw(
@@ -142,12 +138,8 @@ class Twitch:
         reward_description: str,
         is_user_input_required: bool,
     ) -> CustomReward:
-        twitch_user = await TwitchClient(
-            settings.twitch_client_id, settings.twitch_client_secret
-        )
-        await twitch_user.set_user_authentication(
-            user.access_token, user_scope, user.refresh_token
-        )
+        twitch_user = await TwitchClient(settings.twitch_client_id, settings.twitch_client_secret)
+        await twitch_user.set_user_authentication(user.access_token, user_scope, user.refresh_token)
         reward = await twitch_user.create_custom_reward(
             user.twitch_id,
             reward_title,
@@ -167,19 +159,15 @@ class Twitch:
         is_user_input_required: bool,
         should_redemptions_skip_request_queue: bool,
     ):
-        twitch_user = await TwitchClient(
-            settings.twitch_client_id, settings.twitch_client_secret
-        )
-        await twitch_user.set_user_authentication(
-            user.access_token, user_scope, user.refresh_token
-        )
+        twitch_user = await TwitchClient(settings.twitch_client_id, settings.twitch_client_secret)
+        await twitch_user.set_user_authentication(user.access_token, user_scope, user.refresh_token)
         rewards = await twitch_user.get_custom_reward(
             user.twitch_id,
             reward_id=reward_id,
             only_manageable_rewards=True,
         )
         if len(rewards) == 0:
-            raise Exception("Reward not found")
+            raise TwitchResourceNotFound("Reward not found")
         await twitch_user.update_custom_reward(
             broadcaster_id=user.twitch_id,
             reward_id=str(reward_id),
@@ -195,7 +183,7 @@ class Twitch:
             sub
             for sub in subs.data
             if sub.type == "channel.channel_points_custom_reward_redemption.add"
-               and sub.condition.get("broadcaster_user_id") == user.twitch_id
+            and sub.condition.get("broadcaster_user_id") == user.twitch_id
         ]
         memecoins_reward_subscription: EventSubSubscription | None = None
         for sub in subs_for_rewards:
@@ -210,19 +198,14 @@ class Twitch:
         if not memecoins_reward_subscription:
             await cls.subscribe_reward(user=user, reward_id=reward_id)
 
-
     @staticmethod
     async def validate_reward_subscription(
         user: User,
         reward_id: str,
         subscription_id: str | None = None,
     ) -> list[str]:
-        twitch_user = await TwitchClient(
-            settings.twitch_client_id, settings.twitch_client_secret
-        )
-        await twitch_user.set_user_authentication(
-            user.access_token, user_scope, user.refresh_token
-        )
+        twitch_user = await TwitchClient(settings.twitch_client_id, settings.twitch_client_secret)
+        await twitch_user.set_user_authentication(user.access_token, user_scope, user.refresh_token)
         rewards = await twitch_user.get_custom_reward(
             user.twitch_id,
             reward_id=reward_id,
@@ -249,7 +232,7 @@ class Twitch:
             sub
             for sub in subs.data
             if sub.type == "channel.channel_points_custom_reward_redemption.add"
-               and sub.condition.get("broadcaster_user_id") == user.twitch_id
+            and sub.condition.get("broadcaster_user_id") == user.twitch_id
         ]
         for sub in subs_for_rewards:
             if sub.condition.get("reward_id") not in {reward_id}:
@@ -263,34 +246,56 @@ class Twitch:
     async def get_streams(self, users: list[User] | list[str]) -> dict[User, Stream | None]:
         streams = {}
         for batch in batched(users, 100):
-            streams.update({
-                x.user_login: x
-                async for x in self._twitch.get_streams(
-                    user_login=[(user if isinstance(user, str) else user.login_name) for user in batch]
-                )
-            })
+            streams.update(
+                {
+                    x.user_login: x
+                    async for x in self._twitch.get_streams(
+                        user_login=[(user if isinstance(user, str) else user.login_name) for user in batch]
+                    )
+                }
+            )
         return {user: streams.get(user if isinstance(user, str) else user.login_name) for user in users}
 
     @staticmethod
     async def delete_reward(user, reward_id: UUID | str):
-        twitch_user = await TwitchClient(
-            settings.twitch_client_id, settings.twitch_client_secret
-        )
-        await twitch_user.set_user_authentication(
-            user.access_token, user_scope, user.refresh_token
-        )
+        twitch_user = await TwitchClient(settings.twitch_client_id, settings.twitch_client_secret)
+        await twitch_user.set_user_authentication(user.access_token, user_scope, user.refresh_token)
         await twitch_user.delete_custom_reward(user.twitch_id, str(reward_id))
 
     @staticmethod
     async def disable_reward(user, reward_id: UUID | str):
-        twitch_user = await TwitchClient(
-            settings.twitch_client_id, settings.twitch_client_secret
-        )
-        await twitch_user.set_user_authentication(
-            user.access_token, user_scope, user.refresh_token
-        )
+        twitch_user = await TwitchClient(settings.twitch_client_id, settings.twitch_client_secret)
+        await twitch_user.set_user_authentication(user.access_token, user_scope, user.refresh_token)
         await twitch_user.update_custom_reward(user.twitch_id, str(reward_id), is_enabled=False)
 
+    @tracer.start_as_current_span("Twitch: Send warning")
+    async def send_warning(
+        self,
+        user: User,
+        warned_user_id: str,
+        reason: str = "Нарушение правил площадки Twitch",
+    ) -> None:
+        current_span = trace.get_current_span()
+        if current_span.is_recording():
+            current_span.set_attribute("warn.user_id", warned_user_id)
+            current_span.set_attribute("warn.reason", reason)
+        await self._twitch.warn_chat_user(
+            broadcaster_id=user.twitch_id,
+            moderator_id="957818216",
+            user_id=warned_user_id,
+            reason=reason,
+        )
+
+    @tracer.start_as_current_span("Twitch: Delete message")
+    async def delete_message(self, user: User, message_id: str) -> None:
+        current_span = trace.get_current_span()
+        if current_span.is_recording():
+            current_span.set_attribute("msg.deleted_id", message_id)
+        await self._twitch.delete_chat_message(
+            broadcaster_id=user.twitch_id,
+            moderator_id="957818216",
+            message_id=message_id,
+        )
 
     @tracer.start_as_current_span("Twitch: Sending message")
     async def send_chat_message(
@@ -331,12 +336,8 @@ class Twitch:
             return res
         except UnauthorizedException:
             # await self._twitch.refresh_used_token() ???
-            twitch = await TwitchClient(
-                settings.twitch_client_id, settings.twitch_client_secret
-            )
-            await twitch.set_user_authentication(
-                settings.bot_access_token, bot_scope, settings.bot_refresh_token
-            )
+            twitch = await TwitchClient(settings.twitch_client_id, settings.twitch_client_secret)
+            await twitch.set_user_authentication(settings.bot_access_token, bot_scope, settings.bot_refresh_token)
             self._twitch = twitch
             result = await self._twitch.get_eventsub_subscriptions()
         res = []
@@ -358,9 +359,7 @@ class Twitch:
             )
             app_token = response.json()["access_token"]
             for user in users:
-                logger.info(
-                    f"Subscribing to messages to channel `{user.login_name}`..."
-                )
+                logger.info(f"Subscribing to messages to channel `{user.login_name}`...")
                 response = await client.post(
                     "https://api.twitch.tv/helix/eventsub/subscriptions",
                     headers={
@@ -377,8 +376,7 @@ class Twitch:
                         },
                         "transport": {
                             "method": "webhook",
-                            "callback": str(settings.reward_redemption_webhook)
-                            + f"/{user.twitch_id}",
+                            "callback": str(settings.reward_redemption_webhook) + f"/{user.twitch_id}",
                             "secret": settings.twitch_webhook_secret.get_secret_value(),
                         },
                     },
@@ -418,8 +416,7 @@ class Twitch:
                     },
                     "transport": {
                         "method": "webhook",
-                        "callback": str(settings.reward_redemption_webhook)
-                        + f"/{user.twitch_id}",
+                        "callback": str(settings.reward_redemption_webhook) + f"/{user.twitch_id}",
                         "secret": settings.twitch_webhook_secret.get_secret_value(),
                     },
                 },
@@ -466,8 +463,7 @@ class Twitch:
                     },
                     "transport": {
                         "method": "webhook",
-                        "callback": str(settings.reward_redemption_webhook)
-                        + f"/{user.twitch_id}",
+                        "callback": str(settings.reward_redemption_webhook) + f"/{user.twitch_id}",
                         "secret": settings.twitch_webhook_secret.get_secret_value(),
                     },
                 },
@@ -475,25 +471,17 @@ class Twitch:
             response.raise_for_status()
             return response.json()
 
-    async def unsubscribe_raid(
-        self, *, user: User = None, subscription_id: UUID = None
-    ):
+    async def unsubscribe_raid(self, *, user: User = None, subscription_id: UUID = None):
         assert bool(user) != bool(subscription_id)
         if user:
             subscriptions = await self.get_subscriptions()
             for sub in subscriptions:
-                if sub.type == "channel.raid" and sub.condition[
-                    "to_broadcaster_user_id"
-                ] == str(user.twitch_id):
-                    await self._twitch.delete_eventsub_subscription(
-                        subscription_id=sub.id
-                    )
+                if sub.type == "channel.raid" and sub.condition["to_broadcaster_user_id"] == str(user.twitch_id):
+                    await self._twitch.delete_eventsub_subscription(subscription_id=sub.id)
                     return True
             return False
         elif subscription_id:
-            await self._twitch.delete_eventsub_subscription(
-                subscription_id=str(subscription_id)
-            )
+            await self._twitch.delete_eventsub_subscription(subscription_id=str(subscription_id))
             return True
         # async with httpx.AsyncClient() as client:
         #     response = await client.post(
@@ -545,25 +533,19 @@ class Twitch:
 
     @staticmethod
     async def get_self(access_token, refresh_token) -> TwitchUser:
-        twitch_user = await TwitchClient(
-            settings.twitch_client_id, settings.twitch_client_secret
-        )
+        twitch_user = await TwitchClient(settings.twitch_client_id, settings.twitch_client_secret)
         await twitch_user.set_user_authentication(access_token, [], refresh_token)
         return await anext(twitch_user.get_users())
 
     @staticmethod
     async def set_bot_moder(user: User) -> None:
-        twitch_user = await TwitchClient(
-            settings.twitch_client_id, settings.twitch_client_secret
-        )
+        twitch_user = await TwitchClient(settings.twitch_client_id, settings.twitch_client_secret)
         await twitch_user.set_user_authentication(
             user.access_token,
             [AuthScope.CHANNEL_MANAGE_MODERATORS, AuthScope.MODERATION_READ],
             user.refresh_token,
         )
-        mods: AsyncGenerator[Moderator] = twitch_user.get_moderators(
-            user.twitch_id, first=100
-        )
+        mods: AsyncGenerator[Moderator] = twitch_user.get_moderators(user.twitch_id, first=100)
         async for mod in mods:
             if mod.user_id == "957818216":
                 return
@@ -572,15 +554,11 @@ class Twitch:
 
     @staticmethod
     async def get_followers(user: User) -> ChannelFollowersResult:
-        twitch_user = await TwitchClient(
-            settings.twitch_client_id, settings.twitch_client_secret
-        )
+        twitch_user = await TwitchClient(settings.twitch_client_id, settings.twitch_client_secret)
         await twitch_user.set_user_authentication(
             user.access_token, [AuthScope.MODERATOR_READ_FOLLOWERS], user.refresh_token
         )
-        return await twitch_user.get_channel_followers(
-            user.twitch_id, user.twitch_id, first=100
-        )
+        return await twitch_user.get_channel_followers(user.twitch_id, user.twitch_id, first=100)
         # TODO: load all via pagination
 
     async def get_followers_count(self, user: User) -> int:
@@ -588,9 +566,7 @@ class Twitch:
 
     @staticmethod
     async def cancel_redemption(user: User, reward_id: UUID, redemption_id: UUID):
-        twitch_user = await TwitchClient(
-            settings.twitch_client_id, settings.twitch_client_secret
-        )
+        twitch_user = await TwitchClient(settings.twitch_client_id, settings.twitch_client_secret)
         await twitch_user.set_user_authentication(
             user.access_token,
             [AuthScope.CHANNEL_MANAGE_REDEMPTIONS],
@@ -605,9 +581,7 @@ class Twitch:
 
     @staticmethod
     async def fulfill_redemption(user: User, reward_id: UUID, redemption_id: UUID):
-        twitch_user = await TwitchClient(
-            settings.twitch_client_id, settings.twitch_client_secret
-        )
+        twitch_user = await TwitchClient(settings.twitch_client_id, settings.twitch_client_secret)
         await twitch_user.set_user_authentication(
             user.access_token,
             [AuthScope.CHANNEL_MANAGE_REDEMPTIONS],
@@ -621,11 +595,10 @@ class Twitch:
         )
 
     async def get_user_active_ext(
-        self, user: User,
+        self,
+        user: User,
     ) -> UserActiveExtensions:
-        twitch_user = await TwitchClient(
-            settings.twitch_client_id, settings.twitch_client_secret
-        )
+        twitch_user = await TwitchClient(settings.twitch_client_id, settings.twitch_client_secret)
         await twitch_user.set_user_authentication(
             user.access_token,
             [AuthScope.USER_EDIT_BROADCAST, AuthScope.USER_READ_BROADCAST],
@@ -634,24 +607,15 @@ class Twitch:
         return await twitch_user.get_user_active_extensions(user.twitch_id)
 
     async def install_heat_ext(
-        self, user: User,
+        self,
+        user: User,
     ):
-        twitch_user = await TwitchClient(
-            settings.twitch_client_id, settings.twitch_client_secret
-        )
+        twitch_user = await TwitchClient(settings.twitch_client_id, settings.twitch_client_secret)
         await twitch_user.set_user_authentication(
             user.access_token,
             [AuthScope.USER_EDIT_BROADCAST, AuthScope.USER_READ_BROADCAST],
             user.refresh_token,
         )
         await twitch_user.update_user_extensions(
-            UserActiveExtensions(
-                overlay={
-                    "1": dict(
-                        active=True,
-                        id="cr20njfkgll4okyrhag7xxph270sqk",
-                        version="2.1.1"
-                    )
-                }
-            )
+            UserActiveExtensions(overlay={"1": dict(active=True, id="cr20njfkgll4okyrhag7xxph270sqk", version="2.1.1")})
         )

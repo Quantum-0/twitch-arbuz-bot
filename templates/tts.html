@@ -1,0 +1,169 @@
+{% extends "base.html" %}
+
+{% block title %}TTS — Quantum0's Bot{% endblock %}
+{% block description %}Настройки Text-To-Speech оверлея для Twitch-чата.{% endblock %}
+
+{% block content %}
+<div class="notification-container"></div>
+<section>
+    <h2>TTS — Text-To-Speech</h2>
+    <p class="overlay-copy-hint">
+        Оверлей озвучивает сообщения из чата через внешний TTS-движок.
+        Токен API хранится серверно, оверлей обращается через прокси.
+        <b>Функционал в бета-тесте.</b>
+    </p>
+
+    <div class="cards-grid">
+        <div class="card-status" data-endpoint="/api/user/check/tts-overlay" data-type="tts-overlay" data-refreshtimer="5">
+            <div>
+                <h3>Оверлей подключён</h3>
+                <ul class="card-status-problems-list" style="margin: 0"></ul>
+            </div>
+            <div class="status-indicator tooltip-container"><span class="tooltip-text">TTS-оверлей добавлен в OBS и подключён к SSE</span></div>
+        </div>
+        <div class="card-status" id="tts-reward-card" data-endpoint="/api/user/check/tts-reward" data-type="tts-reward" data-refreshtimer="180">
+            <div>
+                <h3>Награда TTS</h3>
+                <ul class="card-status-problems-list" style="margin: 0"></ul>
+            </div>
+            <div class="status-indicator tooltip-container"><span class="tooltip-text">Награда для озвучки за баллы канала создана и подписана</span></div>
+        </div>
+        <div class="card-status" data-endpoint="/api/user/check/tts-server" data-type="tts-server" data-refreshtimer="60">
+            <div>
+                <h3>TTS-сервер</h3>
+                <ul class="card-status-problems-list" style="margin: 0"></ul>
+            </div>
+            <div class="status-indicator tooltip-container"><span class="tooltip-text">Внешний сервер синтеза речи доступен</span></div>
+        </div>
+        <div class="card-status" id="tts-balance-card" data-balance="{{ user.balance }}">
+            <div>
+                <h3>Баланс</h3>
+                <p style="margin: 0"><b>{{ user.balance }}</b></p>
+            </div>
+            <div id="tts-balance-indicator" class="status-indicator tooltip-container"><span class="tooltip-text">Текущий остаток средств для TTS</span></div>
+        </div>
+    </div>
+
+    <button id="tts-reward-btn" data-action="loading" onclick="handleTtsRewardButton()">Проверка...</button>
+</section>
+
+<section>
+    <h2>Основные настройки</h2>
+    <div class="tts-toggles-grid">
+        <div class="toggle-label">
+            <span>TTS включён</span>
+            <div class="toggle-switch {{ 'active' if tts.enabled }}" data-name="tts_enabled" role="switch" aria-checked="{{ 'true' if tts.enabled else 'false' }}" tabindex="0"></div>
+        </div>
+        <div class="toggle-label">
+            <span>Озвучивать ник отправителя</span>
+            <div class="toggle-switch {{ 'active' if tts.read_username }}" data-name="tts_read_username" role="switch" aria-checked="{{ 'true' if tts.read_username else 'false' }}" tabindex="0"></div>
+        </div>
+    </div>
+
+    <form id="tts-settings-form" class="tts-settings-form">
+        <div class="target-behaviour-card tts-model-card">
+            <div class="target-behaviour-title">Модель голоса</div>
+            <fieldset class="target-behaviour-options">
+                <label class="target-behaviour-option" for="tts-model-neco">
+                    <input
+                        type="radio"
+                        id="tts-model-neco"
+                        name="tts_model"
+                        value="neco-arc"
+                        {{ 'checked' if (tts.model or 'neco-arc') == 'neco-arc' else '' }}
+                    >
+                    <span>neco-arc</span>
+                </label>
+            </fieldset>
+        </div>
+
+        <div class="tts-sliders-grid">
+            <div class="tts-slider-control">
+                <div class="control-header">
+                    <span>Максимальная длина текста</span>
+                    <span class="control-output" id="tts-max-length-out">{{ tts.max_length }}</span>
+                </div>
+                <input type="range" id="tts-max-length" name="max_length" min="10" max="500" step="1" value="{{ tts.max_length }}"/>
+            </div>
+            <div class="tts-slider-control">
+                <div class="control-header">
+                    <span>КД на пользователя (сек)</span>
+                    <span class="control-output" id="tts-cd-user-out">{{ tts.cooldown_per_user }}</span>
+                </div>
+                <input type="range" id="tts-cd-user" name="cooldown_per_user" min="0" max="600" step="1" value="{{ tts.cooldown_per_user }}"/>
+            </div>
+            <div class="tts-slider-control">
+                <div class="control-header">
+                    <span>КД на канал (сек)</span>
+                    <span class="control-output" id="tts-cd-channel-out">{{ tts.cooldown_per_channel }}</span>
+                </div>
+                <input type="range" id="tts-cd-channel" name="cooldown_per_channel" min="0" max="300" step="1" value="{{ tts.cooldown_per_channel }}"/>
+            </div>
+        </div>
+
+        <button type="submit" class="tts-save-btn">Сохранить настройки</button>
+    </form>
+</section>
+
+<section>
+    <h2>Матрица разрешений</h2>
+    <p class="overlay-copy-hint">Какие роли могут озвучивать сообщения и по каким триггерам. Награда доступна всем, если создана — отдельной настройки роли не требуется.</p>
+    <table class="tts-permissions-table" id="tts-permissions">
+        <thead>
+            <tr>
+                <th>Роль</th>
+                <th>Реплаи</th>
+                <th>Обычные сообщения</th>
+                <th>Тег стримера</th>
+                <th>Команда (!!!)</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for role_key, role_label in tts_roles.items() %}
+            <tr data-role="{{ role_key }}">
+                <td class="tts-role-cell">
+                    {% if role_key in tts_role_icons %}
+                    <img src="{{ tts_role_icons[role_key] }}" alt="" class="tts-role-badge"/>
+                    {% endif %}
+                    <span>{{ role_label }}</span>
+                </td>
+                {% for trigger_key in trigger_keys %}
+                <td>
+                    {% set role_perms = tts.permissions.roles[role_key] if tts.permissions and tts.permissions.roles and role_key in tts.permissions.roles else none %}
+                    <input type="checkbox"
+                           class="tts-perm-checkbox"
+                           data-role="{{ role_key }}"
+                           data-trigger="{{ trigger_key }}"
+                           {{ 'checked' if role_perms and role_perms[trigger_key] }}>
+                </td>
+                {% endfor %}
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <button id="tts-save-permissions" class="tts-save-btn">Сохранить матрицу</button>
+</section>
+
+<section>
+    <h2>Внешний ключ</h2>
+    <p class="overlay-copy-hint">
+        Ключ позволяет озвучивать текст через <code>POST /api/user/tts/&#123;key&#125;</code> без проверки ролей.
+        Используется для внешних интеграций (боты, скрипты). Клик по ключу копирует его в буфер обмена.
+    </p>
+    <div class="tts-key-row">
+        <span class="tts-key-label">Текущий ключ:</span>
+        <code id="tts-external-key" class="tts-key-box {{ 'tts-key-empty' if not tts.external_key }}" data-key="{{ tts.external_key or '' }}">{{ tts.external_key or 'не задан' }}</code>
+    </div>
+    <div class="tts-key-buttons">
+        <button id="tts-reset-key">Сгенерировать новый ключ</button>
+        <button id="tts-delete-key" {{ '' if tts.external_key else 'disabled' }}>Удалить ключ</button>
+        <button id="tts-copy-curl" {{ '' if tts.external_key else 'disabled' }}>Скопировать curl</button>
+    </div>
+</section>
+{% endblock %}
+
+{% block body_scripts %}
+<script src="/static/js/panel-scripts.js"></script>
+<script src="/static/js/tts.js"></script>
+{% endblock %}

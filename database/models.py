@@ -1,6 +1,8 @@
+import json
 import uuid
 from datetime import datetime
 from decimal import Decimal
+from typing import Any
 
 from sqlalchemy import (
     BigInteger,
@@ -16,8 +18,9 @@ from sqlalchemy import (
     event,
     false,
     func,
+    text,
 )
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 from database.encrypted_string import EncryptedString
@@ -80,6 +83,12 @@ class User(Base):
     )
     links: Mapped["Links"] = relationship(
         "Links",
+        uselist=False,
+        back_populates="user",
+        cascade="all, delete",
+    )
+    tts: Mapped["TTSSettings | None"] = relationship(
+        "TTSSettings",
         uselist=False,
         back_populates="user",
         cascade="all, delete",
@@ -332,6 +341,58 @@ class Links(Base):
     )
 
     user: Mapped["User"] = relationship("User", back_populates="links")
+
+
+# Дефолтная матрица разрешений TTS: 6 ролей × 4 триггера.
+# Награда не входит в матрицу — доступна всем, если создана.
+# Единый каноничный источник: миграция и ORM server_default используют этот dict.
+DEFAULT_TTS_PERMISSIONS: dict[str, Any] = {
+    "roles": {
+        "streamer": {"all": False, "all_no_replies": False, "streamer_tag": False, "command": True},
+        "moderator": {"all": False, "all_no_replies": False, "streamer_tag": True, "command": True},
+        "vip": {"all": False, "all_no_replies": False, "streamer_tag": False, "command": True},
+        "subscriber": {"all": False, "all_no_replies": False, "streamer_tag": False, "command": True},
+        "bot": {"all": False, "all_no_replies": False, "streamer_tag": False, "command": False},
+        "chatter": {"all": False, "all_no_replies": False, "streamer_tag": False, "command": False},
+    },
+}
+
+# JSON-литерал для server_default ORM (dollar-quoting чтобы не экранировать кавычки).
+_DEFAULT_TTS_PERMS_JSON = json.dumps(DEFAULT_TTS_PERMISSIONS, ensure_ascii=False)
+_DEFAULT_TTS_PERMS_SERVER_DEFAULT = text(f"$${_DEFAULT_TTS_PERMS_JSON}$$::jsonb")
+
+
+class TTSSettings(Base):
+    """Настройки TTS-оверлея для стримера (1:1 с User, lazy-создание).
+
+    Строка НЕ создаётся при регистрации пользователя — только когда стример
+    реально начинает настраивать TTS. До этого используются дефолты (см.
+    ``utils/tts.py:get_tts_settings`` / ``ensure_tts_settings``).
+
+    ``user_id`` — первичный ключ (отдельного суррогатного ``id`` нет, чтобы
+    не плодить sequence/счётчики и держать строгую 1:1).
+    """
+
+    __tablename__ = "tts_settings"
+
+    user_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("twitch_bot_users.id", ondelete="CASCADE"), primary_key=True
+    )
+    enabled: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false(), nullable=False)
+    tts_reward_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True, default=None)
+    read_username: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false(), nullable=False)
+    # Матрица разрешений 6 ролей × 4 триггера.
+    # Структура: {"roles": {"<role>": {"all","all_no_replies","streamer_tag","command"}}}
+    permissions: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, default=DEFAULT_TTS_PERMISSIONS, server_default=_DEFAULT_TTS_PERMS_SERVER_DEFAULT
+    )
+    cooldown_per_user: Mapped[int] = mapped_column(Integer, default=0, server_default="0", nullable=False)
+    cooldown_per_channel: Mapped[int] = mapped_column(Integer, default=0, server_default="0", nullable=False)
+    max_length: Mapped[int] = mapped_column(Integer, default=500, server_default="500", nullable=False)
+    model: Mapped[str | None] = mapped_column(String, nullable=True, default=None)
+    external_key: Mapped[str | None] = mapped_column(String, nullable=True, default=None, unique=True)
+
+    user: Mapped["User"] = relationship("User", back_populates="tts")
 
 
 class Statistics(Base):

@@ -12,3 +12,4 @@ class SSEChannel(StrEnum):
     MESSAGE = "msg"
     HEAT = "heat"
     SLOVOTRON = "slovotron"
+    TTS = "tts"

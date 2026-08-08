@@ -11,6 +11,7 @@ from services.eventsub_service import TwitchEventSubService
 from services.image_resizer import ImageResizer
 from services.memes import MemealertsService
 from services.memes_v2 import MemealertsOAuthService, MemealertsV2Service
+from services.moderation import ModerationService
 from services.mqtt import MQTTClient
 from services.redis_state_manager import RedisStateManager, init_redis
 from services.s3 import FileStorage
@@ -19,6 +20,7 @@ from services.sse_manager import SSEManager
 from services.statistics import StatisticsService
 from services.stickers import StickersService
 from services.stickers_processor import StickerProcessor
+from services.tts import TTSService
 from twitch.chat.bot import ChatBot
 from twitch.client.twitch import Twitch
 
@@ -102,6 +104,12 @@ class Container(containers.DeclarativeContainer):
         sticker_processor=stickers_processor,
         statistics=statistics,
     )
+    moderation_service = providers.Singleton(ModerationService)
+    tts_service = providers.Singleton(
+        TTSService,
+        db_session_factory=db_session_factory,
+        statistics=statistics,
+    )
     twitch_eventsub_service = providers.Singleton(
         TwitchEventSubService,
         twitch=twitch,
@@ -112,6 +120,8 @@ class Container(containers.DeclarativeContainer):
         memealerts=memealerts,
         memealerts_v2=memealerts_v2,
         memealerts_auth=memealerts_auth,
+        moderation=moderation_service,
+        tts_service=tts_service,
         statistics=statistics,
     )
 
