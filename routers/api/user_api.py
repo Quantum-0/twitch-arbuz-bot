@@ -1,3 +1,4 @@
+import json
 import logging
 from collections.abc import Callable
 from datetime import datetime
@@ -11,12 +12,12 @@ from httpx import HTTPStatusError
 from jwt import DecodeError
 from memealerts.types.exceptions import MATokenExpiredError
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import joinedload
 from starlette.responses import JSONResponse
 from twitchAPI.type import TwitchAPIException, TwitchResourceNotFound
 
-from config import settings
 from container import Container
-from database.models import CharacterInfo, GeneratedImage, User
+from database.models import CharacterInfo, User
 from dependencies import get_db
 from routers.api.user.checks import router as checks_router
 from routers.api.user.memealerts import router as memealerts_router
@@ -25,18 +26,25 @@ from routers.api.user.streamers import router as streamers_router
 from routers.security_helpers import user_auth
 from schemas.api import (
     BoolResponseSchema,
+    TTSExternalSpeechSchema,
+    TTSPermissionsSchema,
+    TTSSettingsUpdateSchema,
     UpdateMemealertsCoinsSchema,
     UpdateSettingsForm,
     UUIDResponseSchema,
 )
 from schemas.enums import FileStorageDir
 from services.memes import MemealertsService
+from services.moderation import ModerationService
 from services.s3 import FileStorage
+from services.sse_manager import SSEManager
 from services.stickers import StickersService
 from twitch.chat.bot import ChatBot
 from twitch.client.twitch import Twitch
+from utils.enums import SSEChannel
 from utils.memes import token_expires_in_days
 from utils.stickers_query import build_stickers_query, serialize_sticker_rows
+from utils.tts import ensure_tts_settings
 
 logger = logging.getLogger(__name__)
 
@@ -446,3 +454,172 @@ async def upload_reference(
             logger.error(f"Warning: Failed to delete old file {old_file_id_to_delete} from S3: {e}", exc_info=True)
 
     return BoolResponseSchema(result=True)
+
+
+# ── TTS ──────────────────────────────────────────────────────────────────────
+
+
+@router.post("/setup-tts")
+@inject
+async def setup_tts(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    twitch: Annotated[Twitch, Depends(Provide[Container.twitch])],
+    user: Any = Security(user_auth),
+    enable: bool = Query(default=True),
+):
+    """Создать/удалить награду TTS за баллы канала."""
+    tts = await ensure_tts_settings(db, user)
+    reward_id = tts.tts_reward_id
+
+    if enable:
+        if reward_id:
+            problems = await twitch.validate_reward_subscription(user=user, reward_id=str(reward_id))
+            if not problems:
+                return JSONResponse({"title": "Без изменений", "message": "Награда уже включена."}, 208)
+            if "Награда не найдена" in problems:
+                tts.tts_reward_id = None
+                await db.commit()
+                await db.refresh(tts)
+                reward_id = None
+            else:
+                try:
+                    await twitch.update_reward(
+                        user,
+                        reward_id,
+                        is_enabled=True,
+                        is_user_input_required=True,
+                        should_redemptions_skip_request_queue=False,
+                    )
+                except TwitchResourceNotFound:
+                    tts.tts_reward_id = None
+                    await db.commit()
+                    await db.refresh(tts)
+                    reward_id = None
+                except TwitchAPIException as exc:
+                    return JSONResponse({"title": "Ошибка", "message": str(exc)}, 400)
+                else:
+                    return JSONResponse({"title": "Успешно", "message": "Подписка на награду восстановлена."}, 200)
+    else:
+        if not reward_id:
+            return JSONResponse({"title": "Без изменений", "message": "Награда уже выключена."}, 208)
+
+    if enable:
+        try:
+            reward = await twitch.create_reward(
+                user,
+                "TTS — озвучить сообщение",
+                50,
+                "Введи текст, который будет озвучен на стриме через TTS.",
+                is_user_input_required=True,
+            )
+        except TwitchAPIException as exc:
+            if "CREATE_CUSTOM_REWARD_DUPLICATE_REWARD" in str(exc):
+                return JSONResponse({"title": "Ошибка", "message": "Награда уже существует."}, 400)
+            if "CREATE_CUSTOM_REWARD_TOO_MANY_REWARDS" in str(exc):
+                return JSONResponse({"title": "Ошибка", "message": "Слишком много наград на канале."}, 400)
+            return JSONResponse({"title": "Ошибка", "message": str(exc)}, 400)
+
+        tts.tts_reward_id = reward.id
+        await db.commit()
+        await db.refresh(tts)
+        await twitch.subscribe_reward(user, reward.id)
+        return JSONResponse({"title": "Успешно", "message": "Награда TTS создана."}, 201)
+    try:
+        await twitch.delete_reward(user, reward_id)
+    except TwitchResourceNotFound:
+        pass
+    tts.tts_reward_id = None
+    await db.commit()
+    await db.refresh(tts)
+    return JSONResponse({"title": "Успешно", "message": "Награда TTS удалена."}, 200)
+
+
+@router.post("/tts/settings")
+async def update_tts_settings(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    data: TTSSettingsUpdateSchema,
+    user: Any = Security(user_auth),
+):
+    """Обновить скалярные настройки TTS (enabled, model, cooldowns, max_length, read_username)."""
+    tts = await ensure_tts_settings(db, user)
+    for field in data.model_fields_set:
+        value = getattr(data, field)
+        if value is not None:
+            setattr(tts, field, value)
+    await db.commit()
+    return JSONResponse({"title": "Сохранено", "message": "Настройки TTS обновлены."}, 200)
+
+
+@router.post("/tts/permissions")
+async def update_tts_permissions(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    data: TTSPermissionsSchema,
+    user: Any = Security(user_auth),
+):
+    """Обновить матрицу разрешений TTS (roles × triggers). Награда доступна всем, если включена."""
+    tts = await ensure_tts_settings(db, user)
+    tts.permissions = data.model_dump()
+    await db.commit()
+    return JSONResponse({"title": "Сохранено", "message": "Матрица разрешений обновлена."}, 200)
+
+
+@router.post("/tts/reset-key")
+async def reset_tts_external_key(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    user: Any = Security(user_auth),
+):
+    """Сгенерировать новый внешний ключ для TTS."""
+    tts = await ensure_tts_settings(db, user)
+    tts.external_key = uuid4().hex
+    await db.commit()
+    await db.refresh(tts)
+    return JSONResponse({"title": "Готово", "message": "Новый ключ сгенерирован.", "key": tts.external_key}, 200)
+
+
+@router.post("/tts/delete-key")
+async def delete_tts_external_key(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    user: Any = Security(user_auth),
+):
+    """Удалить внешний ключ для TTS (отозвать доступ внешних интеграций)."""
+    tts = await ensure_tts_settings(db, user)
+    tts.external_key = None
+    await db.commit()
+    return JSONResponse({"title": "Готово", "message": "Внешний ключ удалён."}, 200)
+
+
+@router.post("/tts/{key}")
+@inject
+async def tts_external_speech(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    ssem: Annotated[SSEManager, Depends(Provide[Container.sse_manager])],
+    moderation: Annotated[ModerationService, Depends(Provide[Container.moderation_service])],
+    key: str,
+    payload: TTSExternalSpeechSchema,
+    moderate: bool = Query(default=True),
+):
+    """Озвучить текст через внешний ключ (без авторизации Twitch, без проверки ролей).
+
+    Ключ = auth. Параметр ``moderate`` (default=True) включает серверную модерацию
+    текста — при обнаружении запретки возвращаем 422. Если ``moderate=False``,
+    текст отправляется в оверлей как есть (для доверенных интеграций).
+    """
+    stmt = sa.select(User).options(joinedload(User.tts)).where(User.tts.has(external_key=key))
+    user = await db.scalar(stmt)
+    if user is None or user.tts is None or not user.tts.enabled:
+        raise HTTPException(status_code=403, detail="Invalid or disabled TTS key")
+
+    if moderate:
+        result = moderation.validate(payload.input)
+        if result.is_banned:
+            raise HTTPException(
+                status_code=422,
+                detail=f"Сообщение заблокировано модерацией (найдено: «{result.found_word}»)",
+            )
+
+    await ssem.broadcast(
+        int(user.twitch_id),
+        SSEChannel.TTS,
+        json.dumps({"text": payload.input, "model": payload.model or user.tts.model}),
+    )
+    return JSONResponse({"title": "OK", "message": "Отправлено в оверлей."}, 200)

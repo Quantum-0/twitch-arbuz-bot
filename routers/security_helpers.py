@@ -31,9 +31,7 @@ async def touch_user_interaction(user_id: str) -> None:
     """Best-effort update of last user interaction without blocking request flow."""
     async with AsyncSessionLocal() as touch_db:
         try:
-            await touch_db.execute(
-                sa.text(f"SET LOCAL lock_timeout = '{INTERACTION_UPDATE_LOCK_TIMEOUT_MS}ms'")
-            )
+            await touch_db.execute(sa.text(f"SET LOCAL lock_timeout = '{INTERACTION_UPDATE_LOCK_TIMEOUT_MS}ms'"))
             await touch_db.execute(
                 sa.update(User)
                 .where(User.twitch_id == user_id)
@@ -87,6 +85,7 @@ async def user_auth(
             joinedload(User.settings),
             joinedload(User.memealerts),
             joinedload(User.links),
+            joinedload(User.tts),
         )
     )
     user: User | None = result.scalar_one_or_none()  # type: ignore
@@ -124,6 +123,7 @@ async def user_auth_optional(
             joinedload(User.settings),
             joinedload(User.memealerts),
             joinedload(User.links),
+            joinedload(User.tts),
         )
     )
     user: User | None = result.scalar_one_or_none()  # type: ignore
@@ -157,14 +157,10 @@ def admin_auth(
 ):
     current_username_bytes = credentials.username.encode("utf8")
     correct_username_bytes = settings.admin_api_login.encode()
-    is_correct_username = secrets.compare_digest(
-        current_username_bytes, correct_username_bytes
-    )
+    is_correct_username = secrets.compare_digest(current_username_bytes, correct_username_bytes)
     current_password_bytes = credentials.password.encode("utf8")
     correct_password_bytes = settings.admin_api_password.encode()
-    is_correct_password = secrets.compare_digest(
-        current_password_bytes, correct_password_bytes
-    )
+    is_correct_password = secrets.compare_digest(current_password_bytes, correct_password_bytes)
     if not (is_correct_username and is_correct_password):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,

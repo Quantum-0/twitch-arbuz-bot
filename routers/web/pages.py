@@ -19,12 +19,31 @@ from container import Container
 from database.models import CharacterInfo, GeneratedImage, TwitchUserSettings, User
 from dependencies import get_db
 from routers.security_helpers import admin_auth, user_auth, user_auth_optional
+from schemas.enums import ChatterRole, TTSTrigger
 from services.cache import Cache
 from twitch.chat.bot import ChatBot
 from twitch.client.twitch import Twitch
 from twitch.state_manager import StateManager
 from utils.memes import token_expires_in_days
 from utils.template_globals import register_template_globals
+from utils.tts import get_tts_settings
+
+TTS_ROLE_LABELS: dict[str, str] = {
+    ChatterRole.STREAMER.value: "Стример",
+    ChatterRole.MODERATOR.value: "Модератор",
+    ChatterRole.VIP.value: "VIP",
+    ChatterRole.SUBSCRIBER.value: "Подписчик",
+    ChatterRole.BOT.value: "Бот",
+    ChatterRole.CHATTER.value: "Зритель",
+}
+TTS_ROLE_ICONS: dict[str, str] = {
+    ChatterRole.STREAMER.value: "https://static-cdn.jtvnw.net/badges/v1/5527c58c-fb7d-422d-b71b-f309dcb85cc1/1",
+    ChatterRole.MODERATOR.value: "https://static-cdn.jtvnw.net/badges/v1/3267646d-33f0-4b17-b3df-f923a41db1d0/1",
+    ChatterRole.VIP.value: "https://static-cdn.jtvnw.net/badges/v1/b817aba4-fad8-49e2-b88a-7cc744dfa6ec/1",
+    ChatterRole.SUBSCRIBER.value: "https://static-cdn.jtvnw.net/badges/v1/5d9f2208-5dd8-11e7-8513-2ff4adfae661/1",
+    ChatterRole.BOT.value: "https://static-cdn.jtvnw.net/badges/v1/3ffa9565-c35b-4cad-800b-041e60659cf2/1",
+}
+TTS_TRIGGER_KEYS = [t.value for t in TTSTrigger]
 
 templates = Jinja2Templates(directory="templates")
 register_template_globals(templates)
@@ -124,6 +143,28 @@ async def ai_stickers_page(
             "settings": user.settings,
             "reference": reference,
             "ai_stickers": stickers,
+        },
+    )
+
+
+@router.get("/tts", response_class=HTMLResponse)
+async def tts_settings_page(
+    request: Request,
+    user: User | None = Security(user_auth_optional),
+):
+    if not user:
+        return RedirectResponse("/")
+    if user.login_name not in ("quantum075", "lul0k"):
+        raise HTTPException(status_code=403, detail="TTS в закрытом бета-тесте")
+    return templates.TemplateResponse(
+        "tts.html",
+        {
+            "request": request,
+            "user": user,
+            "tts": get_tts_settings(user),
+            "tts_roles": TTS_ROLE_LABELS,
+            "tts_role_icons": TTS_ROLE_ICONS,
+            "trigger_keys": TTS_TRIGGER_KEYS,
         },
     )
 

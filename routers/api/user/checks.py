@@ -1,10 +1,12 @@
 from typing import Annotated
+from urllib.parse import urlsplit, urlunsplit
 
 import httpx
 from dependency_injector.wiring import Provide, inject
 from fastapi import APIRouter, Depends, Security
 from memealerts.types.exceptions import MATokenExpiredError
 
+from config import settings
 from container import Container
 from database.models import User
 from exceptions import MAInvalidTokenError, MANoToken, MAUnavailableError, MAValidationRespError
@@ -19,6 +21,7 @@ from services.memes_v2 import MemealertsOAuthService, MemealertsV2Service
 from services.sse_manager import SSEManager
 from twitch.client.twitch import Twitch
 from utils.enums import SSEChannel
+from utils.tts import get_tts_settings
 
 router = APIRouter(prefix="/check", tags=["User checks"])
 
@@ -139,3 +142,47 @@ async def check_ai_stickers_reward(
     else:
         state = "broken"
     return CheckMemealertsRewardStatusResponseSchema(result=not problems, problems=problems, state=state)
+
+
+@router.get("/tts-reward", response_model=CheckMemealertsRewardStatusResponseSchema)
+@inject
+async def check_tts_reward(
+    twitch: Annotated[Twitch, Depends(Provide[Container.twitch])],
+    user: User = Security(user_auth),
+) -> CheckMemealertsRewardStatusResponseSchema:
+    tts = get_tts_settings(user)
+    if not tts.tts_reward_id:
+        return CheckMemealertsRewardStatusResponseSchema(result=False, problems=["Награда не создана"], state="missing")
+    problems = await twitch.validate_reward_subscription(user=user, reward_id=str(tts.tts_reward_id))
+    if not problems:
+        state = "ok"
+    elif "Награда не найдена" in problems:
+        state = "missing"
+    else:
+        state = "broken"
+    return CheckMemealertsRewardStatusResponseSchema(result=not problems, problems=problems, state=state)
+
+
+@router.get("/tts-overlay", response_model=CheckStatusResponseSchema)
+@inject
+async def check_tts_overlay(
+    ssem: Annotated[SSEManager, Depends(Provide[Container.sse_manager])],
+    user: User = Security(user_auth),
+) -> CheckStatusResponseSchema:
+    result = await ssem.has_clients(int(user.twitch_id), SSEChannel.TTS)
+    return CheckStatusResponseSchema(result=result, problems=["TTS-оверлей не подключён к OBS"] if not result else [])
+
+
+@router.get("/tts-server", response_model=CheckStatusResponseSchema)
+async def check_tts_server() -> CheckStatusResponseSchema:
+    """Проверить доступность внешнего TTS-сервера через /healthcheck."""
+    parts = urlsplit(settings.tts_api_url)
+    healthcheck_url = urlunsplit((parts.scheme, parts.netloc, "/healthcheck", "", ""))
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            resp = await client.get(healthcheck_url)
+    except httpx.HTTPError:
+        return CheckStatusResponseSchema(result=False, problems=["TTS-сервер недоступен"])
+    if resp.status_code != 200:
+        return CheckStatusResponseSchema(result=False, problems=[f"TTS-сервер вернул {resp.status_code}"])
+    return CheckStatusResponseSchema(result=True, problems=[])

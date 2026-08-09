@@ -5,24 +5,27 @@ from collections.abc import Callable
 from typing import Any
 
 import sqlalchemy as sa
-from memealerts.types.exceptions import MATokenExpiredError, MAUserNotFoundError
+from memealerts.types.exceptions import MATokenExpiredError
 from opentelemetry import trace
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from twitchAPI.type import TwitchResourceNotFound
 
-from database.models import Base, TwitchUserSettings, User
+from database.models import Base, TTSSettings, TwitchUserSettings, User
 from exceptions import MADuplicateUserError, MATokenInvalidError
 from schemas.api import StatsType
 from schemas.twitch import PointRewardRedemptionWebhookSchema, RaidWebhookSchema
 from services.memes import MemealertsService
 from services.memes_v2 import MemealertsOAuthService, MemealertsV2Service
+from services.moderation import ModerationService
 from services.sse_manager import SSEManager
 from services.statistics import StatisticsService
 from services.stickers import ModerationBlockedException, RewardRedemptionProcessingError, StickersService
+from services.tts import TTSService
 from twitch.chat.bot import ChatBot
 from twitch.client.twitch import Twitch
 from utils.enums import SSEChannel
+from utils.tts import clean_tts_text, truncate_tts
 
 logger = logging.getLogger(__name__)
 tracer = trace.get_tracer(__name__)
@@ -41,6 +44,8 @@ class TwitchEventSubService:
         memealerts: MemealertsService,
         memealerts_v2: MemealertsV2Service,
         memealerts_auth: MemealertsOAuthService,
+        moderation: ModerationService,
+        tts_service: TTSService,
         statistics: StatisticsService | None = None,
     ):
         self._twitch = twitch
@@ -51,6 +56,8 @@ class TwitchEventSubService:
         self._memealerts = memealerts
         self._memealerts_v2 = memealerts_v2
         self._memealerts_auth = memealerts_auth
+        self._moderation = moderation
+        self._tts = tts_service
         self._statistics = statistics
 
     def _inc_reward(self, subtype: str, type_: StatsType) -> None:
@@ -67,7 +74,7 @@ class TwitchEventSubService:
 
     async def _get_user_by_id_or_login(self, id_or_login: str | int, selectin: list[Base] | None = None) -> User:
         if selectin is None:
-            selectins = [User.settings, User.memealerts, User.links]
+            selectins = [User.settings, User.memealerts, User.links, User.tts]
         else:
             selectins = selectin
 
@@ -131,6 +138,13 @@ class TwitchEventSubService:
                 await self._chatbot.send_message(user, exc.chatbot_response)
                 if exc.cancel_redemption:
                     await self._cancel_redemption(user=user, payload=payload_model)
+        elif user.tts is not None and user.tts.tts_reward_id == payload_model.subscription.condition.reward_id:
+            try:
+                await self.reward_tts(user=user, payload=payload_model)
+            except RewardRedemptionProcessingError as exc:
+                await self._chatbot.send_message(user, exc.chatbot_response)
+                if exc.cancel_redemption:
+                    await self._cancel_redemption(user=user, payload=payload_model)
 
     async def _cancel_redemption(self, user: User, payload: PointRewardRedemptionWebhookSchema) -> None:
         try:
@@ -191,7 +205,7 @@ class TwitchEventSubService:
 
             if result:
                 try:  # TODO: Проверить что работает, потом убрать
-                    msg = f"Начислен"
+                    msg = "Начислен"
                     if user.memealerts.coins_for_reward % 10 == 1 and user.memealerts.coins_for_reward != 11:
                         coins_name = user.memealerts.memecoin_name_accusative or "Мемкоин"
                     elif 1 < user.memealerts.coins_for_reward % 10 < 5 and user.memealerts.coins_for_reward != 11:
@@ -276,3 +290,67 @@ class TwitchEventSubService:
             json.dumps({"sticker_file_id": str(sticker_id)}),
         )
         self._inc_reward("success", StatsType.REWARD_AI_STICKERS)
+
+    @tracer.start_as_current_span("Twitch Eventsub: Reward TTS")
+    async def reward_tts(
+        self,
+        user: User,
+        payload: PointRewardRedemptionWebhookSchema,
+    ) -> None:
+        """Обработка награды «TTS». Reward redemption webhook: badges роли
+        здесь нет, поэтому per-role матрица для награды не применяется —
+        награда доступна всем, если создана.
+
+        Штраф: при блокировке модерацией баллы НЕ возвращаем (fulfill), в чат
+        кидаем предупреждение. Успех → озвучка через SSE TTS-оверлея.
+        """
+        self._inc_reward("received", StatsType.TTS_MESSAGES)
+
+        raw_text = payload.event.user_input.strip()
+        if not raw_text:
+            await self._chatbot.send_message(user, "TTS: пустой текст награды. Баллы списаны как штраф 🌚")
+            await self._fulfill_redemption(user, payload)
+            return
+
+        tts: TTSSettings | None = user.tts
+        if tts is None or not tts.enabled:
+            await self._chatbot.send_message(user, "TTS выключен у стримера. Баллы возвращены.")
+            await self._cancel_redemption(user, payload)
+            return
+
+        if not await self._ssem.has_clients(int(user.twitch_id), SSEChannel.TTS):
+            logger.warning("TTS: no overlay connected")
+            await self._chatbot.send_message(user, "TTS-оверлей не подключён в OBS. Баллы возвращены!")
+            await self._cancel_redemption(user, payload)
+            return
+
+        # Модерация: при бане баллы списываем (fulfill), не возвращаем.
+        result = self._moderation.validate(raw_text)
+        if result.is_banned:
+            self._inc_reward("reward", StatsType.TTS_BLOCKED)
+            await self._chatbot.send_message(
+                user,
+                "⚠️ TTS: сообщение заблокировано модерацией.",
+            )
+            try:
+                await self._twitch.send_warning(
+                    user,
+                    str(payload.event.user_id),
+                )
+            except Exception:
+                logger.error("TTS: failed to send warning to chatter", exc_info=True)
+            await self._fulfill_redemption(user, payload)
+            return
+
+        text = clean_tts_text(raw_text)
+        text = truncate_tts(text, tts.max_length)
+        if tts.read_username:
+            text = f"{payload.event.user_name} говорит {text}"
+
+        await self._ssem.broadcast(
+            int(user.twitch_id),
+            SSEChannel.TTS,
+            json.dumps({"text": text, "model": tts.model}),
+        )
+        await self._fulfill_redemption(user, payload)
+        self._inc_reward("success", StatsType.TTS_MESSAGES)

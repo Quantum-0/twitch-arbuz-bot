@@ -65,7 +65,7 @@ async function updateSetting(name, value) {
 }
 
 function initToggles() {
-    document.querySelectorAll('.toggle-switch').forEach(toggle => {
+    document.querySelectorAll('.toggle-switch:not([data-name^="tts_"])').forEach(toggle => {
         toggle.addEventListener('click', () => {
             toggle.classList.toggle('active');
             if (toggle.getAttribute('role') === 'switch') {
@@ -124,20 +124,26 @@ function initOverlays() {
             });
         });
 
-        card.querySelector(".overlay-toggle-settings").addEventListener("click", () => {
-            card.querySelector(".overlay-settings").classList.toggle("active");
-        });
+        const toggleBtn = card.querySelector(".overlay-toggle-settings");
+        if (toggleBtn) {
+            toggleBtn.addEventListener("click", () => {
+                const settings = card.querySelector(".overlay-settings");
+                if (settings) settings.classList.toggle("active");
+            });
+        }
 
-        linkDiv.addEventListener("click", () => {
-            navigator.clipboard.writeText(linkDiv.textContent);
-            linkDiv.classList.add("copied");
-            linkDiv.textContent = "Скопировано!";
-            setTimeout(() => {
-                updateOverlayLink(card);
-                linkDiv.classList.remove("copied");
-            }, 1000);
-            ym(108266334, 'reachGoal', 'copiedOverlayLink');
-        });
+        if (linkDiv) {
+            linkDiv.addEventListener("click", () => {
+                navigator.clipboard.writeText(linkDiv.textContent);
+                linkDiv.classList.add("copied");
+                linkDiv.textContent = "Скопировано!";
+                setTimeout(() => {
+                    updateOverlayLink(card);
+                    linkDiv.classList.remove("copied");
+                }, 1000);
+                ym(108266334, 'reachGoal', 'copiedOverlayLink');
+            });
+        }
 
         if (linkDockDiv) {
             linkDockDiv.addEventListener("click", () => {
@@ -317,13 +323,13 @@ function updateOverlayLink(card) {
 
     const link = base + "?" + params.toString();
     const linkDiv = card.querySelector(".overlay-link");
-    linkDiv.textContent = link;
+    if (linkDiv) linkDiv.textContent = link;
 
     if (base_dock) {
         params.set("secret", slovotron_secret);
-        const link = base_dock + "?" + params.toString();
-        const linkDiv = card.querySelector(".dock-panel-link");
-        linkDiv.textContent = link;
+        const dockLink = base_dock + "?" + params.toString();
+        const dockLinkDiv = card.querySelector(".dock-panel-link");
+        if (dockLinkDiv) dockLinkDiv.textContent = dockLink;
     }
 }
 

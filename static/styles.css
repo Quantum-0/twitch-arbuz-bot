@@ -1522,3 +1522,161 @@ section h3 {
     padding: 40px 0;
     font-size: 15px;
 }
+
+/* ── Страница /tts ─────────────────────────────────────────── */
+
+.tts-toggles-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px 32px;
+    margin-bottom: 20px;
+}
+
+@media (max-width: 600px) {
+    .tts-toggles-grid { grid-template-columns: 1fr; }
+}
+
+.tts-settings-form {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.tts-model-card { max-width: 100%; }
+
+.tts-sliders-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px 32px;
+}
+
+.tts-sliders-grid .tts-slider-control:only-child,
+.tts-sliders-grid .tts-slider-control:first-child:nth-last-child(3) {
+    /* макс.длина занимает полную ширину (первая из трёх) */
+}
+
+/* Максимальная длина текста — на всю ширину, КД — два в ряд */
+.tts-sliders-grid .tts-slider-control:nth-child(1) {
+    grid-column: 1 / -1;
+}
+
+@media (max-width: 600px) {
+    .tts-sliders-grid { grid-template-columns: 1fr; }
+    .tts-sliders-grid .tts-slider-control:nth-child(1) { grid-column: auto; }
+}
+
+.tts-slider-control {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    font-size: 14px;
+}
+
+.tts-slider-control input[type="range"] {
+    width: 100%;
+    accent-color: var(--color-primary);
+}
+
+.tts-save-btn {
+    align-self: center;
+}
+
+/* Матрица разрешений */
+.tts-permissions-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 16px;
+    font-size: 14px;
+}
+
+.tts-permissions-table th,
+.tts-permissions-table td {
+    border: 1px solid var(--color-border);
+    padding: 8px 10px;
+    text-align: center;
+}
+
+.tts-permissions-table th {
+    background: var(--color-bg-muted);
+    font-weight: 600;
+}
+
+.tts-permissions-table th:first-child,
+.tts-permissions-table td:first-child {
+    text-align: left;
+}
+
+.tts-role-cell {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.tts-role-badge {
+    width: 18px;
+    height: 18px;
+    vertical-align: middle;
+}
+
+.tts-perm-checkbox {
+    width: 20px;
+    height: 20px;
+    accent-color: var(--color-primary);
+    cursor: pointer;
+    vertical-align: middle;
+}
+
+/* Внешний ключ */
+.tts-key-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 14px;
+    flex-wrap: wrap;
+}
+
+.tts-key-label {
+    font-size: 14px;
+    color: var(--color-text-muted);
+}
+
+.tts-key-box {
+    font-family: monospace;
+    font-size: 14px;
+    background: rgba(0, 0, 0, 0.3);
+    padding: 8px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    user-select: none;
+    word-break: break-all;
+    transition: filter 0.15s, background 0.3s;
+}
+
+.tts-key-box:not(.tts-key-empty) {
+    filter: blur(6px);
+}
+
+.tts-key-box:not(.tts-key-empty):hover {
+    filter: blur(0);
+}
+
+.tts-key-box.copied {
+    background: rgba(0, 255, 200, 0.3);
+    filter: blur(0) !important;
+}
+
+.tts-key-box.tts-key-empty {
+    cursor: default;
+    opacity: 0.7;
+}
+
+.tts-key-buttons {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.tts-key-buttons button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
