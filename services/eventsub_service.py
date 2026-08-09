@@ -25,7 +25,7 @@ from services.tts import TTSService
 from twitch.chat.bot import ChatBot
 from twitch.client.twitch import Twitch
 from utils.enums import SSEChannel
-from utils.tts import clean_tts_text, truncate_tts
+from utils.tts import clean_tts_text, clean_tts_username, truncate_tts
 
 logger = logging.getLogger(__name__)
 tracer = trace.get_tracer(__name__)
@@ -345,7 +345,7 @@ class TwitchEventSubService:
         text = clean_tts_text(raw_text)
         text = truncate_tts(text, tts.max_length)
         if tts.read_username:
-            text = f"{payload.event.user_name} говорит {text}"
+            text = f"{clean_tts_username(payload.event.user_name)} говорит {text}"
 
         await self._ssem.broadcast(
             int(user.twitch_id),

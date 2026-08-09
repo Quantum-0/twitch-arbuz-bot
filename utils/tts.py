@@ -25,12 +25,26 @@ DEFAULT_TTS = {
 _EMOJI_RE = re.compile("[\U0001f000-\U0001ffff\U00002600-\U000027bf\U0001f1e6-\U0001f1ff]", re.UNICODE)
 # Схлопывание пробелов.
 _WS_RE = re.compile(r"\s+")
+# Цифры в нике (TTS озвучивает их буквально — убираем).
+_DIGITS_RE = re.compile(r"\d")
 
 
 def clean_tts_text(text: str) -> str:
     """Очистить текст перед озвучкой: удалить эмодзи, схлопнуть пробелы, trim."""
     s = _EMOJI_RE.sub("", text)
     return _WS_RE.sub(" ", s).strip()
+
+
+def clean_tts_username(name: str) -> str:
+    """Очистить отображаемое имя пользователя перед озвучкой.
+
+    Удаляет цифры (TTS-движок читает их буквально: «user123» → «user сто двадцать три»).
+    Схлопывает пробелы и делает trim. Если после очистки имя пустое — возвращает
+    исходное имя (чтобы не терять информацию об отправителе).
+    """
+    cleaned = _DIGITS_RE.sub("", name)
+    cleaned = _WS_RE.sub(" ", cleaned).strip()
+    return cleaned or name
 
 
 def truncate_tts(text: str, max_length: int) -> str:
