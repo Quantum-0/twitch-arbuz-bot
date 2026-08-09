@@ -175,14 +175,22 @@ async def check_tts_overlay(
 
 @router.get("/tts-server", response_model=CheckStatusResponseSchema)
 async def check_tts_server() -> CheckStatusResponseSchema:
-    """Проверить доступность внешнего TTS-сервера через /healthcheck."""
+    """Проверить доступность внешнего TTS-сервера через /health."""
     parts = urlsplit(settings.tts_api_url)
-    healthcheck_url = urlunsplit((parts.scheme, parts.netloc, "/healthcheck", "", ""))
+    health_url = urlunsplit((parts.scheme, parts.netloc, "/health", "", ""))
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
-            resp = await client.get(healthcheck_url)
+            resp = await client.get(health_url)
     except httpx.HTTPError:
         return CheckStatusResponseSchema(result=False, problems=["TTS-сервер недоступен"])
     if resp.status_code != 200:
         return CheckStatusResponseSchema(result=False, problems=[f"TTS-сервер вернул {resp.status_code}"])
+    try:
+        body = resp.json()
+    except (ValueError, KeyError):
+        return CheckStatusResponseSchema(result=False, problems=["TTS-сервер вернул некорректный ответ"])
+    if body.get("status") != "ok":
+        return CheckStatusResponseSchema(result=False, problems=["TTS-сервер сообщил об ошибке"])
+    if not body.get("rvc_available"):
+        return CheckStatusResponseSchema(result=False, problems=["TTS-сервер запущен, но RVC-сервер недоступен"])
     return CheckStatusResponseSchema(result=True, problems=[])

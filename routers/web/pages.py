@@ -154,8 +154,6 @@ async def tts_settings_page(
 ):
     if not user:
         return RedirectResponse("/")
-    if user.login_name not in ("quantum075", "lul0k"):
-        raise HTTPException(status_code=403, detail="TTS в закрытом бета-тесте")
     return templates.TemplateResponse(
         "tts.html",
         {

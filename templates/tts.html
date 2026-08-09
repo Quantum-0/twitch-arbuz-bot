@@ -132,10 +132,12 @@
             {% for role_key, role_label in tts_roles.items() %}
             <tr data-role="{{ role_key }}">
                 <td class="tts-role-cell">
+                    <div class="tts-role-inner">
                     {% if role_key in tts_role_icons %}
                     <img src="{{ tts_role_icons[role_key] }}" alt="" class="tts-role-badge"/>
                     {% endif %}
                     <span>{{ role_label }}</span>
+                    </div>
                 </td>
                 {% for trigger_key in trigger_keys %}
                 <td>

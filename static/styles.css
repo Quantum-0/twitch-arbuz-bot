@@ -1607,6 +1607,10 @@ section h3 {
 }
 
 .tts-role-cell {
+    text-align: left;
+}
+
+.tts-role-inner {
     display: flex;
     align-items: center;
     gap: 8px;
