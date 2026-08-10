@@ -28,8 +28,8 @@ logger = logging.getLogger(__name__)
 TTS_MODELS: dict[str, dict[str, Any]] = {
     "neco-arc": {
         "label": "Neco-Arc",
-        "model": "irina",
-        "voice": "neco-arc",
+        "model": "neco-arc",
+        "voice": "irina",
         "pitch": None,
     },
     "gavrilov": {
