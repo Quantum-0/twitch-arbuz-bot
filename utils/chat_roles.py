@@ -39,7 +39,7 @@ def classify_chatter(badges: list[ChatMessageBadge], login: str) -> ChatterRole:
         return ChatterRole.STREAMER
     if login.lower() in KNOWN_BOTS or "bot" in set_ids:
         return ChatterRole.BOT
-    if "moderator" in set_ids:
+    if "moderator" in set_ids or "lead_moderator" in set_ids:
         return ChatterRole.MODERATOR
     if "vip" in set_ids:
         return ChatterRole.VIP

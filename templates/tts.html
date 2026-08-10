@@ -72,7 +72,17 @@
                         value="neco-arc"
                         {{ 'checked' if (tts.model or 'neco-arc') == 'neco-arc' else '' }}
                     >
-                    <span>neco-arc</span>
+                    <span>Neco-Arc</span>
+                </label>
+                <label class="target-behaviour-option" for="tts-model-gavrilov">
+                    <input
+                        type="radio"
+                        id="tts-model-gavrilov"
+                        name="tts_model"
+                        value="gavrilov"
+                        {{ 'checked' if tts.model == 'gavrilov' else '' }}
+                    >
+                    <span>VHS 90-х</span>
                 </label>
             </fieldset>
         </div>
@@ -122,10 +132,12 @@
             {% for role_key, role_label in tts_roles.items() %}
             <tr data-role="{{ role_key }}">
                 <td class="tts-role-cell">
+                    <div class="tts-role-inner">
                     {% if role_key in tts_role_icons %}
                     <img src="{{ tts_role_icons[role_key] }}" alt="" class="tts-role-badge"/>
                     {% endif %}
                     <span>{{ role_label }}</span>
+                    </div>
                 </td>
                 {% for trigger_key in trigger_keys %}
                 <td>

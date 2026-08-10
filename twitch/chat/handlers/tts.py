@@ -26,7 +26,7 @@ from twitch.chat.handlers.handlers import CommonMessagesHandler, HandlerResult
 from twitch.state_manager import SMParam
 from utils.chat_roles import classify_chatter
 from utils.enums import SSEChannel
-from utils.tts import clean_tts_text, get_tts_settings, truncate_tts
+from utils.tts import clean_tts_text, clean_tts_username, get_tts_settings, truncate_tts
 
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
@@ -112,7 +112,7 @@ class TTSHandler(CommonMessagesHandler):
 
         # 9. Озвучивать ник.
         if tts.read_username:
-            text = f"{message.chatter_user_name} говорит {text}"
+            text = f"{clean_tts_username(message.chatter_user_name)} говорит {text}"
 
         # 10. Broadcast в SSE TTS.
         await ssem.broadcast(
