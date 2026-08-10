@@ -53,6 +53,7 @@ async def lifespan(app: "FastAPI | None" = None):
     await cache.startup(redis, binary_redis)
     await statistics.startup(redis)
     await sse_manager.startup(redis)
+    await memealerts_auth.startup(redis, statistics)
     await twitch.startup()
     await chat_bot.startup(twitch)
     await ai.startup()

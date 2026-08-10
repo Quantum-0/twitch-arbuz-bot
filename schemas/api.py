@@ -120,6 +120,10 @@ class StatsType(StrEnum):
     # Subtype: "gen_mini" (gpt-image-1-mini HTTP), "gen_quality" (gpt-image-2
     # HTTP), "post_processing" (пост-обработка после gpt-image-2: rembg/обводка/тень).
     AI_STICKER_PROCESSING_TIME = "ai_sticker_processing_time"
+    # Counter: исходы обновления OAuth-токена MemeAlerts.
+    # Subtype: "success" | "invalid_grant" | "invalid_client" | "invalid_request" |
+    # "unsupported_grant_type" | "server_error" | "network_error" | "expired".
+    MA_TOKEN_REFRESH = "ma_token_refresh"  # noqa: S105
     # Особая кумулятивная метрика: число пользователей бота на момент бакета.
     # Не хранится в таблице statistics — считается на лету из User.created_at.
     # В API/фронте обрабатывается отдельным endpoint'ом, тут — только чтобы

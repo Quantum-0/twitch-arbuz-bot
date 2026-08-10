@@ -9,7 +9,7 @@ from memealerts.types.exceptions import MATokenExpiredError
 from config import settings
 from container import Container
 from database.models import User
-from exceptions import MAInvalidTokenError, MANoToken, MAUnavailableError, MAValidationRespError
+from exceptions import MAInvalidTokenError, MANoToken, MATokenRefreshError, MAUnavailableError, MAValidationRespError
 from routers.security_helpers import user_auth
 from schemas.api import (
     BaseErrorSchema,
@@ -71,8 +71,12 @@ async def check_memealerts_token(
         ma_token = await memealerts_auth.get_token_of_user(user)
     except MANoToken:
         return CheckStatusResponseSchema(result=False, problems=["Токен OAuth отсутствует"])
-    except MATokenExpiredError:
+    except (MATokenExpiredError, MAInvalidTokenError):
         return CheckStatusResponseSchema(result=False, problems=["Токен невалидный, требуется переавторизация"])
+    except MATokenRefreshError as exc:
+        return CheckStatusResponseSchema(
+            result=False, problems=[f"Ошибка Memealerts при обновлении токена: {exc.error}"]
+        )
     except httpx.HTTPError:
         return CheckStatusResponseSchema(result=False, problems=["Ошибка подключения к Memealerts"])
     except Exception:

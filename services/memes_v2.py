@@ -1,11 +1,13 @@
 import asyncio
 import logging
 import re
-from collections.abc import Callable, Sequence
+from collections.abc import AsyncIterator, Callable, Sequence
+from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
-from typing import Generic, TypeVar
+from typing import TYPE_CHECKING, Any, Generic, TypeVar
 
 import httpx
+import redis.asyncio as aioredis
 import sqlalchemy as sa
 from memealerts.types.exceptions import MAError, MATokenExpiredError, MAUserNotFoundError
 from memealerts.types.user_id import UserID
@@ -23,11 +25,15 @@ from exceptions import (
     MAInvalidTokenError,
     MANoToken,
     MARefreshTokenError,
+    MATokenRefreshError,
     MAUnavailableError,
     MAValidationRespError,
 )
-from schemas.api import BoolResponseSchema
+from schemas.api import BoolResponseSchema, StatsType
 from schemas.memealerts import MASupporter, MASupportersList, MAUserInfo
+
+if TYPE_CHECKING:
+    from services.statistics import StatisticsService
 
 logger = logging.getLogger(__name__)
 tracer = trace.get_tracer(__name__)
@@ -117,12 +123,29 @@ class Tokens(BaseModel, Generic[T]):
 
 
 class MemealertsOAuthService:
+    # Коды ошибок токен-эндпоинта, которые безопасно ретраить (см. docs/memealerts.md).
+    _RETRYABLE_TOKEN_ERRORS: frozenset[str] = frozenset({"server_error"})
+    # Backoff между попытками ретрая (сек). Порядок: 1, 2, 4, 8, 10.
+    _RETRY_BACKOFFS: tuple[int, ...] = (1, 2, 4, 8, 10)
+
     def __init__(
         self,
         db_session_factory: Callable[[], AsyncSession],
+        redis: aioredis.Redis | None = None,
+        statistics: "StatisticsService | None" = None,
     ):
         self._db_session_factory = db_session_factory
+        self._redis = redis
+        self._statistics = statistics
         self._refresh_semaphore = asyncio.Semaphore(10)
+
+    async def startup(self, redis: aioredis.Redis, statistics: "StatisticsService | None") -> None:
+        self._redis = redis
+        self._statistics = statistics
+
+    def _stat_refresh(self, subtype: str) -> None:
+        if self._statistics is not None:
+            self._statistics.inc(StatsType.MA_TOKEN_REFRESH, subtype=subtype)
 
     async def auth_user(self, authorization_code: str, user: User) -> Tokens[str] | None:
         """
@@ -148,7 +171,8 @@ class MemealertsOAuthService:
         """
         logger.info("Run updating memealerts tokens")
         q = sa.select(MemealertsSettings).where(
-            MemealertsSettings.token_expires_at + sa.text("INTERVAL '25 days'") > sa.func.now()
+            MemealertsSettings.token_expires_at.is_not(None),
+            MemealertsSettings.token_expires_at + sa.text("INTERVAL '25 days'") > sa.func.now(),
         )
         async with self._db_session_factory() as db:
             memealerts_settings: Sequence[MemealertsSettings] = (await db.execute(q)).scalars().all()
@@ -157,14 +181,18 @@ class MemealertsOAuthService:
         tokens_list = [self._tokens_from_settings(mas) for mas in memealerts_settings]
 
         new_tokens_list = await asyncio.gather(
-            *(self._refresh_tokens_if_need(t) for t in tokens_list), return_exceptions=True
+            *(
+                self._refresh_tokens_if_need(t, user_id=u, block_on_lock=False)
+                for t, u in zip(tokens_list, users_list, strict=True)
+            ),
+            return_exceptions=True,
         )
 
         success_updates: list[tuple[int, Tokens]] = []
 
         for user, old_tokens, new_tokens_result in zip(users_list, tokens_list, new_tokens_list, strict=True):
             if isinstance(new_tokens_result, Exception):
-                logger.error(f"Не удалось обновить токен для {user}: {new_tokens_result}", exc_info=new_tokens_result)
+                await self._handle_refresh_error(user, new_tokens_result)
             elif old_tokens == new_tokens_result:
                 logger.debug(f"Токен для {user} не обновлён, т.к. не был изменён")
             else:
@@ -176,6 +204,40 @@ class MemealertsOAuthService:
                     await self._save_token(new_token, user, session=db)
                 await db.commit()
                 logger.info(f"Успешно обновлено токенов в БД: {len(success_updates)}")
+
+    async def _handle_refresh_error(self, user_id: int, exc: BaseException) -> None:
+        """Реакция на ошибку обновления токена в фоновой задаче."""
+        if isinstance(exc, MATokenRefreshError):
+            if exc.error == "invalid_grant":
+                logger.warning(
+                    "MA tokens revoked for user_id=%s, re-authorization required (error=%s)",
+                    user_id,
+                    exc.description,
+                )
+                await self.delete_token_by_id(user_id)
+            elif exc.error == "invalid_client":
+                logger.critical(
+                    "MA invalid_client on token refresh for user_id=%s: %s. "
+                    "Проверить client_id/client_secret приложения MA.",
+                    user_id,
+                    exc.description,
+                )
+            else:
+                logger.error(
+                    "MA token refresh failed for user_id=%s: error=%s, desc=%s",
+                    user_id,
+                    exc.error,
+                    exc.description,
+                )
+            return
+        if isinstance(exc, (httpx.TransportError, httpx.TimeoutException)):
+            logger.warning("Network error refreshing token for user_id=%s: %s", user_id, exc)
+            return
+        if isinstance(exc, MATokenExpiredError):
+            logger.warning("Refresh token already expired for user_id=%s, re-authorization required", user_id)
+            await self.delete_token_by_id(user_id)
+            return
+        logger.error(f"Не удалось обновить токен для user_id={user_id}: {exc}", exc_info=exc)
 
     async def get_token_of_user(self, user: User) -> Tokens[str]:
         """
@@ -191,7 +253,27 @@ class MemealertsOAuthService:
             current_token = self._tokens_from_settings(user.memealerts)
         else:
             raise NotImplementedError
-        new_tokens = await self._refresh_tokens_if_need(tokens=current_token)
+        try:
+            new_tokens = await self._refresh_tokens_if_need(current_token, user_id=user.id, block_on_lock=True)
+        except MATokenRefreshError as exc:
+            if exc.error == "invalid_grant":
+                logger.warning(
+                    "MA tokens revoked for user_id=%s at runtime, re-authorization required",
+                    user.id,
+                )
+                await self.delete_token_by_id(user.id)
+                raise MAInvalidTokenError from exc
+            if exc.error == "invalid_client":
+                logger.critical(
+                    "MA invalid_client on token refresh for user_id=%s: %s",
+                    user.id,
+                    exc.description,
+                )
+            raise
+        except MATokenExpiredError:
+            logger.warning("Refresh token already expired for user_id=%s at runtime", user.id)
+            await self.delete_token_by_id(user.id)
+            raise MAInvalidTokenError from None
         if new_tokens != current_token:
             await self._save_token(new_tokens, user.id)
         return new_tokens
@@ -241,42 +323,149 @@ class MemealertsOAuthService:
                 )
                 await db.commit()
 
-    async def _refresh_tokens_if_need(self, tokens: Tokens[str]) -> Tokens[str]:
+    async def _refresh_tokens_if_need(
+        self, tokens: Tokens[str], *, user_id: int, block_on_lock: bool = True
+    ) -> Tokens[str]:
         """
         Обновляет токен если в этом есть необходимость:
-        - Если рефреш токен истёк - отдаём ошибку
-        - Если рефреш токен не истёк, и время жизни аксес токена ещё больше 10 минут
-        -- отдаём существующий токен
-        - Если время жизни аксес токена больше минуты
-        -- пробуем обновить, если не выходит - отдаём старый токен
-        - Если время жизни токена меньше минуты
-        -- отдаём всегда новый
-        -- если не можем обновить - отдаём ошибку
+        - Если рефреш токен истёк - отдаём ошибку MATokenExpiredError
+        - Если аксес токен живёт ещё больше 10 минут - отдаём существующий токен
+        - Иначе (осталось <= 10 минут):
+          -- берём per-user лок (Redis), чтобы исключить гонку параллельных воркеров
+          -- перечитываем токен из БД (другой воркер мог уже обновить)
+          -- при необходимости обновляем через Memealerts
 
-        Таким образом у нас всегда будет валидный аксес токен, с временем жизни ещё минимум минута
+        Ретраится только ``server_error`` и сетевые ошибки (см. docs/memealerts.md).
+        ``invalid_grant`` / ``invalid_client`` / ``invalid_request`` /
+        ``unsupported_grant_type`` пробрасываются без ретрая.
+
+        :param block_on_lock: ``True`` — ждать лок (runtime-запросы),
+            ``False`` — пропустить обновление, если лок занят (фоновая крон-таска).
         """
         if tokens.is_refresh_expired:
-            logger.error("Cannot refresh token after because refresh token is already expired")
+            logger.error("Cannot refresh token for user_id=%s: refresh token already expired", user_id)
+            self._stat_refresh("expired")
             raise MATokenExpiredError
-        if tokens.expires_in <= 60:
-            last_error = None
-            for _ in range(5):
-                try:
-                    return await self._request_tokens(refresh_token=tokens.refresh_token)
-                except httpx.HTTPError as exc:
-                    last_error = exc
-                    await asyncio.sleep(5)
-            assert last_error is not None  # noqa S101
-            raise last_error
-        if 60 < tokens.expires_in < 600:
-            try:
-                return await self._request_tokens(refresh_token=tokens.refresh_token)
-            except httpx.HTTPError:
-                return tokens
-        # if tokens.expires_in >= 600:
-        return tokens
+        if tokens.expires_in > 600:
+            return tokens
 
-    async def _request_tokens(self, *, authorization_code: str = None, refresh_token: str = None) -> Tokens[str]:
+        async with self._acquire_refresh_lock(user_id, block=block_on_lock) as acquired:
+            if not acquired and not block_on_lock:
+                logger.debug("Refresh lock busy for user_id=%s, skipping periodic update", user_id)
+                return tokens
+
+            # Перечитываем токен из БД: другой воркер мог обновить его, пока мы ждали лок.
+            fresh = await self._load_tokens_from_db(user_id)
+            if fresh is not None:
+                tokens = fresh
+            if tokens.is_refresh_expired:
+                self._stat_refresh("expired")
+                raise MATokenExpiredError
+            if tokens.expires_in > 600:
+                # Другой воркер уже обновил токен — это тоже успешный исход с нашей точки зрения.
+                self._stat_refresh("success")
+                return tokens
+
+            if tokens.expires_in <= 60:
+                # Токен почти истёк — обновляем с ретраями на server_error/сеть.
+                return await self._refresh_with_retry(tokens, user_id=user_id)
+            # 60 < expires_in <= 600: пробуем обновить, при временной ошибке — отдаём старый.
+            return await self._refresh_or_keep_old(tokens, user_id=user_id)
+
+    async def _refresh_with_retry(self, tokens: Tokens[str], *, user_id: int) -> Tokens[str]:
+        """Обновить токен с ретраями ``server_error``/сеть (когда access почти истёк)."""
+        last_error: MATokenRefreshError | httpx.HTTPError | None = None
+        for attempt, delay in enumerate(self._RETRY_BACKOFFS):
+            try:
+                result = await self._request_tokens(refresh_token=tokens.refresh_token)
+                self._stat_refresh("success")
+                return result
+            except MATokenRefreshError as exc:
+                if exc.error not in self._RETRYABLE_TOKEN_ERRORS:
+                    self._stat_refresh(exc.error)
+                    raise
+                last_error = exc
+                logger.warning(
+                    "server_error refreshing token for user_id=%s (attempt %s), retry in %ss",
+                    user_id,
+                    attempt + 1,
+                    delay,
+                )
+                await asyncio.sleep(delay)
+            except (httpx.TransportError, httpx.TimeoutException) as exc:
+                last_error = exc
+                logger.warning(
+                    "Network error refreshing token for user_id=%s (attempt %s), retry in %ss",
+                    user_id,
+                    attempt + 1,
+                    delay,
+                )
+                await asyncio.sleep(delay)
+        assert last_error is not None  # noqa S101
+        if isinstance(last_error, MATokenRefreshError):
+            self._stat_refresh(last_error.error)
+        else:
+            self._stat_refresh("network_error")
+        raise last_error
+
+    async def _refresh_or_keep_old(self, tokens: Tokens[str], *, user_id: int) -> Tokens[str]:
+        """Обновить токен (access ещё живёт > 60с); при временной ошибке вернуть старый."""
+        try:
+            result = await self._request_tokens(refresh_token=tokens.refresh_token)
+            self._stat_refresh("success")
+            return result
+        except MATokenRefreshError as exc:
+            if exc.error in self._RETRYABLE_TOKEN_ERRORS:
+                self._stat_refresh("server_error")
+                logger.warning("server_error refreshing token for user_id=%s, keeping old token", user_id)
+                return tokens
+            self._stat_refresh(exc.error)
+            raise
+        except (httpx.TransportError, httpx.TimeoutException):
+            self._stat_refresh("network_error")
+            logger.warning("Network error refreshing token for user_id=%s, keeping old token", user_id)
+            return tokens
+
+    @asynccontextmanager
+    async def _acquire_refresh_lock(self, user_id: int, *, block: bool) -> AsyncIterator[bool]:
+        """Per-user распределённый лок на рефреш токена.
+
+        Yield-ит ``True``, если лок захвачен (и его нужно отпустить в ``finally``),
+        ``False`` — если Redis недоступен или лок не удалось захватить без блокировки.
+        """
+        acquired = False
+        lock = None
+        if self._redis is not None:
+            lock = self._redis.lock(f"ma:refresh:{user_id}", timeout=60)
+            try:
+                acquired = await lock.acquire(blocking=block, blocking_timeout=60 if block else None)
+            except (aioredis.ConnectionError, aioredis.TimeoutError):
+                logger.warning("Redis unavailable, skipping refresh lock for user_id=%s", user_id)
+                acquired = False
+            except Exception:
+                logger.warning("Failed to acquire refresh lock for user_id=%s", user_id, exc_info=True)
+                acquired = False
+        try:
+            yield acquired
+        finally:
+            if acquired and lock is not None:
+                try:
+                    await lock.release()
+                except Exception:
+                    logger.warning("Failed to release refresh lock for user_id=%s", user_id, exc_info=True)
+
+    async def _load_tokens_from_db(self, user_id: int) -> Tokens[str] | None:
+        """Перечитать токен пользователя из БД (для ревалидации под локом)."""
+        q = sa.select(MemealertsSettings).where(MemealertsSettings.user_id == user_id)
+        async with self._db_session_factory() as db:
+            mas: MemealertsSettings | None = (await db.execute(q)).scalar_one_or_none()
+        if mas is None or mas.access_token is None:
+            return None
+        return self._tokens_from_settings(mas)
+
+    async def _request_tokens(
+        self, *, authorization_code: str | None = None, refresh_token: str | None = None
+    ) -> Tokens[str]:
         """
         Этап oAuth процесса:
         Обмен кода авторизации или старого рефреш токена
@@ -284,6 +473,9 @@ class MemealertsOAuthService:
         :param authorization_code: токен авторизации, полученный через redirect_url
         :param refresh_token: старый refresh_token
         :return: access_token, refresh_token & expires_at.
+
+        При не-2xx ответе парсит тело ошибки (RFC 6749 §5.2) и кидает
+        :class:`MATokenRefreshError` с кодом ошибки в поле ``error``.
         """
         if authorization_code is not None and refresh_token is not None:
             raise ValueError("Only one argument should be passed.")
@@ -291,14 +483,15 @@ class MemealertsOAuthService:
             raise ValueError("One of arguments should be passed.")
 
         grant_type = "refresh_token" if refresh_token else "authorization_code"
-        data = {
+        data: dict[str, Any] = {
             "client_id": settings.memealerts_client_id.get_secret_value(),
             "client_secret": settings.memealerts_client_secret.get_secret_value(),
-            "refresh_token": refresh_token,
             "grant_type": grant_type,
-            "code": authorization_code,
         }
+        if refresh_token:
+            data["refresh_token"] = refresh_token
         if authorization_code:
+            data["code"] = authorization_code
             data["redirect_uri"] = settings.memealerts_redirect_url
         async with self._refresh_semaphore, httpx.AsyncClient() as client:
             response = await client.post(
@@ -306,19 +499,52 @@ class MemealertsOAuthService:
                 timeout=5 if refresh_token else 10,
                 data=data,
             )
-            response.raise_for_status()
-            tokens = response.json()
-            try:
-                return Tokens(**tokens)
-            except ValidationError as exc:
-                logger.error(f"Error getting tokens from oauth. Resp: {tokens}")
-                raise MARefreshTokenError from exc
+
+        if not response.is_success:
+            error, description = self._parse_token_error(response)
+            # 5xx — серверная ошибка MA. По доке ``server_error`` может прийти и как 400,
+            # и как 500; для любых 5xx считаем ошибку транзитной (ретраится, токены не трогаем).
+            if response.status_code >= 500:
+                error = "server_error"
+                if not description:
+                    description = response.text[:200]
+            logger.warning(
+                "MA token endpoint error: error=%s, desc=%s, status=%s",
+                error,
+                description,
+                response.status_code,
+            )
+            raise MATokenRefreshError(error=error, description=description, status_code=response.status_code)
+
+        tokens = response.json()
+        try:
+            return Tokens(**tokens)
+        except ValidationError as exc:
+            logger.error("Error getting tokens from oauth. Resp: %s", tokens)
+            raise MARefreshTokenError from exc
+
+    @staticmethod
+    def _parse_token_error(response: httpx.Response) -> tuple[str, str]:
+        """Извлечь ``error`` и ``error_description`` из тела ошибки токен-эндпоинта."""
+        try:
+            body = response.json()
+        except Exception:
+            return "unknown", response.text
+        if not isinstance(body, dict):
+            return "unknown", str(body)
+        error = str(body.get("error") or "unknown")
+        description = str(body.get("error_description") or "")
+        return error, description
 
     async def delete_token(self, user: User):
+        await self.delete_token_by_id(user.id)
+
+    async def delete_token_by_id(self, user_id: int):
+        """Обнулить access/refresh токены пользователя (токен отозван/истёк)."""
         async with self._db_session_factory() as db:
             await db.execute(
                 sa.update(MemealertsSettings)
-                .where(MemealertsSettings.user_id == user.id)
+                .where(MemealertsSettings.user_id == user_id)
                 .values(
                     access_token=None,
                     refresh_token=None,

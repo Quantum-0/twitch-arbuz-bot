@@ -16,6 +16,7 @@ from starlette.responses import RedirectResponse
 from config import settings
 from container import Container
 from database.models import MemealertsSettings, TwitchUserSettings
+from exceptions import MATokenRefreshError
 from routers.security_helpers import user_auth
 from schemas.memealerts import MAChannel
 from services.memes_v2 import MemealertsOAuthService, MemealertsV2Service
@@ -60,7 +61,17 @@ async def callback(
     if decoded.get("user_id") != user.id:
         raise HTTPException(403, detail="Invalid `state` value")
 
-    tokens = await memealerts.auth_user(authorization_code=code, user=user)
+    try:
+        tokens = await memealerts.auth_user(authorization_code=code, user=user)
+    except MATokenRefreshError as exc:
+        logger.warning("Memealerts auth code exchange failed: error=%s desc=%s", exc.error, exc.description)
+        if exc.error == "invalid_grant":
+            detail = "Код авторизации истёк или уже использован. Попробуйте авторизоваться заново."
+        elif exc.error == "invalid_client":
+            detail = "Ошибка приложения Memealerts. Обратитесь к администратору."
+        else:
+            detail = f"Ошибка авторизации Memealerts: {exc.error}"
+        raise HTTPException(400, detail=detail) from exc
     if not tokens:
         raise HTTPException(400, detail="Memealerts не вернул токен пользователя. Попробуйте ещё раз.")
 
