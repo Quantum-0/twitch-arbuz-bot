@@ -64,9 +64,7 @@ def _build_select_query() -> sa.Select[tuple[Any, ...]]:
     )
 
 
-async def _resolve_online_streams(
-    db_rows: list[dict[str, Any]], twitch: Twitch, cache: Cache
-) -> set[str]:
+async def _resolve_online_streams(db_rows: list[dict[str, Any]], twitch: Twitch, cache: Cache) -> set[str]:
     online_streams = await cache.get_set("online_streams")
     if online_streams:
         return online_streams
@@ -153,8 +151,11 @@ async def get_streamers_list(
         row["overlay_used_recently"] = _is_overlay_used_recently(row["overlays_last_usage"], now=now)
         row["score"] = compute_streamer_score(row)
         row["role"] = _resolve_role(row)
+        row["avatar_url"] = row.get("avatar_url")[::-1].replace("003x003", "07x07", 1)[::-1]
+        # разворачиваем чтоб только последнее с конца заменить (мало ли в середине будет о_О)
 
-    res = _apply_filters(res, filters or {})
+    res = _apply_filters(res, filters or {})  # TODO: эти фильтры должны применяться в запросе в бд, а не после него!!!
+    # хотяяя.. есть шанс тогда поломать кэш.. короче надо подумать О.о
     return _apply_sort(res, sort, order)
 
 
