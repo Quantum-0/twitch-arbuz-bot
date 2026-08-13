@@ -88,6 +88,8 @@ class TTSService:
         if not token:
             raise TTSServiceError("TTS service is not configured (no token)")
 
+        text = text.replace("книга", "книжка")
+
         preset = resolve_tts_model(model or self._model)
         body: dict[str, Any] = {
             "model": preset["model"],
