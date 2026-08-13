@@ -109,6 +109,7 @@ class ChatBot:
         self._command_manager.register(HornyGoodCommand)
         self._command_manager.register(BoopCommand)
         self._command_manager.register(PatCommand)
+        self._command_manager.register(ScratchCommand)
         self._command_manager.register(PastaCommand)
         self._command_manager.register(HugCommand)
         self._command_manager.register(LurkCommand)

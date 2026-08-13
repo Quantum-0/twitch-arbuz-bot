@@ -141,6 +141,7 @@ class TwitchUserSettings(Base):
     enable_pat: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false(), nullable=False)
     enable_hug: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false(), nullable=False)
     enable_bonk: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false(), nullable=False)
+    enable_scratch: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false(), nullable=False)
 
     enable_banana: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false(), nullable=False)
     enable_treat: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false(), nullable=False)

@@ -19,6 +19,7 @@ class UpdateSettingsForm(BaseModel):
     enable_hug: bool | None = Field(None)
     enable_bonk: bool | None = Field(None)
     enable_feed: bool | None = Field(None)
+    enable_scratch: bool | None = Field(None)
 
     enable_dice: bool | None = Field(None)
     enable_pasta: bool | None = Field(None)

@@ -1,12 +1,14 @@
 from .banana import BananaCommand
 from .bite import BiteCommand
-from .boop import BoopCommand
 from .bonk import BonkCommand
+from .boop import BoopCommand
 from .bush import BushCommand
 from .cmdlist import CmdlistCommand
 from .dice import DiceCommand
-from .horny_good import HornyGoodCommand
+from .discord import LinkDisCommand
+from .feed import FeedCommand
 from .horny_bad import HornyBadCommand
+from .horny_good import HornyGoodCommand
 from .hug import HugCommand
 from .lick import LickCommand
 from .links import LinksCommand
@@ -16,13 +18,12 @@ from .pants import PantsCommand
 from .pants_deny import PantsDenyCommand
 from .pasta import PastaCommand
 from .pat import PatCommand
+from .scratch import ScratchCommand
 from .tail import TailCommand
-from .whoami import WhoAmICommand
-from .feed import FeedCommand
-from .treat import TreatCommand
 from .tg import LinkTgCommand
 from .tiktok import LinkTiktokCommand
-from .discord import LinkDisCommand
+from .treat import TreatCommand
+from .whoami import WhoAmICommand
 from .youtube import LinkYoutubeCommand
 
 __all__ = [
@@ -49,6 +50,7 @@ __all__ = [
     "PantsDenyCommand",
     "PastaCommand",
     "PatCommand",
+    "ScratchCommand",
     "TailCommand",
     "TreatCommand",
     "WhoAmICommand",
