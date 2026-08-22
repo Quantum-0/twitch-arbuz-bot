@@ -29,6 +29,18 @@
         // post_processing), их нельзя усреднять вместе → «(все)» убрано.
         // Доступен только режим «раздельно» (top-N подтипов).
         ai_sticker_processing_time: ["gen_mini", "gen_quality", "post_processing", "__split__"],
+        ma_token_refresh: [
+            "",
+            "success",
+            "invalid_grant",
+            "invalid_client",
+            "invalid_request",
+            "unsupported_grant_type",
+            "server_error",
+            "network_error",
+            "expired",
+            "__split__",
+        ],
         // users_count: кумулятивный график, без подтипов.
         users_count: [""],
     };
@@ -49,6 +61,14 @@
         gen_mini: "генерация (mini)",
         gen_quality: "генерация (quality)",
         post_processing: "пост-обработка",
+        // MA token refresh subtypes
+        invalid_grant: "токен отозван",
+        invalid_client: "неверный клиент",
+        invalid_request: "неверный запрос",
+        unsupported_grant_type: "неподдерживаемый тип",
+        server_error: "ошибка сервера",
+        network_error: "сетевая ошибка",
+        expired: "истёк",
     };
 
     // Псевдо-subtype, при котором фронт идёт к series endpoint для multi-line.
@@ -59,10 +79,11 @@
         command_handled: "по командам",
         sse_connections: "по каналам",
         ai_sticker_processing_time: "по этапам",
+        ma_token_refresh: "по исходам",
     };
 
     // Типы метрик, для которых доступна «раздельно» (multi-line) режим.
-    const SPLITTABLE_TYPES = new Set(["command_handled", "sse_connections", "ai_sticker_processing_time"]);
+    const SPLITTABLE_TYPES = new Set(["command_handled", "sse_connections", "ai_sticker_processing_time", "ma_token_refresh"]);
 
     const TYPE_LABELS = {
         message_incoming: "Входящие сообщения",
@@ -76,6 +97,7 @@
         heat_proxy_messages: "Heat: сообщения",
         heat_proxy_bytes: "Heat: данные",
         ai_sticker_processing_time: "ИИ-стикеры: время",
+        ma_token_refresh: "MA: обновление токена",
         users_count: "Пользователи бота",
     };
 
