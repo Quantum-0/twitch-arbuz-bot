@@ -1,43 +1,19 @@
 <h3>Настройки мемалёртов</h3>
 <small class="overlay-copy-hint">
-    <p>Здесь представлены настройки для подключения награды, с помощью которой зрители могут купить мемкоины за баллы канала.</p>
-    <p>Вы можете редактировать стоимость награды, её описание и название как пожелаете, это не повлияет на её работу.</p>
-    <p>Количество мемкоинов, которые пользователь получит, устанавливается <a href="https://dashboard.twitch.tv/u/{{ user.login_name }}/viewer-rewards/channel-points/rewards">здесь</a>.</p>
+    <p>Старая ручная интеграция Memealerts больше не поддерживается и будет отключена в ближайшее время.</p>
+    <p>Если вы использовали ручную интеграцию, пожалуйста, подключите нативную интеграцию ниже.</p>
+    <p>Редактировать стоимость награды, её описание и название можно <a href="https://dashboard.twitch.tv/u/{{ user.login_name }}/viewer-rewards/channel-points/rewards">в настройках награды Twitch</a> — это не повлияет на её работу.</p>
     <p>НЕ ВКЛЮЧАЙТЕ <u>Пропустить очередь запросов на награды</u>, бот сам отмечает награду выполненной, если начисление прошло успешно, и отклоняет выполнение награды, возвращая баллы, если не получилось.</p>
-    <p>В случае возникновения проблем, проверьте, что у вас включена отправка мемов, пользователь получил приветственный бонус или отправлял мемы ранее, время жизни токена не истекло. Если решить проблему не получается самостоятельно, обратитесь к <a href="https://t.me/quantum0">автору бота</a>.</p>
 </small>
 
-
-{% if memealerts.enabled %}
-    <button id="memealerts-btn" class="btn-danger" onclick="toggleMemealerts(false)">Отключить мемалёрты</button>
-    <p>Время жизни токена:
-        {% if memealerts.expires_in == 0 %}
-            <span style="font-weight: bold; color: red;">{{ memealerts.expires_in }} дней</span>
-        {% else %}
-            {{ memealerts.expires_in }} дней
-        {% endif %}. По истечению срока действия токена его необходимо будет обновить.
-    </p>
-    <button id="refresh-token-btn" onclick="openRefreshModal()">Обновить токен</button>
-    <div class="memealert-coins-wrapper">
-        <span>Количество мемкоинов за награду</span>
-        <div class="memealert-coins">
-            <!-- TODO: REFACTOR -->
-            <button type="button" class="coin-btn" onclick="changeCoinCount(-1)">−</button>
-            <input type="number" id="coin-count" min="1" max="100" value="{{ memealerts.coins_for_reward }}">
-            <button type="button" class="coin-btn" onclick="changeCoinCount(1)">+</button>
-        </div>
-    </div>
-{% else %}
-    <button id="memealerts-btn" onclick="openActivateModal()">Включить мемалёрты</button>
-{% endif %}
-
+<h4>Ручная интеграция</h4>
+<p>Ручное подключение по токену больше недоступно. Эта интеграция не поддерживается и будет отключена в ближайшее время. Для продолжения работы подключите нативную интеграцию.</p>
+<button type="button" disabled style="opacity: 0.5; cursor: not-allowed;">Ручная интеграция недоступна</button>
 
 <br>
 
 <h3>Нативная интеграция с Memealerts</h3>
-<p>Данный функционал пока находится в разработке.</p>
-<p>В будущем подключение через ручное копирование токена будет отключено.</p>
-<p>Пока это подключение ни на что не влияет, но вы можете его тыкнуть, чтоб помочь с тестированием <3</p>
+<p>Привяжите ваш аккаунт к Memealerts через кнопку ниже, чтобы позволись зрителям обменивать баллы канала на мемкоины в сервисе Memealerts.</p>
 {% if memealerts.enabled_v2 %}
     <div id="memealerts-v2-connected">
         <div class="cards-grid">
@@ -53,6 +29,14 @@
                 <div><h3>Награда на Twitch</h3>
                 <ul class="card-status-problems-list" style="margin: 0px"></ul></div>
                 <div class="status-indicator tooltip-container"><span class="tooltip-text">Показывает, что награда на Twitch создана и сервис подписан на события о её использовании</span></div>
+            </div>
+        </div>
+        <div class="memealert-coins-wrapper">
+            <span>Количество мемкоинов за награду</span>
+            <div class="memealert-coins">
+                <button type="button" class="coin-btn" onclick="changeCoinCount(-1)">−</button>
+                <input type="number" id="coin-count" min="1" max="100" value="{{ memealerts.coins_for_reward }}">
+                <button type="button" class="coin-btn" onclick="changeCoinCount(1)">+</button>
             </div>
         </div>
         <div class="cards-grid">

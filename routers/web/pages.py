@@ -24,7 +24,6 @@ from services.cache import Cache
 from twitch.chat.bot import ChatBot
 from twitch.client.twitch import Twitch
 from twitch.state_manager import StateManager
-from utils.memes import token_expires_in_days
 from utils.template_globals import register_template_globals
 from utils.tts import get_tts_settings
 
@@ -98,9 +97,6 @@ async def control_panel(
             "settings": user.settings,
             "memealerts": {
                 "enabled": user.memealerts.memealerts_reward is not None,
-                "expires_in": await token_expires_in_days(user.memealerts.memealerts_token)
-                if user.memealerts.memealerts_token
-                else None,
                 "coins_for_reward": user.memealerts.coins_for_reward,
                 "enabled_v2": user.memealerts.access_token is not None,
             },
@@ -306,6 +302,7 @@ async def about_page(
 @router.get(
     "/memealerts-tutorial",
     response_class=HTMLResponse,
+    deprecated=True,
 )
 async def meme_tutorial_page(
     request: Request,

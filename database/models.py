@@ -206,7 +206,9 @@ class MemealertsSettings(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     user_id: Mapped[int] = mapped_column(Integer, ForeignKey("twitch_bot_users.id", ondelete="CASCADE"), nullable=False)
     memealerts_reward: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True, default=None)
-    _memealerts_token: Mapped[str | None] = mapped_column("memealerts_token", String, nullable=True)
+    _memealerts_token: Mapped[str | None] = mapped_column(
+        "memealerts_token", String, nullable=True
+    )  # deprecated: v1 fallback
     coins_for_reward: Mapped[int] = mapped_column(
         "coins_for_reward", Integer, nullable=False, server_default="2", default=2
     )

@@ -173,7 +173,8 @@ class TwitchEventSubService:
     ) -> None:
         self._inc_reward("received", StatsType.REWARD_MEMECOINS)
         try:
-            # TODO: Плавно переходим на memealerts_v2
+            # Deprecated: keep the v1 path and v2-to-v1 fallback until all users migrate to v2.
+            # TODO: Remove the v1 branch, fallback, dependency, and legacy token after migration is complete.
             if user.memealerts.access_token is None:
                 # Старый флоу
                 result = await self._memealerts.give_bonus(

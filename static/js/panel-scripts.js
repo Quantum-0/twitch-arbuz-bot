@@ -1,5 +1,4 @@
 let coinSaveTimer = null;
-let isRefresh = false;
 
 function showNotification(title, message, isError=false) {
     const container = document.querySelector('.notification-container');
@@ -184,54 +183,6 @@ function initTargetBehaviourRadios() {
             if (!event.target.checked) return;
             void updateSetting('chatbot_default_target_behaviour', event.target.value);
         });
-    });
-}
-
-function openActivateModal() {
-    isRefresh = false;
-    openModal();
-}
-
-function openRefreshModal() {
-    isRefresh = true;
-    openModal();
-}
-
-function openModal() { ym(108266334, 'reachGoal', 'setupMemealertsOpenModal'); document.getElementById('memealert-modal').style.display = 'flex'; }
-function closeModal() { document.getElementById('memealert-modal').style.display = 'none'; }
-function saveMemealert() {
-    const key = document.getElementById('memealert-key').value.trim();
-    if (!key) return showNotification('Ошибка', 'Введите ключ', true);
-    closeModal();
-    toggleMemealerts(true, key, isRefresh);
-}
-
-function toggleMemealerts(enable, key='', refresh=false) {
-    if (enable) {
-        ym(108266334, 'reachGoal', 'setupMemealerts');
-    }
-    const btn = document.getElementById('memealerts-btn');
-    if (btn) {
-        btn.disabled = true;
-        btn.textContent = 'Подождите...';
-    }
-    const url = `/api/user/memealerts?enable=${enable}${refresh ? '&refresh=true' : ''}`;
-    fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: enable ? `key=${encodeURIComponent(key)}` : ''
-    })
-    .then(res => res.json().then(data => ({ ok: res.ok, data })))
-    .then(({ok, data}) => {
-        showNotification(data.title || 'Мемалёрты', data.message, !ok);
-        setTimeout(() => location.reload(), 2000);
-    })
-    .catch(err => {
-        showNotification('Ошибка', err.message, true);
-        if (btn) {
-            btn.disabled = false;
-            btn.textContent = enable ? 'Включить мемалёрты' : 'Отключить мемалёрты';
-        }
     });
 }
 
