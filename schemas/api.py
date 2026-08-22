@@ -137,6 +137,14 @@ class StatsType(StrEnum):
     TTS_BLOCKED = "tts_blocked"
     # Timing-метрика: avg время (мс) синтеза TTS во внешнем API.
     TTS_PROCESSING_TIME = "tts_processing_time"
+    # Gauge: число активных вычислительных нод TTS (snapshot из NodeManager).
+    # Subtype: "total" | "gpu" (пока принимаем только GPU-ноды).
+    NODES_ACTIVE = "nodes_active"
+    # Counter: исходы задач, отправленных на ноды.
+    # Subtype: "dispatched" | "succeeded" | "failed" | "timeout" | "requeued".
+    NODE_TASKS = "node_tasks"
+    # Timing-метрика: avg время (мс) выполнения задачи на ноде (dispatch → result).
+    NODE_TASK_TIME = "node_task_time"
 
 
 class StatsPeriod(StrEnum):

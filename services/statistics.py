@@ -56,6 +56,7 @@ TIMING_TYPES: set[str] = {
     str(StatsType.MESSAGE_PROCESSING_TIME),
     str(StatsType.AI_STICKER_PROCESSING_TIME),
     str(StatsType.TTS_PROCESSING_TIME),
+    str(StatsType.NODE_TASK_TIME),
 }
 
 # Sum-метрики: ``value = sum(sum_ms)`` (суммарный объём, не среднее). ``count``
@@ -67,7 +68,11 @@ SUM_TYPES: set[str] = {str(StatsType.HEAT_PROXY_BYTES)}
 # мгновенное значение (snapshot), в Redis пишутся через ``hset`` (overwrite, не
 # инкремент), в БД — через ``ON CONFLICT DO UPDATE set count = EXCLUDED.count``
 # (перезапись, не сумма). SSE-подключения и активные каналы.
-GAUGE_TYPES: set[str] = {str(StatsType.SSE_CONNECTIONS), str(StatsType.ACTIVE_CHANNELS)}
+GAUGE_TYPES: set[str] = {
+    str(StatsType.SSE_CONNECTIONS),
+    str(StatsType.ACTIVE_CHANNELS),
+    str(StatsType.NODES_ACTIVE),
+}
 
 # Подтипы ``sse_connections`` (snapshot от ``SSEManager.snapshot``) делятся на
 # служебные агрегаты (``total``, ``unique_users``, ``unique_pairs``) и

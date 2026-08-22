@@ -6,6 +6,7 @@ from routers.api.profile_api import router as profile_api_router
 from routers.api.slovotron_webhook import router as slovotron_api_router
 from routers.api.twitch_eventsub import router as eventsub_router
 from routers.api.user_api import router as user_api_router
+from routers.nodes_ws import router as nodes_router
 from routers.robots.for_robots import router as router_for_robots  # noqa
 from routers.sse import router as sse_router
 from routers.web.extension import router as web_extension_router
@@ -28,6 +29,7 @@ api_router.include_router(api_extension_router, tags=["Extension"])
 # User
 user_router = APIRouter(prefix="", tags=["User"])
 user_router.include_router(sse_router)
+user_router.include_router(nodes_router)
 user_router.include_router(overlays_router)
 user_router.include_router(pages_routers)
 user_router.include_router(service_routes_router)

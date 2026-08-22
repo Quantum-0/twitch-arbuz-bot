@@ -13,6 +13,7 @@ from services.memes import MemealertsService
 from services.memes_v2 import MemealertsOAuthService, MemealertsV2Service
 from services.moderation import ModerationService
 from services.mqtt import MQTTClient
+from services.node_manager import NodeManager
 from services.redis_state_manager import RedisStateManager, init_redis
 from services.s3 import FileStorage
 from services.slovotron import SlovotronService
@@ -20,7 +21,7 @@ from services.sse_manager import SSEManager
 from services.statistics import StatisticsService
 from services.stickers import StickersService
 from services.stickers_processor import StickerProcessor
-from services.tts import TTSService
+from services.tts import ApiTTSService, NodeTTSService
 from twitch.chat.bot import ChatBot
 from twitch.client.twitch import Twitch
 
@@ -37,6 +38,7 @@ class Container(containers.DeclarativeContainer):
             "routers.api.user.stats",
             "routers.api.user.checks",
             "routers.api.slovotron_webhook",
+            "routers.nodes_ws",
             "routers.web.service_routes",
             "routers.web.memealerts_routes",
             "routers.web.pages",
@@ -105,10 +107,23 @@ class Container(containers.DeclarativeContainer):
         statistics=statistics,
     )
     moderation_service = providers.Singleton(ModerationService)
-    tts_service = providers.Singleton(
-        TTSService,
-        db_session_factory=db_session_factory,
+    node_manager = providers.Singleton(
+        NodeManager,
         statistics=statistics,
+        heartbeat_timeout_s=20,
+        task_timeout_s=30,
+    )
+    tts_service = providers.Selector(
+        lambda: settings.tts_backend,
+        api=providers.Singleton(
+            ApiTTSService,
+            statistics=statistics,
+        ),
+        nodes=providers.Singleton(
+            NodeTTSService,
+            node_manager=node_manager,
+            statistics=statistics,
+        ),
     )
     twitch_eventsub_service = providers.Singleton(
         TwitchEventSubService,

@@ -91,6 +91,11 @@ class Settings(BaseSettings):
     tts_api_url: str = "http://157.22.205.183:8000/v1/audio/speech"
     tts_api_token: SecretStr = SecretStr("")
     tts_model: str = "neco-arc"
+    # Backend TTS: "api" — внешний HTTP-API (tts_api_url), "nodes" — P2P-ноды через WS.
+    tts_backend: str = "api"
+    # Фиксированный ключ авторизации для WS-подключений вычислительных нод (GET /nodes/ws?token=...).
+    # Используется вместо per-operator токенов: нода передаёт этот ключ в query-string.
+    node_auth_token: SecretStr = SecretStr("")
 
     @property
     def login_twitch_url(self) -> str:

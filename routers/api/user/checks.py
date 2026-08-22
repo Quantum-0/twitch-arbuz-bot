@@ -18,6 +18,7 @@ from schemas.api import (
 )
 from schemas.memealerts import MAChannel
 from services.memes_v2 import MemealertsOAuthService, MemealertsV2Service
+from services.node_manager import NodeManager
 from services.sse_manager import SSEManager
 from twitch.client.twitch import Twitch
 from utils.enums import SSEChannel
@@ -178,8 +179,24 @@ async def check_tts_overlay(
 
 
 @router.get("/tts-server", response_model=CheckStatusResponseSchema)
-async def check_tts_server() -> CheckStatusResponseSchema:
-    """Проверить доступность внешнего TTS-сервера через /health."""
+@inject
+async def check_tts_server(
+    node_manager: Annotated[NodeManager, Depends(Provide[Container.node_manager])],
+    user: User = Security(user_auth),
+) -> CheckStatusResponseSchema:
+    """Проверить доступность TTS-бэкенда.
+
+    Для ``tts_backend == "api"`` — пинг внешнего сервера через /health.
+    Для ``tts_backend == "nodes"`` — есть ли онлайн GPU-нода с моделью стримера.
+    """
+    if settings.tts_backend == "nodes":
+        tts = get_tts_settings(user)
+        model = tts.model or settings.tts_model
+        if node_manager.is_available(model):
+            return CheckStatusResponseSchema(result=True, problems=[])
+        return CheckStatusResponseSchema(result=False, problems=[f"Нет онлайн-ноды с моделью '{model}'"])
+
+    # api-бэкенд: пинг внешнего TTS-сервера.
     parts = urlsplit(settings.tts_api_url)
     health_url = urlunsplit((parts.scheme, parts.netloc, "/health", "", ""))
     try:
