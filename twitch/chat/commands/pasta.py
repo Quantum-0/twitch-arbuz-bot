@@ -1,6 +1,7 @@
-from database.models import TwitchUserSettings, User, RaidPasta
-from twitch.chat.base.cooldown_command import SimpleCDCommand
 import sqlalchemy as sa
+
+from database.models import RaidPasta, TwitchUserSettings, User
+from twitch.chat.base.cooldown_command import SimpleCDCommand
 
 
 class PastaCommand(SimpleCDCommand):
@@ -15,7 +16,10 @@ class PastaCommand(SimpleCDCommand):
         return streamer_settings.enable_pasta
 
     async def _handle(self, streamer: User, user: str, message: str) -> str | None:
-        if any(pattern in message for pattern in {"рандомпаста", "пастарандом", "рандомнаяпаста", "рандом паста", "паста рандом"}):
+        if any(
+            pattern in message
+            for pattern in {"рандомпаста", "пастарандом", "рандомнаяпаста", "рандом паста", "паста рандом"}
+        ):
             return await self._handle_random(streamer)
         elif message.strip() in {"!pasta", "!паста"}:
             return await self._get_pasta(streamer)
@@ -28,9 +32,9 @@ class PastaCommand(SimpleCDCommand):
 
     async def _handle_random(self, streamer: User) -> str | None:
         async with self.db_session() as session:
-            result = (await session.execute(
-                sa.select(RaidPasta).order_by(sa.func.random()).limit(1)
-            )).scalar_one_or_none()
+            result = (
+                await session.execute(sa.select(RaidPasta).order_by(sa.func.random()).limit(1))
+            ).scalar_one_or_none()
             return result.text
 
     async def _get_pasta(self, streamer: User) -> str | None:
@@ -39,7 +43,9 @@ class PastaCommand(SimpleCDCommand):
     async def _save_pasta(self, streamer: User, pasta: str) -> str:
         async with self.db_session() as session:
             await session.execute(
-                sa.update(TwitchUserSettings).where(TwitchUserSettings.user_id == streamer.id).values({"personal_pasta": pasta})
+                sa.update(TwitchUserSettings)
+                .where(TwitchUserSettings.user_id == streamer.id)
+                .values({"personal_pasta": pasta})
             )
             await session.commit()
         return "Паста сохранена."

@@ -2,7 +2,7 @@ from typing import Annotated
 
 import sqlalchemy as sa
 from dependency_injector.wiring import Provide, inject
-from fastapi import APIRouter, Depends, Response, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette import status
 
@@ -36,8 +36,8 @@ async def slovotron_webhook_options():
         403: {"description": "Некорректный секрет"},
         404: {"description": "Канал (channel) не найден"},
         424: {"description": "Невалидная схема данных (Failed Dependency)"},
-        500: {"description": "Внутренняя ошибка сервера"}
-    }
+        500: {"description": "Внутренняя ошибка сервера"},
+    },
 )
 @inject
 async def slovotron_webhook(
@@ -47,9 +47,7 @@ async def slovotron_webhook(
 ):
     if not payload.validate_secret():
         raise HTTPException(status_code=403, detail="Invalid secret")
-    user = (await db.execute(
-        sa.select(User).where(User.login_name == payload.channel)
-    )).scalar_one_or_none()
+    user = (await db.execute(sa.select(User).where(User.login_name == payload.channel))).scalar_one_or_none()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     await mqtt.publish(f"slovotron/{payload.event}/{payload.channel}", payload)

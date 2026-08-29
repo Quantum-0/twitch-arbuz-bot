@@ -61,7 +61,5 @@ async def list_streamers(
     }
     filters = {key: _parse_tristate(raw_filters[key]) for key in FILTER_KEYS}
 
-    rows = await get_streamers_list(
-        db, twitch, cache, sort=sort_key, order=sort_order, filters=filters
-    )
+    rows = await get_streamers_list(db, twitch, cache, sort=sort_key, order=sort_order, filters=filters)
     return [public_streamer_payload(row) for row in rows]

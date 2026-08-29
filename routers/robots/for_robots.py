@@ -1,12 +1,13 @@
 import fnmatch
 import re
-from fastapi import Response, Request, APIRouter
-from fastapi.openapi.utils import get_openapi
 from xml.etree import ElementTree as ET
 
+from fastapi import APIRouter, Request, Response
+from fastapi.openapi.utils import get_openapi
 from starlette.responses import FileResponse
 
 router = APIRouter(prefix="", tags=["Robots"])
+
 
 def get_disallowed_patterns_from_robots():
     """Reads robots.txt and extracts all Disallow paths."""

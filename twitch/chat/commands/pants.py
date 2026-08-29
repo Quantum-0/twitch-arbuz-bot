@@ -10,7 +10,7 @@ import sqlalchemy as sa
 from opentelemetry import trace
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from database.models import TwitchUserSettings, User, PantsDeny
+from database.models import PantsDeny, TwitchUserSettings, User
 from twitch.chat.base.cooldown_command import SimpleCDCommand
 from twitch.state_manager import SMParam, StateManager
 from twitch.utils import extract_targets
@@ -39,10 +39,7 @@ class PantsCommand(SimpleCDCommand):
 
     async def check_denied(self, *names: str) -> list[str]:
         async with self.db_session() as session:
-            result = await session.execute(
-                sa.select(PantsDeny)
-                .where(PantsDeny.name.in_([n.lower() for n in names]))
-            )
+            result = await session.execute(sa.select(PantsDeny).where(PantsDeny.name.in_([n.lower() for n in names])))
             return result.scalars().all()
 
     def is_enabled(self, streamer_settings: TwitchUserSettings) -> bool:
@@ -60,12 +57,7 @@ class PantsCommand(SimpleCDCommand):
             return f"Невозможно начать новый розыгрыш трусов, пока не разыграли трусы @{pants_user}"
 
         # Берём активных чаттерсов
-        active_users: list[str] = [
-            x
-            for x, y in await self.chat_bot.get_last_active_users(
-                streamer.login_name
-            )
-        ]
+        active_users: list[str] = [x for x, y in await self.chat_bot.get_last_active_users(streamer.login_name)]
 
         # Выбор цели
         target: str | None = None
@@ -83,7 +75,7 @@ class PantsCommand(SimpleCDCommand):
             target = targets[0][1:]
 
         if target and target.lower() not in {usr.lower() for usr in active_users}:
-            return "Не вижу такого пользователя :< Разыгрывать трусы можно только тех людей, кто писал в чатик ^^\""
+            return 'Не вижу такого пользователя :< Разыгрывать трусы можно только тех людей, кто писал в чатик ^^"'
 
         if target and await self.check_denied(target):
             return "К сожалению, данный пользователь запретил разыгрывать свои трусы :с Выбери другую жертву!"
@@ -99,10 +91,15 @@ class PantsCommand(SimpleCDCommand):
                     command=self.command_name,
                     user=usr,
                     param=SMParam.TARGET_COOLDOWN,
-                ) for usr in active_users
+                )
+                for usr in active_users
             }
             # Фильтруем
-            targets = [usr for usr in active_users if (users_last_ts[usr] is None) or (time() - users_last_ts[usr] > self.cooldown_timer_per_target)]
+            targets = [
+                usr
+                for usr in active_users
+                if (users_last_ts[usr] is None) or (time() - users_last_ts[usr] > self.cooldown_timer_per_target)
+            ]
             # Фильтруем запрещённые
             targets = [usr for usr in targets if not (await self.check_denied(usr))]
             # Проверяем что есть такие
@@ -130,13 +127,19 @@ class PantsCommand(SimpleCDCommand):
             user=target,
             param=SMParam.TARGET_COOLDOWN,
         )
-        logger.info(f"last_ts for target = {last_ts}, time = {time()}, delta = {(time() - last_ts) if last_ts else None}")
+        logger.info(
+            f"last_ts for target = {last_ts}, time = {time()}, delta = {(time() - last_ts) if last_ts else None}"
+        )
         if last_ts and time() - last_ts < self.cooldown_timer_per_target:
             return f"Трусы @{target} уже были недавно разыграны. Давайте позволим @{target} сперва найти и надеть новые трусы, а потом уже разыграем их"
 
         # Запускаем розыгрыш
-        await self._state_manager.set_state(channel=streamer.login_name, command=self.command_name, param=SMParam.USER, value=target)
-        await self._state_manager.set_state(channel=streamer.login_name, command=self.command_name, param=SMParam.PARTICIPANTS, value=set())
+        await self._state_manager.set_state(
+            channel=streamer.login_name, command=self.command_name, param=SMParam.USER, value=target
+        )
+        await self._state_manager.set_state(
+            channel=streamer.login_name, command=self.command_name, param=SMParam.PARTICIPANTS, value=set()
+        )
 
         # Запускаем асинхронный таймер
         asyncio.create_task(call_with_delay(60, run_in_clean_otel_context(self.finish_raffle(streamer, target))))
@@ -157,8 +160,12 @@ class PantsCommand(SimpleCDCommand):
     async def finish_raffle(self, channel: User, target: str):
         logger.info(f"Finishing raffle for channel {channel.login_name}")
         with tracer.start_as_current_span("Pants Raffle: Processing Result") as span:
-            target_from_sm = await self._state_manager.get_state(channel=channel.login_name, command=self.command_name, param=SMParam.USER)
-            participants: set[str] = await self._state_manager.get_state(channel=channel.login_name, command=self.command_name, param=SMParam.PARTICIPANTS)
+            target_from_sm = await self._state_manager.get_state(
+                channel=channel.login_name, command=self.command_name, param=SMParam.USER
+            )
+            participants: set[str] = await self._state_manager.get_state(
+                channel=channel.login_name, command=self.command_name, param=SMParam.PARTICIPANTS
+            )
             logger.info(f"Participants: {participants}")
             if participants is None or not target_from_sm or target_from_sm.lower() != target.lower():
                 logger.info("Raffle was canceled")
@@ -167,11 +174,16 @@ class PantsCommand(SimpleCDCommand):
             participants = set(participants)
             if len(participants) == 0:
                 logger.info("Nobody entered")
-                await self.send_response(chat=channel, message=f"Розыгрыш окончен! Но, к сожалению, никто не принял участие в розыгрыше твоих трусов, @{target}, поэтому они остаются при тебе :с")
-                await self._state_manager.del_state(channel=channel.login_name, command=self.command_name,
-                                                    param=SMParam.USER)
-                await self._state_manager.del_state(channel=channel.login_name, command=self.command_name,
-                                                    param=SMParam.PARTICIPANTS)
+                await self.send_response(
+                    chat=channel,
+                    message=f"Розыгрыш окончен! Но, к сожалению, никто не принял участие в розыгрыше твоих трусов, @{target}, поэтому они остаются при тебе :с",
+                )
+                await self._state_manager.del_state(
+                    channel=channel.login_name, command=self.command_name, param=SMParam.USER
+                )
+                await self._state_manager.del_state(
+                    channel=channel.login_name, command=self.command_name, param=SMParam.PARTICIPANTS
+                )
                 return
 
             winner: str = random.choice(list(participants))
@@ -187,10 +199,7 @@ class PantsCommand(SimpleCDCommand):
             elif participants_count >= 5:
                 msg += f"приняло участие аж целых {participants_count} человек!"
             msg += f" Время объявлять победителя! Итак.. Трусы @{target} сегодня получааааает... *барабанная дробь*"
-            await self.send_response(
-                chat=channel,
-                message=msg
-            )
+            await self.send_response(chat=channel, message=msg)
 
         await asyncio.sleep(3)
 
@@ -200,10 +209,20 @@ class PantsCommand(SimpleCDCommand):
             type2 = {"с сердечками", "кружевные", "семейные", "эротичные"}  # TODO
             if winner.lower() == target.lower():
                 logger.info("Winner = self")
-                await self.send_response(chat=channel, message=f"@{winner}! Поздравляем, сегодня ты становишься счастливым обладателем собственных трусов! Надевай их скорее обратно! И больше не снимай!")
+                await self.send_response(
+                    chat=channel,
+                    message=f"@{winner}! Поздравляем, сегодня ты становишься счастливым обладателем собственных трусов! Надевай их скорее обратно! И больше не снимай!",
+                )
             else:
-                await self.send_response(chat=channel, message=f"@{winner}! Поздравляем, сегодня ты становишься счастливым обладателем трусов @{target}!")
+                await self.send_response(
+                    chat=channel,
+                    message=f"@{winner}! Поздравляем, сегодня ты становишься счастливым обладателем трусов @{target}!",
+                )
 
-            await self._state_manager.del_state(channel=channel.login_name, command=self.command_name, param=SMParam.USER)
-            await self._state_manager.del_state(channel=channel.login_name, command=self.command_name, param=SMParam.PARTICIPANTS)
+            await self._state_manager.del_state(
+                channel=channel.login_name, command=self.command_name, param=SMParam.USER
+            )
+            await self._state_manager.del_state(
+                channel=channel.login_name, command=self.command_name, param=SMParam.PARTICIPANTS
+            )
             logger.info("State for pants raffle is erased")

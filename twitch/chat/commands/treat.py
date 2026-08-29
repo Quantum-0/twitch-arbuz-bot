@@ -1,7 +1,7 @@
 import random
 from typing import Any
 
-from database.models import User, TwitchUserSettings
+from database.models import TwitchUserSettings, User
 from twitch.chat.base.saving_result_command import SavingResultCommand
 
 
@@ -52,11 +52,13 @@ class TreatCommand(SavingResultCommand):
         )
 
     async def _handle_new(self, streamer: User, user: str, text: str, new_value: str):
-        return random.choice([
-            f"Проверяю @{user} на вкус. Результат: {new_value}",
-            f"Оцениваю вкусность @{user}. Результат: {new_value}",
-            f"Облизываю @{user} для анализа. Результат: {new_value}",
-        ])
+        return random.choice(
+            [
+                f"Проверяю @{user} на вкус. Результат: {new_value}",
+                f"Оцениваю вкусность @{user}. Результат: {new_value}",
+                f"Облизываю @{user} для анализа. Результат: {new_value}",
+            ]
+        )
 
     async def _target_selected(self, user: str, targets: list[str]):
         variants = [
@@ -67,9 +69,7 @@ class TreatCommand(SavingResultCommand):
         ]
         return random.choice(variants)
 
-    async def _handle_old(
-        self, streamer: User, user: str, text: str, old_value: str, seconds_spend: str
-    ):
+    async def _handle_old(self, streamer: User, user: str, text: str, old_value: str, seconds_spend: str):
         variants = [
             f"Тебе так нравится, когда тебя облизывают? Ладно, давай ещё раз. Результат: {old_value}",
             f"Тебе так нравится, когда тебя дегустируют? Ладно, давай попробую снова. Результат: {old_value}",
@@ -79,4 +79,3 @@ class TreatCommand(SavingResultCommand):
 
     def is_enabled(self, streamer_settings: TwitchUserSettings) -> bool:
         return streamer_settings.enable_treat
-

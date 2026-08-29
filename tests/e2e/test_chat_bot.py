@@ -25,7 +25,7 @@ def test_check_main_page(context, main_page_url, twitch_creds):
         scr = screenshot(page, full_page=False)
         allure.attach(scr, name="Чат бот выключен", attachment_type=allure.attachment_type.PNG)
 
-    with (allure.step("Заходим на твич")):
+    with allure.step("Заходим на твич"):
         page_twitch: Page = context.new_page()
         page_twitch.goto("https://www.twitch.tv/quantum075", timeout=60000)
         page_twitch.click("text=Войти")
@@ -41,4 +41,4 @@ def test_check_main_page(context, main_page_url, twitch_creds):
         chat_input.focus()
         page_twitch.locator('[data-test-selector="chat-rules-ok-button"]').click()
         chat_input.type("!cmdlist")
-        chat_input.press('Enter')
+        chat_input.press("Enter")

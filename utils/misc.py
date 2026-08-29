@@ -11,12 +11,12 @@ async def call_with_delay(timer: float, func: Awaitable[T]) -> T:
     return await func
 
 
-from opentelemetry.context import attach, detach, Context
+from opentelemetry.context import Context, attach, detach
 
 
 async def run_in_clean_otel_context(coro):
     """Сбрасывает текущий контекст OpenTelemetry и запускает корутину в новом трейсе"""
-    token = attach(Context()) # Полный разрыв связи
+    token = attach(Context())  # Полный разрыв связи
     try:
         await coro
     finally:

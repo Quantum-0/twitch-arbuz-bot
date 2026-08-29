@@ -1,8 +1,9 @@
 import re
 
-from database.models import TwitchUserSettings, User, RaidPasta, Links
-from twitch.chat.base.cooldown_command import SimpleCDCommand
 import sqlalchemy as sa
+
+from database.models import Links, RaidPasta, TwitchUserSettings, User
+from twitch.chat.base.cooldown_command import SimpleCDCommand
 
 
 class LinkTiktokCommand(SimpleCDCommand):
@@ -40,7 +41,5 @@ class LinkTiktokCommand(SimpleCDCommand):
 
     async def _save_link(self, streamer: User, link: str) -> None:
         async with self.db_session() as session:
-            await session.execute(
-                sa.update(Links).where(Links.user_id == streamer.id).values({"tiktok": link})
-            )
+            await session.execute(sa.update(Links).where(Links.user_id == streamer.id).values({"tiktok": link}))
             await session.commit()

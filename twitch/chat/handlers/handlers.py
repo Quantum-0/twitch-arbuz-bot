@@ -68,15 +68,11 @@ class PyramidHandler(CommonMessagesHandler):
         if isinstance(message.emotes, dict) and len(message.emotes.keys()) == 1:
             emote = list(message.emotes.keys())[0]
             emote_count = len(list(message.emotes.items())[0][1])
-            ranges = [
-                (int(x["start_position"]), int(x["end_position"]))
-                for x in list(message.emotes.items())[0][1]
-            ]
+            ranges = [(int(x["start_position"]), int(x["end_position"])) for x in list(message.emotes.items())[0][1]]
             cutted = 0
             for rng in ranges:
                 message.message.text = (
-                    message.message.text[: rng[0] - cutted]
-                    + message.message.text[1 + rng[1] - cutted :]
+                    message.message.text[: rng[0] - cutted] + message.message.text[1 + rng[1] - cutted :]
                 )
                 cutted += 1 + rng[1] - rng[0]
             message.message.text = message.message.text.strip()

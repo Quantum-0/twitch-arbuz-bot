@@ -35,43 +35,35 @@ async def test_admin_api_not_authorized(client):
 
 @pytest.mark.asyncio()
 async def test_admin_api_cookie(client, test_user_cookie):
-    resp = await client.post(
-        "/api/admin/add_to_beta_test?twitch_login=test", cookies=test_user_cookie
-    )
+    resp = await client.post("/api/admin/add_to_beta_test?twitch_login=test", cookies=test_user_cookie)
     assert resp.status_code == 401
 
 
 @pytest.mark.asyncio()
 async def test_admin_api_invalid_creds(client):
-    encoded_credentials = b64encode(
-        f"random_user:random_password".encode("utf-8")
-    ).decode("utf-8")
+    encoded_credentials = b64encode(f"random_user:random_password".encode("utf-8")).decode("utf-8")
     authorization_header = f"Basic {encoded_credentials}"
     headers = {"Authorization": authorization_header}
-    resp = await client.post(
-        "/api/admin/add_to_beta_test?twitch_login=test", headers=headers
-    )
+    resp = await client.post("/api/admin/add_to_beta_test?twitch_login=test", headers=headers)
     assert resp.status_code == 403
 
 
 @pytest.mark.asyncio()
 async def test_admin_api_valid_creds(client):
-    encoded_credentials = b64encode(
-        f"{settings.admin_api_login}:{settings.admin_api_password}".encode("utf-8")
-    ).decode("utf-8")
+    encoded_credentials = b64encode(f"{settings.admin_api_login}:{settings.admin_api_password}".encode("utf-8")).decode(
+        "utf-8"
+    )
     authorization_header = f"Basic {encoded_credentials}"
     headers = {"Authorization": authorization_header}
-    resp = await client.post(
-        "/api/admin/add_to_beta_test?twitch_login=test", headers=headers
-    )
+    resp = await client.post("/api/admin/add_to_beta_test?twitch_login=test", headers=headers)
     assert resp.status_code == 401
 
 
 @pytest.mark.asyncio()
 async def test_admin_api_valid_creds_and_cookie(client, test_user_cookie):
-    encoded_credentials = b64encode(
-        f"{settings.admin_api_login}:{settings.admin_api_password}".encode("utf-8")
-    ).decode("utf-8")
+    encoded_credentials = b64encode(f"{settings.admin_api_login}:{settings.admin_api_password}".encode("utf-8")).decode(
+        "utf-8"
+    )
     authorization_header = f"Basic {encoded_credentials}"
     headers = {"Authorization": authorization_header}
     resp = await client.post(
@@ -132,9 +124,9 @@ async def test_admin_frontend_no_auth(client, user_auth_mock):
 
 @pytest.mark.asyncio()
 async def test_admin_frontend_invalid_user(client, user_auth_mock):
-    encoded_credentials = b64encode(
-        f"{settings.admin_api_login}:{settings.admin_api_password}".encode("utf-8")
-    ).decode("utf-8")
+    encoded_credentials = b64encode(f"{settings.admin_api_login}:{settings.admin_api_password}".encode("utf-8")).decode(
+        "utf-8"
+    )
     authorization_header = f"Basic {encoded_credentials}"
     headers = {"Authorization": authorization_header}
     resp = await client.get("/admin", headers=headers)
@@ -144,9 +136,9 @@ async def test_admin_frontend_invalid_user(client, user_auth_mock):
 @pytest.mark.asyncio()
 async def test_admin_frontend_valid_user(client, user_auth_mock, test_user):
     test_user.login_name = "quantum075"
-    encoded_credentials = b64encode(
-        f"{settings.admin_api_login}:{settings.admin_api_password}".encode("utf-8")
-    ).decode("utf-8")
+    encoded_credentials = b64encode(f"{settings.admin_api_login}:{settings.admin_api_password}".encode("utf-8")).decode(
+        "utf-8"
+    )
     authorization_header = f"Basic {encoded_credentials}"
     headers = {"Authorization": authorization_header}
     resp = await client.get("/admin", headers=headers)

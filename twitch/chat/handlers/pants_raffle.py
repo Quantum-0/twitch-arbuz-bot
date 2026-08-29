@@ -1,11 +1,12 @@
 import logging
 
-from database.models import User, TwitchUserSettings, PantsDeny
+import sqlalchemy as sa
+
+from database.models import PantsDeny, TwitchUserSettings, User
 from schemas.twitch import ChatMessageWebhookEventSchema
 from twitch.chat.commands import PantsCommand
 from twitch.chat.handlers.handlers import CommonMessagesHandler, HandlerResult
 from twitch.state_manager import SMParam
-import sqlalchemy as sa
 
 logger = logging.getLogger(__name__)
 
@@ -16,52 +17,39 @@ class PantsRaffleHandler(CommonMessagesHandler):
 
     async def check_denied(self, *names: str) -> list[str]:
         async with self.db_session() as session:
-            result = await session.execute(
-                sa.select(PantsDeny)
-                .where(PantsDeny.name.in_([n.lower() for n in names]))
-            )
+            result = await session.execute(sa.select(PantsDeny).where(PantsDeny.name.in_([n.lower() for n in names])))
             return result.scalars().all()
 
-    async def handle(
-        self, streamer: User, message: ChatMessageWebhookEventSchema
-    ) -> HandlerResult:
+    async def handle(self, streamer: User, message: ChatMessageWebhookEventSchema) -> HandlerResult:
         if message.message.text.strip() not in ("+", "-"):
             return HandlerResult.SKIPED
 
         logger.info(f"Handled `{message.message.text.strip()}`")
         target = await self._state_manager.get_state(
-            channel=streamer.login_name,
-            command=PantsCommand.command_name,
-            param=SMParam.USER
+            channel=streamer.login_name, command=PantsCommand.command_name, param=SMParam.USER
         )
         if target is None:
             logger.info("Raffle was not ran on the channel")
             return HandlerResult.SKIPED
         participants: set[str] = await self._state_manager.get_state(
-            channel=streamer.login_name,
-            command=PantsCommand.command_name,
-            param=SMParam.PARTICIPANTS
+            channel=streamer.login_name, command=PantsCommand.command_name, param=SMParam.PARTICIPANTS
         )
         if participants is None:
             logger.info("Raffle was not ran on the channel")
             return HandlerResult.SKIPED
         participants = set(participants)
 
-        if message.message.text.strip() == '-':
+        if message.message.text.strip() == "-":
             if message.chatter_user_login == target.lower():
                 await self.send_response(
                     chat=streamer,
-                    message=f'@{message.chatter_user_name} не хочет отдавать свои трусы, поэтому розыгрыш отменяется. Простите, ребят :<'
+                    message=f"@{message.chatter_user_name} не хочет отдавать свои трусы, поэтому розыгрыш отменяется. Простите, ребят :<",
                 )
                 await self._state_manager.del_state(
-                    channel=streamer.login_name,
-                    command=PantsCommand.command_name,
-                    param=SMParam.USER
+                    channel=streamer.login_name, command=PantsCommand.command_name, param=SMParam.USER
                 )
                 await self._state_manager.del_state(
-                    channel=streamer.login_name,
-                    command=PantsCommand.command_name,
-                    param=SMParam.PARTICIPANTS
+                    channel=streamer.login_name, command=PantsCommand.command_name, param=SMParam.PARTICIPANTS
                 )
                 return HandlerResult.HANDLED
             else:
@@ -87,6 +75,6 @@ class PantsRaffleHandler(CommonMessagesHandler):
         if len(participants) == 5:
             await self.send_response(
                 chat=streamer,
-                message=f'Уже целых 5 человек хотят заполучить трусы @{target}! Ничего себе! А ты пользуешься популярностью ;)'
+                message=f"Уже целых 5 человек хотят заполучить трусы @{target}! Ничего себе! А ты пользуешься популярностью ;)",
             )
         return HandlerResult.HANDLED

@@ -91,11 +91,8 @@ class WhoAmICommand(SavingResultCommand):
     async def _target_selected(self, user: str, targets: list[str]):
         return None
 
-    async def _handle_old(
-        self, streamer: User, user: str, text: str, old_value: str, seconds_spend: str
-    ):
+    async def _handle_old(self, streamer: User, user: str, text: str, old_value: str, seconds_spend: str):
         return f"Мы ведь уже проверяли сегодня.. Ладно, если ты так хочешь, я проверю ещё раз! Итак, ты сегодня.. {old_value}!"
 
     def is_enabled(self, streamer_settings: TwitchUserSettings) -> bool:
         return streamer_settings.enable_whoami
-

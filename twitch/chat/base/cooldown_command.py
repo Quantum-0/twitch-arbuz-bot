@@ -47,9 +47,7 @@ class SimpleCDCommand(Command):
             and self.cooldown_timer_per_user
             and time() - last_command_call_user < self.cooldown_timer_per_user
         ):
-            logger.debug(
-                f"Skip command {self.command_name} because of per-user cooldown"
-            )
+            logger.debug(f"Skip command {self.command_name} because of per-user cooldown")
             delay = self.cooldown_timer_per_user - int(time() - last_command_call_user)
             response = await self._cooldown_reply(user, delay)
             await self.send_response(chat=streamer, message=response)
@@ -60,12 +58,8 @@ class SimpleCDCommand(Command):
             and self.cooldown_timer_per_chat
             and time() - last_command_call_channel < self.cooldown_timer_per_chat
         ):
-            logger.debug(
-                f"Skip command {self.command_name} because of per-channel cooldown"
-            )
-            delay = self.cooldown_timer_per_chat - int(
-                time() - last_command_call_channel
-            )
+            logger.debug(f"Skip command {self.command_name} because of per-channel cooldown")
+            delay = self.cooldown_timer_per_chat - int(time() - last_command_call_channel)
             response = await self._cooldown_reply(user, delay)
             await self.send_response(chat=streamer, message=response)
             return

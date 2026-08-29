@@ -1,12 +1,12 @@
 import pytest
-
-# !!! ORDER IS IMPORTANT !!!
-from tests.unit.fixtures import event_loop  # noqa
-from tests.unit.fixtures.twitch_message import twitch_message_event_model, twitch_message_event_raw  # noqa
 from pytest import fixture
 from pytest_asyncio import is_async_test
 
 from database.models import User
+
+# !!! ORDER IS IMPORTANT !!!
+from tests.unit.fixtures import event_loop  # noqa
+from tests.unit.fixtures.twitch_message import twitch_message_event_model, twitch_message_event_raw  # noqa
 from twitch.state_manager import InMemoryStateManager
 
 
@@ -26,9 +26,7 @@ def send_message_mock():
 
         def assert_sent(self, message: str, chat: str = None):
             if chat:
-                assert any(
-                    call[1] == message and call[0] == chat for call in self._calls
-                ), self._calls
+                assert any(call[1] == message and call[0] == chat for call in self._calls), self._calls
             else:
                 assert any(call[1] == message for call in self._calls), self._calls
 
@@ -37,9 +35,7 @@ def send_message_mock():
                 assert len(self._calls) == 0
                 return
             if chat:
-                assert not any(
-                    call[1] == message and call[0] == chat for call in self._calls
-                ), self._calls
+                assert not any(call[1] == message and call[0] == chat for call in self._calls), self._calls
             else:
                 assert not any(call[1] == message for call in self._calls), self._calls
 

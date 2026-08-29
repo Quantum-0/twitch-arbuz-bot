@@ -2,7 +2,8 @@ import random
 
 from database.models import TwitchUserSettings, User
 from twitch.chat.base.target_command import SimpleTargetCommand
-from twitch.utils import join_targets, delay_to_seconds
+from twitch.utils import delay_to_seconds, join_targets
+
 
 class LickCommand(SimpleTargetCommand):
     command_name = "lick"
@@ -16,9 +17,7 @@ class LickCommand(SimpleTargetCommand):
     def is_enabled(self, streamer_settings: TwitchUserSettings) -> bool:
         return streamer_settings.enable_lick
 
-    async def _handle(
-        self, streamer: User, user: str, message: str, targets: list[str]
-    ) -> str:
+    async def _handle(self, streamer: User, user: str, message: str, targets: list[str]) -> str:
         target = join_targets(targets)
         if random.random() < 0.005:
             return (
@@ -38,7 +37,7 @@ class LickCommand(SimpleTargetCommand):
             f"@{user} лижет в нос {target}",
             f"@{user} пытается лизнуть {target}, но {target} успешно уворачива{'е' if len(targets) == 1 else 'ю'}тся от нападения языком!",
             f"@{user} облизывает {target} с ног до головы, словно большой леденец!",
-            f"@{user} оставляет на {target} свой мокрый \"автограф\".",
+            f'@{user} оставляет на {target} свой мокрый "автограф".',
             f"@{user} лижет {target}, проверяя на вкус... Хм, интересно!",
             f"@{user} проводит дегустацию вкусовых качеств {target}. Результат: {random.choice(['необычно', 'любопытно', 'аппетитно', 'вкусно', 'вполне сносно'])}!",
             f"@{user} пробует {target} на вкус. Кажется, это вкус победы!",
@@ -67,7 +66,6 @@ class LickCommand(SimpleTargetCommand):
                 f"@{user} облизывает сам себя о.О",
                 f"@{user} совершает САМОЛИЗЬ!",
                 f"@{user} развлекается с собственным языком.",
-
                 f"@{user} пытается лизнуть сам себя… и почти получается o_O",
                 f"@{user} совершает САМОЛИЗЬ! Зачем? Почему?..",
                 f"@{user} экспериментирует со своим же языком. Странно, но ладно.",

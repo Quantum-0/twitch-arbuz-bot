@@ -2,7 +2,7 @@ import re
 
 import sqlalchemy as sa
 
-from database.models import TwitchUserSettings, User, Links
+from database.models import Links, TwitchUserSettings, User
 from twitch.chat.base.cooldown_command import SimpleCDCommand
 
 
@@ -22,7 +22,10 @@ class LinkDisCommand(SimpleCDCommand):
             return await self._get_link(streamer)
         elif streamer.login_name == user.lower():
             link = message.strip().split(maxsplit=1)[1]
-            parsed = re.match(r"(https?://)?(www\.)?(discord\.(gg|io|me|li)|discordapp\.com/invite|discord\.com/invite)/[^\s/]+?", link)
+            parsed = re.match(
+                r"(https?://)?(www\.)?(discord\.(gg|io|me|li)|discordapp\.com/invite|discord\.com/invite)/[^\s/]+?",
+                link,
+            )
             if not parsed:
                 return "Кажется это некорректная ссылка :с"
             await self._save_link(streamer, link)
@@ -40,7 +43,5 @@ class LinkDisCommand(SimpleCDCommand):
 
     async def _save_link(self, streamer: User, link: str) -> None:
         async with self.db_session() as session:
-            await session.execute(
-                sa.update(Links).where(Links.user_id == streamer.id).values({"discord": link})
-            )
+            await session.execute(sa.update(Links).where(Links.user_id == streamer.id).values({"discord": link}))
             await session.commit()

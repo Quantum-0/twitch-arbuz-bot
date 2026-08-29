@@ -27,9 +27,7 @@ from twitch.chat.handlers.handlers import HelloHandler
     ],
 )
 @pytest.mark.asyncio
-async def test_hello_positive(
-    state_manager, send_message_mock, streamer_name, user_name, user_message
-):
+async def test_hello_positive(state_manager, send_message_mock, streamer_name, user_name, user_message):
     random.seed(42)
     handler = HelloHandler(sm=state_manager, send_message=send_message_mock)
     msg = ChatMessage(
@@ -44,14 +42,10 @@ async def test_hello_positive(
         },
     )
     await handler.handle(streamer_name, msg)
-    send_message_mock.assert_sent(
-        f"@{user_name['display_name']}, дарова! >w<", chat=streamer_name
-    )
+    send_message_mock.assert_sent(f"@{user_name['display_name']}, дарова! >w<", chat=streamer_name)
 
 
-@pytest.mark.parametrize(
-    "user_message", ["@Quantum075Bot, привет!", "@Quantum075Bot кваствуй"]
-)
+@pytest.mark.parametrize("user_message", ["@Quantum075Bot, привет!", "@Quantum075Bot кваствуй"])
 @pytest.mark.parametrize(
     ("streamer_name", "response"),
     [
@@ -61,9 +55,7 @@ async def test_hello_positive(
     ],
 )
 @pytest.mark.asyncio
-async def test_hello_custom_reply_in_channels(
-    state_manager, send_message_mock, streamer_name, response, user_message
-):
+async def test_hello_custom_reply_in_channels(state_manager, send_message_mock, streamer_name, response, user_message):
     random.seed(42)
     handler = HelloHandler(sm=state_manager, send_message=send_message_mock)
     msg = ChatMessage(

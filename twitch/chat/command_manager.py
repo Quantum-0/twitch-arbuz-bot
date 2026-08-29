@@ -43,7 +43,9 @@ class CommandsManager:
     ):
         logger.debug(f"Handling message with {self.__class__.__name__}")
         if not user_settings.allow_shared_chat and message.source_broadcaster_user_id:
-            logger.debug(f"Skip message because of common chat. Source: {message.source_broadcaster_user_login}, Broadcaster: {message.broadcaster_user_login}")
+            logger.debug(
+                f"Skip message because of common chat. Source: {message.source_broadcaster_user_login}, Broadcaster: {message.broadcaster_user_login}"
+            )
             return
         for cmd in self.commands:
             if not cmd.is_enabled(user_settings):
@@ -52,20 +54,13 @@ class CommandsManager:
             if (
                 message.reply
                 and message.reply.parent_user_name
-                and message.message.text.startswith(
-                    f"@{message.reply.parent_user_name} "
-                )
+                and message.message.text.startswith(f"@{message.reply.parent_user_name} ")
             ):
-                message.message.text = message.message.text[
-                    len(message.reply.parent_user_name) + 2 :
-                ]
+                message.message.text = message.message.text[len(message.reply.parent_user_name) + 2 :]
 
             if any(
                 # текст сообщения начинается с "!cmd " или = "!cmd"
-                (
-                    message.message.text.lower().startswith(x + " ")
-                    or message.message.text.lower() == x
-                )
+                (message.message.text.lower().startswith(x + " ") or message.message.text.lower() == x)
                 for x in [f"!{alias}" for alias in cmd.command_aliases]
             ):
                 logger.info(f"Handler for command was found: {cmd.__class__.__name__}")

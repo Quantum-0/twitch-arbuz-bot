@@ -47,9 +47,7 @@ class TailCommand(SavingResultCommand):
             return f"{value // 100 / 10} м"
 
     async def _cooldown_reply(self, user: str, delay: int) -> str | None:
-        return random.choice(
-            [f"Боюсь, пока рано измерять твой хвост. Он не растёт так быстро!"]
-        )
+        return random.choice([f"Боюсь, пока рано измерять твой хвост. Он не растёт так быстро!"])
 
     async def _target_selected(self, user: str, targets: list[str]):
         return None
@@ -112,9 +110,7 @@ class TailCommand(SavingResultCommand):
                 result += " Укоротился >.<"
         return result
 
-    async def _handle_old(
-        self, streamer: User, user: str, text: str, old_value: str, seconds_spend: str
-    ):
+    async def _handle_old(self, streamer: User, user: str, text: str, old_value: str, seconds_spend: str):
         variants = [
             f"Ну мы же только что смотрели.. Лаадно, давай ещё раз. Длина твоего хвоста - {self.convert_tail(int(old_value))}, @{user}",
             f"@{user}, твой хвост всё ещё {self.convert_tail(int(old_value))}",

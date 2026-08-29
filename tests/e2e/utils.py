@@ -5,6 +5,7 @@ import playwright.sync_api
 __path = Path(__file__).resolve().parent / "screenshots"
 __scr_iter = 0
 
+
 def screenshot(page: playwright.sync_api.Page, full_page: bool = True) -> bytes:
     global __scr_iter
     __scr_iter += 1

@@ -18,9 +18,7 @@ class DiceCommand(SimpleTargetCommand):
     def is_enabled(self, streamer_settings: TwitchUserSettings) -> bool:
         return streamer_settings.enable_dice
 
-    async def _handle(
-        self, streamer: User, user: str, message: str, targets: list[str]
-    ) -> str:
+    async def _handle(self, streamer: User, user: str, message: str, targets: list[str]) -> str:
         max_value = 0
         to_grab = False
         if "dice" in message:
@@ -40,12 +38,14 @@ class DiceCommand(SimpleTargetCommand):
         elif "!поднять" in message:
             to_grab = True
 
-        is_fallen = bool(await self._state_manager.get_state(
-            channel=streamer.login_name,
-            user=user.lower(),
-            command=self.command_name,
-            param=SMParam.PREVIOUS_VALUE,
-        ))
+        is_fallen = bool(
+            await self._state_manager.get_state(
+                channel=streamer.login_name,
+                user=user.lower(),
+                command=self.command_name,
+                param=SMParam.PREVIOUS_VALUE,
+            )
+        )
 
         if max_value == 2:
             return f"@{user} кидает монетку и выпадает {'орёл' if random.random() < 0.5 else 'решка'}"

@@ -16,9 +16,7 @@ class BushCommand(SimpleTargetCommand):
     def is_enabled(self, streamer_settings: TwitchUserSettings) -> bool:
         return streamer_settings.enable_bite
 
-    async def _handle(
-        self, streamer: User, user: str, message: str, targets: list[str]
-    ) -> str:
+    async def _handle(self, streamer: User, user: str, message: str, targets: list[str]) -> str:
         variants = [
             'срывает ветку с куста и кладёт себе на голову, приговаривая "я цвяточек"',
             "запрыгивает в куст и начинает издавать звуки растительности",
@@ -26,7 +24,6 @@ class BushCommand(SimpleTargetCommand):
             f"берёт куст, вытаскивает его из земли и швыряет в стримера",
             "отращивает на себе пару веточек и листочков на них",
             "начинает фотосинтезировать",
-
             "становится декоративным кустом и требует полива раз в сутки",
             "издаёт таинственное шуршание, хотя ветра нет…",
             "выпускает в воздух запах свежей зелени и гордится собой",
@@ -42,9 +39,7 @@ class BushCommand(SimpleTargetCommand):
             "начинает тихо шуршать, словно обсуждает что-то с другими кустами",
             "становится кустом загадочного происхождения, который издаёт мягкое «буш-буш»",
         ]
-        return (
-            f"Опечатавшись в команде !кусь, @{user} внезапно {random.choice(variants)}"
-        )
+        return f"Опечатавшись в команде !кусь, @{user} внезапно {random.choice(variants)}"
 
     async def _no_target_reply(self, user: str) -> str | None:
         return await self._handle(None, user, "", [])

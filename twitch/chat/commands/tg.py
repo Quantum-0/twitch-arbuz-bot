@@ -1,8 +1,9 @@
 import re
 
-from database.models import TwitchUserSettings, User, RaidPasta, Links
-from twitch.chat.base.cooldown_command import SimpleCDCommand
 import sqlalchemy as sa
+
+from database.models import Links, RaidPasta, TwitchUserSettings, User
+from twitch.chat.base.cooldown_command import SimpleCDCommand
 
 
 class LinkTgCommand(SimpleCDCommand):
@@ -21,8 +22,16 @@ class LinkTgCommand(SimpleCDCommand):
             return await self._get_link(streamer)
         elif streamer.login_name == user.lower():
             link = message.strip().split(maxsplit=1)[1]
-            parsed = re.match(r"(@(?P<username1>\w*)|(https?:\/\/)?t\.me\/(?P<username2>\w*)(\/(?P<post>\d+))?|(https?:\/\/)?(?P<username3>\w*)\.t\.me\/?)", link)
-            clean_link = parsed.groupdict().get("username1") or parsed.groupdict().get("username2") or parsed.groupdict().get("username3") or None
+            parsed = re.match(
+                r"(@(?P<username1>\w*)|(https?:\/\/)?t\.me\/(?P<username2>\w*)(\/(?P<post>\d+))?|(https?:\/\/)?(?P<username3>\w*)\.t\.me\/?)",
+                link,
+            )
+            clean_link = (
+                parsed.groupdict().get("username1")
+                or parsed.groupdict().get("username2")
+                or parsed.groupdict().get("username3")
+                or None
+            )
             if not clean_link:
                 return "Кажется это некорректная ссылка :с"
             await self._save_link(streamer, clean_link)
@@ -40,7 +49,5 @@ class LinkTgCommand(SimpleCDCommand):
 
     async def _save_link(self, streamer: User, link: str) -> None:
         async with self.db_session() as session:
-            await session.execute(
-                sa.update(Links).where(Links.user_id == streamer.id).values({"telegram": link})
-            )
+            await session.execute(sa.update(Links).where(Links.user_id == streamer.id).values({"telegram": link}))
             await session.commit()

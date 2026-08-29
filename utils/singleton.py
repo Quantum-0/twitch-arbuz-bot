@@ -4,9 +4,7 @@ def singleton(class_):
 
         def __new__(class_, *args, **kwargs):
             if class_w._instance is None:
-                class_w._instance = super(class_w, class_).__new__(
-                    class_, *args, **kwargs
-                )
+                class_w._instance = super(class_w, class_).__new__(class_, *args, **kwargs)
                 class_w._instance._sealed = False
             return class_w._instance
 

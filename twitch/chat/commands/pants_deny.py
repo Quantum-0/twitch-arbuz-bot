@@ -6,7 +6,7 @@ from opentelemetry import trace
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from database.models import TwitchUserSettings, User, PantsDeny
+from database.models import PantsDeny, TwitchUserSettings, User
 from twitch.chat.base.cooldown_command import SimpleCDCommand
 from twitch.state_manager import StateManager
 from twitch.utils import delay_to_seconds
@@ -33,26 +33,17 @@ class PantsDenyCommand(SimpleCDCommand):
 
     async def check_denied(self, *names: str) -> list[str]:
         async with self.db_session() as session:
-            result = await session.execute(
-                sa.select(PantsDeny)
-                .where(PantsDeny.name.in_([n.lower() for n in names]))
-            )
+            result = await session.execute(sa.select(PantsDeny).where(PantsDeny.name.in_([n.lower() for n in names])))
             return result.scalars().all()
 
     async def add_to_denied(self, name: str):
         async with self.db_session() as session:
-            await session.execute(
-                insert(PantsDeny)
-                .values({"name": name.lower()})
-            )
+            await session.execute(insert(PantsDeny).values({"name": name.lower()}))
             await session.commit()
 
     async def remove_from_denied(self, name: str):
         async with self.db_session() as session:
-            await session.execute(
-                sa.delete(PantsDeny)
-                .where(PantsDeny.name == name.lower())
-            )
+            await session.execute(sa.delete(PantsDeny).where(PantsDeny.name == name.lower()))
             await session.commit()
 
     def is_enabled(self, streamer_settings: TwitchUserSettings) -> bool:
@@ -73,6 +64,8 @@ class PantsDenyCommand(SimpleCDCommand):
         return f"@{user} вновь разрешает использовать свои трусы для розыгрыша!"
 
     async def _cooldown_reply(self, user: str, delay: int) -> str | None:
-        return (f"Нельзя так часто пользоваться командой запрета трусов ^w^ "
-                f"Чтоб снова {'разрешить' if bool(await self.check_denied(user)) else 'запретить'}"
-                f"свои трусы для розыгрыша, подождите {delay_to_seconds(delay)} хЪ")
+        return (
+            f"Нельзя так часто пользоваться командой запрета трусов ^w^ "
+            f"Чтоб снова {'разрешить' if bool(await self.check_denied(user)) else 'запретить'}"
+            f"свои трусы для розыгрыша, подождите {delay_to_seconds(delay)} хЪ"
+        )

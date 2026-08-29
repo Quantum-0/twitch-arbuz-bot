@@ -12,8 +12,12 @@ from config import settings
 from container import Container
 from routers.helpers import parse_eventsub_payload
 from schemas.api import BaseErrorSchema
-from schemas.twitch import PointRewardRedemptionWebhookSchema, TwitchChallengeSchema, RaidWebhookSchema, \
-    ChatMessageSchema
+from schemas.twitch import (
+    ChatMessageSchema,
+    PointRewardRedemptionWebhookSchema,
+    RaidWebhookSchema,
+    TwitchChallengeSchema,
+)
 from services.eventsub_service import TwitchEventSubService
 from services.mqtt import MQTTClient
 from twitch.chat.bot import ChatBot
@@ -31,11 +35,7 @@ local_duplicates_cache: deque[UUID] = deque(maxlen=50)
     responses={
         200: {
             "description": "Challenge response with text/plain",
-            "content": {
-                "text/plain": {
-                    "example": "p7q9384u5y9834u5"
-                }
-            },
+            "content": {"text/plain": {"example": "p7q9384u5y9834u5"}},
         },
         204: {"description": "Successful handling message"},
         400: {

@@ -4,7 +4,7 @@ from time import time
 from database.models import TwitchUserSettings, User
 from twitch.chat.base.target_command import SimpleTargetCommand
 from twitch.state_manager import SMParam
-from twitch.utils import join_targets, delay_to_seconds
+from twitch.utils import delay_to_seconds, join_targets
 
 
 class HugCommand(SimpleTargetCommand):
@@ -18,9 +18,7 @@ class HugCommand(SimpleTargetCommand):
     def is_enabled(self, streamer_settings: TwitchUserSettings) -> bool:
         return streamer_settings.enable_hug
 
-    async def _handle(
-        self, streamer: User, user: str, message: str, targets: list[str]
-    ) -> str:
+    async def _handle(self, streamer: User, user: str, message: str, targets: list[str]) -> str:
         target = join_targets(targets)
         join_to_hugs_str = ""
         if len(targets) == 1:
@@ -39,7 +37,6 @@ class HugCommand(SimpleTargetCommand):
             f"@{user} {join_to_hugs_str}набрасывается с объятиями на {target}",
             f"@{user} {join_to_hugs_str}стискивает в объятиях {target}",
             f"@{user} {join_to_hugs_str}заобнимовывает {target}",
-
             f"@{user} {join_to_hugs_str}окутывает {target} мягкими и тёплыми объятиями",
             f"@{user} {join_to_hugs_str}подходит к {target} и аккуратно, но уверенно обнимает",
             f"@{user} {join_to_hugs_str}обнимает {target} так сильно, что аж искорки в воздухе!",
@@ -50,12 +47,14 @@ class HugCommand(SimpleTargetCommand):
         return random.choice(variants)
 
     async def _no_target_reply(self, user: str) -> str | None:
-        return random.choice([
-            f"@{user} хочет обнимашек, но не справляется с выбором цели для этого, поэтому обнимает плюшевую акулку",
-            # f"@{user} вытягивает руки для обнимашки… но никого рядом нет… эх…",
-            f"@{user} жаждет обнимашек, но за неимением цели обнимает табуретку",
-            f"@{user} так хочет обнять кого-то, что случайно обнимает ближайшей кактус. Ай. 🌵",
-        ])
+        return random.choice(
+            [
+                f"@{user} хочет обнимашек, но не справляется с выбором цели для этого, поэтому обнимает плюшевую акулку",
+                # f"@{user} вытягивает руки для обнимашки… но никого рядом нет… эх…",
+                f"@{user} жаждет обнимашек, но за неимением цели обнимает табуретку",
+                f"@{user} так хочет обнять кого-то, что случайно обнимает ближайшей кактус. Ай. 🌵",
+            ]
+        )
 
     async def _cooldown_reply(self, user: str, delay: int) -> str | None:
         return random.choice(
@@ -86,6 +85,4 @@ class HugCommand(SimpleTargetCommand):
         )
 
     async def _this_bot_call_reply(self, user: str) -> str | None:
-        return random.choice(
-            [f"Уиии, пасиба за обнимашки!", f"@{user}, обнимаю тебя в ответ! <3"]
-        )
+        return random.choice([f"Уиии, пасиба за обнимашки!", f"@{user}, обнимаю тебя в ответ! <3"])

@@ -109,9 +109,7 @@ class InMemoryStateManager(StateManager):
         command: str = COMMON_COMMAND,
         param: PARAM_TYPE = PARAM_TYPE.DEFAULT,
     ):
-        await self.set_state(
-            value=None, channel=channel, user=user, command=command, param=param
-        )
+        await self.set_state(value=None, channel=channel, user=user, command=command, param=param)
 
     def __init__(self, channels_size: int = 30, users_size: int = 100):
         self.channels_size = channels_size
@@ -165,13 +163,9 @@ class InMemoryStateManager(StateManager):
         if isinstance(user, str):
             user = user.lower()
         if channel not in self._storage:
-            self._storage[channel] = OrderedDict[
-                int, OrderedDict[str, OrderedDict[SMParam, VALUE_TYPE]]
-            ]()
+            self._storage[channel] = OrderedDict[int, OrderedDict[str, OrderedDict[SMParam, VALUE_TYPE]]]()
         if user not in self._storage[channel]:
-            self._storage[channel][user] = OrderedDict[
-                str, OrderedDict[SMParam, VALUE_TYPE]
-            ]()
+            self._storage[channel][user] = OrderedDict[str, OrderedDict[SMParam, VALUE_TYPE]]()
         if command not in self._storage[channel][user]:
             self._storage[channel][user][command] = OrderedDict[SMParam, VALUE_TYPE]()
         if value is None and param in self._storage[channel][user][command]:

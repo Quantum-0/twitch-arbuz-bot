@@ -30,9 +30,7 @@ def user_auth_mock(db_session, test_user):
 def test_user_cookie(test_user) -> dict[str, str]:
     k = app.user_middleware[0].kwargs["secret_key"]
     signer = itsdangerous.TimestampSigner(str(k))
-    cookie = signer.sign(
-        b64encode(json.dumps({"user_id": test_user.twitch_id}).encode("utf-8"))
-    )
+    cookie = signer.sign(b64encode(json.dumps({"user_id": test_user.twitch_id}).encode("utf-8")))
     return {"session": cookie.decode("utf-8")}
 
 

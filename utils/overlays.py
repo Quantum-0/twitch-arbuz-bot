@@ -46,6 +46,4 @@ async def touch_overlay_usage(
             await db.execute(stmt)
             await db.commit()
     except Exception:
-        logger.exception(
-            "Failed to touch overlay usage for channel_id=%s channel_name=%s", channel_id, channel_name
-        )
+        logger.exception("Failed to touch overlay usage for channel_id=%s channel_name=%s", channel_id, channel_name)

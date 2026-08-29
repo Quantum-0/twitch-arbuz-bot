@@ -56,13 +56,13 @@ class HornyGoodCommand(SavingResultCommand):
                         ]
                     )
                 elif change == "-":
-                    result += random.choice(
-                        [" В прошлый раз побооольше было конечно.."]
-                    )
+                    result += random.choice([" В прошлый раз побооольше было конечно.."])
         elif value < 40:
             if random.random() < 0.5:
                 if change == "+":
-                    result = f"@{user} хорни на {value}% и более того, я вижу как стремительно растёт твой... процент! >:з"
+                    result = (
+                        f"@{user} хорни на {value}% и более того, я вижу как стремительно растёт твой... процент! >:з"
+                    )
                 elif change == "-":
                     result = f"@{user} хорни на {value}%, и я вижу как твой процент падает 😱 Надеюсь, что это временно, и в ближайшем будущем ты поднимешь свой... процент! >:з"
                 else:
@@ -77,9 +77,7 @@ class HornyGoodCommand(SavingResultCommand):
                 if change == "+":
                     result = f"@{user} хорни на {value}%. Золотая середина! А тот факт, что значение подросло с прошлого раза - не может не радовать!"
                 else:
-                    result = (
-                        f"@{user} хорни на {value}%. Золотая середина, и это прекрасно!"
-                    )
+                    result = f"@{user} хорни на {value}%. Золотая середина, и это прекрасно!"
             else:
                 result = f"@{user} хорни на {value}%. Отличный результат, но, думаю, нам всем стоит постараться и помочь @{user} поднять это значение до максимума!"
         elif value < 80:
@@ -91,7 +89,9 @@ class HornyGoodCommand(SavingResultCommand):
                 result = f"Спрячьте весь Anti-Horny Spray™! Мы ведь не хотим лишиться разгорающихся страстей в чате, ибо у @{user} аж целых {value}%"
         elif value < 95:
             if random.random() < 0.5:
-                result = f"Гляжу, под тобой уже мокро, ведь у тебя, @{user} - {value}%! Только не затопи чат, пожалуйста ;)"
+                result = (
+                    f"Гляжу, под тобой уже мокро, ведь у тебя, @{user} - {value}%! Только не затопи чат, пожалуйста ;)"
+                )
                 if random.random() < 0.25:
                     result += " Хотя кто знает, может они и не против ;)"
             else:
@@ -112,9 +112,7 @@ class HornyGoodCommand(SavingResultCommand):
         ]
         return random.choice(variants)
 
-    async def _handle_old(
-        self, streamer: User, user: str, text: str, old_value: str, seconds_spend: str
-    ):
+    async def _handle_old(self, streamer: User, user: str, text: str, old_value: str, seconds_spend: str):
         value = old_value[1:] if old_value[0] in ["+", "-"] else old_value
         variants = [
             f"Мы уже узнали, что ты на {value}% хорни. Наберись терпения, мы уверены, что твой процент возрастёт :>",

@@ -17,9 +17,7 @@ class FeedCommand(SimpleTargetCommand):
     def is_enabled(self, streamer_settings: TwitchUserSettings) -> bool:
         return streamer_settings.enable_feed
 
-    async def _handle(
-        self, streamer: User, user: str, message: str, targets: list[str]
-    ) -> str:
+    async def _handle(self, streamer: User, user: str, message: str, targets: list[str]) -> str:
         target = join_targets(targets)
         random_action = [
             "кормит",
@@ -54,9 +52,11 @@ class FeedCommand(SimpleTargetCommand):
         )
 
     async def _bot_call_reply(self, user: str, target: str) -> str | None:
-        return random.choice([
-            f"@{user}, суёт печеньку в электронную морду бота. {target} в недоумении.",
-        ])
+        return random.choice(
+            [
+                f"@{user}, суёт печеньку в электронную морду бота. {target} в недоумении.",
+            ]
+        )
 
     async def _this_bot_call_reply(self, user: str) -> str | None:
         return random.choice(

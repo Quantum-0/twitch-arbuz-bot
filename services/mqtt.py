@@ -5,10 +5,10 @@ from collections.abc import Callable
 from contextlib import asynccontextmanager
 from typing import Any, Awaitable
 
-from aiomqtt import Client, MqttError, MqttCodeError, ProtocolVersion
+from aiomqtt import Client, MqttCodeError, MqttError, ProtocolVersion
 from opentelemetry import trace
 from opentelemetry.context import Context
-from opentelemetry.propagate import inject, extract
+from opentelemetry.propagate import extract, inject
 from opentelemetry.trace import SpanKind
 from paho.mqtt.packettypes import PacketTypes
 from paho.mqtt.properties import Properties
@@ -34,7 +34,13 @@ class MQTTClient:
     @asynccontextmanager
     async def lifespan(self):
         try:
-            async with Client(self._host, username=self._username, password=self._password, identifier=self._client_id, protocol=ProtocolVersion.V5) as cli:
+            async with Client(
+                self._host,
+                username=self._username,
+                password=self._password,
+                identifier=self._client_id,
+                protocol=ProtocolVersion.V5,
+            ) as cli:
                 await cli.subscribe(self._prefix + "/#")
                 loop = asyncio.get_event_loop()
                 task = loop.create_task(self.__listen(cli))
@@ -64,7 +70,7 @@ class MQTTClient:
             elif isinstance(data, dict):
                 payload = json.dumps(data, indent=0, ensure_ascii=False)
             elif isinstance(data, BaseModel):
-                payload = json.dumps(data.model_dump(mode='json'))
+                payload = json.dumps(data.model_dump(mode="json"))
             else:
                 raise TypeError("Invalid type of payload: %s", type(data))
 
@@ -79,7 +85,7 @@ class MQTTClient:
             await self._client.publish(
                 self._prefix + "/" + topic,
                 payload=payload,
-                properties=mqtt_properties
+                properties=mqtt_properties,
             )
         except MqttCodeError:
             logger.error("Cannot publish MQTT message", exc_info=True)
@@ -102,6 +108,7 @@ class MQTTClient:
                 return None
 
         return params
+
     def subscribe(
         self,
         topic: str,
@@ -109,9 +116,9 @@ class MQTTClient:
     ):
         async def wrapped_handler(parent_context: Context, *args, **kwargs):
             with tracer.start_as_current_span(
-                    f"MQTT: Handle from `{topic}`",
-                    context=parent_context,  # Связываем с родителем
-                    kind=SpanKind.CONSUMER
+                f"MQTT: Handle from `{topic}`",
+                context=parent_context,  # Связываем с родителем
+                kind=SpanKind.CONSUMER,
             ):
                 await handler(*args, **kwargs)
 
@@ -130,15 +137,15 @@ class MQTTClient:
                 incoming_headers = {}
                 if message.properties and hasattr(message.properties, "UserProperty"):
                     for key, val in message.properties.UserProperty:
-                        k = key.decode('utf-8') if isinstance(key, bytes) else str(key)
-                        v = val.decode('utf-8') if isinstance(val, bytes) else str(val)
+                        k = key.decode("utf-8") if isinstance(key, bytes) else str(key)
+                        v = val.decode("utf-8") if isinstance(val, bytes) else str(val)
                         incoming_headers[k.lower()] = v  # OTEL ищет 'traceparent' в нижнем регистре
 
                 # logger.debug("MQTT Listen CARRIER Headers = %s", incoming_headers)
 
                 parent_context: Context = extract(incoming_headers)
 
-                short_topic = topic[len(self._prefix) + 1:]
+                short_topic = topic[len(self._prefix) + 1 :]
 
                 for pattern, handler in self._handlers:
                     params = self.match_topic(pattern, short_topic)

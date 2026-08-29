@@ -17,23 +17,21 @@ class BoopCommand(SimpleTargetCommand):
     def is_enabled(self, streamer_settings: TwitchUserSettings) -> bool:
         return streamer_settings.enable_boop
 
-    async def _handle(
-        self, streamer: User, user: str, message: str, targets: list[str]
-    ) -> str:
+    async def _handle(self, streamer: User, user: str, message: str, targets: list[str]) -> str:
         target = join_targets(targets)
         random_how = [
             " аккуратненько ",
             " мягенько ",
             " легонько ",
-            *[""]*5,
+            *[""] * 5,
         ]
         random_action = [
             "делает буп",
             "бупает",
         ]
         random_nose = [
-            *["в нось"]*4,
-            *["в носик"]*2,
+            *["в нось"] * 4,
+            *["в носик"] * 2,
             "прямо в носярку",
         ]
         if len(targets) == 1:
@@ -41,7 +39,7 @@ class BoopCommand(SimpleTargetCommand):
                 f", от чего {target} неожиданно пищит",
                 f", а {target} моргает два раза и кажется смущается ≧◡≦",
                 f"и получает ответный буп!",
-                f", но {target} внезапно чихает от этого. @{user}, кажется тебе стоит пойти помыть руку.."
+                f", но {target} внезапно чихает от этого. @{user}, кажется тебе стоит пойти помыть руку..",
                 # f"но {target} внезапно хрюкает от удивления (⁄ʘ⁄⁄ω⁄⁄ʘ⁄)",
             ]
         else:
@@ -49,7 +47,9 @@ class BoopCommand(SimpleTargetCommand):
                 f", от чего {random.choice(targets)} неожиданно пищит",
                 f"и получает от всех ответный буп!",
             ]
-        result = f"@{user}{random.choice(random_how)} {random.choice(random_action)} {random.choice(random_nose)} {target}"
+        result = (
+            f"@{user}{random.choice(random_how)} {random.choice(random_action)} {random.choice(random_nose)} {target}"
+        )
         if random.random() < 0.1:
             result += random.choice(rare_events)
         return result
@@ -69,13 +69,15 @@ class BoopCommand(SimpleTargetCommand):
         )
 
     async def _bot_call_reply(self, user: str, target: str) -> str | None:
-        return random.choice([
-            f"Прости, @{user}, но мы не можем бупнуть в нось бота. У ботов нет носов О:",
-            f"@{user}, боты не бупаются. У них нет носов, только холодные алгоритмы :с",
-            f"Бупнуть бота нельзя — у него нет носа. Но попытка зачтена!",
-            f"@{user}, у ботов нось не предусмотрен техническими характеристиками.",
-            f"Ммм… нет. Боты - не бупопринимающие устройства.",
-        ])
+        return random.choice(
+            [
+                f"Прости, @{user}, но мы не можем бупнуть в нось бота. У ботов нет носов О:",
+                f"@{user}, боты не бупаются. У них нет носов, только холодные алгоритмы :с",
+                f"Бупнуть бота нельзя — у него нет носа. Но попытка зачтена!",
+                f"@{user}, у ботов нось не предусмотрен техническими характеристиками.",
+                f"Ммм… нет. Боты - не бупопринимающие устройства.",
+            ]
+        )
 
     async def _this_bot_call_reply(self, user: str) -> str | None:
         return random.choice(

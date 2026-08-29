@@ -1,17 +1,15 @@
 import aioboto3
+from botocore import exceptions as s3exc
 from opentelemetry import trace
 
 from config import settings
-
-
-from botocore import exceptions as s3exc
-
 
 tracer = trace.get_tracer(__name__)
 
 
 class S3Exception(Exception):
     pass
+
 
 class FileNotExistError(S3Exception):
     pass

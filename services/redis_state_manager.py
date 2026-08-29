@@ -2,24 +2,23 @@ import asyncio
 import json
 import logging
 from contextlib import asynccontextmanager
-from typing import AsyncIterator, Any, AsyncGenerator
+from typing import Any, AsyncGenerator, AsyncIterator
 
 import redis.asyncio as aioredis
 from opentelemetry import trace
 from redis.asyncio import Redis
 
 from twitch.state_manager import (
-    StateManager,
-    COMMON_CHANNEL,
-    USER_TYPE,
     COMMAND_TYPE,
-    PARAM_TYPE,
-    VALUE_TYPE,
-    COMMON_USER,
+    COMMON_CHANNEL,
     COMMON_COMMAND,
+    COMMON_USER,
+    PARAM_TYPE,
+    USER_TYPE,
+    VALUE_TYPE,
     SMParam,
+    StateManager,
 )
-
 
 logger = logging.getLogger(__name__)
 tracer = trace.get_tracer(__name__)
@@ -82,7 +81,11 @@ class RedisStateManager(StateManager):
                 return {}
 
             values = await self._r.mget(target_keys)
-            return {self._ensure_str(key): await self._decode_value(val) for key, val in zip(target_keys, values) if val is not None}
+            return {
+                self._ensure_str(key): await self._decode_value(val)
+                for key, val in zip(target_keys, values)
+                if val is not None
+            }
         except (aioredis.ConnectionError, aioredis.TimeoutError) as e:
             logger.error(f"Redis недоступен! Ошибка: {e}")
             return {}
@@ -106,7 +109,7 @@ class RedisStateManager(StateManager):
         if isinstance(value, str):
             return f"s{value}"
         if isinstance(value, set):
-            return f"j{json.dumps(list(value), separators=(',',':'))}"
+            return f"j{json.dumps(list(value), separators=(',', ':'))}"
         if isinstance(value, bool):
             return f"b{int(value)}"
         if value is None:
@@ -231,7 +234,6 @@ class RedisStateManager(StateManager):
         await self._r.close()  # Закрываем пул соединений с Redis
         print("Успешно: Соединения с Redis закрыты.")
 
-
     # --- ФОНОВЫЙ ВОРКЕР ДЛЯ СЛУШАНИЯ СОБЫТИЙ ОЧИСТКИ ---
     @staticmethod
     async def redis_event_listener(client: aioredis.Redis):
@@ -275,13 +277,15 @@ class RedisStateManager(StateManager):
                     break
 
 
-async def init_redis(redis_url: str, binary: bool=False) -> AsyncGenerator[Redis, Any]:
+async def init_redis(redis_url: str, binary: bool = False) -> AsyncGenerator[Redis, Any]:
     client = aioredis.from_url(redis_url, decode_responses=not binary)
     # Важно: Включаем режим 'Ev' (gEneric + eXpired), чтобы ловить и DEL, и TTL
     await client.config_set("notify-keyspace-events", "Egx")
     await client.ping()
     yield client
     await client.close()
+
+
 #
 # # --- МЕНЕДЖЕР ЖИЗНЕННОГО ЦИКЛА (LIFESPAN) ---
 # @asynccontextmanager

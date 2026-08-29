@@ -2,7 +2,6 @@ import logging
 from collections.abc import Callable
 from typing import Awaitable
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -18,6 +17,7 @@ async def extract_targets(
     #     return m.lastgroup
     # else:
     #     return None
+    # fmt: off
     streamer_alias = {
         "стримера", "стримлера", "стримеру", "стример", "стримлера",
         "стримлеру", "стримлера", "стримлер", "стримерша", "стримершу",
@@ -37,6 +37,7 @@ async def extract_targets(
         "чаттерсы", "чатерсов", "чатерсы", "чаттерсов", "чаттерсам", "чатерсам",
         "зрителей", "зрители",
     }
+    # fmt: on
     command, *other = text.split()
     other = [
         o
@@ -64,7 +65,7 @@ async def extract_targets(
             o = "@" + await func_get_random_user()
             logger.debug(f"`o` replaces to `{o}`")
         if o in all_users:
-            all_users = func_get_active_users(timeout=30*60)  # берём последних за пол часа
+            all_users = func_get_active_users(timeout=30 * 60)  # берём последних за пол часа
             if len(all_users) < 7:
                 result.extend("@" + usr[0] for usr in all_users)
                 continue

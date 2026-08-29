@@ -2,12 +2,12 @@ from typing import Annotated
 from uuid import UUID
 
 from dependency_injector.wiring import Provide, inject
-from fastapi import APIRouter, Path, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Path, Query
 from starlette.responses import Response
 
 from container import Container
 from schemas.enums import FileStorageDir
-from services.s3 import FileStorage, FileNotExistError
+from services.s3 import FileNotExistError, FileStorage
 from services.stickers import StickersService
 
 router = APIRouter(prefix="/files", tags=["File Storage"])
@@ -27,7 +27,7 @@ async def get_file(
             headers = {
                 "Cache-Control": "no-cache, no-store, must-revalidate",
                 "Pragma": "no-cache",
-                "Expires": "0"
+                "Expires": "0",
             }
             return Response(content=file, media_type="image/png", headers=headers)
         raise HTTPException(404, "Object not found")

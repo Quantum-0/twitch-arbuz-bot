@@ -20,13 +20,13 @@ def test_jumping_chibi_overlay(context, main_page_url):
         allure.attach(scr, name="Оверлеи", attachment_type=allure.attachment_type.PNG)
 
     with allure.step("Копируем ссылку"):
-        link = page.locator('.overlay-card').filter(has_text='Jumping Chibi').locator(".overlay-link")
+        link = page.locator(".overlay-card").filter(has_text="Jumping Chibi").locator(".overlay-link")
         link.hover()
         link.click()
 
     clipboard_content = page.evaluate("navigator.clipboard.readText()")
     with allure.step("Проверяем что ссылка скопировалась"):
-        assert '/overlay/jumping-chibi' in clipboard_content
+        assert "/overlay/jumping-chibi" in clipboard_content
 
     with allure.step("Открываем оверлей"):
         page.goto(clipboard_content)

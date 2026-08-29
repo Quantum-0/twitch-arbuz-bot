@@ -66,11 +66,7 @@ class SavingResultCommand(Command):
             await self.send_response(chat=streamer, message=response)
             return
 
-        if (
-            last_command_call
-            and self.cooldown_timer
-            and time() - last_command_call < self.cooldown_timer
-        ):
+        if last_command_call and self.cooldown_timer and time() - last_command_call < self.cooldown_timer:  # nofmt
             delay = self.cooldown_timer - int(time() - last_command_call)
             response = await self._cooldown_reply(user, delay)
             await self.send_response(chat=streamer, message=response)
@@ -85,11 +81,7 @@ class SavingResultCommand(Command):
                     value=time(),
                 )
 
-        if (
-            self.refresh_result_timer
-            and last_result_time
-            and time() - last_result_time < self.refresh_result_timer
-        ):
+        if self.refresh_result_timer and last_result_time and time() - last_result_time < self.refresh_result_timer:
             response = await self._handle_old(
                 streamer,
                 user,
@@ -111,9 +103,7 @@ class SavingResultCommand(Command):
                 param=SMParam.PREVIOUS_VALUE_TIME,
                 value=time(),
             )
-            response = await self._handle_new(
-                streamer, user, message.message.text, new_value
-            )
+            response = await self._handle_new(streamer, user, message.message.text, new_value)
         await self.send_response(chat=streamer, message=response)
         return
 
@@ -126,9 +116,7 @@ class SavingResultCommand(Command):
         raise NotImplementedError
 
     @abstractmethod
-    async def _handle_old(
-        self, streamer: User, user: str, text: str, old_value: str, seconds_spend: str
-    ):
+    async def _handle_old(self, streamer: User, user: str, text: str, old_value: str, seconds_spend: str):
         raise NotImplementedError
 
     @abstractmethod

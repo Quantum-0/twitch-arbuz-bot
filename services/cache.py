@@ -1,7 +1,7 @@
 import hashlib
 import logging
 import pickle
-from collections.abc import Callable, Awaitable
+from collections.abc import Awaitable, Callable
 from typing import TypeVar
 
 import redis.asyncio as aioredis
@@ -64,9 +64,9 @@ class Cache:
 
     async def __set_set(self, name: str, values: set[str], ttl: int = 3600) -> None:
         async with self._r.pipeline(transaction=True) as pipe:
-            pipe.delete(f'cache:{name}')
-            pipe.sadd(f'cache:{name}', *values)
-            pipe.expire(f'cache:{name}', ttl)
+            pipe.delete(f"cache:{name}")
+            pipe.sadd(f"cache:{name}", *values)
+            pipe.expire(f"cache:{name}", ttl)
             await pipe.execute()
 
     async def get_set(self, name: str, no_error: bool = True) -> set[str]:
@@ -79,7 +79,7 @@ class Cache:
         return set()
 
     async def __get_set(self, name: str) -> set[str]:
-        return await self._r.smembers(f'cache:{name}')
+        return await self._r.smembers(f"cache:{name}")
 
     async def check_rate_limit(self, key: str, limit: int, window_s: int) -> bool:
         key = "rate_limit:" + key
@@ -91,7 +91,6 @@ class Cache:
         except Exception:
             logger.error("Error checking rate limit in redis", exc_info=True)
             return True
-
 
 
 # RESULT of optimization with cache

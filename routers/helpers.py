@@ -3,9 +3,13 @@ import logging
 from fastapi import Header, HTTPException, Request, Security
 from pydantic import BaseModel, ValidationError
 
-from schemas.twitch import PointRewardRedemptionWebhookSchema, TwitchChallengeSchema, RaidWebhookSchema, \
-    ChatMessageSchema
 from routers.security_helpers import verify_eventsub_signature
+from schemas.twitch import (
+    ChatMessageSchema,
+    PointRewardRedemptionWebhookSchema,
+    RaidWebhookSchema,
+    TwitchChallengeSchema,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -20,9 +24,7 @@ SCHEMA_BY_TYPE: dict[str, type[BaseModel]] = {
 
 async def parse_eventsub_payload(
     request: Request,
-    eventsub_subscription_type: str = Header(
-        ..., alias="Twitch-Eventsub-Subscription-Type"
-    ),
+    eventsub_subscription_type: str = Header(..., alias="Twitch-Eventsub-Subscription-Type"),
     eventsub_message_type: str = Security(verify_eventsub_signature),
 ) -> PointRewardRedemptionWebhookSchema | RaidWebhookSchema | TwitchChallengeSchema:
     """
@@ -40,9 +42,7 @@ async def parse_eventsub_payload(
     )
 
     if not schema_cls:
-        logger.warning(
-            f"Determine schema {schema_cls} by eventsub_subscription_type: {eventsub_subscription_type}"
-        )
+        logger.warning(f"Determine schema {schema_cls} by eventsub_subscription_type: {eventsub_subscription_type}")
         logger.debug(body)
         raise HTTPException(
             status_code=400,

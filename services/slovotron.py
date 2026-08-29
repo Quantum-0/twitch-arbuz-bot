@@ -1,6 +1,6 @@
 import json
 from collections.abc import Callable
-from typing import Any, Annotated
+from typing import Annotated, Any
 
 import sqlalchemy as sa
 from pydantic import TypeAdapter, ValidationError
@@ -10,9 +10,9 @@ from database.models import User
 from schemas.slovotron import (
     SlovotronEvent,
     SlovotronNewWebhookSchema,
-    SlovotronWinWebhookSchema,
     SlovotronTipWebhookSchema,
     SlovotronWebhookSchema,
+    SlovotronWinWebhookSchema,
 )
 from services.sse_manager import SSEManager
 from twitch.chat.bot import ChatBot
@@ -60,18 +60,14 @@ class SlovotronService:
     async def handle_game_new(self, payload: SlovotronNewWebhookSchema):
         async with self._db_session_factory() as session:
             user: User = (  # type: ignore
-                await session.execute(
-                    sa.select(User).where(User.login_name == payload.channel)
-                )
+                await session.execute(sa.select(User).where(User.login_name == payload.channel))
             ).scalar_one_or_none()
         await self._ssem.broadcast(int(user.twitch_id), SSEChannel.SLOVOTRON, payload.model_dump_json())
 
     async def handle_game_win(self, payload: SlovotronWinWebhookSchema):
         async with self._db_session_factory() as session:
             user: User = (  # type: ignore
-                await session.execute(
-                    sa.select(User).where(User.login_name == payload.channel)
-                )
+                await session.execute(sa.select(User).where(User.login_name == payload.channel))
             ).scalar_one_or_none()
         await self._chat_bot.send_message(
             user, f"@{payload.data.winner.display_name} угадывает слово {payload.data.winning_word}! Поздравляем!"
