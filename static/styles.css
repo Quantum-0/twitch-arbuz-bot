@@ -748,7 +748,7 @@ section h3 {
 .memealert-coins-wrapper {
     display: flex;
     align-items: center;
-    justify-content: space-between;
+    gap: 12px;
     margin-top: 10px;
 }
 .memealert-coins {
