@@ -163,6 +163,16 @@ async def tts_settings_page(
     )
 
 
+@router.get("/agreement", response_class=HTMLResponse)
+async def user_agreement(request: Request):
+    return templates.TemplateResponse("legal/agreement.html", {"request": request})
+
+
+@router.get("/privacy", response_class=HTMLResponse)
+async def privacy(request: Request):
+    return templates.TemplateResponse("legal/privacy.html", {"request": request})
+
+
 @router.get(
     "/faq",
     response_class=HTMLResponse,

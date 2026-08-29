@@ -59,7 +59,9 @@ class Settings(BaseSettings):
     # github_repo_owner: str = "Quantum-0"
     # github_repo_name: str
     openai_api_key: SecretStr
-    openai_base_url: str = "https://api.aitunnel.ru/v1/"
+    openai_base_url: str = (
+        "https://api.aitunnel.ru/v1/"  # TODO: подставить сюда routerai и его токен, сравнить стоимость!
+    )
     mqtt_host: str = "emqx.msk.quantum0.ru"
     mqtt_client_id: str = "twitch-bot"
     mqtt_username: SecretStr
