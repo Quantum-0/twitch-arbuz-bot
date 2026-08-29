@@ -30,6 +30,17 @@ from utils.tts import clean_tts_text, clean_tts_username, truncate_tts
 logger = logging.getLogger(__name__)
 tracer = trace.get_tracer(__name__)
 
+# TODO: убрать после полного перехода пользователей на v2.
+# Порог user_id для поэтапного уведомления v1-пользователей о миграции на v2.
+# Постепенно увеличиваем, пока не покроем всех.
+MEMEALERTS_V1_MIGRATION_USER_ID_THRESHOLD = 2
+MEMEALERTS_V1_MIGRATION_MESSAGE = (
+    "Добрый день, многоувлажняемый стримлер. Текущая интеграция с мемкоинами по токену более неактуальна, "
+    "т.к. мы с коллегами из Memealerts договорились и сделали нативную интеграцию. "
+    "Вам необходимо зайти в панель управления ботом после стрима и подключить новую интеграцию, "
+    "иначе награда в скором времени перестанет работать. Мяу <3"
+)
+
 
 class TwitchEventSubService:
     # startup - subscribe topics if need
@@ -220,6 +231,16 @@ class TwitchEventSubService:
                     await self._chatbot.send_message(user, msg)
                 except:
                     await self._chatbot.send_message(user, f"Мемкоины для {payload.event.user_name} начислены :з")
+
+                # Deprecated v1: уведомляем стримера о необходимости миграции на v2.
+                # TODO: убрать после полного перехода пользователей на v2.
+                if (
+                    user.memealerts.access_token is None
+                    and user.memealerts.memealerts_token
+                    and user.id < MEMEALERTS_V1_MIGRATION_USER_ID_THRESHOLD
+                ):
+                    await self._chatbot.send_message(user, MEMEALERTS_V1_MIGRATION_MESSAGE)
+
                 await self._fulfill_redemption(user, payload)
                 self._inc_reward("succeed", StatsType.REWARD_MEMECOINS)
             else:
