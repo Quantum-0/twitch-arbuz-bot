@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
+from collections import OrderedDict
 from collections.abc import AsyncIterator
 from enum import StrEnum, auto
-from typing import OrderedDict
 
 
 class SMParam(StrEnum):

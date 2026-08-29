@@ -54,7 +54,7 @@ class SimpleTargetCommand(Command, ABC):
                     response = await self._no_target_reply(user)
                     await self.send_response(chat=streamer, message=response)
                     return
-                elif streamer.settings.chatbot_default_target_behaviour == ChatbotDefaultTargetBehaviour.STREAMER:
+                if streamer.settings.chatbot_default_target_behaviour == ChatbotDefaultTargetBehaviour.STREAMER:
                     targets = [f"@{message.broadcaster_user_name}"]
                 elif streamer.settings.chatbot_default_target_behaviour == ChatbotDefaultTargetBehaviour.RANDOM:
                     targets = ["@" + await self.chat_bot.get_random_active_user(streamer)]

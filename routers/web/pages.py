@@ -64,13 +64,12 @@ logger = logging.getLogger(__name__)
 async def index_page(request: Request):
     if request.session.get("user_id"):
         return RedirectResponse(url="/panel")
-    else:
-        return templates.TemplateResponse(
-            "main.html",
-            {
-                "request": request,
-            },
-        )
+    return templates.TemplateResponse(
+        "main.html",
+        {
+            "request": request,
+        },
+    )
 
 
 @router.get(

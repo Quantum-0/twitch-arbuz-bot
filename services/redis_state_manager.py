@@ -1,8 +1,9 @@
 import asyncio
 import json
 import logging
+from collections.abc import AsyncGenerator, AsyncIterator
 from contextlib import asynccontextmanager
-from typing import Any, AsyncGenerator, AsyncIterator
+from typing import Any
 
 import redis.asyncio as aioredis
 from opentelemetry import trace
@@ -131,8 +132,7 @@ class RedisStateManager(StateManager):
             return json.loads(str_value[1:])
         if str_value[0] == "b":
             return bool(int(str_value[1]))
-        else:
-            raise TypeError
+        raise TypeError
 
     @tracer.start_as_current_span("SM: Set State")
     async def set_state(
@@ -195,7 +195,7 @@ class RedisStateManager(StateManager):
 
         except (aioredis.ConnectionError, aioredis.TimeoutError) as e:
             logger.error(f"Redis недоступен! Ошибка: {e}")
-            return
+            return None
 
     @tracer.start_as_current_span("SM: Get All State")
     async def get_all_from_channel(

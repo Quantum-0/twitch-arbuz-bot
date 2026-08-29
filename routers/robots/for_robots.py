@@ -14,7 +14,7 @@ def get_disallowed_patterns_from_robots():
     disallowed = []
     try:
         # Читаем локальный файл robots.txt
-        with open("static/robots.txt", "r", encoding="utf-8") as f:
+        with open("static/robots.txt", encoding="utf-8") as f:
             for line in f:
                 line = line.strip()
                 if line.lower().startswith("disallow:"):

@@ -71,15 +71,14 @@ class SavingResultCommand(Command):
             response = await self._cooldown_reply(user, delay)
             await self.send_response(chat=streamer, message=response)
             return
-        else:
-            if self.cooldown_timer:
-                await self._state_manager.set_state(
-                    channel=streamer.login_name,
-                    user=user_id,
-                    command=self.command_name,
-                    param=SMParam.COOLDOWN,
-                    value=time(),
-                )
+        if self.cooldown_timer:
+            await self._state_manager.set_state(
+                channel=streamer.login_name,
+                user=user_id,
+                command=self.command_name,
+                param=SMParam.COOLDOWN,
+                value=time(),
+            )
 
         if self.refresh_result_timer and last_result_time and time() - last_result_time < self.refresh_result_timer:
             response = await self._handle_old(

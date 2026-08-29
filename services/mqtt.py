@@ -1,9 +1,9 @@
 import asyncio
 import json
 import logging
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from contextlib import asynccontextmanager
-from typing import Any, Awaitable
+from typing import Any
 
 from aiomqtt import Client, MqttCodeError, MqttError, ProtocolVersion
 from opentelemetry import trace
@@ -53,7 +53,7 @@ class MQTTClient:
                     await task
                 except asyncio.CancelledError:
                     pass
-        except MqttError as exc:
+        except MqttError:
             logger.error("Couldn't connect MQTT", exc_info=True)
             yield
 
@@ -101,7 +101,7 @@ class MQTTClient:
 
         params = {}
 
-        for i, (p, t) in enumerate(zip(p_parts, t_parts)):
+        for i, (p, t) in enumerate(zip(p_parts, t_parts, strict=True)):
             if p == "+":
                 params[str(i)] = t
             elif p != t:

@@ -21,7 +21,7 @@ from sentry_sdk.integrations.starlette import StarletteIntegration
 from starlette import status
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.requests import Request
-from starlette.responses import FileResponse, JSONResponse, RedirectResponse, Response
+from starlette.responses import FileResponse, JSONResponse, RedirectResponse
 from starlette.staticfiles import StaticFiles
 
 from config import settings

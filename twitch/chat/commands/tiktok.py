@@ -2,7 +2,7 @@ import re
 
 import sqlalchemy as sa
 
-from database.models import Links, RaidPasta, TwitchUserSettings, User
+from database.models import Links, TwitchUserSettings, User
 from twitch.chat.base.cooldown_command import SimpleCDCommand
 
 
@@ -20,7 +20,7 @@ class LinkTiktokCommand(SimpleCDCommand):
     async def _handle(self, streamer: User, user: str, message: str) -> str:
         if len(message.strip().split()) == 1:
             return await self._get_link(streamer)
-        elif streamer.login_name == user.lower():
+        if streamer.login_name == user.lower():
             link = message.strip().split(maxsplit=1)[1]
             parsed = re.match(r"(https?:\/\/)?(www\.)?tiktok\.com\/@(?P<username>\w*)", link)
             clean_link = parsed.groupdict().get("username") or None

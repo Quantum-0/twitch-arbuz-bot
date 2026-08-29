@@ -77,7 +77,7 @@ class HugCommand(SimpleTargetCommand):
     async def _bot_call_reply(self, user: str, target: str) -> str | None:
         return random.choice(
             [
-                f"Обнимаем боооота! >w<",
+                "Обнимаем боооота! >w<",
                 f"Боты тоже заслуживают обнимашек! Обнимаем @{target}!",
                 f"@{target} с серьёзным видом инициирует протокол «мягкие объятия» для @{user}",
                 f"@{target} принимает обнимашки и воспроизводит довольное электронное мурчание",
@@ -85,4 +85,4 @@ class HugCommand(SimpleTargetCommand):
         )
 
     async def _this_bot_call_reply(self, user: str) -> str | None:
-        return random.choice([f"Уиии, пасиба за обнимашки!", f"@{user}, обнимаю тебя в ответ! <3"])
+        return random.choice(["Уиии, пасиба за обнимашки!", f"@{user}, обнимаю тебя в ответ! <3"])

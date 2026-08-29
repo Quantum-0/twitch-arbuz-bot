@@ -36,8 +36,10 @@ class HeatUpstreamConnection:
         self._task = None
 
     async def _run(self):
-        import websockets
         import random
+
+        import websockets
+        # FIXME: А почему оно тут? о.о
 
         backoff = 1
 

@@ -37,17 +37,16 @@ class TailCommand(SavingResultCommand):
     def convert_tail(self, value: int) -> str:
         if value < 100 and value % 10 != 0:
             return f"{value} мм"
-        elif value < 750:
+        if value < 750:
             if value % 10 == 0:
                 return f"{int(value // 10)} см"
             return f"{value / 10} см"
-        else:
-            if value % 1000 == 0:
-                return f"{int(value // 1000)} м"
-            return f"{value // 100 / 10} м"
+        if value % 1000 == 0:
+            return f"{int(value // 1000)} м"
+        return f"{value // 100 / 10} м"
 
     async def _cooldown_reply(self, user: str, delay: int) -> str | None:
-        return random.choice([f"Боюсь, пока рано измерять твой хвост. Он не растёт так быстро!"])
+        return random.choice(["Боюсь, пока рано измерять твой хвост. Он не растёт так быстро!"])
 
     async def _target_selected(self, user: str, targets: list[str]):
         return None

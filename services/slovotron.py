@@ -1,6 +1,5 @@
-import json
 from collections.abc import Callable
-from typing import Annotated, Any
+from typing import Any
 
 import sqlalchemy as sa
 from pydantic import TypeAdapter, ValidationError

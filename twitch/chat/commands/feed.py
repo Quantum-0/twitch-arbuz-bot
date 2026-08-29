@@ -61,6 +61,6 @@ class FeedCommand(SimpleTargetCommand):
     async def _this_bot_call_reply(self, user: str) -> str | None:
         return random.choice(
             [
-                f"ОМ-НОМ-НОМ-НОМ-НОМ",
+                "ОМ-НОМ-НОМ-НОМ-НОМ",
             ]
         )

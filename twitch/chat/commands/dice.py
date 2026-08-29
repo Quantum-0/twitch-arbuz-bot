@@ -1,7 +1,6 @@
 import random
 
 from database.models import TwitchUserSettings, User
-from twitch.chat.base.saving_result_command import SavingResultCommand
 from twitch.chat.base.target_command import SimpleTargetCommand
 from twitch.state_manager import SMParam
 
@@ -61,11 +60,11 @@ class DiceCommand(SimpleTargetCommand):
                 return f"@{user} кидает кубик, но тот падает на пол! Oh noo 😱 Теперь нужно поднять кубик, используя команду !поднять"
             random_value = random.randint(1, max_value)
             return f"@{user} кидает кубик и на нём выпадаёт число {random_value}"
-        elif max_value and is_fallen and not to_grab:
+        if max_value and is_fallen and not to_grab:
             return f"@{user}, ты не можешь кинуть кубик, пока не поднимешь его командой !поднять"
-        elif not max_value and not is_fallen and to_grab:
+        if not max_value and not is_fallen and to_grab:
             return f"@{user} не нужно поднимать кубик. Он не упал"
-        elif not max_value and is_fallen and to_grab:
+        if not max_value and is_fallen and to_grab:
             await self._state_manager.del_state(
                 channel=streamer.login_name,
                 user=user.lower(),

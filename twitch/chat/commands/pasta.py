@@ -21,9 +21,9 @@ class PastaCommand(SimpleCDCommand):
             for pattern in {"рандомпаста", "пастарандом", "рандомнаяпаста", "рандом паста", "паста рандом"}
         ):
             return await self._handle_random(streamer)
-        elif message.strip() in {"!pasta", "!паста"}:
+        if message.strip() in {"!pasta", "!паста"}:
             return await self._get_pasta(streamer)
-        elif streamer.login_name == user.lower():
+        if streamer.login_name == user.lower():
             return await self._save_pasta(streamer, message.replace("!паста", "").replace("!pasta", "").strip())
         return "Только владелец канала может сохранить новую пасту 👀"
 

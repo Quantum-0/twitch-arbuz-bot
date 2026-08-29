@@ -2,7 +2,6 @@ import logging
 
 from utils.singleton import singleton
 
-
 logger = logging.getLogger(__name__)
 
 

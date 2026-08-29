@@ -1,5 +1,6 @@
 import asyncio
-from typing import Annotated, AsyncGenerator
+from collections.abc import AsyncGenerator
+from typing import Annotated
 from uuid import UUID, uuid3
 
 import sqlalchemy as sa
@@ -37,16 +38,15 @@ async def sse(
     if channel == SSEChannel.SLOVOTRON:
         if secret is None:
             raise HTTPException(401, "No secret provided")
-        else:
-            user: User = (
-                await db.execute(  # type: ignore
-                    sa.select(User).where(User.twitch_id == str(user_id))
-                )
-            ).scalar_one_or_none()
-            if not user:
-                raise HTTPException(404, "User not found")
-            if secret != uuid3(namespace=settings.slovotron_secret, name=user.login_name):
-                raise HTTPException(403, "Invalid secret")
+        user: User = (
+            await db.execute(  # type: ignore
+                sa.select(User).where(User.twitch_id == str(user_id))
+            )
+        ).scalar_one_or_none()
+        if not user:
+            raise HTTPException(404, "User not found")
+        if secret != uuid3(namespace=settings.slovotron_secret, name=user.login_name):
+            raise HTTPException(403, "Invalid secret")
     conn = await ssem.connect(user_id, channel)
 
     def sse_format(data: str) -> str:

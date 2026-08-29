@@ -2,7 +2,7 @@ import re
 
 import sqlalchemy as sa
 
-from database.models import Links, RaidPasta, TwitchUserSettings, User
+from database.models import Links, TwitchUserSettings, User
 from twitch.chat.base.cooldown_command import SimpleCDCommand
 
 
@@ -20,7 +20,7 @@ class LinkTgCommand(SimpleCDCommand):
     async def _handle(self, streamer: User, user: str, message: str) -> str:
         if len(message.strip().split()) == 1:
             return await self._get_link(streamer)
-        elif streamer.login_name == user.lower():
+        if streamer.login_name == user.lower():
             link = message.strip().split(maxsplit=1)[1]
             parsed = re.match(
                 r"(@(?P<username1>\w*)|(https?:\/\/)?t\.me\/(?P<username2>\w*)(\/(?P<post>\d+))?|(https?:\/\/)?(?P<username3>\w*)\.t\.me\/?)",

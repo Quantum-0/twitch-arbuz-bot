@@ -637,7 +637,7 @@ class MemealertsV2Service:
         # Пытаемся достать из БД закэшированного саппортера
         try:
             supporter_from_db = await self.search_supporter_from_db(username_clean)
-        except MultipleResultsFound as exc:
+        except MultipleResultsFound:
             logger.warning(f"Found multiple rows in database with username=`{username_clean}`")
             supporter_from_db = None
         except Exception:

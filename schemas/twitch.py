@@ -1,8 +1,8 @@
 from datetime import datetime
-from typing import Literal, TypeVar, Generic
+from typing import Generic, Literal, TypeVar
 from uuid import UUID
 
-from pydantic import BaseModel, Field, AnyHttpUrl
+from pydantic import AnyHttpUrl, BaseModel, Field
 
 from config import settings
 

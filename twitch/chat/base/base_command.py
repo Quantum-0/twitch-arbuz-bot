@@ -9,7 +9,6 @@ from database.models import TwitchUserSettings, User
 from schemas.twitch import ChatMessageWebhookEventSchema
 from twitch.state_manager import StateManager
 
-
 tracer = trace.get_tracer(__name__)
 
 

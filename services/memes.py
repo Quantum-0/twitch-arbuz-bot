@@ -6,7 +6,7 @@ from collections.abc import Callable
 
 import sqlalchemy as sa
 from memealerts import MemealertsAsyncClient
-from memealerts.types.exceptions import MAUserNotFoundError, MAError
+from memealerts.types.exceptions import MAError, MAUserNotFoundError
 from memealerts.types.models import Supporter, User
 from memealerts.types.user_id import UserID
 from opentelemetry import trace
@@ -104,7 +104,7 @@ class MemealertsService:
         try:
             supporter_from_db = await self.search_supporter_from_db(username_clean)
             db_elapsed = time.perf_counter() - db_start
-        except MultipleResultsFound as exc:
+        except MultipleResultsFound:
             logger.warning(f"Found multiple rows in database with username=`{username_clean}`")
             supporter_from_db = None
             # TODO: delete rows in db for re-cache?
@@ -141,7 +141,7 @@ class MemealertsService:
             await cli.give_bonus(user_in_search.id, amount)
             return True
 
-        logger.info(f"Failed to give bonus")
+        logger.info("Failed to give bonus")
         return False
 
     async def find_user_in_supporters(

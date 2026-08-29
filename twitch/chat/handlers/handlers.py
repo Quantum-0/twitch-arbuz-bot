@@ -108,8 +108,7 @@ class PyramidHandler(CommonMessagesHandler):
                     message=f"@{user} поломал пирамидку @{state_user}. Ехехе",
                 )
                 return HandlerResult.HANDLED
-            else:
-                return HandlerResult.HANDLED_AND_CONTINUE
+            return HandlerResult.HANDLED_AND_CONTINUE
 
         if not state_exists and emote and emote_count == 1:
             # Начало пирамидки
@@ -155,7 +154,7 @@ class PyramidHandler(CommonMessagesHandler):
             )
             # await self._state_manager.set_state(channel=channel, command=self.COMMAND_NAME, param=SMParam.DIRECTION, value="UP")
             return HandlerResult.HANDLED_AND_CONTINUE
-        elif emote == state_emote and (emote_count == state_height - 1) and state_dir == "UP":
+        if emote == state_emote and (emote_count == state_height - 1) and state_dir == "UP":
             # развернулись вниз
             await self._state_manager.set_state(
                 channel=channel,
@@ -177,7 +176,7 @@ class PyramidHandler(CommonMessagesHandler):
                 value="DOWN",
             )
             return HandlerResult.HANDLED_AND_CONTINUE
-        elif emote == state_emote and (emote_count == state_height - 1) and emote_count > 1 and state_dir == "DOWN":
+        if emote == state_emote and (emote_count == state_height - 1) and emote_count > 1 and state_dir == "DOWN":
             # -1
             await self._state_manager.set_state(
                 channel=channel,
@@ -194,7 +193,7 @@ class PyramidHandler(CommonMessagesHandler):
             )
             # await self._state_manager.set_state(channel=channel, command=self.COMMAND_NAME, param=SMParam.DIRECTION, value="DOWN")
             return HandlerResult.HANDLED_AND_CONTINUE
-        elif emote == state_emote and (emote_count == 1) and state_dir == "DOWN":
+        if emote == state_emote and (emote_count == 1) and state_dir == "DOWN":
             # закончили пирамидку
             await self._state_manager.del_state(channel=channel, command=self.COMMAND_NAME, param=SMParam.USER)
             await self._state_manager.del_state(channel=channel, command=self.COMMAND_NAME, param=SMParam.EMOTE)

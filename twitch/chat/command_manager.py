@@ -1,6 +1,5 @@
 import logging
-from collections.abc import Callable
-from typing import Awaitable
+from collections.abc import Awaitable, Callable
 
 from opentelemetry import trace
 from sqlalchemy.ext.asyncio import AsyncSession

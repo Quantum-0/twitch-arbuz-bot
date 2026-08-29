@@ -1,4 +1,3 @@
-from dependency_injector.wiring import inject
 from fastapi import APIRouter
 from starlette.responses import FileResponse
 

@@ -52,8 +52,7 @@ class PantsRaffleHandler(CommonMessagesHandler):
                     channel=streamer.login_name, command=PantsCommand.command_name, param=SMParam.PARTICIPANTS
                 )
                 return HandlerResult.HANDLED
-            else:
-                return HandlerResult.SKIPED
+            return HandlerResult.SKIPED
 
         if message.chatter_user_name in participants:
             logger.info("Already in participants. Skip.")

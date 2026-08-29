@@ -80,7 +80,7 @@ class SimpleCDCommand(Command):
                 value=time(),
             )
 
-        logger.debug(f"Handling with command handler")
+        logger.debug("Handling with command handler")
         response = await self._handle(streamer, user, message.message.text)
         await self.send_response(chat=streamer, message=response)
         return

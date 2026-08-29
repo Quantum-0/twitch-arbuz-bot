@@ -65,7 +65,7 @@ class BonkCommand(SimpleTargetCommand):
     async def _this_bot_call_reply(self, user: str) -> str | None:
         return random.choice(
             [
-                f"Ауч! За шоооо O^O",
+                "Ауч! За шоооо O^O",
                 f"@{user}, а если я тебя щас стукну?! >:C",
             ]
         )

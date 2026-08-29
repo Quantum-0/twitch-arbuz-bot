@@ -1,5 +1,5 @@
 from enum import StrEnum
-from typing import Literal, Annotated, Union
+from typing import Annotated, Literal
 from uuid import UUID, uuid3
 
 from pydantic import BaseModel, Field
@@ -61,7 +61,7 @@ class SlovotronTipWebhookSchema(SlovotronWebhookBaseSchema):
 
 
 SlovotronWebhookSchema = Annotated[
-    Union[SlovotronNewWebhookSchema, SlovotronWinWebhookSchema, SlovotronTipWebhookSchema], Field(discriminator="event")
+    SlovotronNewWebhookSchema | SlovotronWinWebhookSchema | SlovotronTipWebhookSchema, Field(discriminator="event")
 ]
 
 

@@ -1,6 +1,7 @@
 import sqlalchemy as sa
 from sqlalchemy.types import TypeDecorator
-from utils.cryptography import encrypt_value, decrypt_value
+
+from utils.cryptography import decrypt_value, encrypt_value
 
 
 class EncryptedString(TypeDecorator):

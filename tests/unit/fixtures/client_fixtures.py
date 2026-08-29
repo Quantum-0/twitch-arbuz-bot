@@ -1,6 +1,6 @@
 import json
 from base64 import b64encode
-from typing import AsyncGenerator
+from collections.abc import AsyncGenerator
 
 import itsdangerous
 import pytest

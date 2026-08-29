@@ -239,8 +239,7 @@ class Twitch:
                 continue
             if sub.status == "enabled":
                 return []
-            else:
-                return ["Подписка на награду не активна"]
+            return ["Подписка на награду не активна"]
         return ["Подписка на награду не найдена"]
 
     async def get_streams(self, users: list[User] | list[str]) -> dict[User, Stream | None]:
@@ -480,7 +479,7 @@ class Twitch:
                     await self._twitch.delete_eventsub_subscription(subscription_id=sub.id)
                     return True
             return False
-        elif subscription_id:
+        if subscription_id:
             await self._twitch.delete_eventsub_subscription(subscription_id=str(subscription_id))
             return True
         # async with httpx.AsyncClient() as client:

@@ -1,6 +1,5 @@
 import logging
-from collections.abc import Callable
-from typing import Awaitable
+from collections.abc import Awaitable, Callable
 
 logger = logging.getLogger(__name__)
 
@@ -78,10 +77,9 @@ async def extract_targets(
 def join_targets(targets) -> str | None:
     if not targets:
         return None
-    elif len(targets) == 1:
+    if len(targets) == 1:
         return targets[0]
-    else:
-        return ", ".join(targets[:-1]) + " и " + targets[-1]
+    return ", ".join(targets[:-1]) + " и " + targets[-1]
 
 
 def delay_to_seconds(delay: float | int) -> str:

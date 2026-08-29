@@ -87,7 +87,7 @@ class OpenAIAPIStatusErrorException(RewardRedemptionProcessingError):
 
 class UnknownRedemptionProcessingException(RewardRedemptionProcessingError):
     def __init__(self):
-        super().__init__(f"Неизвестная ошибка. Баллы возвращены!")
+        super().__init__("Неизвестная ошибка. Баллы возвращены!")
 
 
 class ForeignReferenceNotAllowedError(RewardRedemptionProcessingError):
@@ -133,9 +133,8 @@ class StickersService:
             if cached:
                 logger.info("Got cached sticker by prompt")
                 return cached.file_id
-            else:
-                logger.debug("No cached sticker by prompt found")
-                return None
+            logger.debug("No cached sticker by prompt found")
+            return None
 
     @tracer.start_as_current_span("Stickers: Generate sticker")
     async def _generate_sticker(self, prompt: str, files: list[bytes], model: str) -> tuple[bytes, float]:
@@ -149,14 +148,12 @@ class StickersService:
             if _is_moderation_blocked(exc):
                 logger.debug("Sticker generation was blocked by AI service moderation")
                 raise ModerationBlockedException from exc
-            else:
-                raise OpenAIBadRequestException(exc) from exc
+            raise OpenAIBadRequestException(exc) from exc
         except APIStatusError as exc:
             if exc.status_code == 402:
                 logger.error("No money Q_Q", exc_info=True)
                 raise AIProviderBudgetExceededError from exc
-            else:
-                logger.warning("4XX while generating image", exc_info=True)
+            logger.warning("4XX while generating image", exc_info=True)
             raise OpenAIAPIStatusErrorException(exc) from exc
         except Exception as exc:
             raise UnknownRedemptionProcessingException from exc
