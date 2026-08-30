@@ -46,28 +46,6 @@
     <style> {% block styles %}{% endblock %} </style>
     {% block head_scripts %}{% endblock %}
 
-    <!-- Google tag (gtag.js) -->
-    <script async src="https://www.googletagmanager.com/gtag/js?id=G-6KVMR8PG01"></script>
-    <script>
-      window.dataLayer = window.dataLayer || [];
-      function gtag(){dataLayer.push(arguments);}
-      gtag('js', new Date());
-      gtag('config', 'G-6KVMR8PG01');
-    </script>
-    <!-- Yandex.Metrika counter -->
-    <script type="text/javascript">
-        (function(m,e,t,r,i,k,a){
-            m[i]=m[i]||function(){(m[i].a=m[i].a||[]).push(arguments)};
-            m[i].l=1*new Date();
-            for (var j = 0; j < document.scripts.length; j++) {if (document.scripts[j].src === r) { return; }}
-            k=e.createElement(t),a=e.getElementsByTagName(t)[0],k.async=1,k.src=r,a.parentNode.insertBefore(k,a)
-        })(window, document,'script','https://mc.yandex.ru/metrika/tag.js?id=108266334', 'ym');
-
-        ym(108266334, 'init', {ssr:true, webvisor:true, clickmap:true, ecommerce:"dataLayer", referrer: document.referrer, url: location.href, accurateTrackBounce:true, trackLinks:true});
-    </script>
-    <noscript><div><img src="https://mc.yandex.ru/watch/108266334" style="position:absolute; left:-9999px;" alt="" /></div></noscript>
-    <!-- /Yandex.Metrika counter -->
-
 </head>
 <body>
     <svg style="display: none">
@@ -164,12 +142,12 @@
     <div class="cookie-banner" id="cookieBanner" role="dialog" aria-label="Использование cookies">
         <div class="cookie-inner">
             <div class="cookie-text">
-                Мы используем cookies для работы авторизации и веб-аналитики (Яндекс.Метрика).
-                Продолжая, вы соглашаетесь с <a href="/privacy">Политикой конфиденциальности</a>.
+                Необходимые cookies обеспечивают авторизацию и безопасность. Яндекс.Метрика включается только
+                с вашего разрешения. Подробнее — в <a href="/privacy">Политике обработки персональных данных</a>.
             </div>
             <div class="cookie-actions">
-                <button class="btn-reject" id="cookieReject">Отклонить</button>
-                <button class="btn-accept" id="cookieAccept">Принять</button>
+                <button class="btn-reject" id="cookieReject">Только необходимые</button>
+                <button class="btn-accept" id="cookieAccept">Разрешить аналитику</button>
             </div>
         </div>
     </div>
@@ -213,8 +191,29 @@
 
         // ── Cookies ──────────────────────────────────────────────
         var banner = document.getElementById("cookieBanner");
+        var analyticsEnabled = false;
         function hideBanner() { banner.classList.remove("show"); }
         function showBanner() { banner.classList.add("show"); }
+
+        function enableAnalytics() {
+            if (analyticsEnabled) return;
+            analyticsEnabled = true;
+            window.ym = window.ym || function () { (window.ym.a = window.ym.a || []).push(arguments); };
+            window.ym.l = Number(new Date());
+            window.ym(108266334, "init", {
+                ssr: true,
+                webvisor: true,
+                clickmap: true,
+                referrer: document.referrer,
+                url: location.href,
+                accurateTrackBounce: true,
+                trackLinks: true
+            });
+            var script = document.createElement("script");
+            script.async = true;
+            script.src = "https://mc.yandex.ru/metrika/tag.js?id=108266334";
+            document.head.appendChild(script);
+        }
 
         var consent = null;
         try { consent = localStorage.getItem(COOKIE_KEY); } catch (e) { consent = null; }
@@ -222,6 +221,8 @@
         if (!consent) {
             // Показываем с небольшой задержкой, чтобы не дёргать при загрузке
             setTimeout(showBanner, 400);
+        } else if (consent === "accepted") {
+            enableAnalytics();
         }
 
         document.getElementById("cookieAccept").addEventListener("click", function () {
@@ -230,17 +231,12 @@
             if (loggedIn) {
                 fetch("/api/user/consent/cookie-consent", { method: "POST" }).catch(function () {});
             }
+            enableAnalytics();
             hideBanner();
         });
 
         document.getElementById("cookieReject").addEventListener("click", function () {
             try { localStorage.setItem(COOKIE_KEY, "rejected"); } catch (e) {}
-            var loggedIn = document.querySelector('meta[name="logged-in"]');
-            if (loggedIn) {
-                // Авторизация реализована через cookies — отклонение влечёт выход из аккаунта.
-                window.location.href = "/logout";
-                return;
-            }
             hideBanner();
         });
 

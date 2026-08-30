@@ -1789,11 +1789,11 @@ section h3 {
     right: 0;
     bottom: 0;
     z-index: 10000;
-    background: var(--color-footer-bg-color, #1f2933);
+    background: var(--color-bg-secondary, #1f2933);
     color: var(--color-text, #e8eef2);
-    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    border-top: 2px solid var(--color-primary, #4CAF50);
     padding: 14px 18px;
-    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.35);
+    box-shadow: 0 -10px 32px rgba(0, 0, 0, 0.5);
     transform: translateY(120%);
     transition: transform 0.35s ease;
 }
