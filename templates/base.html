@@ -110,7 +110,27 @@
     <div class="user-icon">
     {% if user %}
         <meta name="logged-in" content="1"/>
-        <a href="/profile/{{ user.login_name }}"><img src="{{ user.profile_image_url }}" alt="Avatar" class="avatar"></a>
+        <div class="user-menu" id="userMenu">
+            <button
+                    class="user-menu__trigger"
+                    id="userMenuTrigger"
+                    type="button"
+                    aria-label="Открыть меню пользователя"
+                    aria-haspopup="menu"
+                    aria-expanded="false"
+                    aria-controls="userMenuPopup"
+            >
+                <img src="{{ user.profile_image_url }}" alt="" class="avatar">
+            </button>
+            <div class="user-menu__popup" id="userMenuPopup" role="menu" hidden>
+                <a href="/profile/{{ user.login_name }}" class="user-menu__item" role="menuitem">
+                    Перейти в профиль
+                </a>
+                <a href="/logout" class="user-menu__item user-menu__item--logout" role="menuitem">
+                    Выйти
+                </a>
+            </div>
+        </div>
     {% endif %}
     </div>
     </header>
@@ -300,6 +320,43 @@
     </script>
 
     {% block body_scripts %}{% endblock %}
+
+    {% if user %}
+    <script>
+    (function () {
+        var menu = document.getElementById("userMenu");
+        var trigger = document.getElementById("userMenuTrigger");
+        var popup = document.getElementById("userMenuPopup");
+
+        function closeUserMenu() {
+            popup.hidden = true;
+            trigger.setAttribute("aria-expanded", "false");
+        }
+
+        trigger.addEventListener("click", function () {
+            var shouldOpen = popup.hidden;
+            popup.hidden = !shouldOpen;
+            trigger.setAttribute("aria-expanded", String(shouldOpen));
+            if (shouldOpen) {
+                popup.querySelector('[role="menuitem"]').focus();
+            }
+        });
+
+        document.addEventListener("click", function (event) {
+            if (!menu.contains(event.target)) {
+                closeUserMenu();
+            }
+        });
+
+        menu.addEventListener("keydown", function (event) {
+            if (event.key === "Escape") {
+                closeUserMenu();
+                trigger.focus();
+            }
+        });
+    })();
+    </script>
+    {% endif %}
 
     {% include "jumping_chibi.html" %}
 </body>
