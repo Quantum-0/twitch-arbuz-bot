@@ -163,13 +163,19 @@ async def tts_settings_page(
 
 
 @router.get("/agreement", response_class=HTMLResponse)
-async def user_agreement(request: Request):
-    return templates.TemplateResponse("legal/agreement.html", {"request": request})
+async def user_agreement(
+    request: Request,
+    user: User | None = Security(user_auth_optional),
+):
+    return templates.TemplateResponse("legal/agreement.html", {"request": request, "user": user})
 
 
 @router.get("/privacy", response_class=HTMLResponse)
-async def privacy(request: Request):
-    return templates.TemplateResponse("legal/privacy.html", {"request": request})
+async def privacy(
+    request: Request,
+    user: User | None = Security(user_auth_optional),
+):
+    return templates.TemplateResponse("legal/privacy.html", {"request": request, "user": user})
 
 
 @router.get(
@@ -560,6 +566,13 @@ async def roadmap_page(
                     " Реализована генерация статистики по боку:"
                     " суммарное количество обрабатываемых сообщений/наград, время обработки и т.п."
                     " Доработаны промпты и алгоритмы очистки ИИ-стикеров.",
+                },
+                {
+                    "date": "Август 2026",
+                    "text": "Запланирован переход на Memealerts V2, функционал протестирован; "
+                    "Проведены эксперименты с добавлением TTS, но в виду высокой стоимости серверов - отложено до момента, когда сервис обретёт достаточную финансовую поддержку через донаты; "
+                    "Проведены CEO оптимизации сайта, оптимизировано взаимодействие с МА, добавлена чат-бот команда !почесать, создан прототип для автомодерации на запретки;"
+                    "В соответствии с ФЗ-152 добавлены черновики необходимых документов и согласие с использованием cookies.",
                 },
             ],
             "todos": [

@@ -45,6 +45,30 @@ poetry run uvicorn main:app --reload   # запустить дев-сервер
 - Не-endpoint функции берут зависимости через `from container_runtime import get_container`.
 - Новый модуль с роутами → добавить в `container.Container.wiring_config.modules`.
 
+## Юридические документы и согласие (ФЗ-152)
+
+- **Саммари закона:** `docs/FZ-152.md` — справочник по 152-ФЗ и практическим требованиям к сайту.
+- **Документы:** `templates/legal/privacy.html` (Политика конфиденциальности) и
+  `templates/legal/agreement.html` (Пользовательское соглашение). Роуты `/privacy`, `/agreement`
+  в `routers/web/pages.py` (`user_auth_optional`, передают `user` в контекст).
+- **Согласие перед авторизацией:** чекбокс на `main.html` (`#agreement`), кнопка `#twitchLoginBtn`
+  заблокирована (`disabled`) пока галочка не стоит. Согласие = переход на `/login`.
+- **Cookie-баннер:** в `templates/base.html` (флаг залогиненности — `<meta name="logged-in">`).
+  Согласие хранится в `localStorage` (`cookie_consent` = `accepted`/`rejected`) для всех;
+  для залогиненных дополнительно фиксируется в БД (`User.cookie_consent_at`).
+  «Отклонить» для залогиненных → редирект на `/logout` (auth реализован через cookies).
+- **Boosty-предложение:** модал в `base.html`, только для залогиненных. Не показывается минимум 35 дней
+  после закрытия/перехода (`User.boosty_dismissed_at`). Переходы на Boosty считаются в `User.boosty_clicks`
+  (грубая оценка факта подписки — API Boosty нет). Данные отдаются в шаблон через `window.__userBoostyDismissed`.
+- **API consent/boosty:** `routers/api/user/consent.py`, подключён в `routers/api/user_api.py`,
+  префикс `/api/user/consent` (`/cookie-consent`, `/boosty/dismiss`, `/boosty/click`), `user_auth`.
+- **Выход:** `GET /logout` в `routers/web/service_routes.py` — `request.session.clear()` + редирект на `/`.
+- **Миграция:** `7c2a1f4e9d30_user_cookie_consent_and_boosty_tracking.py` (колонки `twitch_bot_users`:
+  `cookie_consent_at`, `boosty_dismissed_at`, `boosty_clicks`).
+- **Провайдер ИИ-стикеров:** проверка aitunnel vs routerai показала, что переход на routerai **невыгоден**
+  (нет `gpt-image-2` и эндпоинта `/images/edits`; `glm-5.2` дороже на ~22–38%). Остаёмся на aitunnel
+  (`config.openai_base_url`). Менять `openai_base_url` на routerai **нельзя**.
+
 ## Структура проекта
 
 ```

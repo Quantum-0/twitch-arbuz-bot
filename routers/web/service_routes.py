@@ -32,6 +32,13 @@ async def login():
     return RedirectResponse(settings.login_twitch_url)
 
 
+@router.get("/logout", response_class=RedirectResponse)
+async def logout(request: Request):
+    """Выход из учётной записи: очищаем сессионные cookies и возвращаем на главную."""
+    request.session.clear()
+    return RedirectResponse(url="/")
+
+
 @router.get("/login-callback", response_class=RedirectResponse)
 @inject
 async def callback(

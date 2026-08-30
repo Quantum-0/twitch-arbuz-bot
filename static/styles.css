@@ -140,6 +140,7 @@ body {
     font-family: Arial, sans-serif;
     margin: 0;
     padding: 0;
+    padding-bottom: 60px;
     background-color: var(--color-bg);
     color: var(--color-text);
     /* background-image: url("/static/images/bg_leaves.png"),
@@ -209,15 +210,31 @@ header nav a:hover {
 .site-footer {
     margin: 0px auto 0px;
     width: 100%;
-    padding: 0 20px;
+    padding: 8px 20px;
     font-size: 13px;
     line-height: 1.4;
-    text-align: center;
     color: var(--color-text-muted);
     position: fixed;
     bottom: 0;
     left: 0;
     background: var(--color-footer-bg-color);
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 4px 16px;
+    box-sizing: border-box;
+}
+.site-footer > div {
+    flex: 1 1 0;
+    min-width: 160px;
+}
+.site-footer__center {
+    flex: 0 0 auto;
+    text-align: center;
+}
+.site-footer__right {
+    text-align: right;
 }
 .site-footer a {
     color: #4CAF50;
@@ -483,6 +500,21 @@ section h3 {
 .twitch-login-button:active {
     transform: translateY(1px);
 }
+.twitch-login-button:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+    box-shadow: none;
+}
+.twitch-login-button:disabled:hover {
+    background-color: #9146FF;
+}
+.agreement-check {
+    margin: 14px 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.agreement-check label { line-height: 1.4; }
 .twitch-icon {
     width: 20px;
     height: 20px;
@@ -1684,3 +1716,153 @@ section h3 {
     opacity: 0.5;
     cursor: not-allowed;
 }
+
+/* ── Юридические документы ─────────────────────────────────────────────── */
+.legal-doc {
+    max-width: 780px;
+    margin: 0 auto;
+    padding: 0 8px 80px;
+    line-height: 1.6;
+}
+.legal-doc h1 { font-size: 1.9rem; margin-bottom: 0.2em; }
+.legal-doc h2 { margin-top: 1.6em; font-size: 1.25rem; }
+.legal-doc p, .legal-doc ul { margin: 0.6em 0; }
+.legal-doc ul { padding-left: 1.4em; }
+.legal-doc .legal-meta { color: var(--color-text-muted); font-size: 0.9rem; }
+
+/* ── Cookie-баннер ─────────────────────────────────────────────────────── */
+.cookie-banner {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 10000;
+    background: var(--color-footer-bg-color, #1f2933);
+    color: var(--color-text, #e8eef2);
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    padding: 14px 18px;
+    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.35);
+    transform: translateY(120%);
+    transition: transform 0.35s ease;
+}
+.cookie-banner.show { transform: translateY(0); }
+.cookie-banner .cookie-inner {
+    max-width: 980px;
+    margin: 0 auto;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px;
+}
+.cookie-banner .cookie-text { flex: 1 1 320px; font-size: 13.5px; line-height: 1.5; }
+.cookie-banner .cookie-text a { color: #4CAF50; }
+.cookie-banner .cookie-actions { display: flex; gap: 8px; flex-shrink: 0; }
+.cookie-banner button {
+    border: none;
+    border-radius: 8px;
+    padding: 9px 16px;
+    font-size: 14px;
+    cursor: pointer;
+    font-weight: 600;
+    transition: filter 0.15s, transform 0.1s;
+}
+.cookie-banner button:hover { filter: brightness(1.1); }
+.cookie-banner button:active { transform: translateY(1px); }
+.cookie-banner .btn-accept { background: #4CAF50; color: #fff; }
+.cookie-banner .btn-reject { background: transparent; color: var(--color-text-muted, #9aa6ad); border: 1px solid rgba(255, 255, 255, 0.2); }
+@media (max-width: 600px) {
+    .cookie-banner .cookie-inner { flex-direction: column; align-items: stretch; }
+    .cookie-banner .cookie-actions { justify-content: space-between; }
+}
+
+/* ── Boosty-модал ─────────────────────────────────────────────────────── */
+.boosty-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 10001;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.6);
+    padding: 16px;
+}
+.boosty-modal.show { display: flex; }
+.boosty-modal .boosty-card {
+    background: var(--color-bg, #232b33);
+    border-radius: 16px;
+    max-width: 460px;
+    width: 100%;
+    padding: 28px 26px 24px;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+    position: relative;
+    text-align: center;
+    animation: boostyPop 0.25s ease;
+}
+@keyframes boostyPop { from { transform: scale(0.92); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+.boosty-modal .boosty-close {
+    position: absolute;
+    top: 10px;
+    right: 14px;
+    background: none;
+    border: none;
+    font-size: 22px;
+    line-height: 1;
+    color: var(--color-text-muted, #9aa6ad);
+    cursor: pointer;
+}
+.boosty-modal .boosty-close:hover { color: var(--color-text, #e8eef2); }
+.boosty-modal h2 { margin: 0 0 12px; font-size: 1.3rem; }
+.boosty-modal p { line-height: 1.55; margin: 0.5em 0; color: var(--color-text, #e8eef2); }
+.boosty-modal .boosty-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 16px;
+    background: #FF6633;
+    color: #fff;
+    font-weight: 700;
+    text-decoration: none;
+    padding: 12px 26px;
+    border-radius: 10px;
+    box-shadow: 0 4px 14px rgba(255, 102, 51, 0.35);
+    transition: filter 0.15s, transform 0.1s;
+}
+.boosty-modal .boosty-btn:hover { filter: brightness(1.08); }
+.boosty-modal .boosty-btn:active { transform: translateY(1px); }
+.boosty-modal .boosty-skip {
+    display: block;
+    margin-top: 12px;
+    background: none;
+    border: none;
+    color: var(--color-text-muted, #9aa6ad);
+    cursor: pointer;
+    font-size: 13px;
+    text-decoration: underline;
+}
+.boosty-modal .boosty-heart { color: #FF6633; }
+
+/* ── Boosty-промо на /about ────────────────────────────────────────────── */
+.boosty-promo {
+    background: linear-gradient(135deg, rgba(255, 102, 51, 0.12), rgba(255, 102, 51, 0.04));
+    border: 1px solid rgba(255, 102, 51, 0.3);
+    border-radius: 14px;
+    padding: 18px 22px;
+    margin: 20px 0;
+    line-height: 1.55;
+}
+.boosty-promo h2 { margin-top: 0; color: #FF6633; }
+.boosty-promo .boosty-btn {
+    display: inline-block;
+    background: #FF6633;
+    color: #fff;
+    font-weight: 700;
+    text-decoration: none;
+    padding: 11px 24px;
+    border-radius: 10px;
+    box-shadow: 0 4px 14px rgba(255, 102, 51, 0.3);
+    margin: 8px 0 10px;
+    transition: filter 0.15s, transform 0.1s;
+}
+.boosty-promo .boosty-btn:hover { filter: brightness(1.08); }
+.boosty-promo .boosty-btn:active { transform: translateY(1px); }
+.boosty-promo .boosty-promo-note { color: var(--color-text-muted); font-size: 0.95rem; margin-bottom: 0; }

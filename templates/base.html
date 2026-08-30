@@ -109,6 +109,7 @@
     </nav>
     <div class="user-icon">
     {% if user %}
+        <meta name="logged-in" content="1"/>
         <a href="/profile/{{ user.login_name }}"><img src="{{ user.profile_image_url }}" alt="Avatar" class="avatar"></a>
     {% endif %}
     </div>
@@ -118,17 +119,126 @@
     </div>
 
     <footer class="site-footer">
-        <!-- Это должно быть в левой части футера -->
-        Сайт сделан Quantum0.
-        Изображения: Ulitochka & SillySnaily.
-        <a href="/about">Подробнее</a>.
-        <!-- разрыв -->
-        <!-- это расположено по центру -->
-        <a href="https://boosty.to/quantum0">Поддержать создателя бота <3</a>
-        <!-- разрыв, и дальше align к правой части -->
-        <a href="/agreement">Пользовательское соглашение</a>.
-        <a href="/privacy">Политика конфиденциальности</a>.
+        <div class="site-footer__left">
+            Сайт сделан Quantum0.
+            Изображения: Ulitochka &amp; SillySnaily.
+            <a href="/about">Подробнее</a>.
+        </div>
+        <div class="site-footer__center">
+            <a href="https://boosty.to/quantum0">Поддержать создателя бота &lt;3</a>
+        </div>
+        <div class="site-footer__right">
+            <a href="/agreement">Пользовательское соглашение</a>.
+            <a href="/privacy">Политика конфиденциальности</a>.
+        </div>
     </footer>
+
+    {% if user %}
+    <script>
+        window.__userBoostyDismissed = {{ user.boosty_dismissed_at.isoformat() | tojson if user.boosty_dismissed_at else 'null' }};
+    </script>
+    {% endif %}
+
+    <!-- Cookie-баннер -->
+    <div class="cookie-banner" id="cookieBanner" role="dialog" aria-label="Использование cookies">
+        <div class="cookie-inner">
+            <div class="cookie-text">
+                Мы используем cookies для работы авторизации и веб-аналитики (Яндекс.Метрика).
+                Продолжая, вы соглашаетесь с <a href="/privacy">Политикой конфиденциальности</a>.
+            </div>
+            <div class="cookie-actions">
+                <button class="btn-reject" id="cookieReject">Отклонить</button>
+                <button class="btn-accept" id="cookieAccept">Принять</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Boosty-предложение (только для залогиненных) -->
+    <div class="boosty-modal" id="boostyModal" role="dialog" aria-modal="true" aria-label="Поддержка на Boosty">
+        <div class="boosty-card">
+            <button class="boosty-close" id="boostyClose" aria-label="Закрыть">&times;</button>
+            <h2>Нравится сервис? <span class="boosty-heart">&lt;3</span></h2>
+            <p>
+                Quantum0 делает этого бота уже больше года — старается ради вашего комфорта, удобства
+                и удовольствия в использовании. На это уходит время, силы, а также деньги на оплату сервера.
+            </p>
+            <p>В качестве благодарности вы можете поддержать меня на Boosty — это совсем не обязательно, но очень приятно.</p>
+            <a href="https://boosty.to/quantum0" class="boosty-btn" target="_blank" rel="noopener" id="boostyLink">
+                Поддержать на Boosty
+            </a>
+            <button class="boosty-skip" id="boostySkip">Спасибо, не сейчас</button>
+        </div>
+    </div>
+
+    <script>
+    (function () {
+        var COOKIE_KEY = "cookie_consent";
+
+        // ── Cookies ──────────────────────────────────────────────
+        var banner = document.getElementById("cookieBanner");
+        function hideBanner() { banner.classList.remove("show"); }
+        function showBanner() { banner.classList.add("show"); }
+
+        var consent = null;
+        try { consent = localStorage.getItem(COOKIE_KEY); } catch (e) { consent = null; }
+
+        if (!consent) {
+            // Показываем с небольшой задержкой, чтобы не дёргать при загрузке
+            setTimeout(showBanner, 400);
+        }
+
+        document.getElementById("cookieAccept").addEventListener("click", function () {
+            try { localStorage.setItem(COOKIE_KEY, "accepted"); } catch (e) {}
+            var loggedIn = document.querySelector('meta[name="logged-in"]');
+            if (loggedIn) {
+                fetch("/api/user/consent/cookie-consent", { method: "POST" }).catch(function () {});
+            }
+            hideBanner();
+        });
+
+        document.getElementById("cookieReject").addEventListener("click", function () {
+            try { localStorage.setItem(COOKIE_KEY, "rejected"); } catch (e) {}
+            var loggedIn = document.querySelector('meta[name="logged-in"]');
+            if (loggedIn) {
+                // Авторизация реализована через cookies — отклонение влечёт выход из аккаунта.
+                window.location.href = "/logout";
+                return;
+            }
+            hideBanner();
+        });
+
+        // ── Boosty (только для залогиненных) ─────────────────────
+        var loggedIn = document.querySelector('meta[name="logged-in"]');
+        if (loggedIn && window.__userBoostyDismissed !== null && window.__userBoostyDismissed !== undefined) {
+            var dismissed = new Date(window.__userBoostyDismissed);
+            var daysSince = (Date.now() - dismissed.getTime()) / (1000 * 60 * 60 * 24);
+            if (daysSince < 35) {
+                return; // недавно закрывали/переходили — не показываем минимум месяц
+            }
+        }
+
+        var modal = document.getElementById("boostyModal");
+        if (loggedIn && modal) {
+            setTimeout(function () { modal.classList.add("show"); }, 1500);
+
+            function dismissBoosty(endpoint) {
+                modal.classList.remove("show");
+                if (endpoint) fetch(endpoint, { method: "POST" }).catch(function () {});
+            }
+            document.getElementById("boostyClose").addEventListener("click", function () {
+                dismissBoosty("/api/user/consent/boosty/dismiss");
+            });
+            document.getElementById("boostySkip").addEventListener("click", function () {
+                dismissBoosty("/api/user/consent/boosty/dismiss");
+            });
+            document.getElementById("boostyLink").addEventListener("click", function () {
+                // Фиксируем переход на boosty — грубая оценка факта поддержки.
+                fetch("/api/user/consent/boosty/click", { method: "POST" }).catch(function () {});
+                modal.classList.remove("show");
+            });
+        }
+    })();
+    </script>
 
     {% block body_scripts %}{% endblock %}
 

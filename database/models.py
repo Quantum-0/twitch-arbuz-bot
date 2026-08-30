@@ -62,6 +62,14 @@ class User(Base):
         Numeric(12, 2), default=Decimal("0.00"), server_default="0", nullable=False
     )
 
+    # Факт согласия с использованием cookies (ФЗ-152): дата принятия.
+    # NULL = согласие ещё не зафиксировано. Для анонимов согласие хранится только в localStorage.
+    cookie_consent_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, default=None)
+    # Дата последнего закрытия/перехода по boosty-предложению. Не показываем предложение минимум месяц.
+    boosty_dismissed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, default=None)
+    # Счётчик переходов на boosty со страницы Сервиса (грубая оценка факта подписки).
+    boosty_clicks: Mapped[int] = mapped_column(Integer, default=0, server_default="0", nullable=False)
+
     # Вычисляемый баланс
     balance: Mapped[Decimal] = mapped_column(Numeric(12, 2), Computed(total_deposited - total_spent))
 
