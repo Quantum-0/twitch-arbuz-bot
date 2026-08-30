@@ -30,6 +30,8 @@ bot_scope = [
     # Модерация чата (warn / delete message) — выполняется от имени бота-модератора.
     AuthScope.MODERATOR_MANAGE_WARNINGS,
     AuthScope.MODERATOR_MANAGE_CHAT_MESSAGES,
+    # Чтение фолловеров канала создателя бота (бот — модератор quantum075).
+    AuthScope.MODERATOR_READ_FOLLOWERS,
 ]
 memealerts_scope = [
     "oauth-user-show",

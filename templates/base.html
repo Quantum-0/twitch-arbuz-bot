@@ -136,6 +136,7 @@
     {% if user %}
     <script>
         window.__userBoostyDismissed = {{ user.boosty_dismissed_at.isoformat() | tojson if user.boosty_dismissed_at else 'null' }};
+        window.__userFollowedToAdmin = {% if user.login_name == 'quantum075' %}false{% else %}{{ user.followed_to_admin | tojson }}{% endif %};
     </script>
     {% endif %}
 
@@ -167,6 +168,22 @@
                 Поддержать на Boosty
             </a>
             <button class="boosty-skip" id="boostySkip">Спасибо, не сейчас</button>
+        </div>
+    </div>
+
+    <!-- Предложение зафолловиться на создателя бота (после отказа от Boosty) -->
+    <div class="follow-admin-modal" id="followAdminModal" role="dialog" aria-modal="true" aria-label="Подписка на создателя бота">
+        <div class="follow-admin-card">
+            <button class="follow-admin-close" id="followAdminClose" aria-label="Закрыть">&times;</button>
+            <h2>Загляните на стрим? <span class="follow-admin-heart">&lt;3</span></h2>
+            <p>
+                Может быть, тогда вы хотите зафолловиться на твич создателя сервиса?
+                Ему будет очень приятно если вы зайдёте как-нибудь на его стрим и поблагодарите за бота <span class="follow-admin-heart">&lt;3</span>
+            </p>
+            <a href="https://twitch.tv/quantum075" class="follow-admin-btn" target="_blank" rel="noopener" id="followAdminLink">
+                Зайти на стрим
+            </a>
+            <button class="follow-admin-skip" id="followAdminSkip">Спасибо, не сейчас</button>
         </div>
     </div>
 
@@ -221,20 +238,62 @@
         if (loggedIn && modal) {
             setTimeout(function () { modal.classList.add("show"); }, 1500);
 
+            // ── Follow-admin popup ───────────────────────────────
+            // Показывается только если пользователь закрыл Boosty (не перешёл на него)
+            // и при этом не зафолловлен на создателя бота (followed_to_admin === false).
+            // Suppression — только localStorage, 3 месяца.
+            var FOLLOW_KEY = "follow_admin_dismissed";
+            var FOLLOW_SUPPRESS_DAYS = 90;
+            var followModal = document.getElementById("followAdminModal");
+
+            function followAdminSuppressed() {
+                var v = null;
+                try { v = localStorage.getItem(FOLLOW_KEY); } catch (e) { v = null; }
+                if (!v) return false;
+                var d = new Date(v);
+                if (isNaN(d.getTime())) return false;
+                return (Date.now() - d.getTime()) / (1000 * 60 * 60 * 24) < FOLLOW_SUPPRESS_DAYS;
+            }
+
+            function dismissFollowAdmin() {
+                if (!followModal) return;
+                followModal.classList.remove("show");
+                try { localStorage.setItem(FOLLOW_KEY, new Date().toISOString()); } catch (e) {}
+            }
+
+            function maybeShowFollowAdmin() {
+                if (!followModal) return;
+                if (window.__userFollowedToAdmin !== false) return; // null/true → не показываем
+                if (followAdminSuppressed()) return;
+                setTimeout(function () { followModal.classList.add("show"); }, 600);
+            }
+
+            if (followModal) {
+                document.getElementById("followAdminClose").addEventListener("click", dismissFollowAdmin);
+                document.getElementById("followAdminSkip").addEventListener("click", dismissFollowAdmin);
+                document.getElementById("followAdminLink").addEventListener("click", function () {
+                    followModal.classList.remove("show");
+                    try { localStorage.setItem(FOLLOW_KEY, new Date().toISOString()); } catch (e) {}
+                });
+            }
+
             function dismissBoosty(endpoint) {
                 modal.classList.remove("show");
                 if (endpoint) fetch(endpoint, { method: "POST" }).catch(function () {});
             }
             document.getElementById("boostyClose").addEventListener("click", function () {
                 dismissBoosty("/api/user/consent/boosty/dismiss");
+                maybeShowFollowAdmin();
             });
             document.getElementById("boostySkip").addEventListener("click", function () {
                 dismissBoosty("/api/user/consent/boosty/dismiss");
+                maybeShowFollowAdmin();
             });
             document.getElementById("boostyLink").addEventListener("click", function () {
                 // Фиксируем переход на boosty — грубая оценка факта поддержки.
                 fetch("/api/user/consent/boosty/click", { method: "POST" }).catch(function () {});
                 modal.classList.remove("show");
+                // Переход на Boosty → follow-admin не показываем.
             });
         }
     })();

@@ -69,6 +69,9 @@ class User(Base):
     boosty_dismissed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, default=None)
     # Счётчик переходов на boosty со страницы Сервиса (грубая оценка факта подписки).
     boosty_clicks: Mapped[int] = mapped_column(Integer, default=0, server_default="0", nullable=False)
+    # Зафолловлен ли пользователь на канал создателя бота (quantum075) в Twitch.
+    # NULL = ещё не проверено; True/False — результат проверки через Twitch API.
+    followed_to_admin: Mapped[bool | None] = mapped_column(Boolean, nullable=True, default=None)
 
     # Вычисляемый баланс
     balance: Mapped[Decimal] = mapped_column(Numeric(12, 2), Computed(total_deposited - total_spent))

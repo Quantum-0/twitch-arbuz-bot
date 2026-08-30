@@ -18,9 +18,13 @@ from config import settings
 from database.database import AsyncSessionLocal
 from database.models import User
 from dependencies import get_db
+from services.follow_check import refresh_followed_to_admin
 
 INTERACTION_UPDATE_INTERVAL_SECONDS = 15
 INTERACTION_UPDATE_LOCK_TIMEOUT_MS = 50
+
+# Login создателя бота — для него скипаем проверку зафолловленности (отладка).
+ADMIN_LOGIN = "quantum075"
 
 
 tracer = trace.get_tracer(__name__)
@@ -101,6 +105,11 @@ async def user_auth(
 
     asyncio.create_task(touch_user_interaction(user_id))
 
+    # Фоновая перепроверка зафолловленности на создателя бота (не админ).
+    # Throttle 30 мин — внутри refresh_followed_to_admin через Redis-ключ.
+    if user.login_name != ADMIN_LOGIN:
+        asyncio.create_task(refresh_followed_to_admin(user.id))
+
     # FIX:
     # sqlalchemy.exc.InterfaceError: (sqlalchemy.dialects.postgresql.asyncpg.InterfaceError) <class 'asyncpg.exceptions._base.InterfaceError'>: cannot call Transaction.rollback(): the underlying connection is closed
     await db.commit()
@@ -136,6 +145,11 @@ async def user_auth_optional(
             current_span.set_attribute("auth.twitch_name", user.login_name)
 
         asyncio.create_task(touch_user_interaction(user_id))
+
+        # Фоновая перепроверка зафолловленности на создателя бота (не админ).
+        # Throttle 30 мин — внутри refresh_followed_to_admin через Redis-ключ.
+        if user.login_name != ADMIN_LOGIN:
+            asyncio.create_task(refresh_followed_to_admin(user.id))
     else:
         current_span = trace.get_current_span()
         if current_span.is_recording():

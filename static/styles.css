@@ -1841,6 +1841,71 @@ section h3 {
 }
 .boosty-modal .boosty-heart { color: #FF6633; }
 
+/* ── Follow-admin-модал (клон boosty, Twitch-фиолетовый) ──────────────── */
+.follow-admin-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 10002;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.6);
+    padding: 16px;
+}
+.follow-admin-modal.show { display: flex; }
+.follow-admin-modal .follow-admin-card {
+    background: var(--color-bg, #232b33);
+    border-radius: 16px;
+    max-width: 460px;
+    width: 100%;
+    padding: 28px 26px 24px;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+    position: relative;
+    text-align: center;
+    animation: boostyPop 0.25s ease;
+}
+.follow-admin-modal .follow-admin-close {
+    position: absolute;
+    top: 10px;
+    right: 14px;
+    background: none;
+    border: none;
+    font-size: 22px;
+    line-height: 1;
+    color: var(--color-text-muted, #9aa6ad);
+    cursor: pointer;
+}
+.follow-admin-modal .follow-admin-close:hover { color: var(--color-text, #e8eef2); }
+.follow-admin-modal h2 { margin: 0 0 12px; font-size: 1.3rem; }
+.follow-admin-modal p { line-height: 1.55; margin: 0.5em 0; color: var(--color-text, #e8eef2); }
+.follow-admin-modal .follow-admin-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 16px;
+    background: #9146FF;
+    color: #fff;
+    font-weight: 700;
+    text-decoration: none;
+    padding: 12px 26px;
+    border-radius: 10px;
+    box-shadow: 0 4px 14px rgba(145, 70, 255, 0.35);
+    transition: filter 0.15s, transform 0.1s;
+}
+.follow-admin-modal .follow-admin-btn:hover { filter: brightness(1.08); }
+.follow-admin-modal .follow-admin-btn:active { transform: translateY(1px); }
+.follow-admin-modal .follow-admin-skip {
+    display: block;
+    margin-top: 12px;
+    background: none;
+    border: none;
+    color: var(--color-text-muted, #9aa6ad);
+    cursor: pointer;
+    font-size: 13px;
+    text-decoration: underline;
+}
+.follow-admin-modal .follow-admin-heart { color: #9146FF; }
+
 /* ── Boosty-промо на /about ────────────────────────────────────────────── */
 .boosty-promo {
     background: linear-gradient(135deg, rgba(255, 102, 51, 0.12), rgba(255, 102, 51, 0.04));

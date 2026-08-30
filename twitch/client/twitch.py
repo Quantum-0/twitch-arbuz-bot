@@ -563,6 +563,17 @@ class Twitch:
     async def get_followers_count(self, user: User) -> int:
         return (await self._twitch.get_channel_followers(user.twitch_id)).total
 
+    async def check_user_follows_admin(self, admin_twitch_id: str, user_twitch_id: str) -> bool:
+        """Проверяет, зафолловлен ли user на канал создателя бота (admin).
+
+        Вызывается от имени бота-аккаунта (модератора канала admin).
+        Требует scope MODERATOR_READ_FOLLOWERS в bot_scope.
+        """
+        result = await self._twitch.get_channel_followers(
+            broadcaster_id=admin_twitch_id, user_id=user_twitch_id, first=1
+        )
+        return bool(result.data)
+
     @staticmethod
     async def cancel_redemption(user: User, reward_id: UUID, redemption_id: UUID):
         twitch_user = await TwitchClient(settings.twitch_client_id, settings.twitch_client_secret)

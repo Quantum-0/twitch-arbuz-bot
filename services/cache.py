@@ -81,6 +81,23 @@ class Cache:
     async def __get_set(self, name: str) -> set[str]:
         return await self._r.smembers(f"cache:{name}")
 
+    async def get_str(self, name: str, no_error: bool = True) -> str | None:
+        try:
+            return await self._r.get(f"cache:{name}")
+        except Exception:
+            logger.error("Error reading str from redis", exc_info=True)
+            if not no_error:
+                raise
+            return None
+
+    async def set_str(self, name: str, value: str, ttl: int = 3600, no_error: bool = True) -> None:
+        try:
+            await self._r.set(f"cache:{name}", value, ex=ttl)
+        except Exception:
+            logger.error("Error writing str to redis", exc_info=True)
+            if not no_error:
+                raise
+
     async def check_rate_limit(self, key: str, limit: int, window_s: int) -> bool:
         key = "rate_limit:" + key
         try:
