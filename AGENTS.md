@@ -51,12 +51,13 @@ poetry run uvicorn main:app --reload   # запустить дев-сервер
 - **Документы:** `templates/legal/privacy.html` (Политика конфиденциальности) и
   `templates/legal/agreement.html` (Пользовательское соглашение). Роуты `/privacy`, `/agreement`
   в `routers/web/pages.py` (`user_auth_optional`, передают `user` в контекст).
-- **Согласие перед авторизацией:** чекбокс на `main.html` (`#agreement`), кнопка `#twitchLoginBtn`
-  заблокирована (`disabled`) пока галочка не стоит. Согласие = переход на `/login`.
+- **Согласие перед авторизацией:** на `main.html` отдельно подтверждаются Пользовательское соглашение
+  (`#agreement`) и согласие на обработку ПД (`#personalDataConsent`). Кнопка `#twitchLoginBtn`
+  заблокирована (`disabled`), пока не установлены обе отметки. После подтверждения выполняется переход на `/login`.
 - **Cookie-баннер:** в `templates/base.html` (флаг залогиненности — `<meta name="logged-in">`).
   Согласие хранится в `localStorage` (`cookie_consent` = `accepted`/`rejected`) для всех;
   для залогиненных дополнительно фиксируется в БД (`User.cookie_consent_at`).
-  «Отклонить» для залогиненных → редирект на `/logout` (auth реализован через cookies).
+  Яндекс.Метрика загружается только при значении `accepted`; выбор «Только необходимые» не завершает сессию.
 - **Boosty-предложение:** модал в `base.html`, только для залогиненных. Не показывается минимум 35 дней
   после закрытия/перехода (`User.boosty_dismissed_at`). Переходы на Boosty считаются в `User.boosty_clicks`
   (грубая оценка факта подписки — API Boosty нет). Данные отдаются в шаблон через `window.__userBoostyDismissed`.
