@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+
+{% block title %}Модерация референсов — Quantum0's Bot{% endblock %}
+{% block description %}Очередь ручной модерации референсов персонажей.{% endblock %}
+
+{% block content %}
+<div class="notification-container"></div>
+<section>
+    <h2>Модерация референсов</h2>
+    <p class="overlay-copy-hint">Сначала показаны недавно загруженные и обновлённые персонажи.</p>
+    <div class="cards-grid reference-moderation-grid">
+        {% for reference, owner_login, owner_avatar in references %}
+        <article class="card-status reference-moderation-card" data-reference-id="{{ reference.id }}">
+            <button type="button" class="reference-preview" aria-expanded="false">
+                {% if reference.file_id %}
+                <img src="/files/refs/{{ reference.file_id }}" alt="Референс {{ reference.name }}" loading="lazy">
+                {% else %}
+                <span class="reference-placeholder">Only description</span>
+                {% endif %}
+            </button>
+            <div class="reference-description" hidden>{{ reference.description or "Описание не добавлено" }}</div>
+            <div class="reference-actions" aria-label="Решение модератора">
+                <button type="button" class="reference-decision reference-reject {{ 'selected' if reference.approved is sameas false }}" data-approved="false" aria-label="Отклонить">✕</button>
+                <div class="reference-owner">
+                    {% if owner_avatar %}<img src="{{ owner_avatar }}" alt="" loading="lazy">{% endif %}
+                    <span>{{ owner_login or reference.name }}<small class="reference-status">
+                        {% if reference.approved is sameas true %}Одобрено{% elif reference.approved is sameas false %}Отклонено{% else %}Ожидает{% endif %}
+                    </small></span>
+                </div>
+                <button type="button" class="reference-decision reference-approve {{ 'selected' if reference.approved is sameas true }}" data-approved="true" aria-label="Одобрить">✓</button>
+            </div>
+        </article>
+        {% else %}
+        <p>Референсов пока нет.</p>
+        {% endfor %}
+    </div>
+</section>
+{% endblock %}
+
+{% block body_scripts %}
+<script src="/static/js/panel-scripts.js"></script>
+<script src="/static/js/reference-moderation.js"></script>
+{% endblock %}

@@ -3,6 +3,7 @@ from fastapi import APIRouter
 from routers.api.admin_api import router as admin_api_router
 from routers.api.extension import router as api_extension_router
 from routers.api.profile_api import router as profile_api_router
+from routers.api.reference_moderation import router as reference_moderation_router
 from routers.api.slovotron_webhook import router as slovotron_api_router
 from routers.api.twitch_eventsub import router as eventsub_router
 from routers.api.user_api import router as user_api_router
@@ -22,6 +23,7 @@ api_router.include_router(eventsub_router, tags=["Twitch"])
 api_router.include_router(user_api_router, tags=["User"])
 api_router.include_router(admin_api_router, tags=["Admin"])
 api_router.include_router(profile_api_router, tags=["Profile"])
+api_router.include_router(reference_moderation_router)
 api_router.include_router(slovotron_api_router, tags=["Slovotron"])
 api_router.include_router(api_extension_router, tags=["Extension"])
 

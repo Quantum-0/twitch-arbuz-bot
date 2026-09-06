@@ -310,8 +310,18 @@ class CharacterInfo(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(True), primary_key=True, default=uuid.uuid4)
     name: Mapped[str] = mapped_column(String, nullable=False)
-    description: Mapped[str] = mapped_column(String, nullable=True)
-    file_id: Mapped[uuid.UUID] = mapped_column(UUID(True), nullable=True)
+    description: Mapped[str | None] = mapped_column(String, nullable=True)
+    file_id: Mapped[uuid.UUID | None] = mapped_column(UUID(True), nullable=True)
+    # Existing references are trusted when the column is introduced. User uploads
+    # explicitly set this to NULL and therefore enter the moderation queue.
+    approved: Mapped[bool | None] = mapped_column(Boolean, nullable=True, default=True, server_default="true")
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        server_default=func.now(),
+        nullable=False,
+        index=True,
+    )
 
 
 class RaidPasta(Base):
