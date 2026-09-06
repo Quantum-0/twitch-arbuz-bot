@@ -5,14 +5,20 @@ from collections.abc import Callable
 from typing import Any
 
 import sqlalchemy as sa
-from memealerts.types.exceptions import MATokenExpiredError
+from memealerts.types.exceptions import MATokenExpiredError, MAUserNotFoundError
 from opentelemetry import trace
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from twitchAPI.type import TwitchResourceNotFound
 
 from database.models import Base, TTSSettings, TwitchUserSettings, User
-from exceptions import MADuplicateUserError, MATokenInvalidError
+from exceptions import (
+    MADuplicateUserError,
+    MAInvalidScopeError,
+    MAInvalidTokenError,
+    MANoToken,
+    MATokenInvalidError,
+)
 from schemas.api import StatsType
 from schemas.twitch import PointRewardRedemptionWebhookSchema, RaidWebhookSchema
 from services.memes import MemealertsService
@@ -40,6 +46,10 @@ MEMEALERTS_V1_MIGRATION_MESSAGE = (
     "Вам необходимо зайти в панель управления ботом после стрима и подключить новую интеграцию, "
     "иначе награда в скором времени перестанет работать. Мяу <3"
 )
+
+# Legacy v1 can only help when the streamer's v2 authorization is unusable.
+# Business/API errors must keep their original meaning instead of being masked by an old v1 token error.
+MEMEALERTS_V2_FALLBACK_ERRORS = (MAInvalidTokenError, MAInvalidScopeError, MANoToken, MATokenExpiredError)
 
 
 class TwitchEventSubService:
@@ -204,8 +214,8 @@ class TwitchEventSubService:
                         supporter=payload.event.user_input,
                         amount=user.memealerts.coins_for_reward,
                     )
-                except Exception:
-                    logger.error("Error with memealerts v2!", exc_info=True)
+                except MEMEALERTS_V2_FALLBACK_ERRORS:
+                    logger.warning("MemeAlerts v2 authorization failed; trying legacy v1 token", exc_info=True)
                     if not user.memealerts.memealerts_token:
                         raise
                     result = await self._memealerts.give_bonus(
@@ -258,6 +268,15 @@ class TwitchEventSubService:
                 f'Найдено несколько пользователей с именем "{exc.supporter}". Баллы возвращены. Для начисления мемкоинов используйте ID.',
             )
             await self._cancel_redemption(user, payload)
+        except MAUserNotFoundError:
+            logger.warning("MA supporter not found: %s", payload.event.user_input)
+            self._inc_reward("failed", StatsType.REWARD_MEMECOINS)
+            await self._chatbot.send_message(
+                user,
+                "Пользователь не найден в MemeAlerts. Баллы возвращены. "
+                "Проверьте ID или имя; новому зрителю может потребоваться забрать приветственный бонус.",
+            )
+            await self._cancel_redemption(user, payload)
         except MATokenExpiredError:
             logger.warning("MA Token expired")
             self._inc_reward("failed", StatsType.REWARD_MEMECOINS)
@@ -272,6 +291,14 @@ class TwitchEventSubService:
             await self._chatbot.send_message(
                 user,
                 f"Ошибка начисления мемкоинов: Memealerts не принял установленный токен. @{user.login_name}, перелогинься на сайте Memealerts и обнови токен, пожалуйста.",
+            )
+            await self._cancel_redemption(user, payload)
+        except (MAInvalidTokenError, MAInvalidScopeError, MANoToken):
+            logger.warning("MA v2 authorization is invalid")
+            self._inc_reward("failed", StatsType.REWARD_MEMECOINS)
+            await self._chatbot.send_message(
+                user,
+                f"Ошибка авторизации MemeAlerts. @{user.login_name}, переподключи интеграцию в панели управления ботом.",
             )
             await self._cancel_redemption(user, payload)
         except Exception:
