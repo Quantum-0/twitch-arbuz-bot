@@ -1126,6 +1126,55 @@ section h3 {
     transform: scale(1.05);
     border-color: #45a049;
 }
+
+.references-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 20px;
+    margin-top: 20px;
+}
+
+.reference-card {
+    aspect-ratio: 1 / 1;
+    background: var(--color-bg-secondary);
+    border: 3px solid var(--color-primary);
+    border-radius: 8px;
+    color: var(--color-text-muted);
+    display: block;
+    overflow: hidden;
+    position: relative;
+    text-decoration: none;
+}
+
+.reference-card-image {
+    height: 100%;
+    object-fit: cover;
+    transition: transform 0.3s;
+    width: 100%;
+}
+
+.reference-card:hover .reference-card-image {
+    transform: scale(1.05);
+}
+
+.reference-card-placeholder {
+    align-items: center;
+    display: flex;
+    height: 100%;
+    justify-content: center;
+    text-align: center;
+}
+
+.reference-card-owner {
+    border: 3px solid var(--color-primary);
+    border-radius: 50%;
+    bottom: 10px;
+    height: clamp(54px, 20%, 70px);
+    object-fit: cover;
+    position: absolute;
+    right: 10px;
+    width: clamp(54px, 20%, 70px);
+}
 .streamer-badge {
     position: absolute;
     bottom: -12px;

@@ -30,6 +30,7 @@ class Container(containers.DeclarativeContainer):
         modules=[
             "routers.api.admin_api",
             "routers.api.extension",
+            "routers.api.galleries",
             "routers.api.twitch_eventsub",
             "routers.api.user_api",
             "routers.api.user.memealerts",
@@ -40,6 +41,7 @@ class Container(containers.DeclarativeContainer):
             "routers.web.service_routes",
             "routers.web.memealerts_routes",
             "routers.web.pages",
+            "routers.web.galleries",
             "routers.web.overlays",
             "routers.web.file_storage",
             "routers.security_helpers",
