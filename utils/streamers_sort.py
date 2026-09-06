@@ -23,5 +23,6 @@ def compute_streamer_score(usr: dict) -> float:
         + (2 * usr["memealerts_enabled"])
         + (3 * usr["chat_bot_enabled"])
         + (4 * usr["ai_stickers_enabled"])
+        + min(2, (usr.get("likes_count", 0) or 0) * 0.05)
         + (5 * random.random())
     )

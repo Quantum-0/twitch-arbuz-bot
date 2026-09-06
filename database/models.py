@@ -7,6 +7,7 @@ from typing import Any
 from sqlalchemy import (
     BigInteger,
     Boolean,
+    CheckConstraint,
     Computed,
     DateTime,
     Float,
@@ -104,6 +105,18 @@ class User(Base):
         back_populates="user",
         cascade="all, delete",
     )
+    likes_given: Mapped[list["UserLike"]] = relationship(
+        "UserLike",
+        foreign_keys="UserLike.from_user_id",
+        back_populates="from_user",
+        cascade="all, delete-orphan",
+    )
+    likes_received: Mapped[list["UserLike"]] = relationship(
+        "UserLike",
+        foreign_keys="UserLike.to_user_id",
+        back_populates="to_user",
+        cascade="all, delete-orphan",
+    )
 
     @property
     def access_token(self) -> str:
@@ -127,6 +140,32 @@ class User(Base):
 
     def __str__(self):
         return f"<User:{self.twitch_id} db object '{self.login_name}'>"
+
+
+class UserLike(Base):
+    __tablename__ = "user_likes"
+    __table_args__ = (
+        Index("uq_user_likes_from_to", "from_user_id", "to_user_id", unique=True),
+        Index("ix_user_likes_from_user_id", "from_user_id"),
+        Index("ix_user_likes_to_user_id", "to_user_id"),
+        CheckConstraint("from_user_id <> to_user_id", name="ck_user_likes_not_self"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    from_user_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("twitch_bot_users.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    to_user_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("twitch_bot_users.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), nullable=False)
+
+    from_user: Mapped["User"] = relationship("User", foreign_keys=[from_user_id], back_populates="likes_given")
+    to_user: Mapped["User"] = relationship("User", foreign_keys=[to_user_id], back_populates="likes_received")
 
 
 class TwitchUserSettings(Base):

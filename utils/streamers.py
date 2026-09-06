@@ -4,7 +4,7 @@ from typing import Any, Literal
 import sqlalchemy as sa
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from database.models import MemealertsSettings, TwitchUserSettings, User
+from database.models import MemealertsSettings, TwitchUserSettings, User, UserLike
 from services.cache import Cache
 from twitch.client.twitch import Twitch
 from utils.streamers_sort import compute_streamer_score
@@ -13,7 +13,7 @@ from utils.streamers_sort import compute_streamer_score
 # позже этого порога, стример считается «использующим оверлеи».
 OVERLAY_USAGE_FRESHNESS = timedelta(days=14)
 
-SortKey = Literal["recommended", "followers", "created", "name", "interacted"]
+SortKey = Literal["recommended", "followers", "created", "name", "interacted", "likes"]
 SortOrder = Literal["asc", "desc"]
 TriState = bool | None
 
@@ -39,6 +39,11 @@ def _is_overlay_used_recently(overlays_last_usage: datetime | None, *, now: date
 
 
 def _build_select_query() -> sa.Select[tuple[Any, ...]]:
+    likes = (
+        sa.select(UserLike.to_user_id, sa.func.count(UserLike.id).label("likes_count"))
+        .group_by(UserLike.to_user_id)
+        .subquery()
+    )
     return (
         sa.select(
             User.id.label("id"),
@@ -55,10 +60,12 @@ def _build_select_query() -> sa.Select[tuple[Any, ...]]:
             TwitchUserSettings.enable_shoutout_on_raid.label("shoutout_enabled"),
             TwitchUserSettings.ai_sticker_reward_id.is_not(None).label("ai_stickers_enabled"),
             MemealertsSettings.memealerts_reward.is_not(None).label("memealerts_enabled"),
+            sa.func.coalesce(likes.c.likes_count, 0).label("likes_count"),
         )
         .select_from(User)
         .join(TwitchUserSettings)
         .join(MemealertsSettings)
+        .outerjoin(likes, likes.c.to_user_id == User.id)
         .where(User.followers_count > 2)
         .limit(500)
     )
@@ -122,6 +129,9 @@ def _apply_sort(rows: list[dict[str, Any]], sort: SortKey, order: SortOrder) -> 
         rows.sort(key=lambda r: r["interacted_at"], reverse=reverse)
     elif sort == "name":
         rows.sort(key=lambda r: r["username"].lower(), reverse=reverse)
+    elif sort == "likes":
+        rows.sort(key=lambda r: r["username"].lower())
+        rows.sort(key=lambda r: r["likes_count"], reverse=reverse)
     return rows
 
 
@@ -140,7 +150,7 @@ async def get_streamers_list(
       username, avatar_url, followers, is_beta_tester, donated, created_at,
       interacted_at, overlays_last_usage, chat_bot_enabled, pants_enabled,
       ai_stickers_enabled, memealerts_enabled, is_live, score, role,
-      overlay_used_recently.
+      overlay_used_recently, likes_count.
     """
     res = [row._asdict() for row in (await db.execute(_build_select_query())).all()]
 
@@ -167,4 +177,5 @@ def public_streamer_payload(row: dict[str, Any]) -> dict[str, Any]:
         "followers": row["followers"],
         "is_live": row["is_live"],
         "role": row["role"],
+        "likes_count": row["likes_count"],
     }

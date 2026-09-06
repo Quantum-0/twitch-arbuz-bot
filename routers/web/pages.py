@@ -16,7 +16,7 @@ from starlette.templating import Jinja2Templates
 
 from config import settings
 from container import Container
-from database.models import CharacterInfo, GeneratedImage, TwitchUserSettings, User
+from database.models import CharacterInfo, GeneratedImage, TwitchUserSettings, User, UserLike
 from dependencies import get_db
 from routers.security_helpers import admin_auth, user_auth, user_auth_optional
 from schemas.enums import ChatterRole, TTSTrigger
@@ -249,15 +249,27 @@ async def profile_page(
     twitch: Annotated[Twitch, Depends(Provide[Container.twitch])],
     user: User | None = Security(user_auth_optional),
 ):
-    profile_user_data: User = (  # type: ignore
+    likes_count = (
+        sa.select(sa.func.count(UserLike.id))
+        .where(UserLike.to_user_id == User.id)
+        .correlate(User)
+        .scalar_subquery()
+    )
+    is_liked = (
+        sa.exists().where(UserLike.from_user_id == user.id, UserLike.to_user_id == User.id)
+        if user is not None
+        else sa.false()
+    )
+    profile_row = (
         await db.execute(
-            sa.select(User)
+            sa.select(User, likes_count.label("likes_count"), is_liked.label("is_liked"))
             .options(joinedload(User.settings), joinedload(User.memealerts), joinedload(User.links))
-            .filter_by(login_name=profile_user)
+            .where(User.login_name == profile_user)
         )
-    ).scalar_one_or_none()
-    if not profile_user_data:
+    ).one_or_none()
+    if profile_row is None:
         raise HTTPException(404, "User not found")
+    profile_user_data, profile_likes_count, profile_is_liked = profile_row
     reference = (
         await db.scalar(sa.select(CharacterInfo).where(CharacterInfo.name == profile_user.lower()))
         if profile_user_data.settings.ai_reference_show_in_profile
@@ -266,6 +278,8 @@ async def profile_page(
     ai_stickers_enabled = profile_user_data.settings.ai_stickers_show_in_profile
     await db.commit()
     profile_user_dict = profile_user_data.__dict__
+    profile_user_dict["likes_count"] = profile_likes_count
+    profile_user_dict["is_liked"] = profile_is_liked
     streams = await cache.as_cached(twitch.get_streams, [profile_user_data])
     followers_count = await cache.as_cached(twitch.get_followers_count, profile_user_data)
     profile_user_dict["is_live"] = set(streams.values()) != {None}
