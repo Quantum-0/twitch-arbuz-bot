@@ -44,6 +44,7 @@ from twitch.chat.bot import ChatBot
 from twitch.client.twitch import Twitch
 from utils.enums import SSEChannel
 from utils.memes import token_expires_in_days
+from utils.reference_moderation import ensure_reference_upload_allowed, is_reference_admin
 from utils.stickers_query import build_stickers_query, serialize_sticker_rows
 from utils.tts import ensure_tts_settings
 
@@ -386,11 +387,13 @@ async def upload_reference(
     description: str | None = Form(default=None),
     name: str | None = None,
 ) -> BoolResponseSchema:
+    ensure_reference_upload_allowed(user)
     has_file = bool(file and file.filename)
     if not has_file and not (description or "").strip():
         raise HTTPException(status_code=400, detail="Either file or description must be provided.")
 
-    if name is not None and user.login_name != "quantum075":
+    admin_upload = is_reference_admin(user.login_name)
+    if name is not None and not admin_upload:
         raise HTTPException(status_code=403, detail="You have no access to upload reference by custom name")
 
     file_bytes = b""
@@ -409,7 +412,7 @@ async def upload_reference(
             raise HTTPException(415, detail="Invalid file type. Only PNG images are allowed.")
         logger.info(f"Reference image from {user.login_name} was loaded to server")
 
-    target_username = name or user.login_name.lower()
+    target_username = (name or user.login_name).lower()
     new_image_id = uuid4() if has_file else None
     old_file_id_to_delete = None
 
@@ -427,11 +430,16 @@ async def upload_reference(
                     existing_info.file_id = new_image_id
                 if description:
                     existing_info.description = description
+                existing_info.approved = True if admin_upload else None
+                existing_info.updated_at = sa.func.now()
             else:
                 new_info = CharacterInfo(
                     name=target_username,
                     description=description,
                     file_id=new_image_id,
+                    # SQL NULL is explicit: plain None would cause SQLAlchemy's
+                    # Python default (used to trust legacy rows) to insert True.
+                    approved=True if admin_upload else sa.null(),  # type: ignore[arg-type]
                 )
                 session.add(new_info)
             await session.commit()

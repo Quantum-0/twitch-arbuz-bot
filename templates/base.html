@@ -74,6 +74,9 @@
         {% if user and user.login_name == "quantum075" %}
         <a href="/admin" style="color: white; text-decoration: none;">Админка</a>
         {% endif %}
+        {% if user and user.login_name|lower in ['quantum075', 'fufigg', 'beatr1xo', 'toad_anna', 'anna_toad', 'd_e_l_y', 'fra3a'] %}
+        <a href="/moderation/references" style="color: white; text-decoration: none;">Модерация референсов</a>
+        {% endif %}
         {% if user and user.in_beta_test %}
         <a href="/kinda_roadmap" style="color: white; text-decoration: none;">TODO</a>
         {% endif %}
