@@ -20,7 +20,7 @@ from utils.streamers import (
 router = APIRouter(prefix="/streamers", tags=["Streamers list"])
 
 
-VALID_SORTS = ("recommended", "followers", "created", "name", "interacted")
+VALID_SORTS = ("recommended", "followers", "created", "name", "interacted", "likes")
 VALID_ORDERS = ("asc", "desc")
 
 
@@ -43,7 +43,7 @@ async def list_streamers(
     """Возвращает список стримеров с фильтрами и сортировкой.
 
     Query-параметры:
-      sort: recommended | followers | created | name
+      sort: recommended | followers | created | name | interacted | likes
       order: asc | desc (игнорируется при sort=recommended)
       f_bot, f_meme, f_ai, f_overlay, f_online, f_pants, f_shoutout: true | false | null
     """

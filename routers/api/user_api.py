@@ -21,6 +21,7 @@ from database.models import CharacterInfo, User
 from dependencies import get_db
 from routers.api.user.checks import router as checks_router
 from routers.api.user.consent import router as consent_router
+from routers.api.user.likes import router as likes_router
 from routers.api.user.memealerts import router as memealerts_router
 from routers.api.user.stats import router as stats_router
 from routers.api.user.streamers import router as streamers_router
@@ -53,6 +54,7 @@ router = APIRouter(prefix="/user", tags=["User API"])
 
 router.include_router(checks_router)
 router.include_router(consent_router)
+router.include_router(likes_router)
 router.include_router(memealerts_router)
 router.include_router(streamers_router)
 router.include_router(stats_router)

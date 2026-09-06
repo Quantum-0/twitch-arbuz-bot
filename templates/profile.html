@@ -23,6 +23,23 @@
                     {{ profile_user.login_name }}
                 </h2>
 
+                <div class="profile-like" data-profile-like data-user-id="{{ profile_user.id }}">
+                    {% if user and user.id != profile_user.id %}
+                    <button class="profile-like-button{% if profile_user.is_liked %} active{% endif %}"
+                            type="button"
+                            aria-pressed="{{ 'true' if profile_user.is_liked else 'false' }}"
+                            title="{{ 'Убрать лайк' if profile_user.is_liked else 'Поставить лайк' }}">
+                        <span aria-hidden="true">♥</span>
+                        <span data-like-count>{{ profile_user.likes_count }}</span>
+                    </button>
+                    {% else %}
+                    <span class="profile-like-count" title="Количество лайков">
+                        <span aria-hidden="true">♥</span>
+                        <span data-like-count>{{ profile_user.likes_count }}</span>
+                    </span>
+                    {% endif %}
+                </div>
+
                 <p style="color: var(--color-text-muted); margin-top: 5px;">
                     ID: {{ profile_user.id }}
                 </p>
@@ -217,5 +234,6 @@
 {% endblock %}
 
 {% block body_scripts %}
+<script src="/static/js/profile-likes.js"></script>
 <script src="/static/js/profile-stickers.js"></script>
 {% endblock %}

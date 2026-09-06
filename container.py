@@ -33,6 +33,7 @@ class Container(containers.DeclarativeContainer):
             "routers.api.twitch_eventsub",
             "routers.api.user_api",
             "routers.api.user.memealerts",
+            "routers.api.user.likes",
             "routers.api.user.streamers",
             "routers.api.user.stats",
             "routers.api.user.checks",
