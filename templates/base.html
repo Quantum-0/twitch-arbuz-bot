@@ -152,7 +152,8 @@
         </div>
     </div>
 
-    <!-- Boosty-предложение (только для залогиненных) -->
+    {% if user and user.boosty_offer_eligible %}
+    <!-- Boosty-предложение (только для пользователей, которые уже попробовали сервис) -->
     <div class="boosty-modal" id="boostyModal" role="dialog" aria-modal="true" aria-label="Поддержка на Boosty">
         <div class="boosty-card">
             <button class="boosty-close" id="boostyClose" aria-label="Закрыть">&times;</button>
@@ -184,6 +185,7 @@
             <button class="follow-admin-skip" id="followAdminSkip">Спасибо, не сейчас</button>
         </div>
     </div>
+    {% endif %}
 
     <script>
     (function () {

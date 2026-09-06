@@ -1,6 +1,6 @@
 import json
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 from decimal import Decimal
 from typing import Any
 
@@ -127,6 +127,25 @@ class User(Base):
 
     def __str__(self):
         return f"<User:{self.twitch_id} db object '{self.login_name}'>"
+
+    @property
+    def boosty_offer_eligible(self) -> bool:
+        """Whether the user has had enough time and product usage to see the support prompt."""
+        if self.created_at > datetime.now() - timedelta(hours=3):
+            return False
+
+        enabled_setting = any(
+            bool(getattr(self.settings, column.name))
+            for column in self.settings.__table__.columns
+            if column.name.startswith("enable_")
+        )
+        return bool(
+            enabled_setting
+            or self.overlays_last_usage is not None
+            or self.memealerts.access_token
+            or self.settings.ai_sticker_reward_id
+            or (self.tts is not None and self.tts.enabled)
+        )
 
 
 class TwitchUserSettings(Base):
