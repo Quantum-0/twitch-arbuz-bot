@@ -5,9 +5,28 @@ from typing import Any, Literal
 import sqlalchemy as sa
 
 from config import settings
-from database.models import GeneratedImage, User
+from database.models import GeneratedImage, TwitchUserSettings, User
 
 StickersMode = Literal["mine", "with_me", "from_me"]
+
+
+def build_public_stickers_query(before: datetime | None = None, limit: int = 10) -> sa.Select:
+    """Build the public sticker feed, respecting each channel owner's privacy setting."""
+    q = (
+        sa.select(GeneratedImage, User.login_name.label("channel_login"))
+        .join(User, User.twitch_id == sa.cast(GeneratedImage.on_channel, sa.String))
+        .join(TwitchUserSettings, TwitchUserSettings.user_id == User.id)
+        .where(GeneratedImage.file_id.is_not(None))
+        .where(TwitchUserSettings.ai_stickers_show_in_profile.is_(True))
+        .where(
+            GeneratedImage.created_at > sa.func.now() - sa.text(f"interval '{settings.s3_sticker_expires_days} days'")
+        )
+        .order_by(GeneratedImage.created_at.desc())
+        .limit(limit + 1)
+    )
+    if before is not None:
+        q = q.where(GeneratedImage.created_at < before)
+    return q
 
 
 def build_stickers_query(

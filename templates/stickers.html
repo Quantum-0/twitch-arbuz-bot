@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+
+{% block title %}Галерея ИИ-стикеров — Quantum0's Bot{% endblock %}
+{% block description %}Публичная галерея ИИ-стикеров, созданных пользователями Quantum0's Bot{% endblock %}
+
+{% block content %}
+<h2>Галерея ИИ-стикеров</h2>
+<p>Здесь собраны стикеры с каналов, владельцы которых разрешили их публичный показ.</p>
+
+<div id="ai-stickers-grid" class="ai-stickers-grid" aria-live="polite"></div>
+<button id="load-more-stickers" type="button">Показать ещё</button>
+<p id="stickers-end" style="display:none">На этом всё, ребята ¯\_(ツ)_/¯</p>
+{% endblock %}
+
+{% block body_scripts %}
+<script src="/static/js/public-stickers.js"></script>
+{% endblock %}
