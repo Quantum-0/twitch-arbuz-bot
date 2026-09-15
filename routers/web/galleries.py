@@ -32,6 +32,13 @@ async def public_references_page(
     db: Annotated[AsyncSession, Depends(get_db)],
     user: Annotated[User, Security(user_auth)],
 ):
+    # TODO: Вынести отдачу референсов в отдельный запрос через API,
+    #  добавить туда пагинацию по аналогии со стикерами
+    #  дописывать внизу "и N скрытых референсов"
+    #  так же визуально на самой странице нужно сделать так, что типа если картинка 2:1
+    #  то двигая мышкой по картинке меняется её кроп.
+    #  т.е. поднимаем мышку к верхней части квадрата - показывается верх рефки,
+    #  двигаем мышку вниз - кроп перемещается вниз, опустили в самый низ - видим низ рефки
     references = (await db.execute(build_public_references_query())).all()
     return templates.TemplateResponse(
         "references.html",
