@@ -6,3 +6,7 @@ allure-results
 allure-report
 /.pycrunch-config.yaml
 /report.xml
+__pycache__
+.DS_Store
+/.run/
+*.pem
