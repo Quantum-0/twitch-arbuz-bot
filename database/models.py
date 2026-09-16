@@ -78,6 +78,8 @@ class User(Base):
 
     _access_token: Mapped[str] = mapped_column("access_token", String)
     _refresh_token: Mapped[str] = mapped_column("refresh_token", String)
+    # Срок действия Twitch access token (UTC, без timezone). None — старые токены до миграции.
+    twitch_token_expires_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, default=None)
 
     # Связи
     settings: Mapped["TwitchUserSettings"] = relationship(
@@ -100,6 +102,12 @@ class User(Base):
     )
     tts: Mapped["TTSSettings | None"] = relationship(
         "TTSSettings",
+        uselist=False,
+        back_populates="user",
+        cascade="all, delete",
+    )
+    telegram: Mapped["TelegramSettings | None"] = relationship(
+        "TelegramSettings",
         uselist=False,
         back_populates="user",
         cascade="all, delete",
@@ -492,6 +500,64 @@ class Statistics(Base):
             "Для count-метрик остаётся 0/NULL."
         ),
     )
+
+
+class TelegramSettings(Base):
+    """Настройки Telegram-интеграции для стримера (1:1 с User, lazy-создание).
+
+    Строка НЕ создаётся при регистрации пользователя — только когда стример
+    начинает настраивать Telegram-интеграцию. До этого используются дефолты.
+
+    ``user_id`` — первичный ключ (отдельного суррогатного ``id`` нет, чтобы
+    не плодить sequence/счётчики и держать строгую 1:1).
+
+    Три независимых чата: stream (уведомления о стриме), clips (клипы),
+    stickers (AI-стикеры). Каждый подключается отдельным deep-link flow.
+    """
+
+    __tablename__ = "telegram_settings"
+
+    user_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("twitch_bot_users.id", ondelete="CASCADE"), primary_key=True
+    )
+
+    # ── Stream chat ──
+    stream_chat_id: Mapped[str | None] = mapped_column(String, nullable=True, default=None)
+    stream_chat_type: Mapped[str | None] = mapped_column(String, nullable=True, default=None)
+    stream_connected_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, default=None)
+
+    # ── Clips chat ──
+    clips_chat_id: Mapped[str | None] = mapped_column(String, nullable=True, default=None)
+    clips_chat_type: Mapped[str | None] = mapped_column(String, nullable=True, default=None)
+    clips_connected_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, default=None)
+
+    # ── Stickers chat ──
+    stickers_chat_id: Mapped[str | None] = mapped_column(String, nullable=True, default=None)
+    stickers_chat_type: Mapped[str | None] = mapped_column(String, nullable=True, default=None)
+    stickers_connected_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, default=None)
+
+    # ── Stream notifications ──
+    stream_notification_enabled: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default=false(), nullable=False
+    )
+    stream_offline_behavior: Mapped[str] = mapped_column(String, default="keep", server_default="keep", nullable=False)
+    last_stream_message_id: Mapped[str | None] = mapped_column(String, nullable=True, default=None)
+
+    # ── Clips ──
+    clips_enabled: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false(), nullable=False)
+    clips_mode: Mapped[str] = mapped_column(String, default="all", server_default="all", nullable=False)
+    last_clip_date: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, default=None)
+
+    # ── AI Stickers ──
+    stickers_enabled: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false(), nullable=False)
+    stickers_mode: Mapped[str] = mapped_column(String, default="photo", server_default="photo", nullable=False)
+
+    # ── Chat mirroring (future, не реализуем в MVP) ──
+    twitch_to_tg_enabled: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false(), nullable=False)
+    tg_to_twitch_enabled: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false(), nullable=False)
+    telegram_user_id: Mapped[str | None] = mapped_column(String, nullable=True, default=None)
+
+    user: Mapped["User"] = relationship("User", back_populates="telegram")
 
 
 @event.listens_for(User, "after_insert")

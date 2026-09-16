@@ -46,6 +46,7 @@ async def lifespan(app: "FastAPI | None" = None):
     sse_manager = container.sse_manager()
     scheduler = container.scheduler()
     memealerts_auth = container.memealerts_auth()
+    twitch_token_service = container.twitch_token_service()
     stickers_processor = container.stickers_processor()
     tts_service = container.tts_service()
 
@@ -54,6 +55,7 @@ async def lifespan(app: "FastAPI | None" = None):
     await statistics.startup(redis)
     await sse_manager.startup(redis)
     await memealerts_auth.startup(redis, statistics)
+    twitch_token_service.startup(redis)
     await twitch.startup()
     await chat_bot.startup(twitch)
     await ai.startup()
@@ -78,6 +80,14 @@ async def lifespan(app: "FastAPI | None" = None):
 
     mqtt.subscribe("slovotron/+/+", slovotron.handle_webhook)
 
+    # Telegram chat_connected — от TG-микросервиса при добавлении бота в чат.
+    from services.telegram_integration import handle_chat_connected
+
+    async def _on_chat_connected(payload: dict) -> None:
+        await handle_chat_connected(payload, container.db_session_factory())
+
+    mqtt.subscribe("telegram/chat_connected", _on_chat_connected)
+
     if app is not None:
         app.container = container
 
@@ -88,6 +98,15 @@ async def lifespan(app: "FastAPI | None" = None):
         minute="0",
         second="0",
         id="update_memealerts_tokens",
+        replace_existing=True,
+    )
+    scheduler.add_job(
+        twitch_token_service.run_periodic_update,
+        trigger="cron",
+        hour="*/6",
+        minute="45",
+        second="0",
+        id="update_twitch_tokens",
         replace_existing=True,
     )
     # Дамп 10-минутных бакетов статистики из Redis в БД.

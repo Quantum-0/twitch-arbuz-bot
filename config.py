@@ -93,6 +93,8 @@ class Settings(BaseSettings):
     tts_api_url: str = "http://157.22.205.183:8000/v1/audio/speech"
     tts_api_token: SecretStr = SecretStr("")
     tts_model: str = "neco-arc"
+    telegram_bot_username: str = "quantum0s_twitch_bot"
+    telegram_state_secret: SecretStr = SecretStr("")
 
     @property
     def login_twitch_url(self) -> str:

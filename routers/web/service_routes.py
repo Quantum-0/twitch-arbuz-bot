@@ -54,12 +54,17 @@ async def callback(
     (
         access_token,
         refresh_token,
+        expires_in,
     ) = tokens
     user_info = await twitch.get_self(access_token, refresh_token)
 
     user_id = user_info.id
     login_name = user_info.login
     profile_image_url = user_info.profile_image_url
+
+    from services.twitch_token_service import TwitchTokenService
+
+    token_expires_at = TwitchTokenService.calc_expires_at(expires_in) if expires_in else None
 
     result = await db.execute(sa.select(User).filter_by(twitch_id=user_id))
     user = result.scalar_one_or_none()
@@ -70,6 +75,7 @@ async def callback(
             profile_image_url=profile_image_url,
             access_token=access_token,
             refresh_token=refresh_token,
+            twitch_token_expires_at=token_expires_at,
         )
         db.add(user)
     else:
@@ -77,6 +83,7 @@ async def callback(
         user.refresh_token = refresh_token
         user.profile_image_url = profile_image_url
         user.login_name = login_name
+        user.twitch_token_expires_at = token_expires_at
         db.add(user)
 
     await db.commit()

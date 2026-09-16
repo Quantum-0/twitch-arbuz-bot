@@ -21,6 +21,7 @@ from services.statistics import StatisticsService
 from services.stickers import StickersService
 from services.stickers_processor import StickerProcessor
 from services.tts import TTSService
+from services.twitch_token_service import TwitchTokenService
 from twitch.chat.bot import ChatBot
 from twitch.client.twitch import Twitch
 
@@ -36,6 +37,7 @@ class Container(containers.DeclarativeContainer):
             "routers.api.user.memealerts",
             "routers.api.user.streamers",
             "routers.api.user.stats",
+            "routers.api.user.telegram",
             "routers.api.user.checks",
             "routers.api.slovotron_webhook",
             "routers.web.service_routes",
@@ -88,6 +90,7 @@ class Container(containers.DeclarativeContainer):
     memealerts = providers.Singleton(MemealertsService, db_session_factory=db_session_factory)  # deprecated!!!
     memealerts_auth = providers.Singleton(MemealertsOAuthService, db_session_factory=db_session_factory)
     memealerts_v2 = providers.Singleton(MemealertsV2Service, db_session_factory=db_session_factory)
+    twitch_token_service = providers.Singleton(TwitchTokenService, db_session_factory=db_session_factory)
     stickers_processor = providers.Singleton(StickerProcessor)
 
     boto_session = providers.Singleton(aioboto3.Session)
