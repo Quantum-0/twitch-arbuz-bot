@@ -26,6 +26,7 @@ class TelegramSettingsSchema(BaseModel):
 
     clips_enabled: bool = False
     clips_mode: Literal["all", "featured"] = "all"
+    clips_delivery: Literal["video", "link"] = "link"
 
     stickers_enabled: bool = False
     stickers_mode: Literal["photo", "document"] = "photo"
@@ -41,6 +42,7 @@ class TelegramSettingsUpdateSchema(BaseModel):
     stream_offline_behavior: Literal["delete", "message", "keep"] | None = None
     clips_enabled: bool | None = None
     clips_mode: Literal["all", "featured"] | None = None
+    clips_delivery: Literal["video", "link"] | None = None
     stickers_enabled: bool | None = None
     stickers_mode: Literal["photo", "document"] | None = None
     twitch_to_tg_enabled: bool | None = None

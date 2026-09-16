@@ -8,7 +8,9 @@ APScheduler-джоба: раз в 5 минут проверяет новых к�
 2. Для каждого: получить валидный Twitch user token (через TwitchTokenService).
 3. GET https://api.twitch.tv/helix/clips?broadcaster_id=<id>&started_at=<iso>&first=100
 4. Фильтр по clips_mode: all → все, featured → только is_featured=True.
-5. Для каждого нового клипа: MQTT publish twibot/telegram/send_message с ссылкой на клип.
+5. Для каждого нового клипа:
+   - clips_delivery == "link" → MQTT twibot/telegram/send_message с ссылкой.
+   - clips_delivery == "video" → GET /helix/clips/download → MQTT twibot/telegram/send_video.
 6. Обновить last_clip_date = max(clip.created_at) или NOW() если клипов не было.
 """
 
@@ -30,6 +32,7 @@ from services.twitch_token_service import TwitchTokenExpiredError, TwitchTokenSe
 logger = logging.getLogger(__name__)
 
 _CLIPS_URL = "https://api.twitch.tv/helix/clips"
+_CLIPS_DOWNLOAD_URL = "https://api.twitch.tv/helix/clips/download"
 _CLIPS_PAGE_SIZE = 100
 _CLIPS_LOOKBACK_DAYS = 7
 
@@ -126,17 +129,11 @@ class ClipsPollerService:
         clips.sort(key=lambda c: c.get("created_at", ""))
 
         new_last_clip_date = started_at
+        delivery = tg.clips_delivery or "link"
 
         for clip in clips:
+            await self._send_clip(access_token, tg.clips_chat_id, clip, delivery)
             clip_created_at_str = clip.get("created_at", "")
-            clip_url = clip.get("url") or self._build_clip_url(clip.get("id", ""))
-            clip_title = clip.get("title", "")
-            creator = clip.get("creator_name", "")
-
-            caption = f"🎬 {clip_title}\n👤 {creator}\n🔗 {clip_url}"
-
-            await self._mqtt_publish_send_message(tg.clips_chat_id, caption)
-
             try:
                 clip_dt = datetime.fromisoformat(clip_created_at_str.replace("Z", "+00:00")).replace(tzinfo=None)
                 if clip_dt > new_last_clip_date:
@@ -152,6 +149,27 @@ class ClipsPollerService:
             user.id,
             user.login_name,
         )
+
+    async def _send_clip(self, access_token: str, chat_id: str, clip: dict[str, Any], delivery: str) -> None:
+        """Отправить один клип в Telegram: видео-файлом или ссылкой."""
+        clip_id = clip.get("id", "")
+        clip_url = clip.get("url") or self._build_clip_url(clip_id)
+        clip_title = clip.get("title", "")
+        creator = clip.get("creator_name", "")
+
+        if delivery == "video":
+            video_url = await self._fetch_clip_download_url(access_token, clip_id)
+            if video_url:
+                caption = f"🎬 {clip_title}\n👤 {creator}"
+                await self._mqtt_publish_send_video(chat_id, video_url, caption)
+                return
+            logger.warning(
+                "Пуллинг клипов: не удалось получить video URL для clip_id=%s, отправляю ссылку",
+                clip_id,
+            )
+
+        caption_link = f"🎬 {clip_title}\n👤 {creator}\n🔗 {clip_url}"
+        await self._mqtt_publish_send_message(chat_id, caption_link)
 
     async def _fetch_clips(
         self,
@@ -206,8 +224,38 @@ class ClipsPollerService:
 
         return all_clips
 
+    async def _fetch_clip_download_url(self, access_token: str, clip_id: str) -> str | None:
+        """Получить прямой URL для скачивания видео клипа через Twitch Get Clips Download API.
+
+        Возвращает URL лучшего качества (первый в списке) или None при ошибке.
+        """
+        async with httpx.AsyncClient() as client:
+            response = await client.get(
+                _CLIPS_DOWNLOAD_URL,
+                params={"id": clip_id},
+                headers={
+                    "Authorization": f"Bearer {access_token}",
+                    "Client-Id": settings.twitch_client_id,
+                },
+                timeout=15,
+            )
+
+        if not response.is_success:
+            logger.warning(
+                "Twitch Get Clips Download error: status=%s, body=%s",
+                response.status_code,
+                response.text[:300],
+            )
+            return None
+
+        data = response.json().get("data", [])
+        if not data:
+            return None
+
+        return data[0].get("url")
+
     async def _mqtt_publish_send_message(self, chat_id: str, message_text: str) -> None:
-        """Отправить сообщение со ссылкой на клип в Telegram через MQTT."""
+        """Отправить текстовое сообщение в Telegram через MQTT."""
         import uuid
 
         await self._mqtt.publish(
@@ -216,6 +264,20 @@ class ClipsPollerService:
                 "request_id": str(uuid.uuid4()),
                 "chat_id": chat_id,
                 "message_text": message_text,
+            },
+        )
+
+    async def _mqtt_publish_send_video(self, chat_id: str, video_url: str, caption: str) -> None:
+        """Отправить видео клипа в Telegram через MQTT."""
+        import uuid
+
+        await self._mqtt.publish(
+            "telegram/send_video",
+            {
+                "request_id": str(uuid.uuid4()),
+                "chat_id": chat_id,
+                "video_url": video_url,
+                "caption": caption,
             },
         )
 

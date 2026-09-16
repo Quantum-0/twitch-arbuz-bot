@@ -43,6 +43,7 @@ async def get_telegram_settings_endpoint(
         stream_offline_behavior=tg.stream_offline_behavior,
         clips_enabled=tg.clips_enabled,
         clips_mode=tg.clips_mode,
+        clips_delivery=tg.clips_delivery,
         stickers_enabled=tg.stickers_enabled,
         stickers_mode=tg.stickers_mode,
         twitch_to_tg_enabled=tg.twitch_to_tg_enabled,

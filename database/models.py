@@ -546,6 +546,7 @@ class TelegramSettings(Base):
     # ── Clips ──
     clips_enabled: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false(), nullable=False)
     clips_mode: Mapped[str] = mapped_column(String, default="all", server_default="all", nullable=False)
+    clips_delivery: Mapped[str] = mapped_column(String, default="link", server_default="link", nullable=False)
     last_clip_date: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, default=None)
 
     # ── AI Stickers ──

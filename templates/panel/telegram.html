@@ -72,6 +72,13 @@
                     <option value="featured">Только избранные (featured)</option>
                 </select>
             </div>
+            <div class="toggle-label">
+                <span>Способ отправки клипов</span>
+                <select id="tg-clips-delivery" onchange="telegramSaveSettings()">
+                    <option value="video">Загружать видео клипа</option>
+                    <option value="link">Отправлять ссылку на клип</option>
+                </select>
+            </div>
         </div>
 
         <h4>AI-стикеры</h4>
@@ -134,6 +141,7 @@
 
             document.getElementById('tg-offline-behavior').value = data.stream_offline_behavior || 'keep';
             document.getElementById('tg-clips-mode').value = data.clips_mode || 'all';
+            document.getElementById('tg-clips-delivery').value = data.clips_delivery || 'link';
             document.getElementById('tg-stickers-mode').value = data.stickers_mode || 'photo';
         } catch (e) {
             console.error('telegramLoadSettings error:', e);
@@ -146,6 +154,7 @@
         const stickersEnabled = document.getElementById('tg-stickers-toggle')?.classList.contains('active');
         const offlineBehavior = document.getElementById('tg-offline-behavior')?.value;
         const clipsMode = document.getElementById('tg-clips-mode')?.value;
+        const clipsDelivery = document.getElementById('tg-clips-delivery')?.value;
         const stickersMode = document.getElementById('tg-stickers-mode')?.value;
 
         const body = {};
@@ -154,6 +163,7 @@
         if (stickersEnabled !== undefined) body.stickers_enabled = stickersEnabled;
         if (offlineBehavior) body.stream_offline_behavior = offlineBehavior;
         if (clipsMode) body.clips_mode = clipsMode;
+        if (clipsDelivery) body.clips_delivery = clipsDelivery;
         if (stickersMode) body.stickers_mode = stickersMode;
 
         try {
