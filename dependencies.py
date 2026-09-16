@@ -18,12 +18,6 @@ async def get_db() -> AsyncGenerator:
         yield session
 
 
-# TODO: inject по аналогии с ручками, но без depends, просто Provide[Container....]
-# TODO: не забыть добавить вайринг
-async def test_bg_task():
-    print("test")
-
-
 @asynccontextmanager
 async def lifespan(app: "FastAPI | None" = None):
     from container import Container

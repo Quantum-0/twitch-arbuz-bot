@@ -737,5 +737,7 @@ class Twitch:
             user.refresh_token,
         )
         await twitch_user.update_user_extensions(
-            UserActiveExtensions(overlay={"1": dict(active=True, id="cr20njfkgll4okyrhag7xxph270sqk", version="2.1.1")})
+            UserActiveExtensions(
+                overlay={"1": {"active": True, "id": "cr20njfkgll4okyrhag7xxph270sqk", "version": "2.1.1"}}
+            )
         )
