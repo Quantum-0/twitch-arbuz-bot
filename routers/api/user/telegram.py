@@ -1,10 +1,9 @@
 """API-роутер для Telegram-интеграции: получение/обновление настроек, генерация deep-link."""
 
 import logging
-from datetime import UTC, datetime, timedelta
 from typing import Annotated
 
-import jwt
+import httpx
 from fastapi import APIRouter, Depends, Security
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.responses import JSONResponse
@@ -77,20 +76,35 @@ async def generate_connect_link(
 ) -> JSONResponse:
     """Сгенерировать deep-link для подключения Telegram-чата.
 
-    Возвращает URL вида ``https://t.me/<bot>?start=<jwt>`` — открывает
-    приватный чат с ботом, бот GUID'ит пользователя к добавлению в канал/группу.
-    JWT содержит ``user_id``, ``scope`` (stream/clips/stickers), ``chat_type``
-    (channel/group), срок жизни 5 минут.
+    Вызывает TG-микросервис ``POST /api/connect`` для создания pending-подключения
+    и получения ``short_id``. Возвращает URL ``https://t.me/<bot>?start=<short_id>``.
+    ``short_id`` (8 hex chars) укладывается в лимит Telegram 64 байта для ``?start=``.
     """
-    payload = {
-        "user_id": user.id,
-        "scope": data.scope,
-        "chat_type": data.chat_type,
-        "iat": datetime.now(tz=UTC),
-        "exp": datetime.now(tz=UTC) + timedelta(minutes=5),
-    }
-    token = jwt.encode(payload, settings.telegram_state_secret.get_secret_value(), algorithm="HS256")
-    url = f"https://t.me/{settings.telegram_bot_username}?start={token}"
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                f"{settings.telegram_service_url}/api/connect",
+                headers={"X-Api-Key": settings.telegram_service_api_key},
+                json={
+                    "user_id": user.id,
+                    "scope": data.scope,
+                    "chat_type": data.chat_type,
+                },
+                timeout=10,
+            )
+    except httpx.ConnectError:
+        logger.error("TG-сервис недоступен: %s", settings.telegram_service_url)
+        return JSONResponse({"title": "Ошибка", "message": "TG-сервис недоступен."}, 503)
+
+    if not response.is_success:
+        logger.error("TG-сервис вернул %s: %s", response.status_code, response.text)
+        return JSONResponse({"title": "Ошибка", "message": "Не удалось создать подключение."}, 502)
+
+    short_id = response.json().get("short_id")
+    if not short_id:
+        return JSONResponse({"title": "Ошибка", "message": "TG-сервис не вернул short_id."}, 502)
+
+    url = f"https://t.me/{settings.telegram_bot_username}?start={short_id}"
     return JSONResponse({"url": url}, 200)
 
 
