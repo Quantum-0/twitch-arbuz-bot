@@ -104,6 +104,7 @@ class Settings(BaseSettings):
     telegram_state_secret: SecretStr = SecretStr("")
     telegram_service_url: str = "http://localhost:8001"
     telegram_service_api_key: str = "changeme"
+    base_url: str = "https://bot.quantum0.ru"
 
     @property
     def login_twitch_url(self) -> str:

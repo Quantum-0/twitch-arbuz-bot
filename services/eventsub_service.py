@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+import uuid
 from collections.abc import Callable
 from typing import Any
 
@@ -11,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from twitchAPI.type import TwitchResourceNotFound
 
+from config import settings
 from database.models import Base, TelegramSettings, TTSSettings, TwitchUserSettings, User
 from exceptions import (
     MADuplicateUserError,
@@ -20,6 +22,7 @@ from exceptions import (
     MATokenInvalidError,
 )
 from schemas.api import StatsType
+from schemas.enums import FileStorageDir
 from schemas.twitch import (
     PointRewardRedemptionWebhookSchema,
     RaidWebhookSchema,
@@ -348,6 +351,8 @@ class TwitchEventSubService:
         )
         self._inc_reward("success", StatsType.REWARD_AI_STICKERS)
 
+        await self._maybe_send_sticker_to_telegram(user, sticker_id, payload.event.user_input, payload.event.user_name)
+
     @tracer.start_as_current_span("Twitch Eventsub: Reward TTS")
     async def reward_tts(
         self,
@@ -471,8 +476,6 @@ class TwitchEventSubService:
 
     async def _publish_send_message(self, chat_id: str, message_text: str, request_id: str | None = None) -> None:
         """Отправить текстовое сообщение в Telegram через MQTT."""
-        import uuid
-
         if self._mqtt is None:
             logger.warning("MQTT не доступен, не могу отправить сообщение в Telegram")
             return
@@ -488,8 +491,6 @@ class TwitchEventSubService:
 
     async def _publish_delete_message(self, chat_id: str, message_id: str) -> None:
         """Удалить сообщение в Telegram через MQTT."""
-        import uuid
-
         if self._mqtt is None:
             logger.warning("MQTT не доступен, не могу удалить сообщение в Telegram")
             return
@@ -512,3 +513,41 @@ class TwitchEventSubService:
                 .values(last_stream_message_id=None)
             )
             await db.commit()
+
+    # ── AI Stickers → Telegram ────────────────────────────────────────────
+
+    async def _maybe_send_sticker_to_telegram(
+        self, user: User, sticker_id: uuid.UUID, prompt: str, chatter_name: str
+    ) -> None:
+        """Отправить ИИ-стикер в Telegram-чат, если интеграция включена.
+
+        Вызывается после успешной генерации стикера и broadcast в SSE.
+        Если у юзера ``stickers_enabled=True`` и ``stickers_chat_id`` задан —
+        отправляет фото (``send_photo``) или документ (``send_document``) через MQTT.
+        TG-микросервис скачивает стикер по публичному URL.
+        """
+        tg: TelegramSettings | None = user.telegram
+        if tg is None or not tg.stickers_enabled or not tg.stickers_chat_id:
+            return
+
+        if self._mqtt is None:
+            logger.warning("MQTT не доступен, не могу отправить стикер в Telegram")
+            return
+
+        sticker_url = f"{settings.base_url}/files/{FileStorageDir.AI_GENERATED_STICKER}/{sticker_id}"
+        caption = f"🎨 {chatter_name}: {prompt}"[:1024]
+        request_id = f"sticker:{user.id}:{sticker_id}"
+
+        topic = "telegram/send_document" if tg.stickers_mode == "document" else "telegram/send_photo"
+        payload_key = "document_url" if tg.stickers_mode == "document" else "photo_url"
+
+        await self._mqtt.publish(
+            topic,
+            {
+                "request_id": request_id,
+                "chat_id": tg.stickers_chat_id,
+                payload_key: sticker_url,
+                "caption": caption,
+            },
+        )
+        logger.info("Стикер отправлен в Telegram для user_id=%s sticker_id=%s", user.id, sticker_id)
