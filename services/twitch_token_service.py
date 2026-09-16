@@ -254,8 +254,8 @@ class TwitchTokenService:
                 sa.update(User)
                 .where(User.id == user_id)
                 .values(
-                    access_token=encrypt_value(tokens["access_token"]),
-                    refresh_token=encrypt_value(tokens["refresh_token"]),
+                    _access_token=encrypt_value(tokens["access_token"]),
+                    _refresh_token=encrypt_value(tokens["refresh_token"]),
                     twitch_token_expires_at=tokens["expires_at"],
                 )
             )
@@ -269,8 +269,8 @@ class TwitchTokenService:
                 sa.update(User)
                 .where(User.id == user_id)
                 .values(
-                    access_token=None,
-                    refresh_token=None,
+                    _access_token=None,
+                    _refresh_token=None,
                     twitch_token_expires_at=None,
                 )
             )
