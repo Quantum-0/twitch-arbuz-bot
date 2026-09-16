@@ -4,11 +4,13 @@ import logging
 from typing import Annotated
 
 import httpx
+from dependency_injector.wiring import Provide, inject
 from fastapi import APIRouter, Depends, Security
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.responses import JSONResponse
 
 from config import settings
+from container import Container
 from database.models import User
 from dependencies import get_db
 from routers.security_helpers import user_auth
@@ -17,6 +19,7 @@ from schemas.telegram import (
     TelegramSettingsSchema,
     TelegramSettingsUpdateSchema,
 )
+from twitch.client.twitch import Twitch
 from utils.telegram import ensure_telegram_settings, get_telegram_settings
 
 logger = logging.getLogger(__name__)
@@ -52,8 +55,10 @@ async def get_telegram_settings_endpoint(
 
 
 @router.post("/settings")
+@inject
 async def update_telegram_settings(
     db: Annotated[AsyncSession, Depends(get_db)],
+    twitch: Annotated[Twitch, Depends(Provide[Container.twitch])],
     data: TelegramSettingsUpdateSchema,
     user: User = Security(user_auth),
 ) -> JSONResponse:
@@ -73,9 +78,6 @@ async def update_telegram_settings(
 
     new_stream_enabled = tg.stream_notification_enabled
     if new_stream_enabled != old_stream_enabled:
-        from container_runtime import get_container
-
-        twitch = get_container().twitch()
         if new_stream_enabled and tg.stream_chat_id:
             try:
                 await twitch.subscribe_stream_online(user)
@@ -134,8 +136,10 @@ async def generate_connect_link(
 
 
 @router.post("/disconnect")
+@inject
 async def disconnect_telegram(
     db: Annotated[AsyncSession, Depends(get_db)],
+    twitch: Annotated[Twitch, Depends(Provide[Container.twitch])],
     user: User = Security(user_auth),
 ) -> JSONResponse:
     """Отключить Telegram-интеграцию: очищает все привязки чатов и сбрасывает настройки."""
@@ -157,9 +161,6 @@ async def disconnect_telegram(
         user.telegram.last_stream_message_id = None
         await db.commit()
 
-        from container_runtime import get_container
-
-        twitch = get_container().twitch()
         try:
             await twitch.unsubscribe_stream_online(user)
             await twitch.unsubscribe_stream_offline(user)
