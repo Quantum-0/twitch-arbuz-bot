@@ -16,6 +16,13 @@ user_scope = [
     AuthScope.USER_READ_BROADCAST,
     AuthScope.USER_EDIT_BROADCAST,
 ]
+
+# Дополнительные Twitch scope-ы, которых нет в twitchAPI AuthScope enum (4.5.0).
+# Используются только в login_twitch_url (OAuth authorize URL), не передаются в set_user_authentication.
+# editor:manage:clips — нужен для Get Clips Download API (GET /helix/clips/downloads).
+user_scope_extra: list[str] = [
+    "editor:manage:clips",
+]
 bot_scope = [
     # AuthScope.USER_CHAT_READ,
     AuthScope.CHAT_READ,
@@ -100,22 +107,20 @@ class Settings(BaseSettings):
 
     @property
     def login_twitch_url(self) -> str:
-        scope: str = "+".join(sp.value for sp in user_scope)
-        url = (
+        scope: str = "+".join([sp.value for sp in user_scope] + user_scope_extra)
+        return (
             f"https://id.twitch.tv/oauth2/authorize?client_id={settings.twitch_client_id}"
             f"&redirect_uri={settings.login_redirect_url}&response_type=code&scope={scope}"
         )
-        return url
 
     @property
     def memealerts_oauth_url(self) -> str:
         scope: str = " ".join(sp for sp in memealerts_scope)
-        url = (
+        return (
             f"https://memealerts.com/oauth/authorize?client_id={settings.memealerts_client_id.get_secret_value()}"
             f"&redirect_uri={settings.memealerts_redirect_url}&response_type=code&scope={scope}"
             "&state={state}"
         )
-        return url
 
 
 settings = Settings()

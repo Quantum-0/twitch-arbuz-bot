@@ -10,13 +10,18 @@ APScheduler-джоба: раз в 5 минут проверяет новых к�
 4. Фильтр по clips_mode: all → все, featured → только is_featured=True.
 5. Для каждого нового клипа:
    - clips_delivery == "link" → MQTT twibot/telegram/send_message с ссылкой.
-   - clips_delivery == "video" → GET /helix/clips/download → MQTT twibot/telegram/send_video.
+   - clips_delivery == "video" → GET /helix/clips/downloads → MQTT twibot/telegram/send_video.
+     Fallback: thumbnail_url → MP4 URL (без доп. API-вызова).
+     Fallback: ссылка на клип.
 6. Обновить last_clip_date = max(clip.created_at) или NOW() если клипов не было.
+
+thumbnail_url workaround — 0 доп. API-вызовов (URL уже в ответе Get Clips).
 """
 
 from __future__ import annotations
 
 import logging
+import re
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -32,9 +37,14 @@ from services.twitch_token_service import TwitchTokenExpiredError, TwitchTokenSe
 logger = logging.getLogger(__name__)
 
 _CLIPS_URL = "https://api.twitch.tv/helix/clips"
-_CLIPS_DOWNLOAD_URL = "https://api.twitch.tv/helix/clips/download"
+_CLIPS_DOWNLOAD_URL = "https://api.twitch.tv/helix/clips/downloads"
 _CLIPS_PAGE_SIZE = 100
 _CLIPS_LOOKBACK_DAYS = 7
+
+# Паттерн для извлечения MP4 URL из thumbnail_url Twitch клипа.
+# thumbnail_url: https://clips-media-assets2.twitch.tv/<ID>-offset-NNN-preview-%{width}x%{height}.jpg
+# MP4 URL:       https://clips-media-assets2.twitch.tv/<ID>-offset-NNN.mp4
+_THUMBNAIL_PREVIEW_RE = re.compile(r"-preview-(?:%\{width\}x%\{height\}|\d+x\d+)\.jpg$")
 
 
 class ClipsPollerService:
@@ -127,7 +137,7 @@ class ClipsPollerService:
         delivery = tg.clips_delivery or "link"
 
         for clip in clips:
-            await self._send_clip(access_token, tg.clips_chat_id, clip, delivery)
+            await self._send_clip(access_token, user.twitch_id, tg.clips_chat_id, clip, delivery)
             clip_dt = self._parse_clip_created_at(clip.get("created_at", ""))
             if clip_dt > new_last_clip_date:
                 new_last_clip_date = clip_dt
@@ -141,21 +151,45 @@ class ClipsPollerService:
             user.login_name,
         )
 
-    async def _send_clip(self, access_token: str, chat_id: str, clip: dict[str, Any], delivery: str) -> None:
-        """Отправить один клип в Telegram: видео-файлом или ссылкой."""
+    async def _send_clip(
+        self,
+        access_token: str,
+        broadcaster_id: str,
+        chat_id: str,
+        clip: dict[str, Any],
+        delivery: str,
+    ) -> None:
+        """Отправить один клип в Telegram: видео-файлом или ссылкой.
+
+        При ``delivery == "video"`` пытается получить прямой MP4 URL тремя способами
+        (по порядку):
+        1. Get Clips Download API (официальный, требует scope clips:edit).
+        2. thumbnail_url workaround (0 доп. API-вызовов, без scope).
+        3. Fallback на ссылку.
+        """
         clip_id = clip.get("id", "")
         clip_url = clip.get("url") or self._build_clip_url(clip_id)
         clip_title = clip.get("title", "")
         creator = clip.get("creator_name", "")
+        thumbnail_url = clip.get("thumbnail_url", "")
 
         if delivery == "video":
-            video_url = await self._fetch_clip_download_url(access_token, clip_id)
+            # Способ 1: Get Clips Download API (официальный).
+            video_url = await self._fetch_clip_download_url(access_token, broadcaster_id, clip_id)
+
+            # Способ 2: thumbnail_url workaround (без доп. API-вызова).
+            if not video_url and thumbnail_url:
+                video_url = self._get_mp4_from_thumbnail_url(thumbnail_url)
+                if video_url:
+                    logger.info("Пуллинг клипов: video URL из thumbnail_url для clip_id=%s", clip_id)
+
             if video_url:
                 caption = f"🎬 {clip_title}\n👤 {creator}"
                 await self._mqtt_publish_send_video(chat_id, video_url, caption)
                 return
+
             logger.warning(
-                "Пуллинг клипов: не удалось получить video URL для clip_id=%s, отправляю ссылку",
+                "Пуллинг клипов: не удалось получить video URL для clip_id=%s, отправляю ссылкой",
                 clip_id,
             )
 
@@ -229,15 +263,23 @@ class ClipsPollerService:
 
         return all_clips
 
-    async def _fetch_clip_download_url(self, access_token: str, clip_id: str) -> str | None:
+    async def _fetch_clip_download_url(self, access_token: str, broadcaster_id: str, clip_id: str) -> str | None:
         """Получить прямой URL для скачивания видео клипа через Twitch Get Clips Download API.
 
-        Возвращает URL лучшего качества (первый в списке) или None при ошибке.
+        Endpoint: GET https://api.twitch.tv/helix/clips/downloads
+        Требует scope: clips:edit (или channel:manage:clips / editor:manage:clips).
+        Cost: 0 (бесплатно, rate-limited 100 req/min).
+
+        Возвращает landscape_download_url (горизонтальный MP4) или None при ошибке.
         """
         async with httpx.AsyncClient() as client:
             response = await client.get(
                 _CLIPS_DOWNLOAD_URL,
-                params={"id": clip_id},
+                params={
+                    "editor_id": broadcaster_id,
+                    "broadcaster_id": broadcaster_id,
+                    "clip_id": clip_id,
+                },
                 headers={
                     "Authorization": f"Bearer {access_token}",
                     "Client-Id": settings.twitch_client_id,
@@ -247,17 +289,46 @@ class ClipsPollerService:
 
         if not response.is_success:
             logger.warning(
-                "Twitch Get Clips Download error: status=%s, body=%s",
+                "Twitch Get Clips Download error: status=%s, body=%s, clip_id=%s",
                 response.status_code,
-                response.text[:300],
+                response.text[:500],
+                clip_id,
             )
             return None
 
         data = response.json().get("data", [])
         if not data:
+            logger.warning("Twitch Get Clips Download: пустой data для clip_id=%s", clip_id)
             return None
 
-        return data[0].get("url")
+        # API возвращает landscape_download_url и portrait_download_url.
+        video_url = data[0].get("landscape_download_url")
+        if not video_url:
+            logger.warning("Twitch Get Clips Download: landscape_download_url=null для clip_id=%s", clip_id)
+            return None
+
+        logger.info("Пуллинг клипов: video URL из Get Clips Download API для clip_id=%s", clip_id)
+        return video_url
+
+    @staticmethod
+    def _get_mp4_from_thumbnail_url(thumbnail_url: str) -> str | None:
+        """Получить прямой MP4 URL из thumbnail_url клипа (workaround, 0 доп. API-вызовов).
+
+        thumbnail_url Twitch содержит шаблон вида:
+          https://clips-media-assets2.twitch.tv/<ID>-offset-NNN-preview-%{width}x%{height}.jpg
+        MP4 URL получается заменой ``-preview-...jpg`` на ``.mp4``:
+          https://clips-media-assets2.twitch.tv/<ID>-offset-NNN.mp4
+
+        Возвращает None если URL не matches паттерн.
+        """
+        if not thumbnail_url:
+            return None
+        mp4_url = _THUMBNAIL_PREVIEW_RE.sub(".mp4", thumbnail_url)
+        if mp4_url == thumbnail_url:
+            # Паттерн не совпал — Twitch мог изменить формат CDN URL.
+            logger.debug("thumbnail_url workaround: паттерн не совпал: %s", thumbnail_url[:200])
+            return None
+        return mp4_url
 
     async def _mqtt_publish_send_message(self, chat_id: str, message_text: str) -> None:
         """Отправить текстовое сообщение в Telegram через MQTT."""
