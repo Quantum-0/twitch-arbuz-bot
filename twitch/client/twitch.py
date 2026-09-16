@@ -506,6 +506,100 @@ class Twitch:
         #     response.raise_for_status()
         #     return response.json()
 
+    async def subscribe_stream_online(self, user: User) -> dict:
+        """Подписаться на stream.online EventSub (cost=0, scopes не требуются).
+
+        Использует app access token (client_credentials grant).
+        """
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                "https://id.twitch.tv/oauth2/token",
+                params={
+                    "client_id": settings.twitch_client_id,
+                    "client_secret": settings.twitch_client_secret,
+                    "grant_type": "client_credentials",
+                },
+            )
+            app_token = response.json()["access_token"]
+            response = await client.post(
+                "https://api.twitch.tv/helix/eventsub/subscriptions",
+                headers={
+                    "Authorization": "Bearer " + app_token,
+                    "Client-Id": settings.twitch_client_id,
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "type": "stream.online",
+                    "version": "1",
+                    "condition": {
+                        "broadcaster_user_id": user.twitch_id,
+                    },
+                    "transport": {
+                        "method": "webhook",
+                        "callback": str(settings.reward_redemption_webhook) + f"/{user.twitch_id}",
+                        "secret": settings.twitch_webhook_secret.get_secret_value(),
+                    },
+                },
+            )
+            response.raise_for_status()
+            return response.json()
+
+    async def subscribe_stream_offline(self, user: User) -> dict:
+        """Подписаться на stream.offline EventSub (cost=0, scopes не требуются).
+
+        Использует app access token (client_credentials grant).
+        """
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                "https://id.twitch.tv/oauth2/token",
+                params={
+                    "client_id": settings.twitch_client_id,
+                    "client_secret": settings.twitch_client_secret,
+                    "grant_type": "client_credentials",
+                },
+            )
+            app_token = response.json()["access_token"]
+            response = await client.post(
+                "https://api.twitch.tv/helix/eventsub/subscriptions",
+                headers={
+                    "Authorization": "Bearer " + app_token,
+                    "Client-Id": settings.twitch_client_id,
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "type": "stream.offline",
+                    "version": "1",
+                    "condition": {
+                        "broadcaster_user_id": user.twitch_id,
+                    },
+                    "transport": {
+                        "method": "webhook",
+                        "callback": str(settings.reward_redemption_webhook) + f"/{user.twitch_id}",
+                        "secret": settings.twitch_webhook_secret.get_secret_value(),
+                    },
+                },
+            )
+            response.raise_for_status()
+            return response.json()
+
+    async def unsubscribe_stream_online(self, user: User) -> bool:
+        """Отписаться от stream.online EventSub для конкретного пользователя."""
+        subscriptions = await self.get_subscriptions()
+        for sub in subscriptions:
+            if sub.type == "stream.online" and sub.condition.get("broadcaster_user_id") == str(user.twitch_id):
+                await self._twitch.delete_eventsub_subscription(subscription_id=sub.id)
+                return True
+        return False
+
+    async def unsubscribe_stream_offline(self, user: User) -> bool:
+        """Отписаться от stream.offline EventSub для конкретного пользователя."""
+        subscriptions = await self.get_subscriptions()
+        for sub in subscriptions:
+            if sub.type == "stream.offline" and sub.condition.get("broadcaster_user_id") == str(user.twitch_id):
+                await self._twitch.delete_eventsub_subscription(subscription_id=sub.id)
+                return True
+        return False
+
     @staticmethod
     async def get_user_access_refresh_tokens_by_authorization_code(
         authorization_code: str,

@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from twitchAPI.type import TwitchResourceNotFound
 
-from database.models import Base, TTSSettings, TwitchUserSettings, User
+from database.models import Base, TelegramSettings, TTSSettings, TwitchUserSettings, User
 from exceptions import (
     MADuplicateUserError,
     MAInvalidScopeError,
@@ -20,10 +20,16 @@ from exceptions import (
     MATokenInvalidError,
 )
 from schemas.api import StatsType
-from schemas.twitch import PointRewardRedemptionWebhookSchema, RaidWebhookSchema
+from schemas.twitch import (
+    PointRewardRedemptionWebhookSchema,
+    RaidWebhookSchema,
+    StreamOfflineSchema,
+    StreamOnlineSchema,
+)
 from services.memes import MemealertsService
 from services.memes_v2 import MemealertsOAuthService, MemealertsV2Service
 from services.moderation import ModerationService
+from services.mqtt import MQTTClient
 from services.sse_manager import SSEManager
 from services.statistics import StatisticsService
 from services.stickers import ModerationBlockedException, RewardRedemptionProcessingError, StickersService
@@ -67,6 +73,7 @@ class TwitchEventSubService:
         memealerts_auth: MemealertsOAuthService,
         moderation: ModerationService,
         tts_service: TTSService,
+        mqtt: MQTTClient | None = None,
         statistics: StatisticsService | None = None,
     ):
         self._twitch = twitch
@@ -79,6 +86,7 @@ class TwitchEventSubService:
         self._memealerts_auth = memealerts_auth
         self._moderation = moderation
         self._tts = tts_service
+        self._mqtt = mqtt
         self._statistics = statistics
 
     def _inc_reward(self, subtype: str, type_: StatsType) -> None:
@@ -95,7 +103,7 @@ class TwitchEventSubService:
 
     async def _get_user_by_id_or_login(self, id_or_login: str | int, selectin: list[Base] | None = None) -> User:
         if selectin is None:
-            selectins = [User.settings, User.memealerts, User.links, User.tts]
+            selectins = [User.settings, User.memealerts, User.links, User.tts, User.telegram]
         else:
             selectins = selectin
 
@@ -403,3 +411,104 @@ class TwitchEventSubService:
         )
         await self._fulfill_redemption(user, payload)
         self._inc_reward("success", StatsType.TTS_MESSAGES)
+
+    # ── Stream online / offline → Telegram notifications ──────────────────
+
+    _STREAM_ONLINE_REQUEST_PREFIX = "stream_online"
+    _STREAM_OFFLINE_TEXT = "⚪️ Стрим завершён."
+
+    @task_wrapper
+    @tracer.start_as_current_span("Twitch Eventsub: Stream online")
+    async def handle_stream_online(self, payload: StreamOnlineSchema | dict[str, Any]) -> None:
+        """stream.online EventSub → отправить уведомление в Telegram-чат стрима.
+
+        Cost = 0, scopes не требуются (app access token).
+        request_id = ``stream_online:{user_id}`` — используется для корреляции
+        результата (message_id) в ``handle_telegram_result``.
+        """
+        if isinstance(payload, dict):
+            payload = StreamOnlineSchema.model_validate(payload, by_name=True)
+
+        user = await self._get_user_by_id_or_login(payload.event.broadcaster_user_id)
+        tg: TelegramSettings | None = user.telegram
+
+        if tg is None or not tg.stream_notification_enabled or not tg.stream_chat_id:
+            return
+
+        stream_url = f"https://twitch.tv/{payload.event.broadcaster_user_login}"
+        message_text = f"🔴 {payload.event.broadcaster_user_name} начал стрим!\n{stream_url}"
+
+        request_id = f"{self._STREAM_ONLINE_REQUEST_PREFIX}:{user.id}"
+        await self._publish_send_message(tg.stream_chat_id, message_text, request_id)
+
+    @task_wrapper
+    @tracer.start_as_current_span("Twitch Eventsub: Stream offline")
+    async def handle_stream_offline(self, payload: StreamOfflineSchema | dict[str, Any]) -> None:
+        """stream.offline EventSub → поведение по ``stream_offline_behavior``.
+
+        - ``delete``  → удалить сообщение о начале стрима (``last_stream_message_id``).
+        - ``message`` → отправить «Стрим завершён».
+        - ``keep``    → ничего не делать.
+        В любом случае ``last_stream_message_id`` очищается.
+        """
+        if isinstance(payload, dict):
+            payload = StreamOfflineSchema.model_validate(payload, by_name=True)
+
+        user = await self._get_user_by_id_or_login(payload.event.broadcaster_user_id)
+        tg: TelegramSettings | None = user.telegram
+
+        if tg is None or not tg.stream_notification_enabled or not tg.stream_chat_id:
+            return
+
+        behavior = tg.stream_offline_behavior or "keep"
+
+        if behavior == "delete" and tg.last_stream_message_id:
+            await self._publish_delete_message(tg.stream_chat_id, tg.last_stream_message_id)
+        elif behavior == "message":
+            await self._publish_send_message(tg.stream_chat_id, self._STREAM_OFFLINE_TEXT)
+
+        await self._clear_last_stream_message_id(user.id)
+
+    async def _publish_send_message(self, chat_id: str, message_text: str, request_id: str | None = None) -> None:
+        """Отправить текстовое сообщение в Telegram через MQTT."""
+        import uuid
+
+        if self._mqtt is None:
+            logger.warning("MQTT не доступен, не могу отправить сообщение в Telegram")
+            return
+
+        await self._mqtt.publish(
+            "telegram/send_message",
+            {
+                "request_id": request_id or str(uuid.uuid4()),
+                "chat_id": chat_id,
+                "message_text": message_text,
+            },
+        )
+
+    async def _publish_delete_message(self, chat_id: str, message_id: str) -> None:
+        """Удалить сообщение в Telegram через MQTT."""
+        import uuid
+
+        if self._mqtt is None:
+            logger.warning("MQTT не доступен, не могу удалить сообщение в Telegram")
+            return
+
+        await self._mqtt.publish(
+            "telegram/delete_message",
+            {
+                "request_id": str(uuid.uuid4()),
+                "chat_id": chat_id,
+                "message_id": message_id,
+            },
+        )
+
+    async def _clear_last_stream_message_id(self, user_id: int) -> None:
+        """Очистить last_stream_message_id в БД."""
+        async with self._db_session_factory() as db:
+            await db.execute(
+                sa.update(TelegramSettings)
+                .where(TelegramSettings.user_id == user_id)
+                .values(last_stream_message_id=None)
+            )
+            await db.commit()

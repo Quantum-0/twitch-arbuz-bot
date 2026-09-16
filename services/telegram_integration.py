@@ -1,8 +1,9 @@
-"""Handler MQTT-сообщения telegram/chat_connected от TG-микросервиса.
+"""Handler MQTT-сообщений от TG-микросервиса.
 
-Когда пользователь добавляет бота в Telegram-чат, TG-сервис публикует
-twibot/telegram/chat_connected с {user_id, scope, chat_id, chat_type, chat_title}.
-Этот handler сохраняет привязку в TelegramSettings.
+- ``telegram/chat_connected`` — сохранение привязки чата к пользователю.
+- ``telegram/result/{request_id}`` — результат отправки сообщения; для stream.online
+  уведомлений (request_id = ``stream_online:{user_id}``) сохраняет message_id в БД
+  (``last_stream_message_id``) для последующего удаления при stream.offline.
 """
 
 import logging
@@ -12,6 +13,7 @@ from typing import Any
 import sqlalchemy as sa
 
 from database.models import TelegramSettings
+from schemas.telegram import SendResult
 
 logger = logging.getLogger(__name__)
 
@@ -69,3 +71,50 @@ async def handle_chat_connected(payload: dict[str, Any], db_session_factory) -> 
             return
 
         await db.commit()
+
+
+_STREAM_ONLINE_PREFIX = "stream_online"
+
+
+async def handle_telegram_result(payload: dict[str, Any], db_session_factory) -> None:
+    """Обработать результат отправки сообщения от TG-сервиса.
+
+    Для stream.online уведомлений (request_id = ``stream_online:{user_id}``)
+    сохраняет ``message_id`` в ``last_stream_message_id`` для последующего
+    удаления при stream.offline.
+    """
+    try:
+        result = SendResult(**payload)
+    except Exception:
+        logger.warning("telegram/result: невалидный payload: %s", payload)
+        return
+
+    if not result.request_id.startswith(_STREAM_ONLINE_PREFIX):
+        return
+
+    if not result.success or not result.message_id:
+        logger.warning(
+            "telegram/result: stream.online отправка не удалась: request_id=%s error=%s",
+            result.request_id,
+            result.error,
+        )
+        return
+
+    # Извлекаем user_id из request_id = "stream_online:{user_id}"
+    parts = result.request_id.split(":", 1)
+    if len(parts) != 2:
+        return
+    try:
+        user_id = int(parts[1])
+    except ValueError:
+        return
+
+    async with db_session_factory() as db:
+        await db.execute(
+            sa.update(TelegramSettings)
+            .where(TelegramSettings.user_id == user_id)
+            .values(last_stream_message_id=result.message_id)
+        )
+        await db.commit()
+
+    logger.info("telegram/result: last_stream_message_id обновлён для user_id=%s", user_id)

@@ -164,3 +164,32 @@ class WebhookSubscriptionChatMessageConditionSchema(BaseModel):
 class ChatMessageSchema(BaseModel):
     subscription: WebhookSubscriptionSchema[WebhookSubscriptionChatMessageConditionSchema]
     event: ChatMessageWebhookEventSchema
+
+
+class WebhookSubscriptionStreamConditionSchema(BaseModel):
+    broadcaster_user_id: int = Field(...)
+
+
+class StreamOnlineEventSchema(BaseModel):
+    id: str = Field(...)
+    broadcaster_user_id: int = Field(...)
+    broadcaster_user_login: str = Field(...)
+    broadcaster_user_name: str = Field(...)
+    type: str = Field(...)
+    started_at: datetime = Field(...)
+
+
+class StreamOfflineEventSchema(BaseModel):
+    broadcaster_user_id: int = Field(...)
+    broadcaster_user_login: str = Field(...)
+    broadcaster_user_name: str = Field(...)
+
+
+class StreamOnlineSchema(BaseModel):
+    subscription: WebhookSubscriptionSchema[WebhookSubscriptionStreamConditionSchema]
+    event: StreamOnlineEventSchema
+
+
+class StreamOfflineSchema(BaseModel):
+    subscription: WebhookSubscriptionSchema[WebhookSubscriptionStreamConditionSchema]
+    event: StreamOfflineEventSchema

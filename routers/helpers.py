@@ -8,6 +8,8 @@ from schemas.twitch import (
     ChatMessageSchema,
     PointRewardRedemptionWebhookSchema,
     RaidWebhookSchema,
+    StreamOfflineSchema,
+    StreamOnlineSchema,
     TwitchChallengeSchema,
 )
 
@@ -19,6 +21,8 @@ SCHEMA_BY_TYPE: dict[str, type[BaseModel]] = {
     "channel.channel_points_custom_reward_redemption.add": PointRewardRedemptionWebhookSchema,
     "webhook_callback_verification": TwitchChallengeSchema,
     "channel.chat.message": ChatMessageSchema,
+    "stream.online": StreamOnlineSchema,
+    "stream.offline": StreamOfflineSchema,
 }
 
 
@@ -26,7 +30,14 @@ async def parse_eventsub_payload(
     request: Request,
     eventsub_subscription_type: str = Header(..., alias="Twitch-Eventsub-Subscription-Type"),
     eventsub_message_type: str = Security(verify_eventsub_signature),
-) -> PointRewardRedemptionWebhookSchema | RaidWebhookSchema | TwitchChallengeSchema:
+) -> (
+    PointRewardRedemptionWebhookSchema
+    | RaidWebhookSchema
+    | TwitchChallengeSchema
+    | ChatMessageSchema
+    | StreamOnlineSchema
+    | StreamOfflineSchema
+):
     """
     Reusable dependency that parses the incoming EventSub payload and returns the appropriate schema.
     """

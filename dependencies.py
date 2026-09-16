@@ -82,12 +82,17 @@ async def lifespan(app: "FastAPI | None" = None):
     mqtt.subscribe("slovotron/+/+", slovotron.handle_webhook)
 
     # Telegram chat_connected — от TG-микросервиса при добавлении бота в чат.
-    from services.telegram_integration import handle_chat_connected
+    from services.telegram_integration import handle_chat_connected, handle_telegram_result
 
     async def _on_chat_connected(payload: dict) -> None:
         await handle_chat_connected(payload, container.db_session_factory())
 
     mqtt.subscribe("telegram/chat_connected", _on_chat_connected)
+
+    async def _on_telegram_result(payload: dict) -> None:
+        await handle_telegram_result(payload, container.db_session_factory())
+
+    mqtt.subscribe("telegram/result/+", _on_telegram_result)
 
     if app is not None:
         app.container = container

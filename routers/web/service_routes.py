@@ -121,6 +121,7 @@ async def login_callback_task(
             .options(
                 selectinload(User.settings),
                 selectinload(User.memealerts),
+                selectinload(User.telegram),
             )
             .filter_by(twitch_id=user.twitch_id)
         )
@@ -128,8 +129,18 @@ async def login_callback_task(
         shoutout_to_raid_is_enabled = user.settings.enable_shoutout_on_raid
         memealerts_reward = user.memealerts.memealerts_reward
         ai_stickers_reward = user.settings.ai_sticker_reward_id
+        telegram_stream_enabled = (
+            user.telegram is not None
+            and user.telegram.stream_notification_enabled
+            and user.telegram.stream_chat_id is not None
+        )
 
-    if shoutout_to_raid_is_enabled is False and memealerts_reward is None and ai_stickers_reward is None:
+    if (
+        shoutout_to_raid_is_enabled is False
+        and memealerts_reward is None
+        and ai_stickers_reward is None
+        and not telegram_stream_enabled
+    ):
         return
 
     subs = await twitch.get_subscriptions()
@@ -147,6 +158,18 @@ async def login_callback_task(
         if sub.type == "channel.raid" and sub.condition.get("to_broadcaster_user_id") == user.twitch_id
     ]
 
+    subs_for_stream_online = [
+        sub
+        for sub in subs
+        if sub.type == "stream.online" and sub.condition.get("broadcaster_user_id") == user.twitch_id
+    ]
+
+    subs_for_stream_offline = [
+        sub
+        for sub in subs
+        if sub.type == "stream.offline" and sub.condition.get("broadcaster_user_id") == user.twitch_id
+    ]
+
     # TODO: unsubscribe from unused subs
 
     if shoutout_to_raid_is_enabled and not subs_for_raid:
@@ -154,6 +177,19 @@ async def login_callback_task(
         await twitch.subscribe_raid(user)
     elif not shoutout_to_raid_is_enabled and subs_for_raid:
         await twitch.unsubscribe_raid(subscription_id=UUID(subs_for_raid[0].id))
+
+    # ── Reconcile stream.online / stream.offline ──
+    if telegram_stream_enabled and not subs_for_stream_online:
+        logger.warning(f"Found missing stream.online eventsub for user `{user}`. Re-subscribed!")
+        await twitch.subscribe_stream_online(user)
+    elif not telegram_stream_enabled and subs_for_stream_online:
+        await twitch.unsubscribe_stream_online(user)
+
+    if telegram_stream_enabled and not subs_for_stream_offline:
+        logger.warning(f"Found missing stream.offline eventsub for user `{user}`. Re-subscribed!")
+        await twitch.subscribe_stream_offline(user)
+    elif not telegram_stream_enabled and subs_for_stream_offline:
+        await twitch.unsubscribe_stream_offline(user)
 
     for sub in subs_for_rewards:
         if sub.condition.get("reward_id") not in {str(ai_stickers_reward), str(memealerts_reward)}:

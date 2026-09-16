@@ -134,6 +134,7 @@ class Container(containers.DeclarativeContainer):
         memealerts_auth=memealerts_auth,
         moderation=moderation_service,
         tts_service=tts_service,
+        mqtt=mqtt,
         statistics=statistics,
     )
 

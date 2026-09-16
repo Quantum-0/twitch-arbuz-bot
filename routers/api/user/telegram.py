@@ -60,13 +60,37 @@ async def update_telegram_settings(
     """Обновить настройки Telegram-интеграции (частично).
 
     Автоматически создаёт строку TelegramSettings, если её ещё нет (lazy creation).
+    При включении ``stream_notification_enabled`` — подписывается на stream.online/offline
+    EventSub; при выключении — отписывается.
     """
     tg = await ensure_telegram_settings(db, user)
+    old_stream_enabled = tg.stream_notification_enabled
     for field in data.model_fields_set:
         value = getattr(data, field)
         if value is not None:
             setattr(tg, field, value)
     await db.commit()
+
+    new_stream_enabled = tg.stream_notification_enabled
+    if new_stream_enabled != old_stream_enabled:
+        from container_runtime import get_container
+
+        twitch = get_container().twitch()
+        if new_stream_enabled and tg.stream_chat_id:
+            try:
+                await twitch.subscribe_stream_online(user)
+                await twitch.subscribe_stream_offline(user)
+                logger.info("stream.online/offline подписки созданы для user_id=%s", user.id)
+            except Exception:
+                logger.error("Ошибка создания stream.online/offline подписок", exc_info=True)
+        elif not new_stream_enabled:
+            try:
+                await twitch.unsubscribe_stream_online(user)
+                await twitch.unsubscribe_stream_offline(user)
+                logger.info("stream.online/offline подписки удалены для user_id=%s", user.id)
+            except Exception:
+                logger.error("Ошибка удаления stream.online/offline подписок", exc_info=True)
+
     return JSONResponse({"title": "Сохранено", "message": "Настройки Telegram обновлены."}, 200)
 
 
@@ -132,4 +156,14 @@ async def disconnect_telegram(
         user.telegram.tg_to_twitch_enabled = False
         user.telegram.last_stream_message_id = None
         await db.commit()
+
+        from container_runtime import get_container
+
+        twitch = get_container().twitch()
+        try:
+            await twitch.unsubscribe_stream_online(user)
+            await twitch.unsubscribe_stream_offline(user)
+        except Exception:
+            logger.error("Ошибка отписки stream.online/offline при disconnect", exc_info=True)
+
     return JSONResponse({"title": "Готово", "message": "Telegram-интеграция отключена."}, 200)
