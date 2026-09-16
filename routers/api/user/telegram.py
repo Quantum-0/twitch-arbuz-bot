@@ -65,8 +65,13 @@ async def update_telegram_settings(
     """Обновить настройки Telegram-интеграции (частично).
 
     Автоматически создаёт строку TelegramSettings, если её ещё нет (lazy creation).
-    При включении ``stream_notification_enabled`` — подписывается на stream.online/offline
-    EventSub; при выключении — отписывается.
+    При включении ``stream_notification_enabled``:
+    - Если stream-чат уже подключён — сразу создаёт EventSub-подписки. При ошибке
+      создания откатывает тогл и возвращает ошибку (чтобы юзер видел реальное состояние).
+    - Если stream-чат ещё не подключён — тогл сохраняется включённым; подписки будут
+      созданы автоматически при подключении чата (см. ``handle_chat_connected``)
+      или при следующем логине (см. ``login_callback_task``).
+    При выключении — отписывается от EventSub.
     """
     tg = await ensure_telegram_settings(db, user)
     old_stream_enabled = tg.stream_notification_enabled
@@ -77,21 +82,38 @@ async def update_telegram_settings(
     await db.commit()
 
     new_stream_enabled = tg.stream_notification_enabled
-    if new_stream_enabled != old_stream_enabled:
-        if new_stream_enabled and tg.stream_chat_id:
+    if new_stream_enabled == old_stream_enabled:
+        return JSONResponse({"title": "Сохранено", "message": "Настройки Telegram обновлены."}, 200)
+
+    if new_stream_enabled:
+        # Включили уведомления. Если чат уже подключён — подписываемся сразу.
+        # Если чата нет — тогл остаётся, подписка произойдёт при подключении чата.
+        if tg.stream_chat_id:
             try:
                 await twitch.subscribe_stream_online(user)
                 await twitch.subscribe_stream_offline(user)
                 logger.info("stream.online/offline подписки созданы для user_id=%s", user.id)
             except Exception:
                 logger.error("Ошибка создания stream.online/offline подписок", exc_info=True)
-        elif not new_stream_enabled:
-            try:
-                await twitch.unsubscribe_stream_online(user)
-                await twitch.unsubscribe_stream_offline(user)
-                logger.info("stream.online/offline подписки удалены для user_id=%s", user.id)
-            except Exception:
-                logger.error("Ошибка удаления stream.online/offline подписок", exc_info=True)
+                # Откатываем тогл: юзер должен видеть, что уведомления не активировались.
+                tg.stream_notification_enabled = False
+                await db.commit()
+                return JSONResponse(
+                    {
+                        "title": "Ошибка",
+                        "message": "Не удалось включить уведомления о стриме. "
+                        "Проверьте, что чат подключён, и попробуйте позже.",
+                    },
+                    502,
+                )
+    else:
+        # Выключили уведомления — отписываемся.
+        try:
+            await twitch.unsubscribe_stream_online(user)
+            await twitch.unsubscribe_stream_offline(user)
+            logger.info("stream.online/offline подписки удалены для user_id=%s", user.id)
+        except Exception:
+            logger.error("Ошибка удаления stream.online/offline подписок", exc_info=True)
 
     return JSONResponse({"title": "Сохранено", "message": "Настройки Telegram обновлены."}, 200)
 

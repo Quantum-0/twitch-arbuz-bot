@@ -431,6 +431,10 @@ class TwitchEventSubService:
         Cost = 0, scopes не требуются (app access token).
         request_id = ``stream_online:{user_id}`` — используется для корреляции
         результата (message_id) в ``handle_telegram_result``.
+
+        Заголовок и категория стрима подтягиваются отдельным запросом
+        ``GET /helix/streams`` (app access token) — в самом событии stream.online
+        этих полей нет (schema v1 содержит только broadcaster + started_at).
         """
         if isinstance(payload, dict):
             payload = StreamOnlineSchema.model_validate(payload, by_name=True)
@@ -441,11 +445,40 @@ class TwitchEventSubService:
         if tg is None or not tg.stream_notification_enabled or not tg.stream_chat_id:
             return
 
+        channel_name = payload.event.broadcaster_user_name
         stream_url = f"https://twitch.tv/{payload.event.broadcaster_user_login}"
-        message_text = f"🔴 {payload.event.broadcaster_user_name} начал стрим!\n{stream_url}"
+
+        # stream.online v1 не содержит title/категорию — подтягиваем через Get Streams.
+        title, category = await self._fetch_stream_meta(user)
+
+        lines = [f"🔴 {channel_name} начинает стрим!"]
+        if title:
+            lines.append(title)
+        if category:
+            lines.append(category)
+        lines.append("")
+        lines.append(stream_url)
+        message_text = "\n".join(lines)
 
         request_id = f"{self._STREAM_ONLINE_REQUEST_PREFIX}:{user.id}"
         await self._publish_send_message(tg.stream_chat_id, message_text, request_id)
+
+    async def _fetch_stream_meta(self, user: User) -> tuple[str, str]:
+        """Получить title и категорию текущего стрима через ``GET /helix/streams``.
+
+        Возвращает ``("", "")`` если стрим ещё не виден в Helix (бывает задержка
+        между событием stream.online и появлением данных в Get Streams) или при
+        ошибке API — уведомление всё равно отправляется, но без заголовка.
+        """
+        try:
+            streams = await self._twitch.get_streams([user])
+            stream = streams.get(user)
+            if stream is None:
+                return "", ""
+            return stream.title or "", stream.game_name or ""
+        except Exception:
+            logger.warning("Не удалось получить title/категорию стрима для user_id=%s", user.id, exc_info=True)
+            return "", ""
 
     @task_wrapper
     @tracer.start_as_current_span("Twitch Eventsub: Stream offline")

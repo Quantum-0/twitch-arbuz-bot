@@ -15,7 +15,7 @@ from starlette.responses import FileResponse, RedirectResponse
 
 from config import settings
 from container import Container
-from database.models import User
+from database.models import TelegramSettings, User
 from dependencies import get_db
 from twitch.client.twitch import Twitch
 
@@ -179,17 +179,32 @@ async def login_callback_task(
         await twitch.unsubscribe_raid(subscription_id=UUID(subs_for_raid[0].id))
 
     # ── Reconcile stream.online / stream.offline ──
-    if telegram_stream_enabled and not subs_for_stream_online:
-        logger.warning(f"Found missing stream.online eventsub for user `{user}`. Re-subscribed!")
-        await twitch.subscribe_stream_online(user)
-    elif not telegram_stream_enabled and subs_for_stream_online:
-        await twitch.unsubscribe_stream_online(user)
-
-    if telegram_stream_enabled and not subs_for_stream_offline:
-        logger.warning(f"Found missing stream.offline eventsub for user `{user}`. Re-subscribed!")
-        await twitch.subscribe_stream_offline(user)
-    elif not telegram_stream_enabled and subs_for_stream_offline:
-        await twitch.unsubscribe_stream_offline(user)
+    # Если тогл включён, но подписок нет — пытаемся пересоздать. При неудаче
+    # снимаем галочку, чтобы юзер видел реальное состояние в панели управления.
+    if telegram_stream_enabled and (not subs_for_stream_online or not subs_for_stream_offline):
+        logger.warning(f"Found missing stream eventsub for user `{user}`. Re-subscribing!")
+        try:
+            if not subs_for_stream_online:
+                await twitch.subscribe_stream_online(user)
+            if not subs_for_stream_offline:
+                await twitch.subscribe_stream_offline(user)
+        except Exception:
+            logger.error(
+                f"Failed to re-subscribe stream eventsub for user `{user}`. Disabling toggle.",
+                exc_info=True,
+            )
+            async with db_session_factory() as session:
+                await session.execute(
+                    sa.update(TelegramSettings)
+                    .where(TelegramSettings.user_id == user.id)
+                    .values(stream_notification_enabled=False)
+                )
+                await session.commit()
+    elif not telegram_stream_enabled and (subs_for_stream_online or subs_for_stream_offline):
+        if subs_for_stream_online:
+            await twitch.unsubscribe_stream_online(user)
+        if subs_for_stream_offline:
+            await twitch.unsubscribe_stream_offline(user)
 
     for sub in subs_for_rewards:
         if sub.condition.get("reward_id") not in {str(ai_stickers_reward), str(memealerts_reward)}:

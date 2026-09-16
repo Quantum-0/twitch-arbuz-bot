@@ -147,7 +147,9 @@ TG-сервис подписан на `twibot/telegram/+` (все subtopics).
 - `services/telegram_integration.py` — или отдельный handler для stream events → MQTT publish.
 - Нужно получить валидный Twitch user token (`TwitchTokenService`) для создания подписки.
 
-**Шаблон сообщения о начале стрима**: "🔴 {channel_name} начал стрим! Заголовок: {title}\n{stream_url}"
+**Шаблон сообщения о начале стрима**: "🔴 {channel_name} начинает стрим!\n{title}\n{category}\n\n{stream_url}"
+  (title и категория подтягиваются отдельным запросом `GET /helix/streams`, т.к. в событии
+  stream.online v1 этих полей нет)
 **Шаблон сообщения об окончании**: "⚪️ Стрим завершён."
 
 ### 4.2. Отправка AI-стикеров в Telegram

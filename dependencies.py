@@ -57,6 +57,7 @@ async def lifespan(app: "FastAPI | None" = None):
     await sse_manager.startup(redis)
     await memealerts_auth.startup(redis, statistics)
     twitch_token_service.startup(redis)
+    twitch.startup_redis(redis)
     await twitch.startup()
     await chat_bot.startup(twitch)
     await ai.startup()
@@ -82,7 +83,11 @@ async def lifespan(app: "FastAPI | None" = None):
     mqtt.subscribe("slovotron/+/+", slovotron.handle_webhook)
 
     # Telegram chat_connected — от TG-микросервиса при добавлении бота в чат.
-    from services.telegram_integration import handle_chat_connected, handle_telegram_result
+    from services.telegram_integration import (
+        handle_chat_connected,
+        handle_telegram_result,
+        reconcile_stream_subscriptions,
+    )
 
     async def _on_chat_connected(payload: dict) -> None:
         await handle_chat_connected(payload, container.db_session_factory())
@@ -122,6 +127,18 @@ async def lifespan(app: "FastAPI | None" = None):
         minute="*/5",
         second="30",
         id="poll_clips",
+        replace_existing=True,
+    )
+    # Сверка EventSub-подписок stream.online/offline (раз в час).
+    # Если подписки слетели — пытается пересоздать; при неудаче снимает галочку
+    # «уведомления о стриме» в панели управления.
+    scheduler.add_job(
+        reconcile_stream_subscriptions,
+        args=[container.db_session_factory()],
+        trigger="cron",
+        minute="15",
+        second="0",
+        id="reconcile_stream_subs",
         replace_existing=True,
     )
     # Дамп 10-минутных бакетов статистики из Redis в БД.

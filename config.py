@@ -101,7 +101,6 @@ class Settings(BaseSettings):
     tts_api_token: SecretStr = SecretStr("")
     tts_model: str = "neco-arc"
     telegram_bot_username: str = "quantum0s_twitch_bot"
-    telegram_state_secret: SecretStr = SecretStr("")
     telegram_service_url: str = "http://localhost:8001"
     telegram_service_api_key: str = "changeme"
     base_url: str = "https://bot.quantum0.ru"
