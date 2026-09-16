@@ -99,8 +99,10 @@ class ClipsPollerService:
 
         if tg.last_clip_date is not None:
             started_at = tg.last_clip_date
+            last_clip_date = tg.last_clip_date
         else:
             started_at = datetime.now(UTC).replace(tzinfo=None) - timedelta(seconds=1)
+            last_clip_date = None
             logger.info(
                 "Пуллинг клипов: первый запуск для user_id=%s (%s), started_at=NOW",
                 user.id,
@@ -117,29 +119,18 @@ class ClipsPollerService:
             started_at=started_at,
         )
 
+        clips = self._filter_clips(clips, last_clip_date, tg.clips_mode)
         if not clips:
             return
 
-        if tg.clips_mode == "featured":
-            clips = [c for c in clips if c.get("is_featured", False)]
-
-        if not clips:
-            return
-
-        clips.sort(key=lambda c: c.get("created_at", ""))
-
-        new_last_clip_date = started_at
+        new_last_clip_date = last_clip_date or started_at
         delivery = tg.clips_delivery or "link"
 
         for clip in clips:
             await self._send_clip(access_token, tg.clips_chat_id, clip, delivery)
-            clip_created_at_str = clip.get("created_at", "")
-            try:
-                clip_dt = datetime.fromisoformat(clip_created_at_str.replace("Z", "+00:00")).replace(tzinfo=None)
-                if clip_dt > new_last_clip_date:
-                    new_last_clip_date = clip_dt
-            except (ValueError, AttributeError):
-                pass
+            clip_dt = self._parse_clip_created_at(clip.get("created_at", ""))
+            if clip_dt > new_last_clip_date:
+                new_last_clip_date = clip_dt
 
         await self._update_last_clip_date(user.id, new_last_clip_date)
 
@@ -170,6 +161,20 @@ class ClipsPollerService:
 
         caption_link = f"🎬 {clip_title}\n👤 {creator}\n🔗 {clip_url}"
         await self._mqtt_publish_send_message(chat_id, caption_link)
+
+    def _filter_clips(
+        self,
+        clips: list[dict[str, Any]],
+        last_clip_date: datetime | None,
+        clips_mode: str,
+    ) -> list[dict[str, Any]]:
+        """Отфильтровать дубликаты (created_at <= last_clip_date) и применить clips_mode."""
+        if last_clip_date is not None:
+            clips = [c for c in clips if self._parse_clip_created_at(c.get("created_at", "")) > last_clip_date]
+        if clips_mode == "featured":
+            clips = [c for c in clips if c.get("is_featured", False)]
+        clips.sort(key=lambda c: c.get("created_at", ""))
+        return clips
 
     async def _fetch_clips(
         self,
@@ -295,3 +300,11 @@ class ClipsPollerService:
     def _build_clip_url(clip_id: str) -> str:
         """Построить URL клипа из ID (fallback если url не пришёл)."""
         return f"https://clips.twitch.tv/{clip_id}"
+
+    @staticmethod
+    def _parse_clip_created_at(created_at_str: str) -> datetime:
+        """Парсинг ISO 8601 из Twitch API (напр. '2026-09-16T02:45:30Z') → naive UTC datetime."""
+        try:
+            return datetime.fromisoformat(created_at_str.replace("Z", "+00:00")).replace(tzinfo=None)
+        except (ValueError, AttributeError):
+            return datetime.now(UTC).replace(tzinfo=None)
