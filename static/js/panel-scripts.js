@@ -64,7 +64,7 @@ async function updateSetting(name, value) {
 }
 
 function initToggles() {
-    document.querySelectorAll('.toggle-switch:not([data-name^="tts_"])').forEach(toggle => {
+    document.querySelectorAll('.toggle-switch:not([data-name^="tts_"]):not([id^="tg-"])').forEach(toggle => {
         toggle.addEventListener('click', () => {
             toggle.classList.toggle('active');
             if (toggle.getAttribute('role') === 'switch') {

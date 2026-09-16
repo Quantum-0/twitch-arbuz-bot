@@ -1,3 +1,4 @@
+{% if user.login_name == "quantum075" %}
 <h3>Telegram-интеграция</h3>
 <small class="overlay-copy-hint">
     <p>Подключите Telegram-канал или группу, чтобы получать уведомления о начале стрима, автоматически заливать клипы и AI-стикеры.</p>
@@ -16,49 +17,29 @@
         </div>
     </div>
 
-    <div id="telegram-disconnected" style="display: none;">
-        <p>Telegram-интеграция не подключена. Выберите тип чата и нажмите кнопку ниже, чтобы подключить.</p>
-
-        <div id="tg-connect-stream" style="display: none;">
-            <h4>Уведомления о стриме</h4>
-            <button onclick="telegramConnect('stream', 'channel')">Подключить канал</button>
-            <button onclick="telegramConnect('stream', 'group')">Подключить группу</button>
-        </div>
-        <div id="tg-connect-clips" style="display: none;">
-            <h4>Клипы</h4>
-            <button onclick="telegramConnect('clips', 'channel')">Подключить канал</button>
-            <button onclick="telegramConnect('clips', 'group')">Подключить группу</button>
-        </div>
-        <div id="tg-connect-stickers" style="display: none;">
-            <h4>AI-стикеры</h4>
-            <button onclick="telegramConnect('stickers', 'channel')">Подключить канал</button>
-            <button onclick="telegramConnect('stickers', 'group')">Подключить группу</button>
-        </div>
-
-        <div id="tg-connect-standalone" style="display: block;">
-            <p>Нажмите кнопку ниже, чтобы подключить чат для всех функций сразу.</p>
-            <button onclick="telegramConnect('stream', 'channel')">Подключить канал для стрима</button>
-            <button onclick="telegramConnect('stream', 'group')">Подключить группу для стрима</button>
-            <br><br>
-            <button onclick="telegramConnect('clips', 'channel')">Подключить канал для клипов</button>
-            <button onclick="telegramConnect('clips', 'group')">Подключить группу для клипов</button>
-            <br><br>
-            <button onclick="telegramConnect('stickers', 'channel')">Подключить канал для стикеров</button>
-            <button onclick="telegramConnect('stickers', 'group')">Подключить группу для стикеров</button>
-        </div>
-    </div>
-
-    <div id="telegram-connected" style="display: none;">
+    <div id="telegram-main" style="display: none;">
         <h4>Чаты</h4>
         <div class="toggles-grid active">
             <div class="toggle-label">
-                <span>Чат для уведомлений о стриме: <strong id="tg-stream-chat">не подключен</strong></span>
+                <span>Уведомления о стриме: <strong id="tg-stream-chat">не подключен</strong></span>
+                <span id="tg-stream-connect-btns" style="display: none;">
+                    <button onclick="telegramConnect('stream', 'channel')">Подключить канал</button>
+                    <button onclick="telegramConnect('stream', 'group')">Подключить группу</button>
+                </span>
             </div>
             <div class="toggle-label">
-                <span>Чат для клипов: <strong id="tg-clips-chat">не подключен</strong></span>
+                <span>Клипы: <strong id="tg-clips-chat">не подключен</strong></span>
+                <span id="tg-clips-connect-btns" style="display: none;">
+                    <button onclick="telegramConnect('clips', 'channel')">Подключить канал</button>
+                    <button onclick="telegramConnect('clips', 'group')">Подключить группу</button>
+                </span>
             </div>
             <div class="toggle-label">
-                <span>Чат для AI-стикеров: <strong id="tg-stickers-chat">не подключен</strong></span>
+                <span>AI-стикеры: <strong id="tg-stickers-chat">не подключен</strong></span>
+                <span id="tg-stickers-connect-btns" style="display: none;">
+                    <button onclick="telegramConnect('stickers', 'channel')">Подключить канал</button>
+                    <button onclick="telegramConnect('stickers', 'group')">Подключить группу</button>
+                </span>
             </div>
         </div>
 
@@ -120,40 +101,40 @@
             if (!resp.ok) return;
             const data = await resp.json();
 
-            const connected = data.is_connected;
-            document.getElementById('telegram-disconnected').style.display = connected ? 'none' : 'block';
-            document.getElementById('telegram-connected').style.display = connected ? 'block' : 'none';
+            document.getElementById('telegram-main').style.display = 'block';
 
-            if (connected) {
-                document.getElementById('tg-stream-chat').textContent = data.stream_chat_id || 'не подключен';
-                document.getElementById('tg-clips-chat').textContent = data.clips_chat_id || 'не подключен';
-                document.getElementById('tg-stickers-chat').textContent = data.stickers_chat_id || 'не подключен';
+            document.getElementById('tg-stream-chat').textContent = data.stream_chat_id ? `подключен (${data.stream_chat_id})` : 'не подключен';
+            document.getElementById('tg-clips-chat').textContent = data.clips_chat_id ? `подключен (${data.clips_chat_id})` : 'не подключен';
+            document.getElementById('tg-stickers-chat').textContent = data.stickers_chat_id ? `подключен (${data.stickers_chat_id})` : 'не подключен';
 
-                const streamToggle = document.getElementById('tg-stream-notif-toggle');
-                streamToggle.classList.toggle('active', data.stream_notification_enabled);
-                streamToggle.onclick = () => {
-                    streamToggle.classList.toggle('active');
-                    telegramSaveSettings();
-                };
+            document.getElementById('tg-stream-connect-btns').style.display = data.stream_chat_id ? 'none' : 'inline';
+            document.getElementById('tg-clips-connect-btns').style.display = data.clips_chat_id ? 'none' : 'inline';
+            document.getElementById('tg-stickers-connect-btns').style.display = data.stickers_chat_id ? 'none' : 'inline';
 
-                const clipsToggle = document.getElementById('tg-clips-toggle');
-                clipsToggle.classList.toggle('active', data.clips_enabled);
-                clipsToggle.onclick = () => {
-                    clipsToggle.classList.toggle('active');
-                    telegramSaveSettings();
-                };
+            const streamToggle = document.getElementById('tg-stream-notif-toggle');
+            streamToggle.classList.toggle('active', data.stream_notification_enabled);
+            streamToggle.onclick = () => {
+                streamToggle.classList.toggle('active');
+                telegramSaveSettings();
+            };
 
-                const stickersToggle = document.getElementById('tg-stickers-toggle');
-                stickersToggle.classList.toggle('active', data.stickers_enabled);
-                stickersToggle.onclick = () => {
-                    stickersToggle.classList.toggle('active');
-                    telegramSaveSettings();
-                };
+            const clipsToggle = document.getElementById('tg-clips-toggle');
+            clipsToggle.classList.toggle('active', data.clips_enabled);
+            clipsToggle.onclick = () => {
+                clipsToggle.classList.toggle('active');
+                telegramSaveSettings();
+            };
 
-                document.getElementById('tg-offline-behavior').value = data.stream_offline_behavior || 'keep';
-                document.getElementById('tg-clips-mode').value = data.clips_mode || 'all';
-                document.getElementById('tg-stickers-mode').value = data.stickers_mode || 'photo';
-            }
+            const stickersToggle = document.getElementById('tg-stickers-toggle');
+            stickersToggle.classList.toggle('active', data.stickers_enabled);
+            stickersToggle.onclick = () => {
+                stickersToggle.classList.toggle('active');
+                telegramSaveSettings();
+            };
+
+            document.getElementById('tg-offline-behavior').value = data.stream_offline_behavior || 'keep';
+            document.getElementById('tg-clips-mode').value = data.clips_mode || 'all';
+            document.getElementById('tg-stickers-mode').value = data.stickers_mode || 'photo';
         } catch (e) {
             console.error('telegramLoadSettings error:', e);
         }
@@ -197,7 +178,7 @@
             });
             const data = await resp.json();
             if (resp.ok && data.url) {
-                window.location.href = data.url;
+                window.open(data.url, '_blank');
             } else {
                 showNotification(data.title || 'Ошибка', data.message || 'Не удалось создать ссылку подключения', 'error');
             }
@@ -220,3 +201,4 @@
 
     document.addEventListener('DOMContentLoaded', telegramLoadSettings);
 </script>
+{% endif %}

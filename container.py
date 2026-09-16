@@ -7,6 +7,7 @@ from config import settings
 from database.database import AsyncSessionLocal
 from services.ai import OpenAIClient
 from services.cache import Cache
+from services.clips_poller import ClipsPollerService
 from services.eventsub_service import TwitchEventSubService
 from services.image_resizer import ImageResizer
 from services.memes import MemealertsService
@@ -91,6 +92,12 @@ class Container(containers.DeclarativeContainer):
     memealerts_auth = providers.Singleton(MemealertsOAuthService, db_session_factory=db_session_factory)
     memealerts_v2 = providers.Singleton(MemealertsV2Service, db_session_factory=db_session_factory)
     twitch_token_service = providers.Singleton(TwitchTokenService, db_session_factory=db_session_factory)
+    clips_poller = providers.Singleton(
+        ClipsPollerService,
+        db_session_factory=db_session_factory,
+        twitch_token_service=twitch_token_service,
+        mqtt=mqtt,
+    )
     stickers_processor = providers.Singleton(StickerProcessor)
 
     boto_session = providers.Singleton(aioboto3.Session)

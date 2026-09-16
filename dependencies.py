@@ -47,6 +47,7 @@ async def lifespan(app: "FastAPI | None" = None):
     scheduler = container.scheduler()
     memealerts_auth = container.memealerts_auth()
     twitch_token_service = container.twitch_token_service()
+    clips_poller = container.clips_poller()
     stickers_processor = container.stickers_processor()
     tts_service = container.tts_service()
 
@@ -107,6 +108,15 @@ async def lifespan(app: "FastAPI | None" = None):
         minute="45",
         second="0",
         id="update_twitch_tokens",
+        replace_existing=True,
+    )
+    # Пуллинг новых клипов Twitch → Telegram (раз в 5 минут).
+    scheduler.add_job(
+        clips_poller.run_periodic_poll,
+        trigger="cron",
+        minute="*",  # FIXME */5
+        second="30",
+        id="poll_clips",
         replace_existing=True,
     )
     # Дамп 10-минутных бакетов статистики из Redis в БД.
