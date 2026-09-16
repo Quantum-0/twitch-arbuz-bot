@@ -1,4 +1,21 @@
-from memealerts.types.exceptions import MAError
+from memealerts.types.exceptions import MAError, MATokenExpiredError, MAUserNotFoundError
+
+__all__ = [
+    "UserNotFoundInDatabase",
+    "NotInBetaTest",
+    "ToManyChatUnsubscribesStartupException",
+    "MADuplicateUserError",
+    "MATokenInvalidError",
+    "MARefreshTokenError",
+    "MATokenRefreshError",
+    "MAInvalidTokenError",
+    "MAUnavailableError",
+    "MAValidationRespError",
+    "MANoToken",
+    "MAInvalidScopeError",
+    "MATokenExpiredError",
+    "MAUserNotFoundError",
+]
 
 
 class UserNotFoundInDatabase(Exception):

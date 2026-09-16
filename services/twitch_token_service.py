@@ -23,6 +23,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from config import settings
 from database.models import User
+from utils.cryptography import encrypt_value
 
 logger = logging.getLogger(__name__)
 
@@ -241,14 +242,20 @@ class TwitchTokenService:
         }
 
     async def _save_tokens(self, user_id: int, tokens: dict[str, Any]) -> None:
-        """Сохранить обновлённые токены в БД."""
+        """Сохранить обновлённые токены в БД.
+
+        Важно: ``sa.update(User).values(access_token=...)`` пишет напрямую в колонку
+        ``access_token``, обходя ``@property``-сеттер с шифрованием. Поэтому шифруем
+        значения через ``encrypt_value()`` вручную — иначе ``User.access_token`` getter
+        вызовет ``decrypt_value()`` на plaintext и упадёт с ``InvalidToken``.
+        """
         async with self._db_session_factory() as db:
             await db.execute(
                 sa.update(User)
                 .where(User.id == user_id)
                 .values(
-                    access_token=tokens["access_token"],
-                    refresh_token=tokens["refresh_token"],
+                    access_token=encrypt_value(tokens["access_token"]),
+                    refresh_token=encrypt_value(tokens["refresh_token"]),
                     twitch_token_expires_at=tokens["expires_at"],
                 )
             )

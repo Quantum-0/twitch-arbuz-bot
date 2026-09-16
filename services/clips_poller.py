@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import logging
 import re
+import uuid
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -332,8 +333,6 @@ class ClipsPollerService:
 
     async def _mqtt_publish_send_message(self, chat_id: str, message_text: str) -> None:
         """Отправить текстовое сообщение в Telegram через MQTT."""
-        import uuid
-
         await self._mqtt.publish(
             "telegram/send_message",
             {
@@ -345,8 +344,6 @@ class ClipsPollerService:
 
     async def _mqtt_publish_send_video(self, chat_id: str, video_url: str, caption: str) -> None:
         """Отправить видео клипа в Telegram через MQTT."""
-        import uuid
-
         await self._mqtt.publish(
             "telegram/send_video",
             {

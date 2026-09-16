@@ -6,7 +6,6 @@ from collections.abc import Callable
 from typing import Any
 
 import sqlalchemy as sa
-from memealerts.types.exceptions import MATokenExpiredError, MAUserNotFoundError
 from opentelemetry import trace
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -19,7 +18,9 @@ from exceptions import (
     MAInvalidScopeError,
     MAInvalidTokenError,
     MANoToken,
+    MATokenExpiredError,
     MATokenInvalidError,
+    MAUserNotFoundError,
 )
 from schemas.api import StatsType
 from schemas.enums import FileStorageDir

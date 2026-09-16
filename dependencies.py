@@ -119,7 +119,7 @@ async def lifespan(app: "FastAPI | None" = None):
     scheduler.add_job(
         clips_poller.run_periodic_poll,
         trigger="cron",
-        minute="*",  # FIXME */5
+        minute="*/5",
         second="30",
         id="poll_clips",
         replace_existing=True,
