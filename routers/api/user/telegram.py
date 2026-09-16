@@ -142,7 +142,7 @@ async def generate_connect_link(
                 timeout=10,
             )
     except httpx.ConnectError:
-        logger.error("TG-сервис недоступен: %s", settings.telegram_service_url)
+        logger.error("TG-сервис недоступен: %s", settings.telegram_service_url, exc_info=True)
         return JSONResponse({"title": "Ошибка", "message": "TG-сервис недоступен."}, 503)
 
     if not response.is_success:
