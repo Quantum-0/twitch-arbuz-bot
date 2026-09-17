@@ -79,6 +79,7 @@ async def lifespan(app: "FastAPI | None" = None):
     # Telegram chat_connected — от TG-микросервиса при добавлении бота в чат.
     from services.telegram_integration import (
         handle_chat_connected,
+        handle_chat_disconnected,
         handle_telegram_result,
         reconcile_stream_subscriptions,
     )
@@ -87,6 +88,11 @@ async def lifespan(app: "FastAPI | None" = None):
         await handle_chat_connected(payload, container.db_session_factory())
 
     mqtt.subscribe("telegram/chat_connected", _on_chat_connected)
+
+    async def _on_chat_disconnected(payload: dict) -> None:
+        await handle_chat_disconnected(payload, container.db_session_factory())
+
+    mqtt.subscribe("telegram/chat_disconnected", _on_chat_disconnected)
 
     async def _on_telegram_result(payload: dict) -> None:
         await handle_telegram_result(payload, container.db_session_factory())

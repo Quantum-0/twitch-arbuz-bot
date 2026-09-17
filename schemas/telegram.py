@@ -17,12 +17,16 @@ class TelegramSettingsSchema(BaseModel):
     """Текущие настройки Telegram-интеграции для панели управления."""
 
     stream_chat_id: str | None = None
+    stream_chat_title: str | None = None
     clips_chat_id: str | None = None
+    clips_chat_title: str | None = None
     stickers_chat_id: str | None = None
+    stickers_chat_title: str | None = None
     is_connected: bool = False
 
     stream_notification_enabled: bool = False
     stream_offline_behavior: Literal["delete", "message", "keep"] = "keep"
+    stream_message_template: str | None = None
 
     clips_enabled: bool = False
     clips_mode: Literal["all", "featured"] = "all"
@@ -40,6 +44,7 @@ class TelegramSettingsUpdateSchema(BaseModel):
 
     stream_notification_enabled: bool | None = None
     stream_offline_behavior: Literal["delete", "message", "keep"] | None = None
+    stream_message_template: str | None = None
     clips_enabled: bool | None = None
     clips_mode: Literal["all", "featured"] | None = None
     clips_delivery: Literal["video", "link"] | None = None
@@ -53,7 +58,7 @@ class TelegramConnectSchema(BaseModel):
     """Запрос на генерацию deep-link для подключения чата."""
 
     scope: Literal["stream", "clips", "stickers"]
-    chat_type: Literal["channel", "group"]
+    chat_type: Literal["channel", "group", "private"]
 
 
 # ── Контракты MQTT-сообщений (основной → TG-сервис) ────────────────────────

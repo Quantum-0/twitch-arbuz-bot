@@ -23,6 +23,13 @@ from schemas.telegram import SendResult
 
 logger = logging.getLogger(__name__)
 
+# Маппинг scope → (chat_id, chat_type, chat_title, connected_at) для очистки привязки.
+_SCOPE_COLUMNS = {
+    "stream": ("stream_chat_id", "stream_chat_type", "stream_chat_title", "stream_connected_at"),
+    "clips": ("clips_chat_id", "clips_chat_type", "clips_chat_title", "clips_connected_at"),
+    "stickers": ("stickers_chat_id", "stickers_chat_type", "stickers_chat_title", "stickers_connected_at"),
+}
+
 
 async def handle_chat_connected(payload: dict[str, Any], db_session_factory) -> None:
     """Сохранить привязку Telegram-чата к пользователю.
@@ -68,14 +75,17 @@ async def handle_chat_connected(payload: dict[str, Any], db_session_factory) -> 
         if scope == "stream":
             tg.stream_chat_id = chat_id
             tg.stream_chat_type = chat_type
+            tg.stream_chat_title = chat_title
             tg.stream_connected_at = now
         elif scope == "clips":
             tg.clips_chat_id = chat_id
             tg.clips_chat_type = chat_type
+            tg.clips_chat_title = chat_title
             tg.clips_connected_at = now
         elif scope == "stickers":
             tg.stickers_chat_id = chat_id
             tg.stickers_chat_type = chat_type
+            tg.stickers_chat_title = chat_title
             tg.stickers_connected_at = now
         else:
             logger.warning("chat_connected: неизвестный scope=%s", scope)
@@ -291,3 +301,140 @@ async def reconcile_stream_subscriptions(db_session_factory) -> None:
         sum(1 for u in users if str(u.twitch_id) not in offline_present),
         failed_count,
     )
+
+
+async def clear_telegram_chat_binding(
+    db_session_factory,
+    chat_id: str,
+    user_id: int | None = None,
+    scope: str | None = None,
+) -> str | None:
+    """Очистить привязку Telegram-чата в БД по chat_id (или user_id+scope).
+
+    Используется из ``handle_chat_disconnected`` (MQTT-событие от TG-бота)
+    и из check-эндпоинта ``/api/user/check/telegram`` (при детекте кика).
+
+    Возвращает очищенный scope ("stream"|"clips"|"stickers") или None, если
+    привязка не найдена. Для scope="stream" снимает EventSub-подписки.
+    """
+    tg_user_id: int | None = None
+    cleared_scope: str | None = None
+    async with db_session_factory() as db:
+        stmt = sa.select(TelegramSettings)
+        if user_id is not None and scope is not None:
+            stmt = stmt.where(TelegramSettings.user_id == user_id)
+        else:
+            stmt = stmt.where(
+                sa.or_(
+                    TelegramSettings.stream_chat_id == chat_id,
+                    TelegramSettings.clips_chat_id == chat_id,
+                    TelegramSettings.stickers_chat_id == chat_id,
+                )
+            )
+        result = await db.execute(stmt)
+        tg = result.scalar_one_or_none()
+        if tg is None:
+            logger.info("clear_telegram_chat_binding: привязка не найдена (chat_id=%s)", chat_id)
+            return None
+
+        if scope is not None:
+            # Проверяем, что chat_id в БД совпадает с payload — иначе можем
+            # очистить новую привязку, если юзер переподключил чат.
+            expected_col = _SCOPE_COLUMNS[scope][0]
+            if getattr(tg, expected_col) != chat_id:
+                logger.warning(
+                    "clear_telegram_chat_binding: chat_id не совпадает для scope=%s "
+                    "(stored=%s payload=%s) — пропускаем",
+                    scope,
+                    getattr(tg, expected_col),
+                    chat_id,
+                )
+                return None
+            cleared_scope = scope
+        else:
+            # Сопоставляем по chat_id среди всех scope.
+            if tg.stream_chat_id == chat_id:
+                cleared_scope = "stream"
+            elif tg.clips_chat_id == chat_id:
+                cleared_scope = "clips"
+            elif tg.stickers_chat_id == chat_id:
+                cleared_scope = "stickers"
+
+        if cleared_scope is None:
+            return None
+
+        col_id, col_type, col_title, col_at = _SCOPE_COLUMNS[cleared_scope]
+        setattr(tg, col_id, None)
+        setattr(tg, col_type, None)
+        setattr(tg, col_title, None)
+        setattr(tg, col_at, None)
+
+        if cleared_scope == "stream":
+            tg.stream_notification_enabled = False
+            tg.last_stream_message_id = None
+            tg.twitch_to_tg_enabled = False
+            tg.tg_to_twitch_enabled = False
+        elif cleared_scope == "clips":
+            tg.clips_enabled = False
+        elif cleared_scope == "stickers":
+            tg.stickers_enabled = False
+
+        tg_user_id = tg.user_id
+        await db.commit()
+
+    logger.info(
+        "clear_telegram_chat_binding: очищен scope=%s chat_id=%s user_id=%s",
+        cleared_scope,
+        chat_id,
+        tg_user_id,
+    )
+
+    # Для stream снимаем EventSub-подписки вне сессии БД.
+    if cleared_scope == "stream":
+        await _unsubscribe_stream_events(tg_user_id, db_session_factory)
+
+    return cleared_scope
+
+
+async def _unsubscribe_stream_events(user_id: int, db_session_factory) -> None:
+    """Отписаться от stream.online/offline EventSub для пользователя."""
+    from container_runtime import get_container
+
+    container = get_container()
+    twitch = container.twitch()
+
+    async with db_session_factory() as db:
+        user = (await db.execute(sa.select(User).where(User.id == user_id))).scalar_one_or_none()
+    if user is None:
+        logger.warning("_unsubscribe_stream_events: user_id=%s не найден", user_id)
+        return
+    try:
+        await twitch.unsubscribe_stream_online(user)
+        await twitch.unsubscribe_stream_offline(user)
+        logger.info("_unsubscribe_stream_events: отписки выполнены для user_id=%s", user_id)
+    except Exception:
+        logger.error("_unsubscribe_stream_events: ошибка отписки для user_id=%s", user_id, exc_info=True)
+
+
+async def handle_chat_disconnected(payload: dict[str, Any], db_session_factory) -> None:
+    """Обработать MQTT-событие telegram/chat_disconnected от TG-бота.
+
+    Бот кикнут/удалён из чата или покинул чат по запросу. Очищаем привязку
+    в БД, чтобы в панели снова отображалось «Чат: не подключён».
+    """
+    chat_id = str(payload.get("chat_id", ""))
+    if not chat_id:
+        logger.warning("chat_disconnected: нет chat_id в payload: %s", payload)
+        return
+
+    user_id = payload.get("user_id")
+    scope = payload.get("scope")
+
+    logger.info(
+        "chat_disconnected: chat_id=%s user_id=%s scope=%s",
+        chat_id,
+        user_id,
+        scope,
+    )
+
+    await clear_telegram_chat_binding(db_session_factory, chat_id, user_id, scope)

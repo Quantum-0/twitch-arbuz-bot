@@ -15,6 +15,7 @@ from sqlalchemy import (
     Integer,
     Numeric,
     String,
+    Text,
     event,
     false,
     func,
@@ -524,16 +525,19 @@ class TelegramSettings(Base):
     # ── Stream chat ──
     stream_chat_id: Mapped[str | None] = mapped_column(String, nullable=True, default=None)
     stream_chat_type: Mapped[str | None] = mapped_column(String, nullable=True, default=None)
+    stream_chat_title: Mapped[str | None] = mapped_column(String, nullable=True, default=None)
     stream_connected_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, default=None)
 
     # ── Clips chat ──
     clips_chat_id: Mapped[str | None] = mapped_column(String, nullable=True, default=None)
     clips_chat_type: Mapped[str | None] = mapped_column(String, nullable=True, default=None)
+    clips_chat_title: Mapped[str | None] = mapped_column(String, nullable=True, default=None)
     clips_connected_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, default=None)
 
     # ── Stickers chat ──
     stickers_chat_id: Mapped[str | None] = mapped_column(String, nullable=True, default=None)
     stickers_chat_type: Mapped[str | None] = mapped_column(String, nullable=True, default=None)
+    stickers_chat_title: Mapped[str | None] = mapped_column(String, nullable=True, default=None)
     stickers_connected_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, default=None)
 
     # ── Stream notifications ──
@@ -541,6 +545,7 @@ class TelegramSettings(Base):
         Boolean, default=False, server_default=false(), nullable=False
     )
     stream_offline_behavior: Mapped[str] = mapped_column(String, default="keep", server_default="keep", nullable=False)
+    stream_message_template: Mapped[str | None] = mapped_column(Text, nullable=True, default=None)
     last_stream_message_id: Mapped[str | None] = mapped_column(String, nullable=True, default=None)
 
     # ── Clips ──

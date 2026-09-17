@@ -19,6 +19,7 @@ from schemas.telegram import (
     TelegramSettingsSchema,
     TelegramSettingsUpdateSchema,
 )
+from services.mqtt import MQTTClient
 from twitch.client.twitch import Twitch
 from utils.telegram import ensure_telegram_settings, get_telegram_settings
 
@@ -39,11 +40,15 @@ async def get_telegram_settings_endpoint(
     is_connected = bool(tg.stream_chat_id or tg.clips_chat_id or tg.stickers_chat_id)
     return TelegramSettingsSchema(
         stream_chat_id=tg.stream_chat_id,
+        stream_chat_title=tg.stream_chat_title,
         clips_chat_id=tg.clips_chat_id,
+        clips_chat_title=tg.clips_chat_title,
         stickers_chat_id=tg.stickers_chat_id,
+        stickers_chat_title=tg.stickers_chat_title,
         is_connected=is_connected,
         stream_notification_enabled=tg.stream_notification_enabled,
         stream_offline_behavior=tg.stream_offline_behavior,
+        stream_message_template=tg.stream_message_template,
         clips_enabled=tg.clips_enabled,
         clips_mode=tg.clips_mode,
         clips_delivery=tg.clips_delivery,
@@ -157,36 +162,84 @@ async def generate_connect_link(
     return JSONResponse({"url": url}, 200)
 
 
-@router.post("/disconnect")
+@router.post("/disconnect/{scope}")
 @inject
-async def disconnect_telegram(
+async def disconnect_telegram_scope(
+    scope: str,
     db: Annotated[AsyncSession, Depends(get_db)],
     twitch: Annotated[Twitch, Depends(Provide[Container.twitch])],
-    user: User = Security(user_auth),
+    mqtt: Annotated[MQTTClient, Depends(Provide[Container.mqtt])],
+    user: User = Security(user_auth),  # noqa: B008
 ) -> JSONResponse:
-    """Отключить Telegram-интеграцию: очищает все привязки чатов и сбрасывает настройки."""
-    if user.telegram is not None:
-        user.telegram.stream_chat_id = None
-        user.telegram.stream_chat_type = None
-        user.telegram.stream_connected_at = None
-        user.telegram.clips_chat_id = None
-        user.telegram.clips_chat_type = None
-        user.telegram.clips_connected_at = None
-        user.telegram.stickers_chat_id = None
-        user.telegram.stickers_chat_type = None
-        user.telegram.stickers_connected_at = None
-        user.telegram.stream_notification_enabled = False
-        user.telegram.clips_enabled = False
-        user.telegram.stickers_enabled = False
-        user.telegram.twitch_to_tg_enabled = False
-        user.telegram.tg_to_twitch_enabled = False
-        user.telegram.last_stream_message_id = None
+    """Отключить конкретный scope Telegram-интеграции.
+
+    Очищает привязку чата для выбранного scope (stream/clips/stickers),
+    отправляет боту команду покинуть чат (MQTT telegram/leave_chat),
+    и для stream снимает EventSub-подписки.
+    """
+    valid_scopes = {"stream", "clips", "stickers"}
+    if scope not in valid_scopes:
+        return JSONResponse({"title": "Ошибка", "message": f"Неизвестный scope: {scope}"}, 400)
+
+    tg = user.telegram
+    scope_labels = {
+        "stream": "Уведомления о стриме",
+        "clips": "Клипы",
+        "stickers": "AI-стикеры",
+    }
+    label = scope_labels[scope]
+
+    if tg is not None:
+        chat_id = None
+        if scope == "stream":
+            chat_id = tg.stream_chat_id
+        elif scope == "clips":
+            chat_id = tg.clips_chat_id
+        elif scope == "stickers":
+            chat_id = tg.stickers_chat_id
+
+        if not chat_id:
+            return JSONResponse(
+                {"title": "Нечего отключать", "message": f"{label}: чат не подключён."},
+                200,
+            )
+
+        if scope == "stream":
+            tg.stream_chat_id = None
+            tg.stream_chat_type = None
+            tg.stream_chat_title = None
+            tg.stream_connected_at = None
+            tg.stream_notification_enabled = False
+            tg.last_stream_message_id = None
+            tg.twitch_to_tg_enabled = False
+            tg.tg_to_twitch_enabled = False
+        elif scope == "clips":
+            tg.clips_chat_id = None
+            tg.clips_chat_type = None
+            tg.clips_chat_title = None
+            tg.clips_connected_at = None
+            tg.clips_enabled = False
+        elif scope == "stickers":
+            tg.stickers_chat_id = None
+            tg.stickers_chat_type = None
+            tg.stickers_chat_title = None
+            tg.stickers_connected_at = None
+            tg.stickers_enabled = False
         await db.commit()
 
         try:
-            await twitch.unsubscribe_stream_online(user)
-            await twitch.unsubscribe_stream_offline(user)
+            await mqtt.publish("telegram/leave_chat", {"chat_id": chat_id})
         except Exception:
-            logger.error("Ошибка отписки stream.online/offline при disconnect", exc_info=True)
+            logger.error("Ошибка отправки leave_chat для scope=%s chat_id=%s", scope, chat_id, exc_info=True)
 
-    return JSONResponse({"title": "Готово", "message": "Telegram-интеграция отключена."}, 200)
+        if scope == "stream":
+            try:
+                await twitch.unsubscribe_stream_online(user)
+                await twitch.unsubscribe_stream_offline(user)
+            except Exception:
+                logger.error("Ошибка отписки stream.online/offline при disconnect scope=stream", exc_info=True)
+
+    return JSONResponse(
+        {"title": "Готово", "message": f"{label} отключены. Бот покинет чат."},
+        200,
+    )

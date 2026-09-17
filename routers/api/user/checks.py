@@ -1,14 +1,17 @@
-from typing import Annotated
+import logging
+from typing import Annotated, Literal
 from urllib.parse import urlsplit, urlunsplit
 
 import httpx
 from dependency_injector.wiring import Provide, inject
 from fastapi import APIRouter, Depends, Security
 from memealerts.types.exceptions import MATokenExpiredError
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from config import settings
 from container import Container
-from database.models import User
+from database.models import TelegramSettings, User
+from dependencies import get_db
 from exceptions import MAInvalidTokenError, MANoToken, MATokenRefreshError, MAUnavailableError, MAValidationRespError
 from routers.security_helpers import user_auth
 from schemas.api import (
@@ -22,6 +25,8 @@ from services.sse_manager import SSEManager
 from twitch.client.twitch import Twitch
 from utils.enums import SSEChannel
 from utils.tts import get_tts_settings
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/check", tags=["User checks"])
 
@@ -198,3 +203,104 @@ async def check_tts_server() -> CheckStatusResponseSchema:
     if not body.get("rvc_available"):
         return CheckStatusResponseSchema(result=False, problems=["TTS-сервер запущен, но RVC-сервер недоступен"])
     return CheckStatusResponseSchema(result=True, problems=[])
+
+
+@router.get("/telegram", response_model=CheckStatusResponseSchema)
+@inject
+async def check_telegram(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    twitch: Annotated[Twitch, Depends(Provide[Container.twitch])],
+    user: User = Security(user_auth),
+) -> CheckStatusResponseSchema:
+    """Проверить доступность TG-сервиса и статус подключения бота к чатам.
+
+    1. Healthcheck TG-микросервиса (GET /healthcheck).
+    2. Для каждого подключённого scope (stream/clips/stickers): запрос
+       POST /api/chat_status → если бота нет в чате — сбросить привязку в БД
+       и добавить проблему в список. Для stream также отписаться от EventSub.
+    """
+    tg = user.telegram
+
+    # 1. Проверка доступности TG-сервиса.
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            resp = await client.get(f"{settings.telegram_service_url}/healthcheck")
+    except httpx.HTTPError:
+        return CheckStatusResponseSchema(result=False, problems=["TG-сервис недоступен"])
+    if resp.status_code != 200:
+        return CheckStatusResponseSchema(result=False, problems=[f"TG-сервис вернул {resp.status_code}"])
+
+    if tg is None or not (tg.stream_chat_id or tg.clips_chat_id or tg.stickers_chat_id):
+        return CheckStatusResponseSchema(result=True, problems=[])
+
+    # 2. Проверка каждого подключённого scope.
+    scope_chats: list[tuple[Literal["stream", "clips", "stickers"], str | None, str]] = [
+        ("stream", tg.stream_chat_id, "уведомления о стриме"),
+        ("clips", tg.clips_chat_id, "клипы"),
+        ("stickers", tg.stickers_chat_id, "AI-стикеры"),
+    ]
+
+    problems: list[str] = []
+    stream_kicked = False
+    for scope, chat_id, label in scope_chats:
+        if not chat_id:
+            continue
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                status_resp = await client.post(
+                    f"{settings.telegram_service_url}/api/chat_status",
+                    headers={"X-Api-Key": settings.telegram_service_api_key},
+                    json={"chat_id": chat_id},
+                )
+        except httpx.HTTPError:
+            problems.append(f"Не удалось проверить чат «{label}» (TG-сервис недоступен)")
+            continue
+        if status_resp.status_code != 200:
+            problems.append(f"Не удалось проверить чат «{label}» (код {status_resp.status_code})")
+            continue
+        status_data = status_resp.json()
+        if not status_data.get("member", False):
+            # Бота кикнули — сбрасываем привязку прямо в текущей сессии.
+            _reset_scope_binding(tg, scope)
+            problems.append(f"Бот удалён из чата «{label}» — привязка очищена")
+            if scope == "stream":
+                stream_kicked = True
+            continue
+        if not status_data.get("can_post", False):
+            problems.append(f"Бот в чате «{label}», но не может отправлять сообщения")
+
+    if problems:
+        await db.commit()
+        if stream_kicked:
+            try:
+                await twitch.unsubscribe_stream_online(user)
+                await twitch.unsubscribe_stream_offline(user)
+            except Exception:
+                logger.error("check_telegram: ошибка отписки EventSub для stream", exc_info=True)
+
+    return CheckStatusResponseSchema(result=len(problems) == 0, problems=problems)
+
+
+def _reset_scope_binding(tg: TelegramSettings, scope: Literal["stream", "clips", "stickers"]) -> None:
+    """Обнулить привязку чата для scope прямо на ORM-объекте (в текущей сессии)."""
+    if scope == "stream":
+        tg.stream_chat_id = None
+        tg.stream_chat_type = None
+        tg.stream_chat_title = None
+        tg.stream_connected_at = None
+        tg.stream_notification_enabled = False
+        tg.last_stream_message_id = None
+        tg.twitch_to_tg_enabled = False
+        tg.tg_to_twitch_enabled = False
+    elif scope == "clips":
+        tg.clips_chat_id = None
+        tg.clips_chat_type = None
+        tg.clips_chat_title = None
+        tg.clips_connected_at = None
+        tg.clips_enabled = False
+    elif scope == "stickers":
+        tg.stickers_chat_id = None
+        tg.stickers_chat_type = None
+        tg.stickers_chat_title = None
+        tg.stickers_connected_at = None
+        tg.stickers_enabled = False

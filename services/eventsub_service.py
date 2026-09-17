@@ -451,17 +451,45 @@ class TwitchEventSubService:
         # stream.online v1 не содержит title/категорию — подтягиваем через Get Streams.
         title, category = await self._fetch_stream_meta(user)
 
-        lines = [f"🔴 {channel_name} начинает стрим!"]
-        if title:
-            lines.append(title)
-        if category:
-            lines.append(category)
-        lines.append("")
-        lines.append(stream_url)
-        message_text = "\n".join(lines)
+        message_text = self._render_stream_online_message(tg, channel_name, title, category, stream_url)
 
         request_id = f"{self._STREAM_ONLINE_REQUEST_PREFIX}:{user.id}"
         await self._publish_send_message(tg.stream_chat_id, message_text, request_id)
+
+    @staticmethod
+    def _render_stream_online_message(tg: TelegramSettings, streamer: str, title: str, category: str, link: str) -> str:
+        """Сформировать текст уведомления о начале стрима.
+
+        Если задан ``stream_message_template`` — использует его с плейсхолдерами
+        ``{streamer}``, ``{title}``, ``{category}``, ``{link}``. При ошибке
+        форматирования (неизвестный плейсхолдер) — fallback на дефолтный текст.
+        """
+        default = f"🔴 {streamer} начинает стрим!"
+        template = tg.stream_message_template
+        if not template or not template.strip():
+            lines = [default]
+            if title:
+                lines.append(title)
+            if category:
+                lines.append(category)
+            lines.append("")
+            lines.append(link)
+            return "\n".join(lines)
+        try:
+            return template.format(streamer=streamer, title=title, category=category, link=link)
+        except (KeyError, IndexError, ValueError):
+            logger.warning(
+                "Ошибка форматирования шаблона stream_message_template, используем дефолт. template=%r",
+                template,
+            )
+            lines = [default]
+            if title:
+                lines.append(title)
+            if category:
+                lines.append(category)
+            lines.append("")
+            lines.append(link)
+            return "\n".join(lines)
 
     async def _fetch_stream_meta(self, user: User) -> tuple[str, str]:
         """Получить title и категорию текущего стрима через ``GET /helix/streams``.
