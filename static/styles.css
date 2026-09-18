@@ -385,7 +385,8 @@ section {
 }
 
 section:hover {
-    transform: translateY(-4px);
+    /* transform: translateY(-4px); */
+    box-shadow: 0 0 0 2px rgba(255,255,255,0.15), 0 0 16px rgba(255,255,255,0.08);
 }
 
 section h3 {
@@ -439,6 +440,27 @@ section h3 {
 .toggle-label.disabled {
     opacity: 0.5;
     pointer-events: none;
+}
+
+.tg-section-block {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 12px;
+    padding-left: 3%;
+    padding-right: 3%;
+    border-radius: 12px;
+    transition: box-shadow 0.3s ease;
+}
+
+.tg-section-block:hover {
+    box-shadow: 0 0 0 2px rgba(255,255,255,0.10), 0 0 12px rgba(255,255,255,0.05);
+}
+
+.tg-divider {
+    border: none;
+    border-top: 1px solid var(--color-border);
+    margin: 28px 0 8px 0;
 }
 
 .chatbot-extra-settings {
@@ -608,7 +630,8 @@ section h3 {
 }
 
 .card-status:hover {
-    transform: translateY(-4px);
+    /* transform: translateY(-4px); */
+    box-shadow: 0 0 0 2px rgba(255,255,255,0.15), 0 0 16px rgba(255,255,255,0.08);
 }
 
 .status-indicator {
@@ -644,7 +667,8 @@ section h3 {
 }
 
 .overlay-card:hover {
-    transform: translateY(-4px);
+    /* transform: translateY(-4px); */
+    box-shadow: 0 0 0 2px rgba(255,255,255,0.15), 0 0 16px rgba(255,255,255,0.08);
 }
 
 .overlay-card h2 {

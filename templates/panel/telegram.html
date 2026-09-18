@@ -1,4 +1,5 @@
-{% if user.login_name == "quantum075" %}
+{% set tg_beta_users = ["quantum075", "d_e_l_y", "kadzichan", "fra3a", "pepelitsa_", "rinamarain"] %}
+{% if user.login_name in tg_beta_users %}
 <h3>Telegram-интеграция</h3>
 <small class="overlay-copy-hint">
     <p>Подключите Telegram-канал, группу или личный чат, чтобы получать уведомления о начале стрима, автоматически заливать клипы и AI-стикеры.</p>
@@ -21,7 +22,7 @@
 
         <!-- ── Раздел: Уведомления о начале/окончании стрима ── -->
         <h4>Уведомления о начале/окончании стрима</h4>
-        <div class="toggles-grid active">
+        <div class="tg-section-block">
             <div class="toggle-label">
                 <span>Чат: <strong id="tg-stream-chat">не подключён</strong></span>
                 <span id="tg-stream-connect-btns" style="display: none;">
@@ -67,9 +68,11 @@
             </div>
         </div>
 
+        <hr class="tg-divider">
+
         <!-- ── Раздел: Клипы ── -->
         <h4>Клипы</h4>
-        <div class="toggles-grid active">
+        <div class="tg-section-block">
             <div class="toggle-label">
                 <span>Чат: <strong id="tg-clips-chat">не подключён</strong></span>
                 <span id="tg-clips-connect-btns" style="display: none;">
@@ -118,9 +121,11 @@
             </div>
         </div>
 
+        <hr class="tg-divider">
+
         <!-- ── Раздел: Стикеры ── -->
         <h4>Стикеры</h4>
-        <div class="toggles-grid active">
+        <div class="tg-section-block">
             <div class="toggle-label">
                 <span>Чат: <strong id="tg-stickers-chat">не подключён</strong></span>
                 <span id="tg-stickers-connect-btns" style="display: none;">
