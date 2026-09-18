@@ -230,6 +230,15 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
+function resetOverlaySecret() {
+    fetch('/api/user/overlay/reset-secret', {
+        method: 'POST',
+    })
+    .then(res => res.json().then(data => ({ ok: res.ok, data })))
+    .then(({ok, data}) => showNotification(data.title || 'Оверлеи', data.message, !ok))
+    .catch(err => showNotification('Ошибка', err.message, true));
+}
+
 function setupHeat() {
     ym(108266334, 'reachGoal', 'installHeat');
     fetch('/api/user/install-heat', {
@@ -271,6 +280,10 @@ function updateOverlayLink(card) {
             params.set(key, el.value);
         }
     });
+
+    if (params.get("chat_control") === "true") {
+        params.set("secret", overlay_secret);
+    }
 
     const link = base + "?" + params.toString();
     const linkDiv = card.querySelector(".overlay-link");

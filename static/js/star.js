@@ -227,6 +227,23 @@ window.addEventListener("heat:message", (e) => {
     spawnParticles(2 + Math.random() * 5);
 });
 
+/* ================= CHAT CONTROL ================= */
+
+const BLOW_COMMANDS = ["!дуть", "!дунуть", "!подуть", "!фуф", "!шуш"];
+const PUSH_COMMANDS = ["!толкнуть", "!толкать"];
+
+window.addEventListener("chat:message", (e) => {
+    const text = (e.detail.text || "").toLowerCase();
+
+    if (BLOW_COMMANDS.some(cmd => text.startsWith(cmd))) {
+        starPoint.applyForce(-AIR_FORCE * 0.5, 0);
+        spawnParticles(2 + Math.random() * 3);
+    } else if (PUSH_COMMANDS.some(cmd => text.startsWith(cmd))) {
+        starPoint.applyForce(AIR_FORCE * 1.5, 0);
+        spawnParticles(3 + Math.random() * 5);
+    }
+});
+
 /* ================== Патиклы =================== */
 
 const particles = [];

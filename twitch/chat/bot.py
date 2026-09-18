@@ -1,4 +1,5 @@
 import asyncio
+import json
 import logging.config
 import random
 from collections import deque
@@ -21,6 +22,7 @@ from exceptions import ToManyChatUnsubscribesStartupException, UserNotFoundInDat
 from schemas.api import StatsType
 from schemas.twitch import ChatMessageWebhookEventSchema
 from services.mqtt import MQTTClient
+from services.sse_manager import SSEManager
 from services.statistics import StatisticsService
 from twitch.chat.command_manager import CommandsManager
 from twitch.chat.commands import *
@@ -37,6 +39,8 @@ from twitch.client.twitch import Twitch
 from twitch.state_manager import StateManager
 from twitch.user_list_manager import UserListManager
 from twitch.utils import delay_to_seconds
+from utils.chat_roles import classify_chatter
+from utils.enums import SSEChannel
 from utils.logging_conf import LOGGING_CONFIG
 
 logging.config.dictConfig(LOGGING_CONFIG)
@@ -67,11 +71,13 @@ class ChatBot:
         state_manager: StateManager,
         mqtt: MQTTClient,
         statistics: StatisticsService | None = None,
+        sse_manager: SSEManager | None = None,
     ) -> None:
         self._user_list_manager = UserListManager()
         self._twitch: Twitch = None  # type: ignore
         self._db_session_factory = db_session_factory
         self._statistics = statistics
+        self._sse_manager = sse_manager
         self._handler_manager: MessagesHandlerManager = MessagesHandlerManager(
             state_manager, self.send_message, self._db_session_factory
         )
@@ -277,6 +283,27 @@ class ChatBot:
             await self._user_list_manager.handle(channel, message)
             await self._command_manager.handle(user_settings, user, message)
             await self._handler_manager.handle(user_settings, user, message)
+
+        # Broadcast в SSE msg-канал для оверлеев с chat control.
+        # Проверяем наличие подписчиков и отправляем fire-and-forget.
+        if self._sse_manager is not None and user.twitch_id is not None:
+            try:
+                broadcaster_id = int(user.twitch_id)
+                if await self._sse_manager.has_clients(broadcaster_id, SSEChannel.MESSAGE):
+                    role = classify_chatter(message.badges, message.chatter_user_login)
+                    payload = json.dumps(
+                        {
+                            "text": message.message.text,
+                            "username": message.chatter_user_login,
+                            "display_name": message.chatter_user_name,
+                            "color": message.color,
+                            "role": role.value,
+                        },
+                        ensure_ascii=False,
+                    )
+                    await self._sse_manager.broadcast(broadcaster_id, SSEChannel.MESSAGE, payload)
+            except (TypeError, ValueError):
+                pass
 
         # Если ни один handler не ответил — всё равно сбрасываем ContextVar,
         # чтобы потенциально активная контекстная переменная не «протекла» в

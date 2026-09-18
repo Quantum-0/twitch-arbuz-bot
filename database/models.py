@@ -55,6 +55,11 @@ class User(Base):
 
     overlays_last_usage: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, default=None)
 
+    # Per-user секретный ключ для оверлеев (temp-commands auth, slovotron webhook_secret).
+    # Для существующих пользователей лениво генерируется из slovotron_secret (uuid3);
+    # новые получают случайный uuid4. Сбрасывается кнопкой в панели управления.
+    overlay_secret: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True, default=None)
+
     total_deposited: Mapped[Decimal] = mapped_column(
         Numeric(12, 2), default=Decimal("0.00"), server_default="0", nullable=False
     )

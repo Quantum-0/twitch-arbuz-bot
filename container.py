@@ -36,6 +36,7 @@ class Container(containers.DeclarativeContainer):
             "routers.api.twitch_eventsub",
             "routers.api.user_api",
             "routers.api.user.memealerts",
+            "routers.api.user.overlay",
             "routers.api.user.streamers",
             "routers.api.user.stats",
             "routers.api.user.telegram",
@@ -76,15 +77,16 @@ class Container(containers.DeclarativeContainer):
     )
     twitch = providers.Singleton(Twitch)
     mqtt = providers.Singleton(MQTTClient)
+    sse_manager = providers.Singleton(SSEManager, statistics=statistics)
     chat_bot = providers.Singleton(
         ChatBot,
         db_session_factory=db_session_factory,
         state_manager=state_manager,
         mqtt=mqtt,
         statistics=statistics,
+        sse_manager=sse_manager,
     )
     ai = providers.Singleton(OpenAIClient, db_session_factory=db_session_factory, statistics=statistics)
-    sse_manager = providers.Singleton(SSEManager, statistics=statistics)
     slovotron = providers.Singleton(
         SlovotronService, db_session_factory=db_session_factory, chat_bot=chat_bot, ssem=sse_manager
     )
