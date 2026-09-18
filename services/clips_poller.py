@@ -186,7 +186,7 @@ class ClipsPollerService:
 
             if video_url:
                 caption = f"🎬 {clip_title}\n👤 {creator}"
-                await self._mqtt_publish_send_video(chat_id, video_url, caption)
+                await self._mqtt_publish_send_video(chat_id, video_url, caption, source_url=clip_url)
                 return
 
             logger.warning(
@@ -342,17 +342,19 @@ class ClipsPollerService:
             },
         )
 
-    async def _mqtt_publish_send_video(self, chat_id: str, video_url: str, caption: str) -> None:
+    async def _mqtt_publish_send_video(
+        self, chat_id: str, video_url: str, caption: str, *, source_url: str | None = None
+    ) -> None:
         """Отправить видео клипа в Telegram через MQTT."""
-        await self._mqtt.publish(
-            "telegram/send_video",
-            {
-                "request_id": str(uuid.uuid4()),
-                "chat_id": chat_id,
-                "video_url": video_url,
-                "caption": caption,
-            },
-        )
+        payload: dict[str, Any] = {
+            "request_id": str(uuid.uuid4()),
+            "chat_id": chat_id,
+            "video_url": video_url,
+            "caption": caption,
+        }
+        if source_url:
+            payload["source_url"] = source_url
+        await self._mqtt.publish("telegram/send_video", payload)
 
     async def _update_last_clip_date(self, user_id: int, last_clip_date: datetime) -> None:
         """Обновить last_clip_date в БД."""
