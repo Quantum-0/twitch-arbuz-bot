@@ -98,6 +98,14 @@ class Cache:
             if not no_error:
                 raise
 
+    async def delete(self, name: str, no_error: bool = True) -> None:
+        try:
+            await self._r.delete(f"cache:{name}")
+        except Exception:
+            logger.error("Error deleting from redis", exc_info=True)
+            if not no_error:
+                raise
+
     async def check_rate_limit(self, key: str, limit: int, window_s: int) -> bool:
         key = "rate_limit:" + key
         try:

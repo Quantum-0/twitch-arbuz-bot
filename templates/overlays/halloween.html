@@ -2,7 +2,6 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta http-equiv="refresh" content="1200">
     <title>Halloween Overlay</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -61,7 +60,7 @@
 
 <script>
     const CHANNEL_ID = {{ channel_id }};
-    const CHANNEL_NAME = "{{ channel_name }}";
+    const CHANNEL_NAME = {{ channel_name | tojson }};
     const OVERLAY_SECRET = new URLSearchParams(window.location.search).get('secret') || '';
     const CHAT_FILTER = ".*";
     const CUSTOM_COMMANDS = [

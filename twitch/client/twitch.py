@@ -576,8 +576,13 @@ class Twitch:
         )
 
     async def unsubscribe_by_type(self, user: User, sub_type: str) -> bool:
-        """Отписаться от всех подписок заданного типа для пользователя."""
+        """Отписаться от всех подписок заданного типа для пользователя.
+
+        Удаляет ВСЕ совпадающие подписки (Twitch иногда создаёт дубликаты).
+        Возвращает True если удалена хотя бы одна.
+        """
         subscriptions = await self.get_subscriptions()
+        removed = False
         for sub in subscriptions:
             if sub.type != sub_type:
                 continue
@@ -585,8 +590,8 @@ class Twitch:
             broadcaster_id = cond.get("broadcaster_user_id") or cond.get("to_broadcaster_user_id")
             if broadcaster_id == str(user.twitch_id):
                 await self._twitch.delete_eventsub_subscription(subscription_id=sub.id)
-                return True
-        return False
+                removed = True
+        return removed
 
     async def subscribe_stream_online(self, user: User) -> dict:
         """Подписаться на stream.online EventSub (cost=0, scopes не требуются).

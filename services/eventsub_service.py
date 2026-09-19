@@ -155,6 +155,9 @@ class TwitchEventSubService:
             await self._twitch.unsubscribe_raid(subscription_id=payload.subscription.subscription_id)
             logger.warning("Handle raid event from user, who didn't enabled shoutout on raid. Unsubscribed")
             return
+        # NB: если shoutout включён, raid-подписка принадлежит shoutout-функции и не отписывается.
+        # Overlay не управляет channel.raid самостоятельно в этом случае — после первого же рейда
+        # подписка остаётся активной только пока включён enable_shoutout_on_raid.
 
         await self._twitch.shoutout(user=user, shoutout_to=payload.event.from_broadcaster_user_id)
 

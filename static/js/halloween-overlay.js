@@ -65,7 +65,7 @@ const CONFIG = {
 
   wind: {
     impulse: -120,
-    decay: 1.5,
+    decay: 60,
   },
 };
 
@@ -142,6 +142,11 @@ function frame(now) {
     nextLeafIn = randIn(CONFIG.leaves.spawnEveryMs);
   }
 
+  if (windX !== 0) {
+    const step = Math.sign(windX) * CONFIG.wind.decay * dt;
+    windX = Math.sign(windX) !== Math.sign(windX - step) ? 0 : windX - step;
+  }
+
   for (const a of actors) {
     if (a.update(dt) === false) {
       a.el.remove();
@@ -173,7 +178,7 @@ function spawnLeaf(prefill) {
   el.style.opacity = (0.6 + 0.4 * depth).toFixed(2);
   $('#leaves').appendChild(el);
 
-  const baseX = rand(-20, STAGE_W - 20);
+  let baseX = rand(-20, STAGE_W - 20);
   let y = prefill ? rand(-h, STAGE_H) : -h - rand(0, 60);
   const speed = lerp(L.speed[0], L.speed[1], depth) * rand(0.9, 1.1);
   const amp = randIn(L.swayAmp);
@@ -243,34 +248,44 @@ function renderMessage(text, emotes) {
   const chars = Array.from(text);
 
   for (const emote of emotes) {
-    const emoteText = emote.text || '';
-    const idx = chars.indexOf(Array.from(emoteText)[0], pos);
-    if (idx === -1 || idx > pos) {
-      const segment = chars.slice(pos, idx === -1 ? chars.length : idx).join('');
-      const shown = segment.slice(0, remaining);
-      if (shown.length < segment.length) {
-        result += escapeHtml(shown) + '…';
+    const emoteChars = Array.from(emote.text || '');
+    if (!emoteChars.length) continue;
+    // Codepoint-безопасный поиск подстроки emote начиная с pos.
+    let idx = -1;
+    for (let i = pos; i + emoteChars.length <= chars.length; i++) {
+      let match = true;
+      for (let j = 0; j < emoteChars.length; j++) {
+        if (chars[i + j] !== emoteChars[j]) { match = false; break; }
+      }
+      if (match) { idx = i; break; }
+    }
+    if (idx === -1) break; // emote не найден в тексте — пропускаем
+
+    if (idx > pos) {
+      const segChars = chars.slice(pos, idx);
+      const shownChars = segChars.slice(0, remaining);
+      if (shownChars.length < segChars.length) {
+        result += escapeHtml(shownChars.join('')) + '…';
         return result;
       }
-      result += escapeHtml(shown);
-      remaining -= shown.length;
+      result += escapeHtml(shownChars.join(''));
+      remaining -= shownChars.length;
       if (remaining <= 0) return result;
     }
-    if (idx === -1) break;
 
     if (remaining < 2) { result += '…'; return result; }
     result += `<img class="emote" alt="" src="https://static-cdn.jtvnw.net/emoticons/v2/${encodeURIComponent(emote.id)}/default/light/2.0">`;
     remaining -= 2;
-    pos = idx + Array.from(emoteText).length;
+    pos = idx + emoteChars.length;
   }
 
   if (pos < chars.length) {
-    const segment = chars.slice(pos).join('');
-    const shown = segment.slice(0, remaining);
-    if (shown.length < segment.length) {
-      result += escapeHtml(shown) + '…';
+    const segChars = chars.slice(pos);
+    const shownChars = segChars.slice(0, remaining);
+    if (shownChars.length < segChars.length) {
+      result += escapeHtml(shownChars.join('')) + '…';
     } else {
-      result += escapeHtml(shown);
+      result += escapeHtml(shownChars.join(''));
     }
   }
   return result;

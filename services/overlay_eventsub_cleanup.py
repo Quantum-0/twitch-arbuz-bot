@@ -29,6 +29,31 @@ OVERLAY_MANAGED_TYPES = (
 )
 
 
+async def _unsubscribe_managed(twitch: Twitch, user: User, sub_types: list[str]) -> None:
+    """Отписаться от указанных типов подписок одним запросом get_subscriptions.
+
+    Twitch rate-limits на GET /helix/eventsub/subscriptions, поэтому список
+    загружается один раз, а удаления идут напрямую без повторных вызовов
+    unsubscribe_by_type (который каждый раз заново тянет весь список).
+    """
+    subscriptions = await twitch.get_subscriptions()
+    targets = []
+    for sub in subscriptions:
+        if sub.type not in sub_types:
+            continue
+        cond = sub.condition
+        broadcaster_id = cond.get("broadcaster_user_id") or cond.get("to_broadcaster_user_id")
+        if broadcaster_id == str(user.twitch_id):
+            targets.append(sub)
+
+    for sub in targets:
+        try:
+            await twitch.unsubscribe_event_sub(sub.id)
+            logger.info("cleanup: unsubscribed %s for user %s", sub.type, user.login_name)
+        except Exception:
+            logger.warning("cleanup: failed to unsubscribe %s for %s", sub.type, user.login_name, exc_info=True)
+
+
 async def _cleanup_user(
     twitch_id: str,
     twitch: Twitch,
@@ -58,19 +83,10 @@ async def _cleanup_user(
     if user is None:
         return True
 
-    for sub_type in OVERLAY_MANAGED_TYPES:
-        try:
-            await twitch.unsubscribe_by_type(user, sub_type)
-            logger.info("cleanup: unsubscribed %s for user %s", sub_type, user.login_name)
-        except Exception:
-            logger.warning("cleanup: failed to unsubscribe %s for %s", sub_type, user.login_name, exc_info=True)
-
+    managed = list(OVERLAY_MANAGED_TYPES)
     if user.settings and not user.settings.enable_shoutout_on_raid:
-        try:
-            await twitch.unsubscribe_by_type(user, "channel.raid")
-            logger.info("cleanup: unsubscribed channel.raid for user %s", user.login_name)
-        except Exception:
-            logger.warning("cleanup: failed to unsubscribe raid for %s", user.login_name, exc_info=True)
+        managed.append("channel.raid")
+    await _unsubscribe_managed(twitch, user, managed)
 
     return True
 

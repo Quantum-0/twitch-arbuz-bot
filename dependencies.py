@@ -77,7 +77,6 @@ async def lifespan(app: "FastAPI | None" = None):
     mqtt.subscribe("slovotron/+/+", slovotron.handle_webhook)
 
     # Telegram chat_connected — от TG-микросервиса при добавлении бота в чат.
-    from services.overlay_eventsub_cleanup import cleanup_overlay_eventsub
     from services.telegram_integration import (
         handle_chat_connected,
         handle_chat_disconnected,
@@ -185,6 +184,8 @@ async def lifespan(app: "FastAPI | None" = None):
 
     # Cleanup overlay-managed EventSub подписок (раз в 3 минуты).
     # Если heartbeat истёк и нет SSE-клиентов — отписываемся.
+    from services.overlay_eventsub_cleanup import cleanup_overlay_eventsub
+
     async def cleanup_overlay_eventsub_job() -> None:
         try:
             await cleanup_overlay_eventsub(twitch, sse_manager, cache, container.db_session_factory())

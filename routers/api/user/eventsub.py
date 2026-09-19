@@ -17,6 +17,7 @@ from dependency_injector.wiring import Provide, inject
 from fastapi import APIRouter, Body, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 from starlette.responses import JSONResponse
 
 from container import Container
@@ -56,7 +57,9 @@ async def _get_user_by_secret(db: AsyncSession, request: Request, channel_id: in
     if not secret_header:
         raise HTTPException(401, "No overlay secret provided")
 
-    user = (await db.execute(sa.select(User).where(User.twitch_id == str(channel_id)))).scalar_one_or_none()
+    user = (
+        await db.execute(sa.select(User).where(User.twitch_id == str(channel_id)).options(selectinload(User.settings)))
+    ).scalar_one_or_none()
     if not user:
         raise HTTPException(404, "User not found")
 
@@ -169,7 +172,7 @@ async def delete_eventsub_subscriptions(
             errors.append({"type": sub_type, "error": "Unsupported type"})
             continue
 
-        if sub_type == "channel.raid" and user.settings.enable_shoutout_on_raid:
+        if sub_type == "channel.raid" and user.settings and user.settings.enable_shoutout_on_raid:
             continue
 
         try:
@@ -181,6 +184,6 @@ async def delete_eventsub_subscriptions(
 
     # Удаляем Redis-запись.
     key = f"{REDIS_KEY_PREFIX}{user.twitch_id}"
-    await cache.set_str(key, "[]", ttl=1)
+    await cache.delete(key)
 
     return JSONResponse({"deleted": deleted, "errors": errors}, 200)
