@@ -291,6 +291,11 @@ class ChatBot:
                 broadcaster_id = int(user.twitch_id)
                 if await self._sse_manager.has_clients(broadcaster_id, SSEChannel.MESSAGE):
                     role = classify_chatter(message.badges, message.chatter_user_login)
+                    emotes = [
+                        {"id": f.emote.id, "text": f.text}
+                        for f in message.message.fragments
+                        if f.type == "emote" and f.emote
+                    ]
                     payload = json.dumps(
                         {
                             "text": message.message.text,
@@ -298,6 +303,7 @@ class ChatBot:
                             "display_name": message.chatter_user_name,
                             "color": message.color,
                             "role": role.value,
+                            "emotes": emotes,
                         },
                         ensure_ascii=False,
                     )

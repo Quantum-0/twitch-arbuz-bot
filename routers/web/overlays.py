@@ -350,3 +350,20 @@ async def get_temp_commands(cache: Cache, twitch_id: str) -> list[dict[str, str]
     except Exception:
         logger.warning("Error reading temp commands from Redis", exc_info=True)
     return result
+
+
+@router.get("/halloween")
+async def overlay_halloween(
+    request: Request,
+    channel_id: int = Query(),
+    channel_name: str = Query(default=""),
+):
+    await touch_overlay_usage(channel_id=channel_id)
+    return templates.TemplateResponse(
+        "overlays/halloween.html",
+        {
+            "request": request,
+            "channel_id": channel_id,
+            "channel_name": channel_name,
+        },
+    )

@@ -37,6 +37,7 @@ class Container(containers.DeclarativeContainer):
             "routers.api.user_api",
             "routers.api.user.memealerts",
             "routers.api.user.overlay",
+            "routers.api.user.eventsub",
             "routers.api.user.streamers",
             "routers.api.user.stats",
             "routers.api.user.telegram",

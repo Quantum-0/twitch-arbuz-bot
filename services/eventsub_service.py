@@ -25,10 +25,13 @@ from exceptions import (
 from schemas.api import StatsType
 from schemas.enums import FileStorageDir
 from schemas.twitch import (
+    FollowWebhookSchema,
     PointRewardRedemptionWebhookSchema,
     RaidWebhookSchema,
     StreamOfflineSchema,
     StreamOnlineSchema,
+    SubscribeWebhookSchema,
+    SubscriptionMessageWebhookSchema,
 )
 from services.memes import MemealertsService
 from services.memes_v2 import MemealertsOAuthService, MemealertsV2Service
@@ -140,12 +143,71 @@ class TwitchEventSubService:
         user = await self._get_user_by_id_or_login(payload.event.to_broadcaster_user_id)
         user_settings: TwitchUserSettings = user.settings
 
+        broadcaster_id = payload.event.to_broadcaster_user_id
+        if await self._ssem.has_clients(broadcaster_id, SSEChannel.TWITCH_EVENTS):
+            event = json.dumps(
+                {"type": "raid", "user": payload.event.from_broadcaster_user_name, "count": payload.event.viewers},
+                ensure_ascii=False,
+            )
+            await self._ssem.broadcast(broadcaster_id, SSEChannel.TWITCH_EVENTS, event)
+
         if not user_settings.enable_shoutout_on_raid:
             await self._twitch.unsubscribe_raid(subscription_id=payload.subscription.subscription_id)
             logger.warning("Handle raid event from user, who didn't enabled shoutout on raid. Unsubscribed")
             return
 
         await self._twitch.shoutout(user=user, shoutout_to=payload.event.from_broadcaster_user_id)
+
+    @task_wrapper
+    @tracer.start_as_current_span("Twitch Eventsub: Follow")
+    async def handle_follow(self, payload: FollowWebhookSchema | dict[str, Any]) -> None:
+        if isinstance(payload, dict):
+            payload = FollowWebhookSchema.model_validate(payload, by_name=True)
+
+        broadcaster_id = payload.event.broadcaster_user_id
+        if await self._ssem.has_clients(broadcaster_id, SSEChannel.TWITCH_EVENTS):
+            event = json.dumps(
+                {"type": "follow", "user": payload.event.user_name},
+                ensure_ascii=False,
+            )
+            await self._ssem.broadcast(broadcaster_id, SSEChannel.TWITCH_EVENTS, event)
+
+    @task_wrapper
+    @tracer.start_as_current_span("Twitch Eventsub: Subscribe")
+    async def handle_subscribe(self, payload: SubscribeWebhookSchema | dict[str, Any]) -> None:
+        if isinstance(payload, dict):
+            payload = SubscribeWebhookSchema.model_validate(payload, by_name=True)
+
+        broadcaster_id = payload.event.broadcaster_user_id
+        if await self._ssem.has_clients(broadcaster_id, SSEChannel.TWITCH_EVENTS):
+            event = json.dumps(
+                {
+                    "type": "sub",
+                    "user": payload.event.user_name,
+                    "tier": payload.event.tier,
+                    "gift": payload.event.is_gift,
+                },
+                ensure_ascii=False,
+            )
+            await self._ssem.broadcast(broadcaster_id, SSEChannel.TWITCH_EVENTS, event)
+
+    @task_wrapper
+    @tracer.start_as_current_span("Twitch Eventsub: Subscription Message")
+    async def handle_subscription_message(self, payload: SubscriptionMessageWebhookSchema | dict[str, Any]) -> None:
+        if isinstance(payload, dict):
+            payload = SubscriptionMessageWebhookSchema.model_validate(payload, by_name=True)
+
+        broadcaster_id = payload.event.broadcaster_user_id
+        if await self._ssem.has_clients(broadcaster_id, SSEChannel.TWITCH_EVENTS):
+            event = json.dumps(
+                {
+                    "type": "resub",
+                    "user": payload.event.user_name,
+                    "months": payload.event.cumulative_months,
+                },
+                ensure_ascii=False,
+            )
+            await self._ssem.broadcast(broadcaster_id, SSEChannel.TWITCH_EVENTS, event)
 
     @task_wrapper
     @tracer.start_as_current_span("Twitch Eventsub: Reward redemption")
