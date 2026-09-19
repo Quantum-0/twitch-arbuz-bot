@@ -99,6 +99,9 @@
                 <a href="/profile/{{ user.login_name }}" class="user-menu__item" role="menuitem">
                     Перейти в профиль
                 </a>
+                <a href="/cmdlist?streamer={{ user.login_name }}" class="user-menu__item" role="menuitem">
+                    Список команд чат-бота
+                </a>
                 {% if user and user.in_beta_test %}
                 <a href="/debug" class="user-menu__item" role="menuitem">
                     Отладка

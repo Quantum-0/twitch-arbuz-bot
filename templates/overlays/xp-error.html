@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="refresh" content="1200">
+    <title>XP Error Overlay</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <!--
+      Twitch-оверлей: окна ошибок в стиле Windows XP.
+
+      Команды чата (при включённом управлении из чата):
+        !ошибка — создать случайное окно (если с прошлого прошло не меньше N минут)
+        !закрыть — закрыть последнее открытое окно
+      Heat: клики по крестику и кнопкам окон.
+    -->
+    <style>
+        html, body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background: transparent;
+            -webkit-user-select: none;
+            user-select: none;
+        }
+
+        #layer { position: fixed; inset: 0; overflow: hidden; }
+
+        /* ---------- Окно Windows XP (Luna) ---------- */
+        .xp-win {
+            position: fixed;
+            left: 0;
+            top: 0;
+            transform-origin: 0 0;
+            transform: scale(var(--scale, 1));
+            box-sizing: border-box;
+            width: max-content;
+            min-width: 230px;
+            max-width: 390px;
+            padding: 0 3px 3px;
+            background: #0831d9;
+            border-radius: 8px 8px 0 0;
+            box-shadow:
+                inset -1px -1px #00138c,
+                inset 1px 1px #0831d9,
+                inset -2px -2px #001ea0,
+                inset 2px 2px #166aee,
+                inset -3px -3px #003bda,
+                inset 3px 3px #0855dd,
+                3px 4px 10px rgba(0, 0, 0, .45);
+            font-family: Tahoma, Verdana, "Segoe UI", sans-serif;
+            font-size: 11px;
+            color: #000;
+            cursor: default;
+        }
+
+        .xp-title {
+            display: flex;
+            align-items: center;
+            height: 30px;
+            margin: 0 -3px;
+            padding: 0 5px 0 9px;
+            box-sizing: border-box;
+            border-top-left-radius: 7px;
+            border-top-right-radius: 7px;
+            background: linear-gradient(180deg,
+                #0997ff 0%, #0053ee 8%, #0050ee 40%, #0066ff 88%,
+                #0066ff 93%, #005bff 95%, #003dd7 96%, #003dd7 100%);
+        }
+
+        .xp-title-text {
+            flex: 1;
+            min-width: 0;
+            padding-right: 10px;
+            overflow: hidden;
+            white-space: nowrap;
+            text-overflow: ellipsis;
+            font: bold 13px "Trebuchet MS", Tahoma, Verdana, sans-serif;
+            color: #fff;
+            text-shadow: 1px 1px #0f1089;
+        }
+
+        .xp-close {
+            flex: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 21px;
+            height: 21px;
+            padding: 0;
+            box-sizing: border-box;
+            border: 1px solid #fff;
+            border-radius: 3px;
+            background: radial-gradient(circle at 90% 90%,
+                #cc4600 0%, #dc6527 55%, #cd7546 70%, #ffccb2 90%, #fff 100%);
+            box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .18);
+            cursor: default;
+            outline: none;
+        }
+        .xp-close svg { display: block; filter: drop-shadow(0 1px 0 rgba(90, 20, 0, .55)); }
+        .xp-close:hover { filter: brightness(1.12); }
+        .xp-close:active, .xp-close.pressed { filter: brightness(.82); }
+
+        .xp-body {
+            padding: 16px 16px 13px;
+            background: #ece9d8;
+        }
+
+        .xp-msg {
+            display: flex;
+            align-items: flex-start;
+            gap: 14px;
+        }
+
+        .xp-icon {
+            flex: none;
+            width: 32px;
+            height: 32px;
+            filter: drop-shadow(1px 2px 1px rgba(0, 0, 0, .35));
+        }
+        .xp-icon svg { display: block; width: 32px; height: 32px; }
+
+        .xp-text {
+            align-self: center;
+            min-height: 32px;
+            display: flex;
+            align-items: center;
+            line-height: 1.4;
+            overflow-wrap: anywhere;
+        }
+
+        .xp-btns {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 6px;
+            margin-top: 18px;
+        }
+
+        .xp-btn {
+            min-width: 75px;
+            height: 23px;
+            padding: 0 12px;
+            box-sizing: border-box;
+            font: 11px Tahoma, Verdana, "Segoe UI", sans-serif;
+            color: #000;
+            white-space: nowrap;
+            background: linear-gradient(180deg, #fff 0%, #ecebe5 86%, #d8d0c4 100%);
+            border: 1px solid #003c74;
+            border-radius: 3px;
+            cursor: default;
+            outline: none;
+        }
+        .xp-btn.default {
+            box-shadow:
+                inset -1px 1px #cee7ff,
+                inset 1px 2px #98b6ea,
+                inset -2px 2px #bcd4f6,
+                inset 2px -2px #89ade4;
+        }
+        .xp-btn:hover {
+            box-shadow:
+                inset -1px 1px #fff0cf,
+                inset 1px 2px #fdd889,
+                inset -2px 2px #fbc761,
+                inset 2px -2px #e5a01a;
+        }
+        .xp-btn:active, .xp-btn.pressed {
+            background: #cdcac3;
+            box-shadow: inset 1px 1px 2px rgba(0, 0, 0, .3);
+        }
+
+        /* ---------- Debug ---------- */
+        #debug {
+            position: fixed;
+            left: 8px;
+            bottom: 8px;
+            padding: 6px 10px;
+            font: 12px/1.4 Consolas, monospace;
+            color: #fff;
+            background: rgba(0, 0, 0, .65);
+            border-radius: 4px;
+            pointer-events: none;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+
+<!-- Общие градиенты для иконок -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+    <defs>
+        <radialGradient id="xpRed" cx=".35" cy=".3" r=".85">
+            <stop offset="0" stop-color="#ffb3a3"/>
+            <stop offset=".45" stop-color="#e8321d"/>
+            <stop offset="1" stop-color="#9c0e00"/>
+        </radialGradient>
+        <radialGradient id="xpBlue" cx=".35" cy=".3" r=".85">
+            <stop offset="0" stop-color="#bcd8ff"/>
+            <stop offset=".45" stop-color="#2f7be6"/>
+            <stop offset="1" stop-color="#0a3aa0"/>
+        </radialGradient>
+        <linearGradient id="xpYellow" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#fffbb0"/>
+            <stop offset=".5" stop-color="#f7c600"/>
+            <stop offset="1" stop-color="#d59400"/>
+        </linearGradient>
+    </defs>
+</svg>
+
+<div id="layer"></div>
+<div id="debug"></div>
+
+<script>
+    const CHANNEL_ID = {{ channel_id }};
+    const COOLDOWN_MIN = {{ cooldown_min }};
+    const SCALE = {{ scale }};
+    const MAX_WINDOWS = {{ max_windows }};
+    const SOUND = {{ sound | tojson }};
+    const DEBUG = {{ debug | tojson }};
+    document.documentElement.style.setProperty("--scale", SCALE);
+</script>
+<script src="/static/js/heat-ws.js"></script>
+<script>
+    const CHANNEL_NAME = "{{ channel_name }}";
+    const OVERLAY_SECRET = new URLSearchParams(window.location.search).get('secret') || '';
+    const OVERLAY_TYPE = "xp-error";
+    const CHAT_FILTER = "!ошибка|!закрыть";
+    const CUSTOM_COMMANDS = [
+        {name: "error", aliases: "!ошибка", description: "Создать случайное окно ошибки в стиле Windows XP"},
+        {name: "close", aliases: "!закрыть", description: "Закрыть последнее окно ошибки"},
+    ];
+</script>
+<script src="/static/js/chat-listener.js"></script>
+<script>
+/* =====================================================================
+   НАСТРОЙКИ И КОНТЕНТ
+   ===================================================================== */
+
+/* Тексты ошибок */
+const ERROR_MESSAGES = [
+    "Внимание! Стример знаком с большей половиной букв!",
+    "Стримеру нужно пописять, но стример ещё об этом не знает",
+    "Ошибка видеокарты. Код ошибки 0xDEADBEEF",
+    "Привет, я ошибка! OwO",
+    "Стример.exe перестал отвечать. Ожидание ответа: бесконечно",
+    "Обнаружено 47 непрочитанных сообщений в чате. Стример их не увидит",
+    "Недостаточно печенек для продолжения стрима",
+    // "Ошибка 404: скилл не найден",
+    "Чат обнаружил, что «пять минуточек» длятся уже третий час",
+    "Предупреждение: за спиной стримера кто-то стоит. Шутка. Или нет?",
+    "Не удаётся освободить место на диске: слишком много гигабайт мемов",
+    "Стример успешно запутался в собственных настройках OBS",
+    "Чат, не паникуйте. Паника уже запущена в фоновом режиме",
+    "Обнаружена утечка мемов. Устранить невозможно",
+    // "Стример слишком крут для этой версии Windows",
+    "Внимание, чат! Ваш стример - сладкая булотька! >w<",
+    // "Ваш стрим будет удалён через 10 секунд. Шутка... Наверное.",
+    // "Фатальная ошибка: закончился кофе. Система работает на силе воли",
+    "Кот стримера захватил управление клавиатурой",
+    "Рекомендуется обновить стримера до последней версии. Текущая версия: «вчера не выспався»",
+    "Превышено допустимое количество фраз «сейчас-сейчас, минуточку»",
+    "Мышка стримера ушла в отпуск без предупреждения",
+    "Не удаётся подключиться к реальности. Повторная попытка через 3... 2... 1...",
+    "Внимание! Один из зрителей только что молча ушёл в лурк. Он всё видит.",
+    // "Пользователь «Удача» не найден. Попробуйте позже",
+    "Стример пытается выполнить недопустимую операцию: прочитать чат",
+    "Не хватает виртуальной памяти для хранения планов на стрим",
+    "Ошибка чтения: стример не читает чат. Он просто делает вид",
+    "В комнате стримера обнаружено привидение. Оно тоже смотрит стрим",
+    "Внимание! Уровень кринжа превышает допустимые нормы",
+    "Сервер печенек отвечает слишком медленно. Стример нервничает",
+    "Программа выполнила недопустимую операцию и будет закрыта",
+    // "Чат, вы точно не боты? Проверка: 2 + 2 = рыба",
+    "Кто бот - плюс в чат!",
+    "Ваш компьютер в опасности! Срочно погладьте кота",
+    "Стример забыл, что хотел сказать. Идёт поиск потерянной мысли...",
+    // "Ошибка 418: я чайник. Стример тоже иногда",
+    "Обнаружено критическое количество зевков за последние 5 минут",
+    "Системе не удалось найти носок. Второй. Стример знает, о чём речь",
+    "Ошибка доступа: у чата нет прав на управление стримером (пока)"
+];
+
+/* Варианты кнопок — от 1 до 3 выбираются случайно */
+const BUTTON_LABELS = [
+    "Ок", "Да", "Нет", "Отменить", "Повторить", "Пропустить", "Подтвердить",
+    "Игнорировать", "Прервать", "Понятно", "Не надо!", "Всё равно", "Мне страшно",
+    "Позвать админа", "Ну ладно", "Не сегодня", "Закрыть", "Подробнее", "Мяу",
+    "Выдохнуть", "Сохранить и молиться", "Ой", "Свалить вину на чат", "Перезагрузить стримера"
+];
+
+/* Заголовки окон по типу иконки */
+const TITLES = {
+    error:    ["Ошибка", "Критическая ошибка", "Fatal Error", "Stream.exe", "Что-то пошло не так"],
+    warning:  ["Предупреждение", "Внимание!", "Системное предупреждение"],
+    info:     ["Информация", "Сообщение", "Уведомление"],
+    question: ["Подтверждение", "Вопрос", "Требуется действие"]
+};
+
+/* Иконки (32x32, градиенты определены в скрытом svg выше) */
+const ICONS = {
+    error: `<svg viewBox="0 0 32 32"><circle cx="16" cy="16" r="13.5" fill="url(#xpRed)" stroke="#fff" stroke-width="2"/>
+    <path d="M10.2 10.2 L21.8 21.8 M21.8 10.2 L10.2 21.8" stroke="#fff" stroke-width="4.2" stroke-linecap="round"/>
+    <ellipse cx="12.5" cy="8.2" rx="7" ry="3.4" fill="#fff" opacity=".3"/></svg>`,
+    warning: `<svg viewBox="0 0 32 32"><path d="M16 2.8 L30 28.6 H2 Z" fill="url(#xpYellow)" stroke="#7d5b00" stroke-width="1.3" stroke-linejoin="round"/>
+    <rect x="14.4" y="11" width="3.2" height="9.5" rx="1.3" fill="#000"/><circle cx="16" cy="24" r="1.9" fill="#000"/></svg>`,
+    info: `<svg viewBox="0 0 32 32"><circle cx="16" cy="16" r="13.5" fill="url(#xpBlue)" stroke="#fff" stroke-width="2"/>
+    <circle cx="16" cy="9.6" r="2.3" fill="#fff"/><rect x="13.8" y="13.4" width="4.4" height="11.4" rx="1.4" fill="#fff"/>
+    <ellipse cx="12.5" cy="8.2" rx="7" ry="3.4" fill="#fff" opacity=".25"/></svg>`,
+    question: `<svg viewBox="0 0 32 32"><circle cx="16" cy="16" r="13.5" fill="url(#xpBlue)" stroke="#fff" stroke-width="2"/>
+    <text x="16" y="23.4" text-anchor="middle" font-size="21" font-weight="bold" font-family="Arial, sans-serif" fill="#fff">?</text>
+    <ellipse cx="12.5" cy="8.2" rx="7" ry="3.4" fill="#fff" opacity=".25"/></svg>`
+};
+
+const CLOSE_SVG = `<svg width="11" height="11" viewBox="0 0 11 11"><path d="M1.5 1.5 L9.5 9.5 M9.5 1.5 L1.5 9.5" stroke="#fff" stroke-width="2.2" stroke-linecap="square"/></svg>`;
+
+/* =====================================================================
+   ЛОГИКА
+   ===================================================================== */
+const layer = document.getElementById("layer");
+const windows = [];            // открытые окна, последнее = верхнее
+let lastShownAt = -Infinity;   // когда последний раз показали окно
+let bag = [];                  // «мешок» сообщений, чтобы не повторялись подряд
+
+function shuffle(arr) {
+    for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+}
+
+function nextMessage() {
+    if (!bag.length) bag = shuffle(ERROR_MESSAGES.map((_, i) => i));
+    return ERROR_MESSAGES[bag.pop()];
+}
+
+function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+
+function pickIconKind() {
+    const r = Math.random();
+    if (r < 0.5) return "error";
+    if (r < 0.75) return "warning";
+    if (r < 0.9) return "info";
+    return "question";
+}
+
+function pickButtons() {
+    const count = 1 + Math.floor(Math.random() * 3); // 1..3
+    return shuffle(BUTTON_LABELS.slice()).slice(0, count);
+}
+
+function el(tag, className, text) {
+    const node = document.createElement(tag);
+    if (className) node.className = className;
+    if (text !== undefined) node.textContent = text;
+    return node;
+}
+
+function buildWindow() {
+    const kind = pickIconKind();
+
+    const win = el("div", "xp-win");
+    win.setAttribute("role", "alertdialog");
+
+    const title = el("div", "xp-title");
+    title.appendChild(el("div", "xp-title-text", pick(TITLES[kind])));
+    const closeBtn = el("button", "xp-close");
+    closeBtn.type = "button";
+    closeBtn.setAttribute("aria-label", "Закрыть");
+    closeBtn.innerHTML = CLOSE_SVG;
+    title.appendChild(closeBtn);
+
+    const body = el("div", "xp-body");
+    const msg = el("div", "xp-msg");
+    const icon = el("div", "xp-icon");
+    icon.innerHTML = ICONS[kind];
+    msg.appendChild(icon);
+    msg.appendChild(el("div", "xp-text", nextMessage()));
+    body.appendChild(msg);
+
+    const btns = el("div", "xp-btns");
+    pickButtons().forEach((label, i) => {
+        const b = el("button", "xp-btn" + (i === 0 ? " default" : ""), label);
+        b.type = "button";
+        btns.appendChild(b);
+    });
+    body.appendChild(btns);
+
+    win.appendChild(title);
+    win.appendChild(body);
+
+    // Любая кнопка или крестик закрывают окно (и настоящий клик мышью, и Heat).
+    win.querySelectorAll(".xp-btn, .xp-close").forEach((b) => {
+        b.addEventListener("click", () => closeWindow(win));
+    });
+
+    return win;
+}
+
+/* Случайная позиция, целиком внутри viewport (с учётом масштаба) */
+function placeRandomly(win) {
+    const w = win.offsetWidth * SCALE;
+    const h = win.offsetHeight * SCALE;
+    const maxX = Math.max(0, window.innerWidth - w);
+    const maxY = Math.max(0, window.innerHeight - h);
+    win.style.left = Math.random() * maxX + "px";
+    win.style.top = Math.random() * maxY + "px";
+}
+
+function clampIntoViewport(win) {
+    const w = win.offsetWidth * SCALE;
+    const h = win.offsetHeight * SCALE;
+    const maxX = Math.max(0, window.innerWidth - w);
+    const maxY = Math.max(0, window.innerHeight - h);
+    win.style.left = Math.min(Math.max(0, parseFloat(win.style.left) || 0), maxX) + "px";
+    win.style.top = Math.min(Math.max(0, parseFloat(win.style.top) || 0), maxY) + "px";
+}
+
+let audioCtx = null;
+function ding() {
+    if (!SOUND) return;
+    try {
+        audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+        const t0 = audioCtx.currentTime;
+        [[784, 0], [523, 0.13]].forEach(([freq, delay]) => {
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = "triangle";
+            osc.frequency.value = freq;
+            gain.gain.setValueAtTime(0.0001, t0 + delay);
+            gain.gain.exponentialRampToValueAtTime(0.25, t0 + delay + 0.01);
+            gain.gain.exponentialRampToValueAtTime(0.0001, t0 + delay + 0.35);
+            osc.connect(gain).connect(audioCtx.destination);
+            osc.start(t0 + delay);
+            osc.stop(t0 + delay + 0.4);
+        });
+    } catch (_) { /* звук — необязательная часть */ }
+}
+
+function spawnWindow() {
+    const win = buildWindow();
+    win.style.visibility = "hidden";   // сначала измеряем, потом показываем
+    layer.appendChild(win);
+    placeRandomly(win);
+    win.style.visibility = "";
+    windows.push(win);
+    lastShownAt = Date.now();
+
+    while (windows.length > MAX_WINDOWS) closeWindow(windows[0]);
+    ding();
+    updateDebug();
+    return win;
+}
+
+function closeWindow(win) {
+    const i = windows.indexOf(win);
+    if (i !== -1) windows.splice(i, 1);
+    win.remove();
+    updateDebug();
+}
+
+function closeLastWindow() {
+    if (windows.length) closeWindow(windows[windows.length - 1]);
+}
+
+function cooldownPassed() {
+    return Date.now() - lastShownAt >= COOLDOWN_MIN * 60 * 1000;
+}
+
+/* =====================================================================
+   HEAT: клики по крестику и кнопкам
+   ===================================================================== */
+const HIT_PAD = 6; // px «прощения» для неточных кликов
+
+function pressAndClick(target) {
+    if (target._pressing) return;
+    target._pressing = true;
+    target.classList.add("pressed");
+    setTimeout(() => target.click(), 130); // click закроет окно
+}
+
+function handleHeatClick(x, y) {
+    // Идём от верхнего окна к нижнему
+    for (let i = windows.length - 1; i >= 0; i--) {
+        const win = windows[i];
+        const targets = win.querySelectorAll(".xp-btn, .xp-close");
+        for (const t of targets) {
+            const r = t.getBoundingClientRect();
+            if (x >= r.left - HIT_PAD && x <= r.right + HIT_PAD &&
+                y >= r.top - HIT_PAD && y <= r.bottom + HIT_PAD) {
+                pressAndClick(t);
+                return;
+            }
+        }
+        const r = win.getBoundingClientRect();
+        if (x >= r.left && x <= r.right && y >= r.top && y <= r.bottom) return; // клик в тело окна — окно перекрывает нижние
+    }
+}
+
+window.addEventListener("heat:message", (e) => {
+    const d = (e && e.detail) || {};
+    const nx = Number(d.x), ny = Number(d.y);
+    if (!Number.isFinite(nx) || !Number.isFinite(ny)) return;
+    handleHeatClick(nx * window.innerWidth, ny * window.innerHeight);
+});
+
+/* =====================================================================
+   ЧАТ
+   ===================================================================== */
+window.addEventListener("chat:message", (e) => {
+    const raw = (e && e.detail && e.detail.text) || "";
+    // убираем невидимые символы, которые Twitch добавляет к повторным сообщениям
+    const text = String(raw).replace(/[\u200b-\u200f\u2060\ufeff\u{E0000}-\u{E007F}]/gu, "").trim().toLowerCase();
+    const cmd = text.split(/\s+/)[0];
+
+    if (cmd === "!ошибка") {
+        if (cooldownPassed()) spawnWindow();
+    } else if (cmd === "!закрыть") {
+        closeLastWindow();
+    }
+});
+
+/* =====================================================================
+   ПРОЧЕЕ
+   ===================================================================== */
+window.addEventListener("resize", () => windows.forEach(clampIntoViewport));
+
+const debugBox = document.getElementById("debug");
+function updateDebug() {
+    if (!DEBUG) return;
+    debugBox.style.display = "block";
+    debugBox.textContent =
+        `XP overlay debug | окон: ${windows.length} | N=${COOLDOWN_MIN} мин | scale=${SCALE} | E — окно, C — закрыть`;
+}
+if (DEBUG) {
+    updateDebug();
+    window.addEventListener("keydown", (e) => {
+        const k = e.key.toLowerCase();
+        if (k === "e" || k === "у") spawnWindow();
+        if (k === "c" || k === "с") closeLastWindow();
+    });
+}
+
+// Для тестов из консоли: xpError.spawn(), xpError.closeLast()
+window.xpError = { spawn: spawnWindow, closeLast: closeLastWindow, windows };
+</script>
+</body>
+</html>

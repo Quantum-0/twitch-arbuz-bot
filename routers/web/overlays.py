@@ -147,6 +147,33 @@ async def overlay_star(
     )
 
 
+@router.get("/xp-error")
+async def overlay_xp_error(
+    request: Request,
+    channel_id: int = Query(),
+    cooldown_min: float = Query(default=5, ge=0),
+    scale: float = Query(default=1.5, ge=0.3),
+    max_windows: int = Query(default=5, ge=1),
+    sound: bool = Query(default=False),
+    debug: bool = Query(default=False),
+    channel_name: str = Query(default=""),
+):
+    await touch_overlay_usage(channel_id=channel_id)
+    return templates.TemplateResponse(
+        "overlays/xp-error.html",
+        {
+            "request": request,
+            "channel_id": channel_id,
+            "cooldown_min": cooldown_min,
+            "scale": scale,
+            "max_windows": max_windows,
+            "sound": sound,
+            "debug": debug,
+            "channel_name": channel_name,
+        },
+    )
+
+
 @router.get("/fireworks")
 async def overlay_fireworks(
     request: Request,
