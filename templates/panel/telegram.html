@@ -1,0 +1,298 @@
+{% set tg_beta_users = ["quantum075", "d_e_l_y", "kadzichan", "fra3a", "pepelitsa_", "rinamarain"] %}
+{% if user.login_name in tg_beta_users %}
+<h3>Telegram-интеграция</h3>
+<small class="overlay-copy-hint">
+    <p>Подключите Telegram-канал, группу или личный чат, чтобы получать уведомления о начале стрима, автоматически заливать клипы и AI-стикеры.</p>
+    <p>Для каждого типа контента можно подключить отдельный чат или использовать один общий.</p>
+</small>
+
+<div id="telegram-panel">
+    <div class="cards-grid">
+        <div class="card-status" data-endpoint="/api/user/check/telegram" data-type="telegram-status" data-refreshtimer="60">
+            <div><h3>Подключение к Telegram</h3>
+                <ul class="card-status-problems-list" style="margin: 0px"></ul>
+            </div>
+            <div class="status-indicator tooltip-container">
+                <span class="tooltip-text">Статус подключения Telegram-интеграции</span>
+            </div>
+        </div>
+    </div>
+
+    <div id="telegram-main" style="display: none;">
+
+        <!-- ── Раздел: Уведомления о начале/окончании стрима ── -->
+        <h4>Уведомления о начале/окончании стрима</h4>
+        <div class="tg-section-block">
+            <div class="toggle-label">
+                <span>Чат: <strong id="tg-stream-chat">не подключён</strong></span>
+                <span id="tg-stream-connect-btns" style="display: none;">
+                    <button onclick="telegramConnect('stream', 'channel')">Добавить в канал</button>
+                    <button onclick="telegramConnect('stream', 'group')">Добавить в группу</button>
+                </span>
+                <button class="btn-danger" id="tg-stream-disconnect-btn" style="display: none; margin: 0;" onclick="telegramDisconnect('stream')">Отключить</button>
+            </div>
+            <div class="toggle-label">
+                <span>Включить уведомления о начале стрима</span>
+                <div class="toggle-switch" id="tg-stream-notif-toggle" data-name="stream_notification_enabled"></div>
+            </div>
+            <div class="toggle-label" style="flex-direction: column; align-items: stretch;">
+                <span>Поведение при окончании стрима</span>
+                <div class="overlay-radio-panel">
+                    <fieldset class="overlay-radio-options">
+                        <label class="overlay-radio-option">
+                            <input type="radio" name="tg-offline-behavior" value="keep" onchange="telegramSaveSettings()">
+                            Ничего не делать
+                        </label>
+                        <label class="overlay-radio-option">
+                            <input type="radio" name="tg-offline-behavior" value="delete" onchange="telegramSaveSettings()">
+                            Удалить сообщение о начале
+                        </label>
+                        <label class="overlay-radio-option">
+                            <input type="radio" name="tg-offline-behavior" value="message" onchange="telegramSaveSettings()">
+                            Написать «Стрим завершён»
+                        </label>
+                    </fieldset>
+                </div>
+            </div>
+            <div class="toggle-label" style="flex-direction: column; align-items: stretch;">
+                <span>Шаблон текста уведомления о начале стрима</span>
+                <textarea id="tg-stream-template" rows="5"
+                    style="background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); border-radius: 10px; color: var(--color-text); font-family: inherit; font-size: 14px; max-width: 720px; padding: 10px; resize: vertical; transition: border-color 0.2s;"
+                    placeholder="🔴 {streamer} начинает стрим!&#10;{title}&#10;{category}&#10;&#10;{link}"></textarea>
+                <small class="overlay-copy-hint">
+                    Доступные плейсхолдеры: <code>{streamer}</code> — ник стримера,
+                    <code>{title}</code> — название стрима, <code>{category}</code> — категория,
+                    <code>{link}</code> — ссылка на стрим. Если оставить пустым — используется текст по умолчанию.
+                </small>
+                <button style="margin: 10px 0 0 0; max-width: 200px;" onclick="telegramSaveSettings()">Сохранить шаблон</button>
+            </div>
+        </div>
+
+        <hr class="tg-divider">
+
+        <!-- ── Раздел: Клипы ── -->
+        <h4>Клипы</h4>
+        <div class="tg-section-block">
+            <div class="toggle-label">
+                <span>Чат: <strong id="tg-clips-chat">не подключён</strong></span>
+                <span id="tg-clips-connect-btns" style="display: none;">
+                    <button onclick="telegramConnect('clips', 'channel')">Добавить в канал</button>
+                    <button onclick="telegramConnect('clips', 'group')">Добавить в группу</button>
+                    <button onclick="telegramConnect('clips', 'private')">Присылать в личку</button>
+                </span>
+                <button class="btn-danger" id="tg-clips-disconnect-btn" style="display: none; margin: 0;" onclick="telegramDisconnect('clips')">Отключить</button>
+            </div>
+            <div class="toggle-label">
+                <span>Включить автозагрузку клипов</span>
+                <div class="toggle-switch" id="tg-clips-toggle" data-name="clips_enabled"></div>
+            </div>
+            <div class="toggle-label" style="flex-direction: column; align-items: stretch;">
+                <span>Какие клипы отправлять</span>
+                <div class="overlay-radio-panel">
+                    <fieldset class="overlay-radio-options">
+                        <label class="overlay-radio-option">
+                            <input type="radio" name="tg-clips-mode" value="all" onchange="telegramSaveSettings()">
+                            Все клипы
+                        </label>
+                        <label class="overlay-radio-option">
+                            <input type="radio" name="tg-clips-mode" value="featured" onchange="telegramSaveSettings()">
+                            Только избранные (featured)
+                        </label>
+                    </fieldset>
+                </div>
+                <small class="overlay-copy-hint">
+                    Клипы, созданные не как избранные, но помеченные избранным позже — отправлены <strong>не будут</strong>.
+                </small>
+            </div>
+            <div class="toggle-label" style="flex-direction: column; align-items: stretch;">
+                <span>Способ отправки клипов</span>
+                <div class="overlay-radio-panel">
+                    <fieldset class="overlay-radio-options">
+                        <label class="overlay-radio-option">
+                            <input type="radio" name="tg-clips-delivery" value="video" onchange="telegramSaveSettings()">
+                            Загружать видео клипа
+                        </label>
+                        <label class="overlay-radio-option">
+                            <input type="radio" name="tg-clips-delivery" value="link" onchange="telegramSaveSettings()">
+                            Отправлять ссылку на клип
+                        </label>
+                    </fieldset>
+                </div>
+            </div>
+        </div>
+
+        <hr class="tg-divider">
+
+        <!-- ── Раздел: Стикеры ── -->
+        <h4>Стикеры</h4>
+        <div class="tg-section-block">
+            <div class="toggle-label">
+                <span>Чат: <strong id="tg-stickers-chat">не подключён</strong></span>
+                <span id="tg-stickers-connect-btns" style="display: none;">
+                    <button onclick="telegramConnect('stickers', 'channel')">Добавить в канал</button>
+                    <button onclick="telegramConnect('stickers', 'group')">Добавить в группу</button>
+                    <button onclick="telegramConnect('stickers', 'private')">Присылать в личку</button>
+                </span>
+                <button class="btn-danger" id="tg-stickers-disconnect-btn" style="display: none; margin: 0;" onclick="telegramDisconnect('stickers')">Отключить</button>
+            </div>
+            <div class="toggle-label">
+                <span>Включить автозагрузку AI-стикеров</span>
+                <div class="toggle-switch" id="tg-stickers-toggle" data-name="stickers_enabled"></div>
+            </div>
+            <div class="toggle-label" style="flex-direction: column; align-items: stretch;">
+                <span>Способ отправки стикеров</span>
+                <div class="overlay-radio-panel">
+                    <fieldset class="overlay-radio-options">
+                        <label class="overlay-radio-option">
+                            <input type="radio" name="tg-stickers-mode" value="photo" onchange="telegramSaveSettings()">
+                            Как фото (sendPhoto)
+                        </label>
+                        <label class="overlay-radio-option">
+                            <input type="radio" name="tg-stickers-mode" value="document" onchange="telegramSaveSettings()">
+                            Как документ (sendDocument)
+                        </label>
+                    </fieldset>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<script>
+    const TG_DEFAULT_TEMPLATE = "🔴 {streamer} начинает стрим!\n{title}\n{category}\n\n{link}";
+
+    async function telegramLoadSettings() {
+        try {
+            const resp = await fetch('/api/user/telegram/settings');
+            if (!resp.ok) return;
+            const data = await resp.json();
+
+            document.getElementById('telegram-main').style.display = 'block';
+
+            // ── Чаты: выводим название, не айдишник ──
+            const streamChat = document.getElementById('tg-stream-chat');
+            const clipsChat = document.getElementById('tg-clips-chat');
+            const stickersChat = document.getElementById('tg-stickers-chat');
+
+            streamChat.textContent = data.stream_chat_title || (data.stream_chat_id ? 'подключён' : 'не подключён');
+            clipsChat.textContent = data.clips_chat_title || (data.clips_chat_id ? 'подключён' : 'не подключён');
+            stickersChat.textContent = data.stickers_chat_title || (data.stickers_chat_id ? 'подключён' : 'не подключён');
+
+            // Кнопки подключения / отключения
+            document.getElementById('tg-stream-connect-btns').style.display = data.stream_chat_id ? 'none' : 'inline';
+            document.getElementById('tg-stream-disconnect-btn').style.display = data.stream_chat_id ? 'inline-block' : 'none';
+            document.getElementById('tg-clips-connect-btns').style.display = data.clips_chat_id ? 'none' : 'inline';
+            document.getElementById('tg-clips-disconnect-btn').style.display = data.clips_chat_id ? 'inline-block' : 'none';
+            document.getElementById('tg-stickers-connect-btns').style.display = data.stickers_chat_id ? 'none' : 'inline';
+            document.getElementById('tg-stickers-disconnect-btn').style.display = data.stickers_chat_id ? 'inline-block' : 'none';
+
+            // ── Тоглы ──
+            const streamToggle = document.getElementById('tg-stream-notif-toggle');
+            streamToggle.classList.toggle('active', data.stream_notification_enabled);
+            streamToggle.onclick = () => {
+                streamToggle.classList.toggle('active');
+                telegramSaveSettings();
+            };
+
+            const clipsToggle = document.getElementById('tg-clips-toggle');
+            clipsToggle.classList.toggle('active', data.clips_enabled);
+            clipsToggle.onclick = () => {
+                clipsToggle.classList.toggle('active');
+                telegramSaveSettings();
+            };
+
+            const stickersToggle = document.getElementById('tg-stickers-toggle');
+            stickersToggle.classList.toggle('active', data.stickers_enabled);
+            stickersToggle.onclick = () => {
+                stickersToggle.classList.toggle('active');
+                telegramSaveSettings();
+            };
+
+            // ── Radio-группы ──
+            const setRadio = (name, value) => {
+                const input = document.querySelector(`input[name="${name}"][value="${value}"]`);
+                if (input) input.checked = true;
+            };
+            setRadio('tg-offline-behavior', data.stream_offline_behavior || 'keep');
+            setRadio('tg-clips-mode', data.clips_mode || 'all');
+            setRadio('tg-clips-delivery', data.clips_delivery || 'link');
+            setRadio('tg-stickers-mode', data.stickers_mode || 'photo');
+
+            // ── Шаблон текста ──
+            const templateField = document.getElementById('tg-stream-template');
+            templateField.value = data.stream_message_template || TG_DEFAULT_TEMPLATE;
+        } catch (e) {
+            console.error('telegramLoadSettings error:', e);
+        }
+    }
+
+    async function telegramSaveSettings() {
+        const streamEnabled = document.getElementById('tg-stream-notif-toggle')?.classList.contains('active');
+        const clipsEnabled = document.getElementById('tg-clips-toggle')?.classList.contains('active');
+        const stickersEnabled = document.getElementById('tg-stickers-toggle')?.classList.contains('active');
+        const offlineBehavior = document.querySelector('input[name="tg-offline-behavior"]:checked')?.value;
+        const clipsMode = document.querySelector('input[name="tg-clips-mode"]:checked')?.value;
+        const clipsDelivery = document.querySelector('input[name="tg-clips-delivery"]:checked')?.value;
+        const stickersMode = document.querySelector('input[name="tg-stickers-mode"]:checked')?.value;
+        const streamTemplate = document.getElementById('tg-stream-template')?.value;
+        const streamTemplateToSend = (streamTemplate === undefined || streamTemplate.trim() === TG_DEFAULT_TEMPLATE.trim())
+            ? undefined
+            : streamTemplate;
+
+        const body = {};
+        if (streamEnabled !== undefined) body.stream_notification_enabled = streamEnabled;
+        if (clipsEnabled !== undefined) body.clips_enabled = clipsEnabled;
+        if (stickersEnabled !== undefined) body.stickers_enabled = stickersEnabled;
+        if (offlineBehavior) body.stream_offline_behavior = offlineBehavior;
+        if (clipsMode) body.clips_mode = clipsMode;
+        if (clipsDelivery) body.clips_delivery = clipsDelivery;
+        if (stickersMode) body.stickers_mode = stickersMode;
+        if (streamTemplateToSend !== undefined) body.stream_message_template = streamTemplateToSend;
+
+        try {
+            const resp = await fetch('/api/user/telegram/settings', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(body),
+            });
+            const result = await resp.json();
+            showNotification(result.title, result.message, !resp.ok);
+        } catch (e) {
+            showNotification('Ошибка', 'Не удалось сохранить настройки', true);
+        }
+    }
+
+    async function telegramConnect(scope, chatType) {
+        try {
+            const resp = await fetch('/api/user/telegram/connect', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({scope: scope, chat_type: chatType}),
+            });
+            const data = await resp.json();
+            if (resp.ok && data.url) {
+                window.open(data.url, '_blank');
+            } else {
+                showNotification(data.title || 'Ошибка', data.message || 'Не удалось создать ссылку подключения', true);
+            }
+        } catch (e) {
+            showNotification('Ошибка', 'Не удалось создать ссылку подключения', true);
+        }
+    }
+
+    async function telegramDisconnect(scope) {
+        if (!confirm(`Вы уверены, что хотите отключить чат для «${scope}»? Бот покинет чат.`)) return;
+        try {
+            const resp = await fetch(`/api/user/telegram/disconnect/${scope}`, {method: 'POST'});
+            const data = await resp.json();
+            showNotification(data.title, data.message, !resp.ok);
+            telegramLoadSettings();
+        } catch (e) {
+            showNotification('Ошибка', 'Не удалось отключить чат', true);
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', telegramLoadSettings);
+</script>
+{% endif %}

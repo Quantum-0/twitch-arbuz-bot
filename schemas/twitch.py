@@ -164,3 +164,90 @@ class WebhookSubscriptionChatMessageConditionSchema(BaseModel):
 class ChatMessageSchema(BaseModel):
     subscription: WebhookSubscriptionSchema[WebhookSubscriptionChatMessageConditionSchema]
     event: ChatMessageWebhookEventSchema
+
+
+class WebhookSubscriptionStreamConditionSchema(BaseModel):
+    broadcaster_user_id: int = Field(...)
+
+
+class StreamOnlineEventSchema(BaseModel):
+    id: str = Field(...)
+    broadcaster_user_id: int = Field(...)
+    broadcaster_user_login: str = Field(...)
+    broadcaster_user_name: str = Field(...)
+    type: str = Field(...)
+    started_at: datetime = Field(...)
+
+
+class StreamOfflineEventSchema(BaseModel):
+    broadcaster_user_id: int = Field(...)
+    broadcaster_user_login: str = Field(...)
+    broadcaster_user_name: str = Field(...)
+
+
+class StreamOnlineSchema(BaseModel):
+    subscription: WebhookSubscriptionSchema[WebhookSubscriptionStreamConditionSchema]
+    event: StreamOnlineEventSchema
+
+
+class StreamOfflineSchema(BaseModel):
+    subscription: WebhookSubscriptionSchema[WebhookSubscriptionStreamConditionSchema]
+    event: StreamOfflineEventSchema
+
+
+class WebhookSubscriptionFollowConditionSchema(BaseModel):
+    broadcaster_user_id: int = Field(...)
+    moderator_user_id: int = Field(...)
+
+
+class FollowWebhookEventSchema(BaseModel):
+    user_id: int = Field(...)
+    user_login: str = Field(...)
+    user_name: str = Field(...)
+    broadcaster_user_id: int = Field(...)
+    broadcaster_user_login: str = Field(...)
+    broadcaster_user_name: str = Field(...)
+    followed_at: datetime = Field(...)
+
+
+class FollowWebhookSchema(BaseModel):
+    subscription: WebhookSubscriptionSchema[WebhookSubscriptionFollowConditionSchema]
+    event: FollowWebhookEventSchema
+
+
+class WebhookSubscriptionSubscribeConditionSchema(BaseModel):
+    broadcaster_user_id: int = Field(...)
+
+
+class SubscribeWebhookEventSchema(BaseModel):
+    user_id: int = Field(...)
+    user_login: str = Field(...)
+    user_name: str = Field(...)
+    broadcaster_user_id: int = Field(...)
+    broadcaster_user_login: str = Field(...)
+    broadcaster_user_name: str = Field(...)
+    tier: str = Field(...)
+    is_gift: bool = Field(...)
+
+
+class SubscribeWebhookSchema(BaseModel):
+    subscription: WebhookSubscriptionSchema[WebhookSubscriptionSubscribeConditionSchema]
+    event: SubscribeWebhookEventSchema
+
+
+class SubscriptionMessageWebhookEventSchema(BaseModel):
+    user_id: int = Field(...)
+    user_login: str = Field(...)
+    user_name: str = Field(...)
+    broadcaster_user_id: int = Field(...)
+    broadcaster_user_login: str = Field(...)
+    broadcaster_user_name: str = Field(...)
+    tier: str = Field(...)
+    cumulative_months: int = Field(...)
+    streak_months: int | None = Field(None)
+    duration_months: int = Field(...)
+
+
+class SubscriptionMessageWebhookSchema(BaseModel):
+    subscription: WebhookSubscriptionSchema[WebhookSubscriptionSubscribeConditionSchema]
+    event: SubscriptionMessageWebhookEventSchema

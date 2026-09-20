@@ -18,12 +18,6 @@ async def get_db() -> AsyncGenerator:
         yield session
 
 
-# TODO: inject по аналогии с ручками, но без depends, просто Provide[Container....]
-# TODO: не забыть добавить вайринг
-async def test_bg_task():
-    print("test")
-
-
 @asynccontextmanager
 async def lifespan(app: "FastAPI | None" = None):
     from container import Container
@@ -46,6 +40,8 @@ async def lifespan(app: "FastAPI | None" = None):
     sse_manager = container.sse_manager()
     scheduler = container.scheduler()
     memealerts_auth = container.memealerts_auth()
+    twitch_token_service = container.twitch_token_service()
+    clips_poller = container.clips_poller()
     stickers_processor = container.stickers_processor()
     tts_service = container.tts_service()
 
@@ -54,6 +50,8 @@ async def lifespan(app: "FastAPI | None" = None):
     await statistics.startup(redis)
     await sse_manager.startup(redis)
     await memealerts_auth.startup(redis, statistics)
+    twitch_token_service.startup(redis)
+    twitch.startup_redis(redis)
     await twitch.startup()
     await chat_bot.startup(twitch)
     await ai.startup()
@@ -78,6 +76,29 @@ async def lifespan(app: "FastAPI | None" = None):
 
     mqtt.subscribe("slovotron/+/+", slovotron.handle_webhook)
 
+    # Telegram chat_connected — от TG-микросервиса при добавлении бота в чат.
+    from services.telegram_integration import (
+        handle_chat_connected,
+        handle_chat_disconnected,
+        handle_telegram_result,
+        reconcile_stream_subscriptions,
+    )
+
+    async def _on_chat_connected(payload: dict) -> None:
+        await handle_chat_connected(payload, container.db_session_factory())
+
+    mqtt.subscribe("telegram/chat_connected", _on_chat_connected)
+
+    async def _on_chat_disconnected(payload: dict) -> None:
+        await handle_chat_disconnected(payload, container.db_session_factory())
+
+    mqtt.subscribe("telegram/chat_disconnected", _on_chat_disconnected)
+
+    async def _on_telegram_result(payload: dict) -> None:
+        await handle_telegram_result(payload, container.db_session_factory())
+
+    mqtt.subscribe("telegram/result/+", _on_telegram_result)
+
     if app is not None:
         app.container = container
 
@@ -88,6 +109,36 @@ async def lifespan(app: "FastAPI | None" = None):
         minute="0",
         second="0",
         id="update_memealerts_tokens",
+        replace_existing=True,
+    )
+    scheduler.add_job(
+        twitch_token_service.run_periodic_update,
+        trigger="cron",
+        hour="*/6",
+        minute="45",
+        second="0",
+        id="update_twitch_tokens",
+        replace_existing=True,
+    )
+    # Пуллинг новых клипов Twitch → Telegram (раз в 5 минут).
+    scheduler.add_job(
+        clips_poller.run_periodic_poll,
+        trigger="cron",
+        minute="*/5",
+        second="30",
+        id="poll_clips",
+        replace_existing=True,
+    )
+    # Сверка EventSub-подписок stream.online/offline (раз в час).
+    # Если подписки слетели — пытается пересоздать; при неудаче снимает галочку
+    # «уведомления о стриме» в панели управления.
+    scheduler.add_job(
+        reconcile_stream_subscriptions,
+        args=[container.db_session_factory()],
+        trigger="cron",
+        minute="15",
+        second="0",
+        id="reconcile_stream_subs",
         replace_existing=True,
     )
     # Дамп 10-минутных бакетов статистики из Redis в БД.
@@ -128,6 +179,25 @@ async def lifespan(app: "FastAPI | None" = None):
         minute="*",
         second="0",
         id="snapshot_sse",
+        replace_existing=True,
+    )
+
+    # Cleanup overlay-managed EventSub подписок (раз в 3 минуты).
+    # Если heartbeat истёк и нет SSE-клиентов — отписываемся.
+    from services.overlay_eventsub_cleanup import cleanup_overlay_eventsub
+
+    async def cleanup_overlay_eventsub_job() -> None:
+        try:
+            await cleanup_overlay_eventsub(twitch, sse_manager, cache, container.db_session_factory())
+        except Exception:
+            logging.getLogger(__name__).error("cleanup_overlay_eventsub_job failed", exc_info=True)
+
+    scheduler.add_job(
+        cleanup_overlay_eventsub_job,
+        trigger="cron",
+        minute="*/3",
+        second="0",
+        id="cleanup_overlay_eventsub",
         replace_existing=True,
     )
     scheduler.start()

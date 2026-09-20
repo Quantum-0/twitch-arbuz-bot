@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+
+{% block title %}Референсы персонажей — Quantum0's Bot{% endblock %}
+{% block description %}Публичные референсы персонажей пользователей Quantum0's Bot{% endblock %}
+
+{% block content %}
+<h2>Референсы персонажей</h2>
+<p>Кликните по референсу, чтобы перейти в профиль его владельца:</p>
+
+<div class="references-grid">
+    {% for reference, login, profile_image_url in references %}
+    <a class="reference-card" href="/profile/{{ login }}" aria-label="Открыть профиль {{ login }}">
+        {% if reference.file_id %}
+        <img class="reference-card-image" src="/files/refs/{{ reference.file_id }}" alt="Референс {{ login }}" loading="lazy" onerror="this.onerror=null; this.src='/static/images/500.png';">
+        {% else %}
+        <span class="reference-card-placeholder">Только описание</span>
+        {% endif %}
+        <img class="reference-card-owner" src="{{ profile_image_url }}" alt="" loading="lazy">
+    </a>
+    {% else %}
+    <p class="streamers-empty">Публичных референсов пока нет.</p>
+    {% endfor %}
+</div>
+{% endblock %}

@@ -8,6 +8,7 @@ user_scope = [
     AuthScope.MODERATOR_READ_FOLLOWERS,
     AuthScope.CHANNEL_READ_REDEMPTIONS,
     AuthScope.CHANNEL_MANAGE_REDEMPTIONS,
+    AuthScope.CHANNEL_READ_SUBSCRIPTIONS,
     AuthScope.MODERATOR_READ_CHATTERS,
     AuthScope.CHANNEL_MANAGE_MODERATORS,
     AuthScope.MODERATION_READ,
@@ -15,6 +16,13 @@ user_scope = [
     # user:read:chat?
     AuthScope.USER_READ_BROADCAST,
     AuthScope.USER_EDIT_BROADCAST,
+]
+
+# Дополнительные Twitch scope-ы, которых нет в twitchAPI AuthScope enum (4.5.0).
+# Используются только в login_twitch_url (OAuth authorize URL), не передаются в set_user_authentication.
+# editor:manage:clips — нужен для Get Clips Download API (GET /helix/clips/downloads).
+user_scope_extra: list[str] = [
+    "editor:manage:clips",
 ]
 bot_scope = [
     # AuthScope.USER_CHAT_READ,
@@ -93,25 +101,27 @@ class Settings(BaseSettings):
     tts_api_url: str = "http://157.22.205.183:8000/v1/audio/speech"
     tts_api_token: SecretStr = SecretStr("")
     tts_model: str = "neco-arc"
+    telegram_bot_username: str = "quantum0s_twitch_bot"
+    telegram_service_url: str = "http://localhost:8001"
+    telegram_service_api_key: str = "changeme"
+    base_url: str = "https://bot.quantum0.ru"
 
     @property
     def login_twitch_url(self) -> str:
-        scope: str = "+".join(sp.value for sp in user_scope)
-        url = (
+        scope: str = "+".join([sp.value for sp in user_scope] + user_scope_extra)
+        return (
             f"https://id.twitch.tv/oauth2/authorize?client_id={settings.twitch_client_id}"
             f"&redirect_uri={settings.login_redirect_url}&response_type=code&scope={scope}"
         )
-        return url
 
     @property
     def memealerts_oauth_url(self) -> str:
         scope: str = " ".join(sp for sp in memealerts_scope)
-        url = (
+        return (
             f"https://memealerts.com/oauth/authorize?client_id={settings.memealerts_client_id.get_secret_value()}"
             f"&redirect_uri={settings.memealerts_redirect_url}&response_type=code&scope={scope}"
             "&state={state}"
         )
-        return url
 
 
 settings = Settings()

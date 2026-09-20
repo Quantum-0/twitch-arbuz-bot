@@ -1,7 +1,6 @@
 import logging
 from datetime import datetime, timedelta
 from typing import Annotated, Any
-from uuid import uuid3
 
 import aiohttp
 import sqlalchemy as sa
@@ -16,14 +15,16 @@ from starlette.templating import Jinja2Templates
 
 from config import settings
 from container import Container
-from database.models import CharacterInfo, GeneratedImage, TwitchUserSettings, User, UserLike
+from database.models import CharacterInfo, GeneratedImage, User, UserLike
 from dependencies import get_db
 from routers.security_helpers import admin_auth, user_auth, user_auth_optional
+from routers.web.overlays import get_temp_commands
 from schemas.enums import ChatterRole, TTSTrigger
 from services.cache import Cache
 from twitch.chat.bot import ChatBot
 from twitch.client.twitch import Twitch
 from twitch.state_manager import StateManager
+from utils.overlay_secret import ensure_overlay_secret
 from utils.template_globals import register_template_globals
 from utils.tts import get_tts_settings
 
@@ -80,14 +81,17 @@ async def index_page(request: Request):
         307: {"description": "Возврат на главную страницу, если не авторизован"},
     },
 )
+@inject
 async def control_panel(
     request: Request,
+    db: Annotated[AsyncSession, Depends(get_db)],
     user: User | None = Security(user_auth_optional),
 ):
     # if not user.in_beta_test:
     #     return templates.TemplateResponse("beta-test.html", {"request": request})
     if not user:
         return RedirectResponse("/")
+    overlay_secret = str(await ensure_overlay_secret(db, user))
     return templates.TemplateResponse(
         "panel.html",
         {
@@ -99,7 +103,7 @@ async def control_panel(
                 "coins_for_reward": user.memealerts.coins_for_reward,
                 "enabled_v2": user.memealerts.access_token is not None,
             },
-            "slovotron_secret": str(uuid3(namespace=settings.slovotron_secret, name=user.login_name)),
+            "slovotron_secret": overlay_secret,
         },
     )
 
@@ -424,6 +428,7 @@ async def command_list_page(
     streamer: Annotated[str, Query(...)],
     db: Annotated[AsyncSession, Depends(get_db)],
     chat_bot: Annotated[ChatBot, Depends(Provide[Container.chat_bot])],
+    cache: Annotated[Cache, Depends(Provide[Container.cache])],
     # streamer_id: int = Query(...),
     user: User | None = Security(user_auth_optional),
 ):
@@ -434,7 +439,11 @@ async def command_list_page(
     streamer_user = result.scalar_one_or_none()
     if not streamer_user:
         return HTTPException(404, "Streamer not found")
-    user_settings: TwitchUserSettings = streamer_user.settings
+    commands = await chat_bot.get_commands(streamer_user)
+    # Добавляем временные команды оверлеев (если оверлеи с chat_control подключены).
+    temp_cmds = await get_temp_commands(cache, streamer_user.twitch_id)
+    for cmd in temp_cmds:
+        commands.append((cmd["name"], cmd["aliases"], cmd["description"]))
     return templates.TemplateResponse(
         "streamer-commands.html",
         {
@@ -442,7 +451,7 @@ async def command_list_page(
             "request": request,
             "streamer_name": streamer_user.login_name,
             "streamer_pic": streamer_user.profile_image_url,
-            "commands": await chat_bot.get_commands(streamer_user),
+            "commands": commands,
         },
     )
 

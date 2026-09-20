@@ -57,6 +57,13 @@
                 Шанс порвать ниточку 😱
                 <input type="range" min="0" max="0.4" step="0.001" value="0.015" data-param="break_chance" />
             </div>
+            <div class="overlay-control">
+                Управление из чата
+                <label class="switch">
+                    <input type="checkbox" data-param="chat_control" checked />
+                    <span class="slider"></span>
+                </label>
+            </div>
         </div>
         <p>Скопируй ссылку и вставь в OBS, растянув на всю сцену:</p>
         <div class="overlay-link"></div>
@@ -83,6 +90,47 @@
             <div class="overlay-control">
                 Гравитация
                 <input type="range" min="0" max="0.3" step="0.01" value="0.08" data-param="gravity"/>
+            </div>
+            <div class="overlay-control">
+                Управление из чата
+                <label class="switch">
+                    <input type="checkbox" data-param="chat_control" checked />
+                    <span class="slider"></span>
+                </label>
+            </div>
+        </div>
+        <p>Скопируй ссылку и вставь в OBS, растянув на всю сцену:</p>
+        <div class="overlay-link"></div>
+    </div>
+
+    <div class="overlay-card" data-base="{{ request.base_url }}overlay/xp-error">
+        <h2>🪟 XP Error</h2>
+        <p>Оверлей с окнами ошибок в стиле Windows XP. Зрители могут вызывать окна командой <code>!ошибка</code> и закрывать <code>!закрыть</code>, а кликать по крестику и кнопкам окон — через Heat. Для корректной работы оверлей <u><b>должен быть растянут на всю сцену</b></u>.</p>
+        <div class="plugin-required">
+            Для использования оверлея <b>обязательно</b> установить Heat
+            <br/>
+            <button class="install-btn" onclick="setupHeat()">Установить Heat</button>
+        </div>
+        <button class="overlay-toggle-settings">Настройки</button>
+        <div class="overlay-settings">
+            <div class="overlay-control">
+                Кулдаун команды !ошибка (минут)
+                <input type="range" min="0" max="60" step="0.5" value="5" data-param="cooldown_min"/>
+            </div>
+            <div class="overlay-control">
+                Масштаб окон
+                <input type="range" min="0.3" max="3" step="0.1" value="1.5" data-param="scale"/>
+            </div>
+            <div class="overlay-control">
+                Максимум одновременно открытых окон
+                <input type="range" min="1" max="10" step="1" value="5" data-param="max_windows"/>
+            </div>
+            <div class="overlay-control">
+                Звук при появлении окна
+                <label class="switch">
+                    <input type="checkbox" data-param="sound" />
+                    <span class="slider"></span>
+                </label>
             </div>
         </div>
         <p>Скопируй ссылку и вставь в OBS, растянув на всю сцену:</p>
@@ -259,4 +307,20 @@
         <p>Скопируй ссылку и вставь в OBS:</p>
         <div class="overlay-link"></div>
     </div>
+
+    {% if user.login_name == "quantum075" %}
+    <div class="overlay-card" data-base="{{ request.base_url }}overlay/halloween">
+        <h2>🎃 Halloween Overlay</h2>
+        <p>Хэллоуинский оверлей с падающими листьями, тыквами и пауком. Реагирует на сообщения в чате, фоллоу, подписки и рейды. Команда <code>!шуш</code> / <code>!фуф</code> / <code>!дуть</code> сдувает листья влево.</p>
+        <p>Оверлей <u><b>должен быть растянут на всю сцену</b></u>.</p>
+        <button class="overlay-toggle-settings">Настройки</button>
+        <div class="overlay-settings">
+            <div class="overlay-control">
+                <label><input type="checkbox" data-param="chat_control" checked> Регистрация команд чата</label>
+            </div>
+        </div>
+        <p>Скопируй ссылку и вставь в OBS, растянув на всю сцену:</p>
+        <div class="overlay-link"></div>
+    </div>
+    {% endif %}
 </div>

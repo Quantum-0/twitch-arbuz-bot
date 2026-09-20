@@ -21,10 +21,13 @@ from database.models import CharacterInfo, User
 from dependencies import get_db
 from routers.api.user.checks import router as checks_router
 from routers.api.user.consent import router as consent_router
+from routers.api.user.eventsub import router as eventsub_overlay_router
 from routers.api.user.likes import router as likes_router
 from routers.api.user.memealerts import router as memealerts_router
+from routers.api.user.overlay import router as overlay_router
 from routers.api.user.stats import router as stats_router
 from routers.api.user.streamers import router as streamers_router
+from routers.api.user.telegram import router as telegram_router
 from routers.security_helpers import user_auth
 from schemas.api import (
     BoolResponseSchema,
@@ -56,8 +59,11 @@ router.include_router(checks_router)
 router.include_router(consent_router)
 router.include_router(likes_router)
 router.include_router(memealerts_router)
+router.include_router(overlay_router)
+router.include_router(eventsub_overlay_router)
 router.include_router(streamers_router)
 router.include_router(stats_router)
+router.include_router(telegram_router)
 
 
 @router.get(

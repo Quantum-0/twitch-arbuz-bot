@@ -7,6 +7,7 @@ from config import settings
 from database.database import AsyncSessionLocal
 from services.ai import OpenAIClient
 from services.cache import Cache
+from services.clips_poller import ClipsPollerService
 from services.eventsub_service import TwitchEventSubService
 from services.image_resizer import ImageResizer
 from services.memes import MemealertsService
@@ -21,6 +22,7 @@ from services.statistics import StatisticsService
 from services.stickers import StickersService
 from services.stickers_processor import StickerProcessor
 from services.tts import TTSService
+from services.twitch_token_service import TwitchTokenService
 from twitch.chat.bot import ChatBot
 from twitch.client.twitch import Twitch
 
@@ -30,17 +32,22 @@ class Container(containers.DeclarativeContainer):
         modules=[
             "routers.api.admin_api",
             "routers.api.extension",
+            "routers.api.galleries",
             "routers.api.twitch_eventsub",
             "routers.api.user_api",
             "routers.api.user.memealerts",
             "routers.api.user.likes",
+            "routers.api.user.overlay",
+            "routers.api.user.eventsub",
             "routers.api.user.streamers",
             "routers.api.user.stats",
+            "routers.api.user.telegram",
             "routers.api.user.checks",
             "routers.api.slovotron_webhook",
             "routers.web.service_routes",
             "routers.web.memealerts_routes",
             "routers.web.pages",
+            "routers.web.galleries",
             "routers.web.overlays",
             "routers.web.file_storage",
             "routers.security_helpers",
@@ -72,21 +79,29 @@ class Container(containers.DeclarativeContainer):
     )
     twitch = providers.Singleton(Twitch)
     mqtt = providers.Singleton(MQTTClient)
+    sse_manager = providers.Singleton(SSEManager, statistics=statistics)
     chat_bot = providers.Singleton(
         ChatBot,
         db_session_factory=db_session_factory,
         state_manager=state_manager,
         mqtt=mqtt,
         statistics=statistics,
+        sse_manager=sse_manager,
     )
     ai = providers.Singleton(OpenAIClient, db_session_factory=db_session_factory, statistics=statistics)
-    sse_manager = providers.Singleton(SSEManager, statistics=statistics)
     slovotron = providers.Singleton(
         SlovotronService, db_session_factory=db_session_factory, chat_bot=chat_bot, ssem=sse_manager
     )
     memealerts = providers.Singleton(MemealertsService, db_session_factory=db_session_factory)  # deprecated!!!
     memealerts_auth = providers.Singleton(MemealertsOAuthService, db_session_factory=db_session_factory)
     memealerts_v2 = providers.Singleton(MemealertsV2Service, db_session_factory=db_session_factory)
+    twitch_token_service = providers.Singleton(TwitchTokenService, db_session_factory=db_session_factory)
+    clips_poller = providers.Singleton(
+        ClipsPollerService,
+        db_session_factory=db_session_factory,
+        twitch_token_service=twitch_token_service,
+        mqtt=mqtt,
+    )
     stickers_processor = providers.Singleton(StickerProcessor)
 
     boto_session = providers.Singleton(aioboto3.Session)
@@ -123,6 +138,7 @@ class Container(containers.DeclarativeContainer):
         memealerts_auth=memealerts_auth,
         moderation=moderation_service,
         tts_service=tts_service,
+        mqtt=mqtt,
         statistics=statistics,
     )
 

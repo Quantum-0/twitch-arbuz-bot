@@ -15,7 +15,7 @@ from starlette.responses import FileResponse, RedirectResponse
 
 from config import settings
 from container import Container
-from database.models import User
+from database.models import TelegramSettings, User
 from dependencies import get_db
 from twitch.client.twitch import Twitch
 
@@ -54,12 +54,17 @@ async def callback(
     (
         access_token,
         refresh_token,
+        expires_in,
     ) = tokens
     user_info = await twitch.get_self(access_token, refresh_token)
 
     user_id = user_info.id
     login_name = user_info.login
     profile_image_url = user_info.profile_image_url
+
+    from services.twitch_token_service import TwitchTokenService
+
+    token_expires_at = TwitchTokenService.calc_expires_at(expires_in) if expires_in else None
 
     result = await db.execute(sa.select(User).filter_by(twitch_id=user_id))
     user = result.scalar_one_or_none()
@@ -70,6 +75,7 @@ async def callback(
             profile_image_url=profile_image_url,
             access_token=access_token,
             refresh_token=refresh_token,
+            twitch_token_expires_at=token_expires_at,
         )
         db.add(user)
     else:
@@ -77,6 +83,7 @@ async def callback(
         user.refresh_token = refresh_token
         user.profile_image_url = profile_image_url
         user.login_name = login_name
+        user.twitch_token_expires_at = token_expires_at
         db.add(user)
 
     await db.commit()
@@ -114,6 +121,7 @@ async def login_callback_task(
             .options(
                 selectinload(User.settings),
                 selectinload(User.memealerts),
+                selectinload(User.telegram),
             )
             .filter_by(twitch_id=user.twitch_id)
         )
@@ -121,8 +129,18 @@ async def login_callback_task(
         shoutout_to_raid_is_enabled = user.settings.enable_shoutout_on_raid
         memealerts_reward = user.memealerts.memealerts_reward
         ai_stickers_reward = user.settings.ai_sticker_reward_id
+        telegram_stream_enabled = (
+            user.telegram is not None
+            and user.telegram.stream_notification_enabled
+            and user.telegram.stream_chat_id is not None
+        )
 
-    if shoutout_to_raid_is_enabled is False and memealerts_reward is None and ai_stickers_reward is None:
+    if (
+        shoutout_to_raid_is_enabled is False
+        and memealerts_reward is None
+        and ai_stickers_reward is None
+        and not telegram_stream_enabled
+    ):
         return
 
     subs = await twitch.get_subscriptions()
@@ -140,6 +158,18 @@ async def login_callback_task(
         if sub.type == "channel.raid" and sub.condition.get("to_broadcaster_user_id") == user.twitch_id
     ]
 
+    subs_for_stream_online = [
+        sub
+        for sub in subs
+        if sub.type == "stream.online" and sub.condition.get("broadcaster_user_id") == user.twitch_id
+    ]
+
+    subs_for_stream_offline = [
+        sub
+        for sub in subs
+        if sub.type == "stream.offline" and sub.condition.get("broadcaster_user_id") == user.twitch_id
+    ]
+
     # TODO: unsubscribe from unused subs
 
     if shoutout_to_raid_is_enabled and not subs_for_raid:
@@ -147,6 +177,34 @@ async def login_callback_task(
         await twitch.subscribe_raid(user)
     elif not shoutout_to_raid_is_enabled and subs_for_raid:
         await twitch.unsubscribe_raid(subscription_id=UUID(subs_for_raid[0].id))
+
+    # ── Reconcile stream.online / stream.offline ──
+    # Если тогл включён, но подписок нет — пытаемся пересоздать. При неудаче
+    # снимаем галочку, чтобы юзер видел реальное состояние в панели управления.
+    if telegram_stream_enabled and (not subs_for_stream_online or not subs_for_stream_offline):
+        logger.warning(f"Found missing stream eventsub for user `{user}`. Re-subscribing!")
+        try:
+            if not subs_for_stream_online:
+                await twitch.subscribe_stream_online(user)
+            if not subs_for_stream_offline:
+                await twitch.subscribe_stream_offline(user)
+        except Exception:
+            logger.error(
+                f"Failed to re-subscribe stream eventsub for user `{user}`. Disabling toggle.",
+                exc_info=True,
+            )
+            async with db_session_factory() as session:
+                await session.execute(
+                    sa.update(TelegramSettings)
+                    .where(TelegramSettings.user_id == user.id)
+                    .values(stream_notification_enabled=False)
+                )
+                await session.commit()
+    elif not telegram_stream_enabled and (subs_for_stream_online or subs_for_stream_offline):
+        if subs_for_stream_online:
+            await twitch.unsubscribe_stream_online(user)
+        if subs_for_stream_offline:
+            await twitch.unsubscribe_stream_offline(user)
 
     for sub in subs_for_rewards:
         if sub.condition.get("reward_id") not in {str(ai_stickers_reward), str(memealerts_reward)}:

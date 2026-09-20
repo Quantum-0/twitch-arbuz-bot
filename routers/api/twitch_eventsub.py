@@ -14,8 +14,13 @@ from routers.helpers import parse_eventsub_payload
 from schemas.api import BaseErrorSchema
 from schemas.twitch import (
     ChatMessageSchema,
+    FollowWebhookSchema,
     PointRewardRedemptionWebhookSchema,
     RaidWebhookSchema,
+    StreamOfflineSchema,
+    StreamOnlineSchema,
+    SubscribeWebhookSchema,
+    SubscriptionMessageWebhookSchema,
     TwitchChallengeSchema,
 )
 from services.eventsub_service import TwitchEventSubService
@@ -51,7 +56,15 @@ local_duplicates_cache: deque[UUID] = deque(maxlen=50)
 @inject
 async def eventsub_handler(
     payload: Annotated[
-        PointRewardRedemptionWebhookSchema | RaidWebhookSchema | TwitchChallengeSchema | ChatMessageSchema,
+        PointRewardRedemptionWebhookSchema
+        | RaidWebhookSchema
+        | TwitchChallengeSchema
+        | ChatMessageSchema
+        | StreamOnlineSchema
+        | StreamOfflineSchema
+        | FollowWebhookSchema
+        | SubscribeWebhookSchema
+        | SubscriptionMessageWebhookSchema,
         Depends(parse_eventsub_payload),
     ],
     chat_bot: Annotated[ChatBot, Depends(Provide[Container.chat_bot])],
@@ -78,4 +91,19 @@ async def eventsub_handler(
         if settings.direct_handle_messages:
             asyncio.create_task(chat_bot.on_message(payload.event))
         await mqtt.publish(f"twitch/{payload.subscription.condition.broadcaster_user_id}/message", payload.event)
+    elif isinstance(payload, StreamOnlineSchema):
+        logger.info("Handling stream.online")
+        await service.handle_stream_online(payload)
+    elif isinstance(payload, StreamOfflineSchema):
+        logger.info("Handling stream.offline")
+        await service.handle_stream_offline(payload)
+    elif isinstance(payload, FollowWebhookSchema):
+        logger.info("Handling follow")
+        await service.handle_follow(payload)
+    elif isinstance(payload, SubscribeWebhookSchema):
+        logger.info("Handling subscribe")
+        await service.handle_subscribe(payload)
+    elif isinstance(payload, SubscriptionMessageWebhookSchema):
+        logger.info("Handling subscription message")
+        await service.handle_subscription_message(payload)
     return Response(status_code=204)

@@ -6,8 +6,13 @@ from pydantic import BaseModel, ValidationError
 from routers.security_helpers import verify_eventsub_signature
 from schemas.twitch import (
     ChatMessageSchema,
+    FollowWebhookSchema,
     PointRewardRedemptionWebhookSchema,
     RaidWebhookSchema,
+    StreamOfflineSchema,
+    StreamOnlineSchema,
+    SubscribeWebhookSchema,
+    SubscriptionMessageWebhookSchema,
     TwitchChallengeSchema,
 )
 
@@ -19,6 +24,11 @@ SCHEMA_BY_TYPE: dict[str, type[BaseModel]] = {
     "channel.channel_points_custom_reward_redemption.add": PointRewardRedemptionWebhookSchema,
     "webhook_callback_verification": TwitchChallengeSchema,
     "channel.chat.message": ChatMessageSchema,
+    "stream.online": StreamOnlineSchema,
+    "stream.offline": StreamOfflineSchema,
+    "channel.follow": FollowWebhookSchema,
+    "channel.subscribe": SubscribeWebhookSchema,
+    "channel.subscription.message": SubscriptionMessageWebhookSchema,
 }
 
 
@@ -26,7 +36,17 @@ async def parse_eventsub_payload(
     request: Request,
     eventsub_subscription_type: str = Header(..., alias="Twitch-Eventsub-Subscription-Type"),
     eventsub_message_type: str = Security(verify_eventsub_signature),
-) -> PointRewardRedemptionWebhookSchema | RaidWebhookSchema | TwitchChallengeSchema:
+) -> (
+    PointRewardRedemptionWebhookSchema
+    | RaidWebhookSchema
+    | TwitchChallengeSchema
+    | ChatMessageSchema
+    | StreamOnlineSchema
+    | StreamOfflineSchema
+    | FollowWebhookSchema
+    | SubscribeWebhookSchema
+    | SubscriptionMessageWebhookSchema
+):
     """
     Reusable dependency that parses the incoming EventSub payload and returns the appropriate schema.
     """

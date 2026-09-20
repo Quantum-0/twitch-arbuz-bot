@@ -68,18 +68,13 @@
     <nav>
         <a href="/" style="color: white; text-decoration: none;">Главная</a>
         <a href="/streamers" style="color: white; text-decoration: none;">Стримеры</a>
-        {% if user and user.in_beta_test %}
-        <a href="/debug" style="color: white; text-decoration: none;">Отладка</a>
-        {% endif %}
-        {% if user and user.login_name == "quantum075" %}
-        <a href="/admin" style="color: white; text-decoration: none;">Админка</a>
+        {% if user %}
+        <a href="/stickers" style="color: white; text-decoration: none;">AI-Стикеры</a>
         {% endif %}
         {% if user and user.in_beta_test %}
         <a href="/kinda_roadmap" style="color: white; text-decoration: none;">TODO</a>
         {% endif %}
-        {% if user %}
         <a href="https://resizer.quantum0.ru/" style="color: white; text-decoration: none;">Ресайзер иконок для твича</a>
-        {% endif %}
         <a href="/faq" style="color: white; text-decoration: none;">FAQ</a>
         <a href="/about" style="color: white; text-decoration: none;">О сервисе</a>
 
@@ -104,6 +99,25 @@
                 <a href="/profile/{{ user.login_name }}" class="user-menu__item" role="menuitem">
                     Перейти в профиль
                 </a>
+                <a href="/cmdlist?streamer={{ user.login_name }}" class="user-menu__item" role="menuitem">
+                    Список команд чат-бота
+                </a>
+                {% if user and user.in_beta_test %}
+                <a href="/debug" class="user-menu__item" role="menuitem">
+                    Отладка
+                </a>
+                {% endif %}
+                {% if user %}
+                <a href="/ai-stickers" class="user-menu__item" role="menuitem">
+                    Настройки AI-стикеров
+                </a>
+                {% endif %}
+                {% if user and user.login_name == "quantum075" %}
+                <a href="/admin" class="user-menu__item" role="menuitem">
+                    Админка
+                </a>
+                {% endif %}
+
                 <a href="/logout" class="user-menu__item user-menu__item--logout" role="menuitem">
                     Выйти
                 </a>
@@ -152,7 +166,8 @@
         </div>
     </div>
 
-    <!-- Boosty-предложение (только для залогиненных) -->
+    {% if user and user.boosty_offer_eligible %}
+    <!-- Boosty-предложение (только для пользователей, которые уже попробовали сервис) -->
     <div class="boosty-modal" id="boostyModal" role="dialog" aria-modal="true" aria-label="Поддержка на Boosty">
         <div class="boosty-card">
             <button class="boosty-close" id="boostyClose" aria-label="Закрыть">&times;</button>
@@ -184,6 +199,7 @@
             <button class="follow-admin-skip" id="followAdminSkip">Спасибо, не сейчас</button>
         </div>
     </div>
+    {% endif %}
 
     <script>
     (function () {

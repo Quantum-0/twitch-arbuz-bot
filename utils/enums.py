@@ -13,3 +13,4 @@ class SSEChannel(StrEnum):
     HEAT = "heat"
     SLOVOTRON = "slovotron"
     TTS = "tts"
+    TWITCH_EVENTS = "twitch-events"

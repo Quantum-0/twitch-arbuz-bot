@@ -11,6 +11,7 @@ from database.models import User
 from dependencies import get_db
 from schemas.slovotron import SlovotronWebhookSchema
 from services.mqtt import MQTTClient
+from utils.overlay_secret import ensure_overlay_secret
 
 router = APIRouter()
 
@@ -45,11 +46,11 @@ async def slovotron_webhook(
     mqtt: Annotated[MQTTClient, Depends(Provide[Container.mqtt])],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    if not payload.validate_secret():
-        raise HTTPException(status_code=403, detail="Invalid secret")
     user = (await db.execute(sa.select(User).where(User.login_name == payload.channel))).scalar_one_or_none()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
+    if payload.secret != await ensure_overlay_secret(db, user):
+        raise HTTPException(status_code=403, detail="Invalid secret")
     await mqtt.publish(f"slovotron/{payload.event}/{payload.channel}", payload)
     return Response(
         status_code=status.HTTP_204_NO_CONTENT,

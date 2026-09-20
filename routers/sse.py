@@ -1,7 +1,7 @@
 import asyncio
 from collections.abc import AsyncGenerator
 from typing import Annotated
-from uuid import UUID, uuid3
+from uuid import UUID
 
 import sqlalchemy as sa
 from dependency_injector.wiring import Provide, inject
@@ -10,12 +10,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.requests import Request
 from starlette.responses import StreamingResponse
 
-from config import settings
 from container import Container
 from database.models import User
 from dependencies import get_db
 from services.sse_manager import SSEManager
 from utils.enums import SSEChannel
+from utils.overlay_secret import ensure_overlay_secret
 
 router = APIRouter(prefix="/sse", tags=["SSE"])
 
@@ -34,6 +34,7 @@ async def sse(
     ssem: Annotated[SSEManager, Depends(Provide[Container.sse_manager])],
     db: Annotated[AsyncSession, Depends(get_db)],
     secret: UUID | None = Query(default=None),
+    filter_pattern: str | None = Query(default=None, max_length=500, alias="filter"),
 ):
     if channel == SSEChannel.SLOVOTRON:
         if secret is None:
@@ -45,9 +46,9 @@ async def sse(
         ).scalar_one_or_none()
         if not user:
             raise HTTPException(404, "User not found")
-        if secret != uuid3(namespace=settings.slovotron_secret, name=user.login_name):
+        if secret != await ensure_overlay_secret(db, user):
             raise HTTPException(403, "Invalid secret")
-    conn = await ssem.connect(user_id, channel)
+    conn = await ssem.connect(user_id, channel, filter_pattern=filter_pattern)
 
     def sse_format(data: str) -> str:
         return "".join(f"data: {line}\n" for line in data.splitlines()) + "\n"

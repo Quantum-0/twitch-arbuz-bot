@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Halloween Overlay</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Creepster&family=Nunito:wght@700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/halloween-overlay.css">
+    <style>
+        html, body { margin: 0; padding: 0; background: transparent; overflow: hidden; height: 100%; }
+    </style>
+</head>
+<body>
+
+<div id="stage">
+    <div id="leaves"></div>
+
+    <div id="corner">
+        <img id="web-img" src="/static/images/overlays/halloween/web.png" alt="">
+        <div id="spider">
+            <img src="/static/images/overlays/halloween/spider.png" alt="">
+            <i class="eye" style="left:39.7%; top:46.5%"></i>
+            <i class="eye" style="left:49.8%; top:49.4%"></i>
+        </div>
+        <div class="bubble side small" id="spider-bubble"></div>
+    </div>
+
+    <div id="pumpkins">
+        <div class="pumpkin" id="pumpkin-0" style="--w:430">
+            <img class="base" src="/static/images/overlays/halloween/pumpkin1.png" alt="">
+            <div class="glow-wrap"><div class="glow"></div></div>
+            <div class="bubble-anchor"><div class="bubble"></div></div>
+        </div>
+        <div class="pumpkin" id="pumpkin-1" style="--w:466">
+            <img class="base" src="/static/images/overlays/halloween/pumpkin2.png" alt="">
+            <div class="glow-wrap"><div class="glow"></div></div>
+            <div class="bubble-anchor"><div class="bubble"></div></div>
+        </div>
+        <div class="pumpkin edge-right" id="pumpkin-2" style="--w:426">
+            <img class="base" src="/static/images/overlays/halloween/pumpkin3.png" alt="">
+            <div class="glow-wrap"><div class="glow"></div></div>
+            <div class="bubble-anchor"><div class="bubble"></div></div>
+        </div>
+    </div>
+
+    <div id="frame"></div>
+    <div id="raid-layer"></div>
+
+    <div id="ghost-peek">
+        <div class="ghost-inner">
+            <div class="ghost-label">
+                <div class="ghost-name" id="ghost-name"></div>
+                <div class="ghost-kind" id="ghost-kind"></div>
+            </div>
+            <img src="/static/images/overlays/halloween/ghost_peek.png" alt="">
+        </div>
+    </div>
+</div>
+
+<script>
+    const CHANNEL_ID = {{ channel_id }};
+    const CHANNEL_NAME = {{ channel_name | tojson }};
+    const OVERLAY_SECRET = new URLSearchParams(window.location.search).get('secret') || '';
+    const CHAT_FILTER = ".*";
+    const CUSTOM_COMMANDS = [
+        {name: "подуть", aliases: "!дуть, !дунуть, !подуть, !фуф, !шуш", description: "Подуть на элементы оверлея"},
+    ];
+</script>
+<script src="/static/js/chat-listener.js"></script>
+<script src="/static/js/halloween-overlay.js"></script>
+</body>
+</html>

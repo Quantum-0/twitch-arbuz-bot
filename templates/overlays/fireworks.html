@@ -29,6 +29,17 @@
     const GRAVITY = {{ gravity }};
 </script>
 <script src="/static/js/heat-ws.js"></script>
+{% if chat_control %}
+<script>
+    const CHANNEL_NAME = "{{ channel_name }}";
+    const OVERLAY_SECRET = new URLSearchParams(window.location.search).get('secret') || '';
+    const CHAT_FILTER = "!салют";
+    const CUSTOM_COMMANDS = [
+        {name: "салют", aliases: "!салют", description: "Запустить салют на оверлее"},
+    ];
+</script>
+<script src="/static/js/chat-listener.js"></script>
+{% endif %}
 <script src="/static/js/fireworks.js"></script>
 </body>
 </html>
