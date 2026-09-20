@@ -4,6 +4,7 @@ import re
 from collections.abc import Callable
 from decimal import Decimal
 from time import monotonic
+from typing import Any
 from uuid import UUID, uuid4
 
 import sqlalchemy as sa
@@ -100,6 +101,12 @@ class OwnCharacterRequiredError(RewardRedemptionProcessingError):
             f"На этом канале генерация разрешена только с участием персонажа стримера — "
             f"упомяните @{login} в промпте! Баллы возвращены!"
         )
+
+
+class CharacterNotFoundError(RewardRedemptionProcessingError):
+    def __init__(self, names: list[str]):
+        names_str = ", ".join(f"@{n}" for n in names)
+        super().__init__(f"Не найден референс персонажа для: {names_str}. Баллы возвращены!")
 
 
 class StickersService:
@@ -246,11 +253,21 @@ class StickersService:
             if char.file_id:
                 s3_tasks.append(self._s3.get_object(f"refs/{char.file_id}.png"))
 
+        self._check_missing_references(found_names, search_names, rows)
+
         refs: list[bytes] = []
         if s3_tasks:
             refs = list(await asyncio.gather(*s3_tasks))
 
         return descriptions, refs
+
+    @staticmethod
+    def _check_missing_references(found_names: set[str], search_names: set[str], rows: Any) -> None:
+        found_in_db = {char.name.lower() for char, _, _ in rows}
+        not_found_lower = search_names - found_in_db
+        if not_found_lower:
+            missing = sorted((n for n in found_names if n.lower() in not_found_lower), key=str.lower)
+            raise CharacterNotFoundError(missing)
 
     async def _prepare_final_prompt(
         self, prompt: str, characters: dict[str, str], with_files: bool, transparent_background: bool = False
