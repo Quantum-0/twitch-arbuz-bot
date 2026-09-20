@@ -250,7 +250,7 @@ async def profile_page(
     user: User | None = Security(user_auth_optional),
 ):
     likes_count = (
-        sa.select(sa.func.count(UserLike.id))
+        sa.select(sa.func.count(UserLike.from_user_id))
         .where(UserLike.to_user_id == User.id)
         .correlate(User)
         .scalar_subquery()

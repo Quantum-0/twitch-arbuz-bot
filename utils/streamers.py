@@ -40,7 +40,7 @@ def _is_overlay_used_recently(overlays_last_usage: datetime | None, *, now: date
 
 def _build_select_query() -> sa.Select[tuple[Any, ...]]:
     likes = (
-        sa.select(UserLike.to_user_id, sa.func.count(UserLike.id).label("likes_count"))
+        sa.select(UserLike.to_user_id, sa.func.count(UserLike.from_user_id).label("likes_count"))
         .group_by(UserLike.to_user_id)
         .subquery()
     )

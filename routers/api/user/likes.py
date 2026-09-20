@@ -36,7 +36,7 @@ async def like_user(
     await db.execute(stmt)
     await db.commit()
     likes_count = await db.scalar(
-        sa.select(sa.func.count(UserLike.id)).where(UserLike.to_user_id == target_user_id)
+        sa.select(sa.func.count(UserLike.from_user_id)).where(UserLike.to_user_id == target_user_id)
     )
     return {"liked": True, "likes_count": likes_count or 0}
 
@@ -58,6 +58,6 @@ async def unlike_user(
     )
     await db.commit()
     likes_count = await db.scalar(
-        sa.select(sa.func.count(UserLike.id)).where(UserLike.to_user_id == target_user_id)
+        sa.select(sa.func.count(UserLike.from_user_id)).where(UserLike.to_user_id == target_user_id)
     )
     return {"liked": False, "likes_count": likes_count or 0}

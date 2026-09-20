@@ -15,6 +15,7 @@ from sqlalchemy import (
     Index,
     Integer,
     Numeric,
+    PrimaryKeyConstraint,
     String,
     event,
     false,
@@ -145,13 +146,12 @@ class User(Base):
 class UserLike(Base):
     __tablename__ = "user_likes"
     __table_args__ = (
-        Index("uq_user_likes_from_to", "from_user_id", "to_user_id", unique=True),
+        PrimaryKeyConstraint("from_user_id", "to_user_id", name="pk_user_likes"),
         Index("ix_user_likes_from_user_id", "from_user_id"),
         Index("ix_user_likes_to_user_id", "to_user_id"),
         CheckConstraint("from_user_id <> to_user_id", name="ck_user_likes_not_self"),
     )
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     from_user_id: Mapped[int] = mapped_column(
         Integer,
         ForeignKey("twitch_bot_users.id", ondelete="CASCADE"),

@@ -27,19 +27,19 @@ def test_user_like_model_has_integrity_and_lookup_indexes():
     table = UserLike.__table__
     index_names = {index.name for index in table.indexes}
 
-    assert "uq_user_likes_from_to" in index_names
     assert "ix_user_likes_from_user_id" in index_names
     assert "ix_user_likes_to_user_id" in index_names
     assert {fk.target_fullname for fk in table.foreign_keys} == {
         "twitch_bot_users.id",
     }
     assert any(constraint.name == "ck_user_likes_not_self" for constraint in table.constraints)
+    assert any(constraint.name == "pk_user_likes" for constraint in table.constraints)
 
 
 def test_streamers_query_aggregates_likes_in_sql():
     sql = str(_build_select_query().compile(compile_kwargs={"literal_binds": True}))
 
-    assert "count(user_likes.id)" in sql
+    assert "count(user_likes.from_user_id)" in sql
     assert "LEFT OUTER JOIN" in sql
     assert "likes_count" in sql
 
