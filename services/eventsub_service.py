@@ -1,23 +1,42 @@
 import asyncio
 import json
 import logging
+import uuid
 from collections.abc import Callable
 from typing import Any
 
 import sqlalchemy as sa
-from memealerts.types.exceptions import MATokenExpiredError
 from opentelemetry import trace
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from twitchAPI.type import TwitchResourceNotFound
 
-from database.models import Base, TTSSettings, TwitchUserSettings, User
-from exceptions import MADuplicateUserError, MATokenInvalidError
+from config import settings
+from database.models import Base, TelegramSettings, TTSSettings, TwitchUserSettings, User
+from exceptions import (
+    MADuplicateUserError,
+    MAInvalidScopeError,
+    MAInvalidTokenError,
+    MANoToken,
+    MATokenExpiredError,
+    MATokenInvalidError,
+    MAUserNotFoundError,
+)
 from schemas.api import StatsType
-from schemas.twitch import PointRewardRedemptionWebhookSchema, RaidWebhookSchema
+from schemas.enums import FileStorageDir
+from schemas.twitch import (
+    FollowWebhookSchema,
+    PointRewardRedemptionWebhookSchema,
+    RaidWebhookSchema,
+    StreamOfflineSchema,
+    StreamOnlineSchema,
+    SubscribeWebhookSchema,
+    SubscriptionMessageWebhookSchema,
+)
 from services.memes import MemealertsService
 from services.memes_v2 import MemealertsOAuthService, MemealertsV2Service
 from services.moderation import ModerationService
+from services.mqtt import MQTTClient
 from services.sse_manager import SSEManager
 from services.statistics import StatisticsService
 from services.stickers import ModerationBlockedException, RewardRedemptionProcessingError, StickersService
@@ -41,6 +60,10 @@ MEMEALERTS_V1_MIGRATION_MESSAGE = (
     "иначе награда в скором времени перестанет работать. Мяу <3"
 )
 
+# Legacy v1 can only help when the streamer's v2 authorization is unusable.
+# Business/API errors must keep their original meaning instead of being masked by an old v1 token error.
+MEMEALERTS_V2_FALLBACK_ERRORS = (MAInvalidTokenError, MAInvalidScopeError, MANoToken, MATokenExpiredError)
+
 
 class TwitchEventSubService:
     # startup - subscribe topics if need
@@ -57,6 +80,7 @@ class TwitchEventSubService:
         memealerts_auth: MemealertsOAuthService,
         moderation: ModerationService,
         tts_service: TTSService,
+        mqtt: MQTTClient | None = None,
         statistics: StatisticsService | None = None,
     ):
         self._twitch = twitch
@@ -69,6 +93,7 @@ class TwitchEventSubService:
         self._memealerts_auth = memealerts_auth
         self._moderation = moderation
         self._tts = tts_service
+        self._mqtt = mqtt
         self._statistics = statistics
 
     def _inc_reward(self, subtype: str, type_: StatsType) -> None:
@@ -85,7 +110,7 @@ class TwitchEventSubService:
 
     async def _get_user_by_id_or_login(self, id_or_login: str | int, selectin: list[Base] | None = None) -> User:
         if selectin is None:
-            selectins = [User.settings, User.memealerts, User.links, User.tts]
+            selectins = [User.settings, User.memealerts, User.links, User.tts, User.telegram]
         else:
             selectins = selectin
 
@@ -118,12 +143,74 @@ class TwitchEventSubService:
         user = await self._get_user_by_id_or_login(payload.event.to_broadcaster_user_id)
         user_settings: TwitchUserSettings = user.settings
 
+        broadcaster_id = payload.event.to_broadcaster_user_id
+        if await self._ssem.has_clients(broadcaster_id, SSEChannel.TWITCH_EVENTS):
+            event = json.dumps(
+                {"type": "raid", "user": payload.event.from_broadcaster_user_name, "count": payload.event.viewers},
+                ensure_ascii=False,
+            )
+            await self._ssem.broadcast(broadcaster_id, SSEChannel.TWITCH_EVENTS, event)
+
         if not user_settings.enable_shoutout_on_raid:
             await self._twitch.unsubscribe_raid(subscription_id=payload.subscription.subscription_id)
             logger.warning("Handle raid event from user, who didn't enabled shoutout on raid. Unsubscribed")
             return
+        # NB: если shoutout включён, raid-подписка принадлежит shoutout-функции и не отписывается.
+        # Overlay не управляет channel.raid самостоятельно в этом случае — после первого же рейда
+        # подписка остаётся активной только пока включён enable_shoutout_on_raid.
 
         await self._twitch.shoutout(user=user, shoutout_to=payload.event.from_broadcaster_user_id)
+
+    @task_wrapper
+    @tracer.start_as_current_span("Twitch Eventsub: Follow")
+    async def handle_follow(self, payload: FollowWebhookSchema | dict[str, Any]) -> None:
+        if isinstance(payload, dict):
+            payload = FollowWebhookSchema.model_validate(payload, by_name=True)
+
+        broadcaster_id = payload.event.broadcaster_user_id
+        if await self._ssem.has_clients(broadcaster_id, SSEChannel.TWITCH_EVENTS):
+            event = json.dumps(
+                {"type": "follow", "user": payload.event.user_name},
+                ensure_ascii=False,
+            )
+            await self._ssem.broadcast(broadcaster_id, SSEChannel.TWITCH_EVENTS, event)
+
+    @task_wrapper
+    @tracer.start_as_current_span("Twitch Eventsub: Subscribe")
+    async def handle_subscribe(self, payload: SubscribeWebhookSchema | dict[str, Any]) -> None:
+        if isinstance(payload, dict):
+            payload = SubscribeWebhookSchema.model_validate(payload, by_name=True)
+
+        broadcaster_id = payload.event.broadcaster_user_id
+        if await self._ssem.has_clients(broadcaster_id, SSEChannel.TWITCH_EVENTS):
+            event = json.dumps(
+                {
+                    "type": "sub",
+                    "user": payload.event.user_name,
+                    "tier": payload.event.tier,
+                    "gift": payload.event.is_gift,
+                },
+                ensure_ascii=False,
+            )
+            await self._ssem.broadcast(broadcaster_id, SSEChannel.TWITCH_EVENTS, event)
+
+    @task_wrapper
+    @tracer.start_as_current_span("Twitch Eventsub: Subscription Message")
+    async def handle_subscription_message(self, payload: SubscriptionMessageWebhookSchema | dict[str, Any]) -> None:
+        if isinstance(payload, dict):
+            payload = SubscriptionMessageWebhookSchema.model_validate(payload, by_name=True)
+
+        broadcaster_id = payload.event.broadcaster_user_id
+        if await self._ssem.has_clients(broadcaster_id, SSEChannel.TWITCH_EVENTS):
+            event = json.dumps(
+                {
+                    "type": "resub",
+                    "user": payload.event.user_name,
+                    "months": payload.event.cumulative_months,
+                },
+                ensure_ascii=False,
+            )
+            await self._ssem.broadcast(broadcaster_id, SSEChannel.TWITCH_EVENTS, event)
 
     @task_wrapper
     @tracer.start_as_current_span("Twitch Eventsub: Reward redemption")
@@ -204,8 +291,8 @@ class TwitchEventSubService:
                         supporter=payload.event.user_input,
                         amount=user.memealerts.coins_for_reward,
                     )
-                except Exception:
-                    logger.error("Error with memealerts v2!", exc_info=True)
+                except MEMEALERTS_V2_FALLBACK_ERRORS:
+                    logger.warning("MemeAlerts v2 authorization failed; trying legacy v1 token", exc_info=True)
                     if not user.memealerts.memealerts_token:
                         raise
                     result = await self._memealerts.give_bonus(
@@ -258,6 +345,15 @@ class TwitchEventSubService:
                 f'Найдено несколько пользователей с именем "{exc.supporter}". Баллы возвращены. Для начисления мемкоинов используйте ID.',
             )
             await self._cancel_redemption(user, payload)
+        except MAUserNotFoundError:
+            logger.warning("MA supporter not found: %s", payload.event.user_input)
+            self._inc_reward("failed", StatsType.REWARD_MEMECOINS)
+            await self._chatbot.send_message(
+                user,
+                "Пользователь не найден в MemeAlerts. Баллы возвращены. "
+                "Проверьте ID или имя; новому зрителю может потребоваться забрать приветственный бонус.",
+            )
+            await self._cancel_redemption(user, payload)
         except MATokenExpiredError:
             logger.warning("MA Token expired")
             self._inc_reward("failed", StatsType.REWARD_MEMECOINS)
@@ -272,6 +368,14 @@ class TwitchEventSubService:
             await self._chatbot.send_message(
                 user,
                 f"Ошибка начисления мемкоинов: Memealerts не принял установленный токен. @{user.login_name}, перелогинься на сайте Memealerts и обнови токен, пожалуйста.",
+            )
+            await self._cancel_redemption(user, payload)
+        except (MAInvalidTokenError, MAInvalidScopeError, MANoToken):
+            logger.warning("MA v2 authorization is invalid")
+            self._inc_reward("failed", StatsType.REWARD_MEMECOINS)
+            await self._chatbot.send_message(
+                user,
+                f"Ошибка авторизации MemeAlerts. @{user.login_name}, переподключи интеграцию в панели управления ботом.",
             )
             await self._cancel_redemption(user, payload)
         except Exception:
@@ -312,6 +416,8 @@ class TwitchEventSubService:
             json.dumps({"sticker_file_id": str(sticker_id)}),
         )
         self._inc_reward("success", StatsType.REWARD_AI_STICKERS)
+
+        await self._maybe_send_sticker_to_telegram(user, sticker_id, payload.event.user_input, payload.event.user_name)
 
     @tracer.start_as_current_span("Twitch Eventsub: Reward TTS")
     async def reward_tts(
@@ -376,3 +482,199 @@ class TwitchEventSubService:
         )
         await self._fulfill_redemption(user, payload)
         self._inc_reward("success", StatsType.TTS_MESSAGES)
+
+    # ── Stream online / offline → Telegram notifications ──────────────────
+
+    _STREAM_ONLINE_REQUEST_PREFIX = "stream_online"
+    _STREAM_OFFLINE_TEXT = "⚪️ Стрим завершён."
+
+    @task_wrapper
+    @tracer.start_as_current_span("Twitch Eventsub: Stream online")
+    async def handle_stream_online(self, payload: StreamOnlineSchema | dict[str, Any]) -> None:
+        """stream.online EventSub → отправить уведомление в Telegram-чат стрима.
+
+        Cost = 0, scopes не требуются (app access token).
+        request_id = ``stream_online:{user_id}`` — используется для корреляции
+        результата (message_id) в ``handle_telegram_result``.
+
+        Заголовок и категория стрима подтягиваются отдельным запросом
+        ``GET /helix/streams`` (app access token) — в самом событии stream.online
+        этих полей нет (schema v1 содержит только broadcaster + started_at).
+        """
+        if isinstance(payload, dict):
+            payload = StreamOnlineSchema.model_validate(payload, by_name=True)
+
+        user = await self._get_user_by_id_or_login(payload.event.broadcaster_user_id)
+        tg: TelegramSettings | None = user.telegram
+
+        if tg is None or not tg.stream_notification_enabled or not tg.stream_chat_id:
+            return
+
+        channel_name = payload.event.broadcaster_user_name
+        stream_url = f"https://twitch.tv/{payload.event.broadcaster_user_login}"
+
+        # stream.online v1 не содержит title/категорию — подтягиваем через Get Streams.
+        title, category = await self._fetch_stream_meta(user)
+
+        message_text = self._render_stream_online_message(tg, channel_name, title, category, stream_url)
+
+        request_id = f"{self._STREAM_ONLINE_REQUEST_PREFIX}:{user.id}"
+        await self._publish_send_message(tg.stream_chat_id, message_text, request_id)
+
+    @staticmethod
+    def _render_stream_online_message(tg: TelegramSettings, streamer: str, title: str, category: str, link: str) -> str:
+        """Сформировать текст уведомления о начале стрима.
+
+        Если задан ``stream_message_template`` — использует его с плейсхолдерами
+        ``{streamer}``, ``{title}``, ``{category}``, ``{link}``. При ошибке
+        форматирования (неизвестный плейсхолдер) — fallback на дефолтный текст.
+        """
+        default = f"🔴 {streamer} начинает стрим!"
+        template = tg.stream_message_template
+        if not template or not template.strip():
+            lines = [default]
+            if title:
+                lines.append(title)
+            if category:
+                lines.append(category)
+            lines.append("")
+            lines.append(link)
+            return "\n".join(lines)
+        try:
+            return template.format(streamer=streamer, title=title, category=category, link=link)
+        except (KeyError, IndexError, ValueError):
+            logger.warning(
+                "Ошибка форматирования шаблона stream_message_template, используем дефолт. template=%r",
+                template,
+            )
+            lines = [default]
+            if title:
+                lines.append(title)
+            if category:
+                lines.append(category)
+            lines.append("")
+            lines.append(link)
+            return "\n".join(lines)
+
+    async def _fetch_stream_meta(self, user: User) -> tuple[str, str]:
+        """Получить title и категорию текущего стрима через ``GET /helix/streams``.
+
+        Возвращает ``("", "")`` если стрим ещё не виден в Helix (бывает задержка
+        между событием stream.online и появлением данных в Get Streams) или при
+        ошибке API — уведомление всё равно отправляется, но без заголовка.
+        """
+        try:
+            streams = await self._twitch.get_streams([user])
+            stream = streams.get(user)
+            if stream is None:
+                return "", ""
+            return stream.title or "", stream.game_name or ""
+        except Exception:
+            logger.warning("Не удалось получить title/категорию стрима для user_id=%s", user.id, exc_info=True)
+            return "", ""
+
+    @task_wrapper
+    @tracer.start_as_current_span("Twitch Eventsub: Stream offline")
+    async def handle_stream_offline(self, payload: StreamOfflineSchema | dict[str, Any]) -> None:
+        """stream.offline EventSub → поведение по ``stream_offline_behavior``.
+
+        - ``delete``  → удалить сообщение о начале стрима (``last_stream_message_id``).
+        - ``message`` → отправить «Стрим завершён».
+        - ``keep``    → ничего не делать.
+        В любом случае ``last_stream_message_id`` очищается.
+        """
+        if isinstance(payload, dict):
+            payload = StreamOfflineSchema.model_validate(payload, by_name=True)
+
+        user = await self._get_user_by_id_or_login(payload.event.broadcaster_user_id)
+        tg: TelegramSettings | None = user.telegram
+
+        if tg is None or not tg.stream_notification_enabled or not tg.stream_chat_id:
+            return
+
+        behavior = tg.stream_offline_behavior or "keep"
+
+        if behavior == "delete" and tg.last_stream_message_id:
+            await self._publish_delete_message(tg.stream_chat_id, tg.last_stream_message_id)
+        elif behavior == "message":
+            await self._publish_send_message(tg.stream_chat_id, self._STREAM_OFFLINE_TEXT)
+
+        await self._clear_last_stream_message_id(user.id)
+
+    async def _publish_send_message(self, chat_id: str, message_text: str, request_id: str | None = None) -> None:
+        """Отправить текстовое сообщение в Telegram через MQTT."""
+        if self._mqtt is None:
+            logger.warning("MQTT не доступен, не могу отправить сообщение в Telegram")
+            return
+
+        await self._mqtt.publish(
+            "telegram/send_message",
+            {
+                "request_id": request_id or str(uuid.uuid4()),
+                "chat_id": chat_id,
+                "message_text": message_text,
+            },
+        )
+
+    async def _publish_delete_message(self, chat_id: str, message_id: str) -> None:
+        """Удалить сообщение в Telegram через MQTT."""
+        if self._mqtt is None:
+            logger.warning("MQTT не доступен, не могу удалить сообщение в Telegram")
+            return
+
+        await self._mqtt.publish(
+            "telegram/delete_message",
+            {
+                "request_id": str(uuid.uuid4()),
+                "chat_id": chat_id,
+                "message_id": message_id,
+            },
+        )
+
+    async def _clear_last_stream_message_id(self, user_id: int) -> None:
+        """Очистить last_stream_message_id в БД."""
+        async with self._db_session_factory() as db:
+            await db.execute(
+                sa.update(TelegramSettings)
+                .where(TelegramSettings.user_id == user_id)
+                .values(last_stream_message_id=None)
+            )
+            await db.commit()
+
+    # ── AI Stickers → Telegram ────────────────────────────────────────────
+
+    async def _maybe_send_sticker_to_telegram(
+        self, user: User, sticker_id: uuid.UUID, prompt: str, chatter_name: str
+    ) -> None:
+        """Отправить ИИ-стикер в Telegram-чат, если интеграция включена.
+
+        Вызывается после успешной генерации стикера и broadcast в SSE.
+        Если у юзера ``stickers_enabled=True`` и ``stickers_chat_id`` задан —
+        отправляет фото (``send_photo``) или документ (``send_document``) через MQTT.
+        TG-микросервис скачивает стикер по публичному URL.
+        """
+        tg: TelegramSettings | None = user.telegram
+        if tg is None or not tg.stickers_enabled or not tg.stickers_chat_id:
+            return
+
+        if self._mqtt is None:
+            logger.warning("MQTT не доступен, не могу отправить стикер в Telegram")
+            return
+
+        sticker_url = f"{settings.base_url}/files/{FileStorageDir.AI_GENERATED_STICKER}/{sticker_id}"
+        caption = f"🎨 {chatter_name}: {prompt}"[:1024]
+        request_id = f"sticker:{user.id}:{sticker_id}"
+
+        topic = "telegram/send_document" if tg.stickers_mode == "document" else "telegram/send_photo"
+        payload_key = "document_url" if tg.stickers_mode == "document" else "photo_url"
+
+        await self._mqtt.publish(
+            topic,
+            {
+                "request_id": request_id,
+                "chat_id": tg.stickers_chat_id,
+                payload_key: sticker_url,
+                "caption": caption,
+            },
+        )
+        logger.info("Стикер отправлен в Telegram для user_id=%s sticker_id=%s", user.id, sticker_id)

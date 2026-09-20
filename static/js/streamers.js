@@ -7,9 +7,10 @@
         created: "По дате регистрации в боте",
         name: "По имени",
         interacted: "По последней активности на сайте",
+        likes: "По количеству лайков",
     };
 
-    const VALID_SORTS = ["recommended", "followers", "created", "name", "interacted"];
+    const VALID_SORTS = ["recommended", "followers", "created", "name", "interacted", "likes"];
     const VALID_ORDERS = ["asc", "desc"];
     const FILTER_KEYS = ["bot", "meme", "ai", "overlay", "online", "pants", "shoutout"];
 
@@ -153,6 +154,13 @@
             }
             if (row.is_live) {
                 node.querySelector(".live-indicator").hidden = false;
+            }
+            const likesNode = node.querySelector(".streamer-likes");
+            if (row.likes_count > 0) {
+                likesNode.querySelector("span:last-child").textContent = row.likes_count;
+                likesNode.hidden = false;
+            } else {
+                likesNode.hidden = true;
             }
             fragment.appendChild(node);
         }

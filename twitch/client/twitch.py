@@ -7,6 +7,7 @@ from uuid import UUID
 
 import httpx
 import jwt
+import redis.asyncio as aioredis
 from more_itertools.recipes import batched
 from opentelemetry import trace
 from twitchAPI.chat import Chat
@@ -30,6 +31,12 @@ from utils.singleton import singleton
 logger = logging.getLogger(__name__)
 tracer = trace.get_tracer(__name__)
 
+# Кэш app access token в Redis (client_credentials grant).
+# Twitch выдаёт токен на ~8 часов, но мы храним 5 минут для безопасности и
+# автоматической инвалидации при перезапуске/смене client_secret.
+_APP_TOKEN_REDIS_KEY = "twitch:app_access_token"  # noqa: S105
+_APP_TOKEN_TTL = 300
+
 
 def make_ebs_jwt(channel_id: str, user_id: str = "") -> str:
     now = int(time.time())
@@ -52,7 +59,39 @@ class Twitch:
     _twitch: TwitchClient = None  # type: ignore
 
     def __init__(self):
-        pass
+        self._redis: aioredis.Redis | None = None
+
+    def startup_redis(self, redis: aioredis.Redis) -> None:
+        """Передать Redis-клиент для кэширования app access token."""
+        self._redis = redis
+
+    async def _get_app_access_token(self) -> str:
+        """App access token (client_credentials grant) с кэшем в Redis (TTL 5 мин).
+
+        Используется для EventSub-подписок stream.online / stream.offline / channel.raid.
+        Все эти подписки cost=0 и не требуют user-scopes — достаточно app token.
+        """
+        if self._redis is not None:
+            cached = await self._redis.get(_APP_TOKEN_REDIS_KEY)
+            if cached:
+                return cached  # type: ignore[return-value]
+
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                "https://id.twitch.tv/oauth2/token",
+                params={
+                    "client_id": settings.twitch_client_id,
+                    "client_secret": settings.twitch_client_secret,
+                    "grant_type": "client_credentials",
+                },
+                timeout=10,
+            )
+            response.raise_for_status()
+            token = response.json()["access_token"]
+
+        if self._redis is not None:
+            await self._redis.set(_APP_TOKEN_REDIS_KEY, token, ex=_APP_TOKEN_TTL)
+        return token
 
     async def startup(self):
         twitch = await TwitchClient(settings.twitch_client_id, settings.twitch_client_secret)
@@ -437,16 +476,8 @@ class Twitch:
         #     },
         # )
         # return result
+        app_token = await self._get_app_access_token()
         async with httpx.AsyncClient() as client:
-            response = await client.post(
-                "https://id.twitch.tv/oauth2/token",
-                params={
-                    "client_id": settings.twitch_client_id,
-                    "client_secret": settings.twitch_client_secret,
-                    "grant_type": "client_credentials",
-                },
-            )
-            app_token = response.json()["access_token"]
             response = await client.post(
                 "https://api.twitch.tv/helix/eventsub/subscriptions",
                 headers={
@@ -482,34 +513,168 @@ class Twitch:
         if subscription_id:
             await self._twitch.delete_eventsub_subscription(subscription_id=str(subscription_id))
             return True
-        # async with httpx.AsyncClient() as client:
-        #     response = await client.post(
-        #         "https://id.twitch.tv/oauth2/token",
-        #         params={
-        #             "client_id": settings.twitch_client_id,
-        #             "client_secret": settings.twitch_client_secret,
-        #             "grant_type": 'client_credentials'
-        #         }
-        #     )
-        #     app_token = response.json()["access_token"]
-        #     response = await client.delete(
-        #         "https://api.twitch.tv/helix/eventsub/subscriptions",
-        #         headers={
-        #             "Authorization": "Bearer " + app_token,
-        #             "Client-Id": settings.twitch_client_id,
-        #             "Content-Type": "application/json"
-        #         },
-        #         params={
-        #             "id": str(subscription_id),
-        #         }
-        #     )
-        #     response.raise_for_status()
-        #     return response.json()
+
+    async def _subscribe_eventsub(
+        self,
+        user: User,
+        sub_type: str,
+        version: str,
+        condition: dict[str, str],
+    ) -> dict:
+        """Создать EventSub-подписку (webhook transport, app access token, cost=0 типы)."""
+        app_token = await self._get_app_access_token()
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                "https://api.twitch.tv/helix/eventsub/subscriptions",
+                headers={
+                    "Authorization": "Bearer " + app_token,
+                    "Client-Id": settings.twitch_client_id,
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "type": sub_type,
+                    "version": version,
+                    "condition": condition,
+                    "transport": {
+                        "method": "webhook",
+                        "callback": str(settings.reward_redemption_webhook) + f"/{user.twitch_id}",
+                        "secret": settings.twitch_webhook_secret.get_secret_value(),
+                    },
+                },
+            )
+            response.raise_for_status()
+            return response.json()
+
+    async def subscribe_follow(self, user: User) -> dict:
+        """Подписаться на channel.follow v2 (cost=0, scope: moderator:read:followers)."""
+        return await self._subscribe_eventsub(
+            user,
+            "channel.follow",
+            "2",
+            {
+                "broadcaster_user_id": user.twitch_id,
+                "moderator_user_id": user.twitch_id,
+            },
+        )
+
+    async def subscribe_subscribe(self, user: User) -> dict:
+        """Подписаться на channel.subscribe v1 (cost=0, scope: channel:read:subscriptions)."""
+        return await self._subscribe_eventsub(
+            user,
+            "channel.subscribe",
+            "1",
+            {"broadcaster_user_id": user.twitch_id},
+        )
+
+    async def subscribe_subscription_message(self, user: User) -> dict:
+        """Подписаться на channel.subscription.message v1 (cost=0, scope: channel:read:subscriptions)."""
+        return await self._subscribe_eventsub(
+            user,
+            "channel.subscription.message",
+            "1",
+            {"broadcaster_user_id": user.twitch_id},
+        )
+
+    async def unsubscribe_by_type(self, user: User, sub_type: str) -> bool:
+        """Отписаться от всех подписок заданного типа для пользователя.
+
+        Удаляет ВСЕ совпадающие подписки (Twitch иногда создаёт дубликаты).
+        Возвращает True если удалена хотя бы одна.
+        """
+        subscriptions = await self.get_subscriptions()
+        removed = False
+        for sub in subscriptions:
+            if sub.type != sub_type:
+                continue
+            cond = sub.condition
+            broadcaster_id = cond.get("broadcaster_user_id") or cond.get("to_broadcaster_user_id")
+            if broadcaster_id == str(user.twitch_id):
+                await self._twitch.delete_eventsub_subscription(subscription_id=sub.id)
+                removed = True
+        return removed
+
+    async def subscribe_stream_online(self, user: User) -> dict:
+        """Подписаться на stream.online EventSub (cost=0, scopes не требуются).
+
+        Использует app access token (client_credentials grant) с кэшем в Redis.
+        """
+        app_token = await self._get_app_access_token()
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                "https://api.twitch.tv/helix/eventsub/subscriptions",
+                headers={
+                    "Authorization": "Bearer " + app_token,
+                    "Client-Id": settings.twitch_client_id,
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "type": "stream.online",
+                    "version": "1",
+                    "condition": {
+                        "broadcaster_user_id": user.twitch_id,
+                    },
+                    "transport": {
+                        "method": "webhook",
+                        "callback": str(settings.reward_redemption_webhook) + f"/{user.twitch_id}",
+                        "secret": settings.twitch_webhook_secret.get_secret_value(),
+                    },
+                },
+            )
+            response.raise_for_status()
+            return response.json()
+
+    async def subscribe_stream_offline(self, user: User) -> dict:
+        """Подписаться на stream.offline EventSub (cost=0, scopes не требуются).
+
+        Использует app access token (client_credentials grant) с кэшем в Redis.
+        """
+        app_token = await self._get_app_access_token()
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                "https://api.twitch.tv/helix/eventsub/subscriptions",
+                headers={
+                    "Authorization": "Bearer " + app_token,
+                    "Client-Id": settings.twitch_client_id,
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "type": "stream.offline",
+                    "version": "1",
+                    "condition": {
+                        "broadcaster_user_id": user.twitch_id,
+                    },
+                    "transport": {
+                        "method": "webhook",
+                        "callback": str(settings.reward_redemption_webhook) + f"/{user.twitch_id}",
+                        "secret": settings.twitch_webhook_secret.get_secret_value(),
+                    },
+                },
+            )
+            response.raise_for_status()
+            return response.json()
+
+    async def unsubscribe_stream_online(self, user: User) -> bool:
+        """Отписаться от stream.online EventSub для конкретного пользователя."""
+        subscriptions = await self.get_subscriptions()
+        for sub in subscriptions:
+            if sub.type == "stream.online" and sub.condition.get("broadcaster_user_id") == str(user.twitch_id):
+                await self._twitch.delete_eventsub_subscription(subscription_id=sub.id)
+                return True
+        return False
+
+    async def unsubscribe_stream_offline(self, user: User) -> bool:
+        """Отписаться от stream.offline EventSub для конкретного пользователя."""
+        subscriptions = await self.get_subscriptions()
+        for sub in subscriptions:
+            if sub.type == "stream.offline" and sub.condition.get("broadcaster_user_id") == str(user.twitch_id):
+                await self._twitch.delete_eventsub_subscription(subscription_id=sub.id)
+                return True
+        return False
 
     @staticmethod
     async def get_user_access_refresh_tokens_by_authorization_code(
         authorization_code: str,
-    ) -> tuple[str, str] | None:
+    ) -> tuple[str, str, int] | None:
         async with httpx.AsyncClient() as client:
             response = await client.post(
                 "https://id.twitch.tv/oauth2/token",
@@ -525,7 +690,8 @@ class Twitch:
             try:
                 access_token = tokens["access_token"]
                 refresh_token = tokens["refresh_token"]
-                return access_token, refresh_token
+                expires_in = tokens.get("expires_in", 0)
+                return access_token, refresh_token, expires_in
             except KeyError:
                 logger.error(f"Error getting tokens from oauth. Resp: {tokens}")
                 return None
@@ -627,5 +793,7 @@ class Twitch:
             user.refresh_token,
         )
         await twitch_user.update_user_extensions(
-            UserActiveExtensions(overlay={"1": dict(active=True, id="cr20njfkgll4okyrhag7xxph270sqk", version="2.1.1")})
+            UserActiveExtensions(
+                overlay={"1": {"active": True, "id": "cr20njfkgll4okyrhag7xxph270sqk", "version": "2.1.1"}}
+            )
         )

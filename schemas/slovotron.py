@@ -1,10 +1,8 @@
 from enum import StrEnum
 from typing import Annotated, Literal
-from uuid import UUID, uuid3
+from uuid import UUID
 
 from pydantic import BaseModel, Field
-
-from config import settings
 
 
 class SlovotronNewGameDataSchema(BaseModel):
@@ -40,9 +38,6 @@ class SlovotronEvent(StrEnum):
 class SlovotronWebhookBaseSchema(BaseModel):
     channel: str
     secret: UUID
-
-    def validate_secret(self):
-        return self.secret == uuid3(namespace=settings.slovotron_secret, name=self.channel)
 
 
 class SlovotronNewWebhookSchema(SlovotronWebhookBaseSchema):

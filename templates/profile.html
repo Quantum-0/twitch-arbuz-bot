@@ -31,6 +31,23 @@
                     Twitch ID: {{ profile_user.twitch_id }}
                 </p>
 
+                <div class="profile-like" data-profile-like data-user-id="{{ profile_user.id }}">
+                    {% if user and user.id != profile_user.id %}
+                    <button class="profile-like-button{% if profile_user.is_liked %} active{% endif %}"
+                            type="button"
+                            aria-pressed="{{ 'true' if profile_user.is_liked else 'false' }}"
+                            title="{{ 'Убрать лайк' if profile_user.is_liked else 'Поставить лайк' }}">
+                        <span aria-hidden="true">♥</span>
+                        <span data-like-count>{{ profile_user.likes_count }}</span>
+                    </button>
+                    {% else %}
+                    <span class="profile-like-count" title="Количество лайков">
+                        <span aria-hidden="true">♥</span>
+                        <span data-like-count>{{ profile_user.likes_count }}</span>
+                    </span>
+                    {% endif %}
+                </div>
+
                 <!-- Индикаторы -->
                 <div style="display: flex; gap: 10px; flex-wrap: wrap; margin: 10px 0;">
 
@@ -198,7 +215,7 @@
 
     <!-- ИИ Стикеры -->
     {% if ai_stickers_enabled %}
-    <section>
+    <section id="ai-stickers-section" style="display:none">
         <h3>ИИ-стикеры</h3>
         <div class="stickers-tabs" data-tabs data-profile="{{ profile_user.login_name }}">
             <button type="button" class="tab active" data-mode="mine">На канале</button>
@@ -217,5 +234,7 @@
 {% endblock %}
 
 {% block body_scripts %}
+<script src="/static/js/notifications.js"></script>
+<script src="/static/js/profile-likes.js"></script>
 <script src="/static/js/profile-stickers.js"></script>
 {% endblock %}

@@ -2,6 +2,7 @@ from fastapi import APIRouter
 
 from routers.api.admin_api import router as admin_api_router
 from routers.api.extension import router as api_extension_router
+from routers.api.galleries import router as galleries_api_router
 from routers.api.profile_api import router as profile_api_router
 from routers.api.reference_moderation import router as reference_moderation_router
 from routers.api.slovotron_webhook import router as slovotron_api_router
@@ -11,6 +12,7 @@ from routers.robots.for_robots import router as router_for_robots  # noqa
 from routers.sse import router as sse_router
 from routers.web.extension import router as web_extension_router
 from routers.web.file_storage import router as files_router
+from routers.web.galleries import router as galleries_router
 from routers.web.memealerts_routes import router as memealerts_router
 from routers.web.obs_dock import router as obs_dock_router
 from routers.web.overlays import router as overlays_router
@@ -26,6 +28,7 @@ api_router.include_router(profile_api_router, tags=["Profile"])
 api_router.include_router(reference_moderation_router)
 api_router.include_router(slovotron_api_router, tags=["Slovotron"])
 api_router.include_router(api_extension_router, tags=["Extension"])
+api_router.include_router(galleries_api_router)
 
 # User
 user_router = APIRouter(prefix="", tags=["User"])
@@ -34,6 +37,7 @@ user_router.include_router(overlays_router)
 user_router.include_router(pages_routers)
 user_router.include_router(service_routes_router)
 user_router.include_router(files_router)
+user_router.include_router(galleries_router)
 user_router.include_router(obs_dock_router)
 user_router.include_router(memealerts_router)
 user_router.include_router(web_extension_router)

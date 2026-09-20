@@ -1,7 +1,6 @@
 import logging
 from datetime import datetime, timedelta
 from typing import Annotated, Any
-from uuid import uuid3
 
 import aiohttp
 import sqlalchemy as sa
@@ -16,14 +15,16 @@ from starlette.templating import Jinja2Templates
 
 from config import settings
 from container import Container
-from database.models import CharacterInfo, GeneratedImage, TwitchUserSettings, User
+from database.models import CharacterInfo, GeneratedImage, User, UserLike
 from dependencies import get_db
 from routers.security_helpers import admin_auth, user_auth, user_auth_optional
+from routers.web.overlays import get_temp_commands
 from schemas.enums import ChatterRole, TTSTrigger
 from services.cache import Cache
 from twitch.chat.bot import ChatBot
 from twitch.client.twitch import Twitch
 from twitch.state_manager import StateManager
+from utils.overlay_secret import ensure_overlay_secret
 from utils.reference_moderation import MIN_REFERENCE_FOLLOWERS, ensure_reference_moderator, is_reference_admin
 from utils.template_globals import register_template_globals
 from utils.tts import get_tts_settings
@@ -81,14 +82,17 @@ async def index_page(request: Request):
         307: {"description": "Возврат на главную страницу, если не авторизован"},
     },
 )
+@inject
 async def control_panel(
     request: Request,
+    db: Annotated[AsyncSession, Depends(get_db)],
     user: User | None = Security(user_auth_optional),
 ):
     # if not user.in_beta_test:
     #     return templates.TemplateResponse("beta-test.html", {"request": request})
     if not user:
         return RedirectResponse("/")
+    overlay_secret = str(await ensure_overlay_secret(db, user))
     return templates.TemplateResponse(
         "panel.html",
         {
@@ -100,7 +104,7 @@ async def control_panel(
                 "coins_for_reward": user.memealerts.coins_for_reward,
                 "enabled_v2": user.memealerts.access_token is not None,
             },
-            "slovotron_secret": str(uuid3(namespace=settings.slovotron_secret, name=user.login_name)),
+            "slovotron_secret": overlay_secret,
         },
     )
 
@@ -253,15 +257,27 @@ async def profile_page(
     twitch: Annotated[Twitch, Depends(Provide[Container.twitch])],
     user: User | None = Security(user_auth_optional),
 ):
-    profile_user_data: User = (  # type: ignore
+    likes_count = (
+        sa.select(sa.func.count(UserLike.from_user_id))
+        .where(UserLike.to_user_id == User.id)
+        .correlate(User)
+        .scalar_subquery()
+    )
+    is_liked = (
+        sa.exists().where(UserLike.from_user_id == user.id, UserLike.to_user_id == User.id)
+        if user is not None
+        else sa.false()
+    )
+    profile_row = (
         await db.execute(
-            sa.select(User)
+            sa.select(User, likes_count.label("likes_count"), is_liked.label("is_liked"))
             .options(joinedload(User.settings), joinedload(User.memealerts), joinedload(User.links))
-            .filter_by(login_name=profile_user)
+            .where(User.login_name == profile_user)
         )
-    ).scalar_one_or_none()
-    if not profile_user_data:
+    ).one_or_none()
+    if profile_row is None:
         raise HTTPException(404, "User not found")
+    profile_user_data, profile_likes_count, profile_is_liked = profile_row
     reference = (
         await db.scalar(
             sa.select(CharacterInfo)
@@ -274,6 +290,8 @@ async def profile_page(
     ai_stickers_enabled = profile_user_data.settings.ai_stickers_show_in_profile
     await db.commit()
     profile_user_dict = profile_user_data.__dict__
+    profile_user_dict["likes_count"] = profile_likes_count
+    profile_user_dict["is_liked"] = profile_is_liked
     streams = await cache.as_cached(twitch.get_streams, [profile_user_data])
     followers_count = await cache.as_cached(twitch.get_followers_count, profile_user_data)
     profile_user_dict["is_live"] = set(streams.values()) != {None}
@@ -438,6 +456,7 @@ async def command_list_page(
     streamer: Annotated[str, Query(...)],
     db: Annotated[AsyncSession, Depends(get_db)],
     chat_bot: Annotated[ChatBot, Depends(Provide[Container.chat_bot])],
+    cache: Annotated[Cache, Depends(Provide[Container.cache])],
     # streamer_id: int = Query(...),
     user: User | None = Security(user_auth_optional),
 ):
@@ -448,7 +467,11 @@ async def command_list_page(
     streamer_user = result.scalar_one_or_none()
     if not streamer_user:
         return HTTPException(404, "Streamer not found")
-    user_settings: TwitchUserSettings = streamer_user.settings
+    commands = await chat_bot.get_commands(streamer_user)
+    # Добавляем временные команды оверлеев (если оверлеи с chat_control подключены).
+    temp_cmds = await get_temp_commands(cache, streamer_user.twitch_id)
+    for cmd in temp_cmds:
+        commands.append((cmd["name"], cmd["aliases"], cmd["description"]))
     return templates.TemplateResponse(
         "streamer-commands.html",
         {
@@ -456,7 +479,7 @@ async def command_list_page(
             "request": request,
             "streamer_name": streamer_user.login_name,
             "streamer_pic": streamer_user.profile_image_url,
-            "commands": await chat_bot.get_commands(streamer_user),
+            "commands": commands,
         },
     )
 
@@ -601,6 +624,11 @@ async def roadmap_page(
                     "Проведены эксперименты с добавлением TTS, но в виду высокой стоимости серверов - отложено до момента, когда сервис обретёт достаточную финансовую поддержку через донаты; "
                     "Проведены CEO оптимизации сайта, оптимизировано взаимодействие с МА, добавлена чат-бот команда !почесать, создан прототип для автомодерации на запретки;"
                     "В соответствии с ФЗ-152 добавлены черновики необходимых документов и согласие с использованием cookies.",
+                },
+                {
+                    "date": "Сентябрь 2026",
+                    "text": "Добавил возможность оверлеям взаимодействовать с чатам и самим добавлять команды в !cmdlist при открытии. "
+                    "Добавил лайки для стримеров :з Множество прочих мелких доработок",
                 },
             ],
             "todos": [

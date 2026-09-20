@@ -1,7 +1,9 @@
 import asyncio
+import json
 import logging
+import re
 from collections import defaultdict
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import redis.asyncio as aioredis
 
@@ -17,6 +19,9 @@ logger = logging.getLogger(__name__)
 # EventSource (браузер ~3с реконнектится сам) не приводили к отмене наград.
 SSE_GRACE_TTL_S = 15
 
+# Максимальная длина regex-фильтра для SSE msg-канала.
+SSE_FILTER_MAX_LEN = 500
+
 
 def _grace_key(user_id: int, channel: SSEChannel) -> str:
     return f"sse:grace:{user_id}:{channel.value}"
@@ -25,6 +30,7 @@ def _grace_key(user_id: int, channel: SSEChannel) -> str:
 @dataclass(eq=False)
 class SSEConnection:
     queue: asyncio.Queue[str]
+    filter_re: re.Pattern[str] | None = field(default=None)
 
     def __hash__(self):
         return id(self)
@@ -43,8 +49,22 @@ class SSEManager:
     async def startup(self, redis: aioredis.Redis) -> None:
         self._r = redis
 
-    async def connect(self, user_id: int, channel: SSEChannel) -> SSEConnection:
-        conn = SSEConnection(queue=asyncio.Queue())
+    async def connect(
+        self,
+        user_id: int,
+        channel: SSEChannel,
+        filter_pattern: str | None = None,
+    ) -> SSEConnection:
+        filter_re: re.Pattern[str] | None = None
+        if filter_pattern and channel == SSEChannel.MESSAGE:
+            pattern = filter_pattern[:SSE_FILTER_MAX_LEN]
+            try:
+                filter_re = re.compile(pattern, re.IGNORECASE)
+            except re.error:
+                logger.warning("Invalid SSE filter regex: %s", pattern)
+                filter_re = None
+
+        conn = SSEConnection(queue=asyncio.Queue(), filter_re=filter_re)
 
         async with self._lock:
             self._connections[user_id][channel].add(conn)
@@ -123,10 +143,15 @@ class SSEManager:
         if not conns:
             return
 
-        # payload = json.dumps(message, ensure_ascii=False)
-
         for conn in conns:
-            # не await — чтобы один зависший клиент не тормозил всех
+            if conn.filter_re is not None:
+                try:
+                    data = json.loads(message)
+                    text = data.get("text", "")
+                except (json.JSONDecodeError, TypeError):
+                    text = message
+                if not conn.filter_re.search(text):
+                    continue
             conn.queue.put_nowait(message)
 
     async def has_clients(self, user_id: int, channel: SSEChannel | None) -> bool:

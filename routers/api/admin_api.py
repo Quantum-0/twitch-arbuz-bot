@@ -12,6 +12,7 @@ from dependencies import get_db
 from routers.security_helpers import admin_auth, user_auth
 from schemas.api import AdminBalanceResponseSchema, AdminDepositRequestSchema, AdminDepositResponseSchema
 from twitch.chat.bot import ChatBot
+from twitch.client.twitch import Twitch
 
 router = APIRouter(prefix="/admin", tags=["Admin API"])
 
@@ -84,3 +85,41 @@ async def send_message(
         raise HTTPException(status_code=404, detail="User not found")
 
     await chat_bot.send_message(res, message)
+
+
+@router.get("/eventsub/subscriptions")
+@inject
+async def get_eventsub_subscriptions(
+    twitch: Annotated[Twitch, Depends(Provide[Container.twitch])],
+    _: Annotated[None, Security(admin_auth)],
+) -> dict:
+    """Получить все EventSub-подписки сервиса с их cost.
+
+    Возвращает список всех подписок (id, type, status, condition, cost, created_at)
+    и сводку: total_count, total_cost, cost_by_type.
+    """
+    subscriptions = await twitch.get_subscriptions()
+
+    items = [
+        {
+            "id": sub.id,
+            "type": sub.type,
+            "version": sub.version,
+            "status": sub.status,
+            "condition": sub.condition,
+            "cost": sub.cost,
+            "created_at": sub.created_at.isoformat() if sub.created_at else None,
+        }
+        for sub in subscriptions
+    ]
+
+    cost_by_type: dict[str, int] = {}
+    for sub in subscriptions:
+        cost_by_type[sub.type] = cost_by_type.get(sub.type, 0) + sub.cost
+
+    return {
+        "total_count": len(subscriptions),
+        "total_cost": sum(sub.cost for sub in subscriptions),
+        "cost_by_type": cost_by_type,
+        "subscriptions": items,
+    }

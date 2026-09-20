@@ -1,17 +1,5 @@
 let coinSaveTimer = null;
 
-function showNotification(title, message, isError=false) {
-    const container = document.querySelector('.notification-container');
-    const div = document.createElement('div');
-    div.className = 'notification' + (isError ? ' error' : '');
-    div.innerHTML = `<div class="notification-header">${title}</div><div class="notification-body">${message}</div>`;
-    container.appendChild(div);
-    setTimeout(() => {
-        div.style.animation = 'fadeOutDown var(--notif-out-duration) forwards';
-        setTimeout(() => div.remove(), 250);
-    }, 4000);
-}
-
 function setupAiStickerReward(enabled) {
     fetch('/api/user/setup-ai-stickers', {
         method: 'POST',
@@ -64,7 +52,7 @@ async function updateSetting(name, value) {
 }
 
 function initToggles() {
-    document.querySelectorAll('.toggle-switch:not([data-name^="tts_"])').forEach(toggle => {
+    document.querySelectorAll('.toggle-switch:not([data-name^="tts_"]):not([id^="tg-"])').forEach(toggle => {
         toggle.addEventListener('click', () => {
             toggle.classList.toggle('active');
             if (toggle.getAttribute('role') === 'switch') {
@@ -230,6 +218,15 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
+function resetOverlaySecret() {
+    fetch('/api/user/overlay/reset-secret', {
+        method: 'POST',
+    })
+    .then(res => res.json().then(data => ({ ok: res.ok, data })))
+    .then(({ok, data}) => showNotification(data.title || 'Оверлеи', data.message, !ok))
+    .catch(err => showNotification('Ошибка', err.message, true));
+}
+
 function setupHeat() {
     ym(108266334, 'reachGoal', 'installHeat');
     fetch('/api/user/install-heat', {
@@ -271,6 +268,10 @@ function updateOverlayLink(card) {
             params.set(key, el.value);
         }
     });
+
+    if (params.get("chat_control") === "true") {
+        params.set("secret", overlay_secret);
+    }
 
     const link = base + "?" + params.toString();
     const linkDiv = card.querySelector(".overlay-link");

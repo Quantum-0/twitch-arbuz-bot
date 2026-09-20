@@ -71,6 +71,17 @@ window.addEventListener("heat:message", (e) => {
     createFirework(x, y);
 });
 
+/* ================= CHAT CONTROL ================= */
+
+window.addEventListener("chat:message", (e) => {
+    const text = (e.detail.text || "").toLowerCase();
+    if (text.startsWith("!салют")) {
+        const x = (0.2 + Math.random() * 0.6) * window.innerWidth;
+        const y = (0.2 + Math.random() * 0.6) * window.innerHeight;
+        createFirework(x, y);
+    }
+});
+
 /* ============== ЛОКАЛЬНЫЙ КЛИК (тест) ============== */
 
 canvas.addEventListener("pointerdown", (e) => {

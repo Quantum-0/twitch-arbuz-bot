@@ -1,5 +1,5 @@
 from typing import Annotated
-from uuid import UUID, uuid3
+from uuid import UUID
 
 import sqlalchemy as sa
 from fastapi import APIRouter, Depends, HTTPException, Path, Query
@@ -7,9 +7,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.requests import Request
 from starlette.templating import Jinja2Templates
 
-from config import settings
 from database.models import User
 from dependencies import get_db
+from utils.overlay_secret import ensure_overlay_secret
 from utils.template_globals import register_template_globals
 
 templates = Jinja2Templates(directory="templates")
@@ -25,8 +25,6 @@ async def slovotron_dock(
     secret: UUID = Query(),
     channel_name: str = Path(),
 ):
-    if secret != uuid3(namespace=settings.slovotron_secret, name=channel_name):
-        raise HTTPException(403, "Invalid secret")
     user: User = (
         await db.execute(  # type: ignore
             sa.select(User).where(User.login_name == channel_name)
@@ -34,6 +32,8 @@ async def slovotron_dock(
     ).scalar_one_or_none()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
+    if secret != await ensure_overlay_secret(db, user):
+        raise HTTPException(403, "Invalid secret")
     return templates.TemplateResponse(
         "docks/slovotron.html",
         {

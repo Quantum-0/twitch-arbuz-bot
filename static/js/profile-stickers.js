@@ -30,11 +30,20 @@ function renderSticker(item) {
 
 const tabsContainer = document.querySelector('.stickers-tabs[data-tabs]');
 const profileLogin = tabsContainer?.dataset.profile || '';
+const stickersSection = document.getElementById('ai-stickers-section');
 
 let cursor = null;
 let finished = false;
 let loading = false;
 let mode = 'mine';
+let sectionVisible = false;
+
+function showStickersSection() {
+    if (!sectionVisible && stickersSection) {
+        stickersSection.style.display = '';
+        sectionVisible = true;
+    }
+}
 
 async function loadMore() {
     if (finished || loading) return;
@@ -52,13 +61,15 @@ async function loadMore() {
         }
         const data = await response.json();
         if (!data.items) return;
+        if (data.items.length > 0) showStickersSection();
         const grid = document.getElementById('ai-stickers-grid');
         data.items.forEach(item => grid.appendChild(renderSticker(item)));
         cursor = data.next_cursor;
         if (!cursor) {
             finished = true;
             if (btn) btn.style.display = 'none';
-            document.getElementById('stickers-end').style.display = 'block';
+            const end = document.getElementById('stickers-end');
+            if (end && sectionVisible) end.style.display = 'block';
         }
     } catch (e) {
         profileNotify('Ошибка', e.message || 'Сетевая ошибка при загрузке стикеров.', true);

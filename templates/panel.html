@@ -8,11 +8,13 @@
 {% endblock %}
 
 {% block head_scripts %}
+<script src="{{ static_url('js/notifications.js') }}"></script>
 <script src="{{ static_url('js/panel-scripts.js') }}"></script>
 <script>
     const channel_id = {{ user.twitch_id }};
     const channel_name = "{{ user.login_name }}";
     const slovotron_secret = "{{ slovotron_secret }}";
+    const overlay_secret = "{{ slovotron_secret }}";
 </script>
 {% endblock %}
 
@@ -30,6 +32,10 @@
 
 <section>
 {% include "panel/other.html" %}
+</section>
+
+<section>
+{% include "panel/telegram.html" %}
 </section>
 
 <section>
