@@ -63,10 +63,12 @@ class Cache:
                 raise
 
     async def __set_set(self, name: str, values: set[str], ttl: int = 3600) -> None:
+        key = f"cache:{name}"
         async with self._r.pipeline(transaction=True) as pipe:
-            pipe.delete(f"cache:{name}")
-            pipe.sadd(f"cache:{name}", *values)
-            pipe.expire(f"cache:{name}", ttl)
+            pipe.delete(key)
+            if values:
+                pipe.sadd(key, *values)
+                pipe.expire(key, ttl)
             await pipe.execute()
 
     async def get_set(self, name: str, no_error: bool = True) -> set[str]:
