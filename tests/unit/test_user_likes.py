@@ -1,6 +1,7 @@
 # ruff: noqa: S101, S106
 
 from datetime import datetime, timedelta
+from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 import pytest
@@ -80,7 +81,7 @@ async def test_like_is_idempotent_and_returns_current_count():
     target = _user(2, "target")
     db = AsyncMock()
     db.get.return_value = target
-    db.scalar.return_value = 7
+    db.execute.return_value.one.return_value = SimpleNamespace(likes_count=7)
 
     result = await like_user(target.id, db, actor)
 
@@ -96,7 +97,7 @@ async def test_unlike_is_idempotent_and_returns_current_count():
     target = _user(2, "target")
     db = AsyncMock()
     db.get.return_value = target
-    db.scalar.return_value = 0
+    db.execute.return_value.one.return_value = SimpleNamespace(likes_count=0)
 
     result = await unlike_user(target.id, db, actor)
 
