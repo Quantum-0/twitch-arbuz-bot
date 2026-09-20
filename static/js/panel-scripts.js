@@ -1,17 +1,5 @@
 let coinSaveTimer = null;
 
-function showNotification(title, message, isError=false) {
-    const container = document.querySelector('.notification-container');
-    const div = document.createElement('div');
-    div.className = 'notification' + (isError ? ' error' : '');
-    div.innerHTML = `<div class="notification-header">${title}</div><div class="notification-body">${message}</div>`;
-    container.appendChild(div);
-    setTimeout(() => {
-        div.style.animation = 'fadeOutDown var(--notif-out-duration) forwards';
-        setTimeout(() => div.remove(), 250);
-    }, 4000);
-}
-
 function setupAiStickerReward(enabled) {
     fetch('/api/user/setup-ai-stickers', {
         method: 'POST',
