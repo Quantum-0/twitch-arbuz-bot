@@ -28,17 +28,22 @@ async def like_user(
     if user.id == target_user_id:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="You cannot like yourself")
     await _get_target(db, target_user_id)
-    stmt = (
+    ins = (
         insert(UserLike)
         .values(from_user_id=user.id, to_user_id=target_user_id)
         .on_conflict_do_nothing(index_elements=[UserLike.from_user_id, UserLike.to_user_id])
+        .returning(UserLike.to_user_id)
     )
-    await db.execute(stmt)
+    ins_cte = ins.cte("ins")
+    count_subq = (
+        sa.select(sa.func.count(UserLike.from_user_id))
+        .where(UserLike.to_user_id == target_user_id)
+        .scalar_subquery()
+    )
+    stmt = sa.select(count_subq.label("likes_count"), sa.exists(ins_cte).label("changed"))
+    row = (await db.execute(stmt)).one()
     await db.commit()
-    likes_count = await db.scalar(
-        sa.select(sa.func.count(UserLike.from_user_id)).where(UserLike.to_user_id == target_user_id)
-    )
-    return {"liked": True, "likes_count": likes_count or 0}
+    return {"liked": True, "likes_count": row.likes_count or 0}
 
 
 @router.delete("/{target_user_id}")
@@ -50,14 +55,18 @@ async def unlike_user(
     if user.id == target_user_id:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="You cannot like yourself")
     await _get_target(db, target_user_id)
-    await db.execute(
-        sa.delete(UserLike).where(
-            UserLike.from_user_id == user.id,
-            UserLike.to_user_id == target_user_id,
-        )
+    del_stmt = (
+        sa.delete(UserLike)
+        .where(UserLike.from_user_id == user.id, UserLike.to_user_id == target_user_id)
+        .returning(UserLike.to_user_id)
     )
+    del_cte = del_stmt.cte("del")
+    count_subq = (
+        sa.select(sa.func.count(UserLike.from_user_id))
+        .where(UserLike.to_user_id == target_user_id)
+        .scalar_subquery()
+    )
+    stmt = sa.select(count_subq.label("likes_count"), sa.exists(del_cte).label("changed"))
+    row = (await db.execute(stmt)).one()
     await db.commit()
-    likes_count = await db.scalar(
-        sa.select(sa.func.count(UserLike.from_user_id)).where(UserLike.to_user_id == target_user_id)
-    )
-    return {"liked": False, "likes_count": likes_count or 0}
+    return {"liked": False, "likes_count": row.likes_count or 0}

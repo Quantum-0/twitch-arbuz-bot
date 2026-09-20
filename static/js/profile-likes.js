@@ -21,7 +21,7 @@
             button.title = data.liked ? "Убрать лайк" : "Поставить лайк";
             container.querySelector("[data-like-count]").textContent = data.likes_count;
         } catch (_error) {
-            window.alert("Не удалось изменить лайк. Попробуйте ещё раз.");
+            showNotification("Ошибка", "Не удалось изменить лайк. Попробуйте ещё раз.", true);
         } finally {
             button.disabled = false;
         }

@@ -155,7 +155,13 @@
             if (row.is_live) {
                 node.querySelector(".live-indicator").hidden = false;
             }
-            node.querySelector(".streamer-likes span:last-child").textContent = row.likes_count;
+            const likesNode = node.querySelector(".streamer-likes");
+            if (row.likes_count > 0) {
+                likesNode.querySelector("span:last-child").textContent = row.likes_count;
+                likesNode.hidden = false;
+            } else {
+                likesNode.hidden = true;
+            }
             fragment.appendChild(node);
         }
         els.grid.appendChild(fragment);
