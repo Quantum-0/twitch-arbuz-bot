@@ -1217,20 +1217,33 @@ section h3 {
     color: #ff6685;
     font-size: 12px;
     line-height: 1.2;
+    user-select: none;
 }
 .profile-like-button,
 .profile-like-count {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
+    gap: 8px;
+    margin-top: 8px;
+    padding: 10px 18px;
+    border-radius: 12px;
+    font-size: 18px;
+    line-height: 1;
     color: var(--color-text);
 }
 .profile-like-button {
     background: var(--color-bg-secondary);
     border: 2px solid var(--color-border);
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s;
+}
+.profile-like-button:hover {
+    border-color: #ff6685;
 }
 .profile-like-button span:first-child,
 .profile-like-count span:first-child {
+    font-size: 24px;
+    line-height: 1;
     color: #ff6685;
 }
 .profile-like-button.active {

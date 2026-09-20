@@ -35,12 +35,12 @@ async def like_user(
         .returning(UserLike.to_user_id)
     )
     ins_cte = ins.cte("ins")
-    count_subq = (
-        sa.select(sa.func.count(UserLike.from_user_id))
-        .where(UserLike.to_user_id == target_user_id)
-        .scalar_subquery()
+    pre_count = (
+        sa.select(sa.func.count(UserLike.from_user_id)).where(UserLike.to_user_id == target_user_id).scalar_subquery()
     )
-    stmt = sa.select(count_subq.label("likes_count"), sa.exists(ins_cte).label("changed"))
+    # CTE и основной SELECT видят один snapshot — count не учитывает только что вставленную строку.
+    # Корректируем на 1, если INSERT действительно добавил строку (иначе ON CONFLICT её пропустил).
+    stmt = sa.select((pre_count + sa.case((sa.exists(ins_cte), 1), else_=0)).label("likes_count"))
     row = (await db.execute(stmt)).one()
     await db.commit()
     return {"liked": True, "likes_count": row.likes_count or 0}
@@ -61,12 +61,12 @@ async def unlike_user(
         .returning(UserLike.to_user_id)
     )
     del_cte = del_stmt.cte("del")
-    count_subq = (
-        sa.select(sa.func.count(UserLike.from_user_id))
-        .where(UserLike.to_user_id == target_user_id)
-        .scalar_subquery()
+    pre_count = (
+        sa.select(sa.func.count(UserLike.from_user_id)).where(UserLike.to_user_id == target_user_id).scalar_subquery()
     )
-    stmt = sa.select(count_subq.label("likes_count"), sa.exists(del_cte).label("changed"))
+    # CTE и основной SELECT видят один snapshot — count не учитывает только что удалённую строку.
+    # Корректируем на -1, если DELETE действительно удалил строку.
+    stmt = sa.select((pre_count - sa.case((sa.exists(del_cte), 1), else_=0)).label("likes_count"))
     row = (await db.execute(stmt)).one()
     await db.commit()
     return {"liked": False, "likes_count": row.likes_count or 0}

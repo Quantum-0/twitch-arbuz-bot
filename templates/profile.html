@@ -23,6 +23,14 @@
                     {{ profile_user.login_name }}
                 </h2>
 
+                <p style="color: var(--color-text-muted); margin-top: 5px;">
+                    ID: {{ profile_user.id }}
+                </p>
+
+                <p style="color: var(--color-text-muted); margin-top: 5px;">
+                    Twitch ID: {{ profile_user.twitch_id }}
+                </p>
+
                 <div class="profile-like" data-profile-like data-user-id="{{ profile_user.id }}">
                     {% if user and user.id != profile_user.id %}
                     <button class="profile-like-button{% if profile_user.is_liked %} active{% endif %}"
@@ -39,14 +47,6 @@
                     </span>
                     {% endif %}
                 </div>
-
-                <p style="color: var(--color-text-muted); margin-top: 5px;">
-                    ID: {{ profile_user.id }}
-                </p>
-
-                <p style="color: var(--color-text-muted); margin-top: 5px;">
-                    Twitch ID: {{ profile_user.twitch_id }}
-                </p>
 
                 <!-- Индикаторы -->
                 <div style="display: flex; gap: 10px; flex-wrap: wrap; margin: 10px 0;">
