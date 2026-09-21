@@ -25,6 +25,7 @@ from twitch.chat.bot import ChatBot
 from twitch.client.twitch import Twitch
 from twitch.state_manager import StateManager
 from utils.overlay_secret import ensure_overlay_secret
+from utils.reference_moderation import MIN_REFERENCE_FOLLOWERS, ensure_reference_moderator, is_reference_admin
 from utils.template_globals import register_template_globals
 from utils.tts import get_tts_settings
 
@@ -141,6 +142,9 @@ async def ai_stickers_page(
             "user": user,
             "settings": user.settings,
             "reference": reference,
+            "reference_upload_allowed": user.followers_count is not None
+            and user.followers_count >= MIN_REFERENCE_FOLLOWERS
+            or is_reference_admin(user.login_name),
             "ai_stickers": stickers,
         },
     )
@@ -275,7 +279,11 @@ async def profile_page(
         raise HTTPException(404, "User not found")
     profile_user_data, profile_likes_count, profile_is_liked = profile_row
     reference = (
-        await db.scalar(sa.select(CharacterInfo).where(CharacterInfo.name == profile_user.lower()))
+        await db.scalar(
+            sa.select(CharacterInfo)
+            .where(CharacterInfo.name == profile_user.lower())
+            .where(CharacterInfo.approved.is_(True))
+        )
         if profile_user_data.settings.ai_reference_show_in_profile
         else None
     )
@@ -312,6 +320,26 @@ async def profile_page(
             "ai_stickers_enabled": ai_stickers_enabled,
             "reference": reference,
         },
+    )
+
+
+@router.get("/moderation/references", response_class=HTMLResponse)
+async def reference_moderation_page(
+    request: Request,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    user: Annotated[User, Security(user_auth)],
+):
+    ensure_reference_moderator(user)
+    rows = (
+        await db.execute(
+            sa.select(CharacterInfo, User.login_name, User.profile_image_url)
+            .outerjoin(User, sa.func.lower(User.login_name) == CharacterInfo.name)
+            .order_by(CharacterInfo.updated_at.desc(), CharacterInfo.created_at.desc())
+        )
+    ).all()
+    return templates.TemplateResponse(
+        "moderation/references.html",
+        {"request": request, "user": user, "references": rows},
     )
 
 

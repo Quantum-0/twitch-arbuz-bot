@@ -31,8 +31,13 @@
 
 <section>
     <h2>Ваш персонаж</h2>
+    {% if not reference_upload_allowed %}
+    <p class="overlay-copy-hint">Загрузка референса доступна стримерам с 20 или более фолловерами.</p>
+    {% endif %}
+    {% if reference and reference.approved is none %}<p>Статус: ожидает модерации.</p>{% endif %}
+    {% if reference and reference.approved is sameas false %}<p>Статус: отклонён модератором.</p>{% endif %}
     <p>Можно сохранить PNG-референс, текстовое описание или оба варианта. При упоминании <b>@{{ user.login_name }}</b> бот добавит эти данные к генерации.</p>
-    <form id="reference-form" class="ai-settings-form">
+    <form id="reference-form" class="ai-settings-form" {% if not reference_upload_allowed %}hidden{% endif %}>
         <label>Изображение персонажа (PNG до 10 МБ)</label>
         <input type="file" id="reference-file" name="file" accept="image/png">
         <small>Текущий референс: {{ "загружен" if reference and reference.file_id else "не загружен" }}.</small>

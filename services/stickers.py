@@ -207,6 +207,7 @@ class StickersService:
                 .outerjoin(User, sa.func.lower(User.login_name) == CharacterInfo.name)
                 .outerjoin(TwitchUserSettings, TwitchUserSettings.user_id == User.id)
                 .where(CharacterInfo.name.in_(search_names))
+                .where(CharacterInfo.approved.is_(True))
             )
             rows = (await session.execute(q)).all()
 
