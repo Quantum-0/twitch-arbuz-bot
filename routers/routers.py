@@ -18,6 +18,7 @@ from routers.web.obs_dock import router as obs_dock_router
 from routers.web.overlays import router as overlays_router
 from routers.web.pages import router as pages_routers
 from routers.web.service_routes import router as service_routes_router
+from routers.web.steam_routes import router as steam_router
 
 # API
 api_router = APIRouter(prefix="/api", tags=["API"])
@@ -40,4 +41,5 @@ user_router.include_router(files_router)
 user_router.include_router(galleries_router)
 user_router.include_router(obs_dock_router)
 user_router.include_router(memealerts_router)
+user_router.include_router(steam_router)
 user_router.include_router(web_extension_router)

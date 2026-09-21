@@ -105,6 +105,9 @@ class Settings(BaseSettings):
     telegram_service_url: str = "http://localhost:8001"
     telegram_service_api_key: str = "changeme"
     base_url: str = "https://bot.quantum0.ru"
+    # Steam Web API key (https://steamcommunity.com/dev/apikey)
+    steam_api_key: SecretStr = SecretStr("")
+    steam_return_to_url: AnyHttpUrl = "https://bot.quantum0.ru/auth/steam/callback"
 
     @property
     def login_twitch_url(self) -> str:

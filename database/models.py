@@ -216,6 +216,7 @@ class TwitchUserSettings(Base):
     enable_youtube_link: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false(), nullable=False)
     enable_memealerts_link: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false(), nullable=False)
     enable_links_command: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false(), nullable=False)
+    enable_steam_link: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false(), nullable=False)
 
     enable_bite: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false(), nullable=False)
     enable_lick: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false(), nullable=False)
@@ -435,6 +436,11 @@ class Links(Base):
         default=None,
         nullable=True,
     )
+    # Steam OpenID: steamID64 (например, 76561198073593788). NULL — Steam не привязан.
+    steam_id: Mapped[str | None] = mapped_column(String, nullable=True, default=None)
+    # profileurl из ISteamUser/GetPlayerSummaries (например,
+    # https://steamcommunity.com/profiles/76561198073593788/ или .../id/customname/).
+    steam: Mapped[str | None] = mapped_column(String, nullable=True, default=None)
 
     user: Mapped["User"] = relationship("User", back_populates="links")
 

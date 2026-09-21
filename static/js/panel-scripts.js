@@ -227,6 +227,32 @@ function resetOverlaySecret() {
     .catch(err => showNotification('Ошибка', err.message, true));
 }
 
+function linkSteam() {
+    window.location.href = '/auth/steam';
+}
+
+function unlinkSteam() {
+    fetch('/api/user/steam/unlink', {
+        method: 'POST',
+    })
+    .then(res => res.json().then(data => ({ ok: res.ok, data })))
+    .then(({ok, data}) => {
+        showNotification(data.title || 'Steam', data.message, !ok);
+        if (ok) {
+            // Перерисовываем блок Steam, чтобы заменить кнопку на «Привязать».
+            const steamBtn = document.querySelector('.btn-danger[onclick="unlinkSteam()"]');
+            if (steamBtn) {
+                const newBtn = document.createElement('button');
+                newBtn.className = 'install-btn';
+                newBtn.setAttribute('onclick', 'linkSteam()');
+                newBtn.textContent = 'Привязать Steam';
+                steamBtn.replaceWith(newBtn);
+            }
+        }
+    })
+    .catch(err => showNotification('Ошибка', err.message, true));
+}
+
 function setupHeat() {
     ym(108266334, 'reachGoal', 'installHeat');
     fetch('/api/user/install-heat', {

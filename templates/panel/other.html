@@ -14,3 +14,13 @@
     <p><small>Секретный ключ для авторизации оверлеев (управление из чата, словотрон). Если ключ скомпрометирован, вы можете сбросить его. После сброса обновите ссылки на оверлеи в OBS.</small></p>
     <button class="install-btn" onclick="resetOverlaySecret()">Сбросить ключ оверлеев</button>
 </div>
+
+<div style="margin-top: 20px;">
+    <h4>Steam</h4>
+    {% if user.links.steam_id %}
+        <button class="btn-danger" onclick="unlinkSteam()">Отвязать Steam</button>
+    {% else %}
+        <button class="install-btn" onclick="linkSteam()">Привязать Steam</button>
+    {% endif %}
+    <p><small>Это позволит использовать команду !стим и добавит ссылку на ваш стим в команду !ссылки</small></p>
+</div>

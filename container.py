@@ -19,6 +19,7 @@ from services.s3 import FileStorage
 from services.slovotron import SlovotronService
 from services.sse_manager import SSEManager
 from services.statistics import StatisticsService
+from services.steam import SteamService
 from services.stickers import StickersService
 from services.stickers_processor import StickerProcessor
 from services.tts import TTSService
@@ -41,11 +42,13 @@ class Container(containers.DeclarativeContainer):
             "routers.api.user.eventsub",
             "routers.api.user.streamers",
             "routers.api.user.stats",
+            "routers.api.user.steam",
             "routers.api.user.telegram",
             "routers.api.user.checks",
             "routers.api.slovotron_webhook",
             "routers.web.service_routes",
             "routers.web.memealerts_routes",
+            "routers.web.steam_routes",
             "routers.web.pages",
             "routers.web.galleries",
             "routers.web.overlays",
@@ -126,6 +129,7 @@ class Container(containers.DeclarativeContainer):
         db_session_factory=db_session_factory,
         statistics=statistics,
     )
+    steam_service = providers.Singleton(SteamService)
     twitch_eventsub_service = providers.Singleton(
         TwitchEventSubService,
         twitch=twitch,

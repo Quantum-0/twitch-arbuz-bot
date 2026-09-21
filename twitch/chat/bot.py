@@ -128,6 +128,7 @@ class ChatBot:
         self._command_manager.register(LinkYoutubeCommand)
         self._command_manager.register(LinksCommand)
         self._command_manager.register(MemealertsLinkCommand)
+        self._command_manager.register(SteamCommand)
 
         # chat.register_event(ChatEvent.MESSAGE, on_message)
         logger.debug("On_message handler registered")

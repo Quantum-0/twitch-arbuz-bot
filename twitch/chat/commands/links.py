@@ -35,6 +35,8 @@ class LinksCommand(SimpleCDCommand):
             parts.append(f"YouTube: youtube.com/{links.youtube}")
         if settings.enable_memealerts_link and settings.memealerts_link:
             parts.append(f"Memealerts: https://memealerts.com/{settings.memealerts_link}")
+        if settings.enable_steam_link and links.steam:
+            parts.append(f"Steam: {links.steam}")
 
         if not parts:
             return "Ссылки не указаны."

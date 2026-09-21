@@ -19,6 +19,7 @@ from .pants_deny import PantsDenyCommand
 from .pasta import PastaCommand
 from .pat import PatCommand
 from .scratch import ScratchCommand
+from .steam import SteamCommand
 from .tail import TailCommand
 from .tg import LinkTgCommand
 from .tiktok import LinkTiktokCommand
@@ -51,6 +52,7 @@ __all__ = [
     "PastaCommand",
     "PatCommand",
     "ScratchCommand",
+    "SteamCommand",
     "TailCommand",
     "TreatCommand",
     "WhoAmICommand",
