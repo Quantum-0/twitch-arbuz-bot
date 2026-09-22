@@ -223,8 +223,8 @@ async def check_telegram(
 
     # 1. Проверка доступности TG-сервиса.
     try:
-        async with httpx.AsyncClient(timeout=5.0) as client:
-            resp = await client.get(f"{settings.telegram_service_url}/healthcheck")
+        async with httpx.AsyncClient(timeout=2.0) as client:
+            resp = await client.get(f"{settings.telegram_service_url}/api/healthcheck")
     except httpx.HTTPError:
         return CheckStatusResponseSchema(result=False, problems=["TG-сервис недоступен"])
     if resp.status_code != 200:
