@@ -17,10 +17,10 @@
 
 <div style="margin-top: 20px;">
     <h4>Steam</h4>
+    <p><small>Это позволит использовать команду !стим и добавит ссылку на ваш стим в команду !ссылки</small></p>
     {% if user.links.steam_id %}
         <button class="btn-danger" onclick="unlinkSteam()">Отвязать Steam</button>
     {% else %}
-        <button class="install-btn" onclick="linkSteam()">Привязать Steam</button>
+        <a href="/auth/steam"><img src="https://shared.fastly.steamstatic.com/community_assets/images/steamworks_docs/russian/sits_large_border.png"/></a>
     {% endif %}
-    <p><small>Это позволит использовать команду !стим и добавит ссылку на ваш стим в команду !ссылки</small></p>
 </div>
