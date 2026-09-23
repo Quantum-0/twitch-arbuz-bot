@@ -24,6 +24,7 @@ DEFAULT_TELEGRAM = {
     "stream_message_template": None,
     "clips_enabled": False,
     "clips_mode": "all",
+    "clips_delivery": "link",
     "stickers_enabled": False,
     "stickers_mode": "photo",
     "twitch_to_tg_enabled": False,
@@ -42,6 +43,7 @@ def get_telegram_settings(user: User) -> TelegramSettings:
         stream_offline_behavior=DEFAULT_TELEGRAM["stream_offline_behavior"],
         clips_enabled=DEFAULT_TELEGRAM["clips_enabled"],
         clips_mode=DEFAULT_TELEGRAM["clips_mode"],
+        clips_delivery=DEFAULT_TELEGRAM["clips_delivery"],
         stickers_enabled=DEFAULT_TELEGRAM["stickers_enabled"],
         stickers_mode=DEFAULT_TELEGRAM["stickers_mode"],
         twitch_to_tg_enabled=DEFAULT_TELEGRAM["twitch_to_tg_enabled"],
@@ -62,6 +64,7 @@ async def ensure_telegram_settings(db: AsyncSession, user: User) -> TelegramSett
             stream_offline_behavior=DEFAULT_TELEGRAM["stream_offline_behavior"],
             clips_enabled=DEFAULT_TELEGRAM["clips_enabled"],
             clips_mode=DEFAULT_TELEGRAM["clips_mode"],
+            clips_delivery=DEFAULT_TELEGRAM["clips_delivery"],
             stickers_enabled=DEFAULT_TELEGRAM["stickers_enabled"],
             stickers_mode=DEFAULT_TELEGRAM["stickers_mode"],
         )
