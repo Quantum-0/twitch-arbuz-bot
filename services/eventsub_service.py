@@ -367,7 +367,7 @@ class TwitchEventSubService:
             self._inc_reward("failed", StatsType.REWARD_MEMECOINS)
             await self._chatbot.send_message(
                 user,
-                f"Ошибка начисления мемкоинов: Memealerts не принял установленный токен. @{user.login_name}, перелогинься на сайте Memealerts и обнови токен, пожалуйста.",
+                f"Ошибка начисления мемкоинов: Memealerts не принял установленный токен.",
             )
             await self._cancel_redemption(user, payload)
         except (MAInvalidTokenError, MAInvalidScopeError, MANoToken):
