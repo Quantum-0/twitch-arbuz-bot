@@ -293,7 +293,7 @@ function renderMessage(text, emotes) {
 
 function bubbleHtml(msg) {
   const nick = CONFIG.chat.showNick
-    ? `<span class="bubble-nick" style="color:${msg.color}">${escapeHtml(msg.display_name || msg.username || '')}</span><br>` : '';
+    ? `<span class="bubble-nick" style="color:${msg.color}">${escapeHtml(msg.name || '')}</span><br>` : '';
   return `${nick}<span class="bubble-text">${renderMessage(msg.text, msg.emotes)}</span>`;
 }
 
