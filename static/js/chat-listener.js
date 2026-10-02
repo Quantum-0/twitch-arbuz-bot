@@ -29,6 +29,7 @@
 
     let sseReconnectTimer = null;
     let sseSilenceTimer = null;
+    let sseFallbackTimer = null;
     let sseAttempt = 0;
     let sseLastMessageAt = 0;
     let sseConnecting = false;
@@ -69,6 +70,10 @@
             sseAttempt = 0;
             sseConnecting = false;
             sseLastMessageAt = Date.now();
+            if (sseFallbackTimer) {
+                clearTimeout(sseFallbackTimer);
+                sseFallbackTimer = null;
+            }
             stopIRC();
             startSilenceTimer();
         };
@@ -76,6 +81,9 @@
         es.onmessage = (e) => {
             if (es !== sseTransport) return;
             sseLastMessageAt = Date.now();
+            // Сообщение дошло по SSE — полный путь (Twitch → бот → SSE) работает.
+            // Гасим IRC-fallback, иначе каждое сообщение дублируется из двух транспортов.
+            if (ircClient || ircConnecting) stopIRC();
             handleSSEMessage(e.data);
         };
 
@@ -119,6 +127,9 @@
             clearTimeout(sseReconnectTimer);
             sseReconnectTimer = null;
         }
+        // sseFallbackTimer здесь сознательно НЕ снимаем: он должен пережить
+        // промежуточные cleanupSSE() внутри connectSSE() при повторных попытках
+        // реконнекта. Снимается только успешным onopen.
         if (sseTransport) {
             try {
                 sseTransport.onopen = null;
@@ -148,6 +159,17 @@
             sseReconnectTimer = null;
             connectSSE();
         }, delay);
+
+        // Если за SSE_SILENCE_TIMEOUT не переподключимся (сервер недоступен) —
+        // поднимаем IRC-fallback, чтобы чат в оверлее не молчал весь сбой.
+        // При успешном reconnect onopen снимет таймер и остановит IRC.
+        if (!sseFallbackTimer) {
+            sseFallbackTimer = setTimeout(() => {
+                sseFallbackTimer = null;
+                warn(`SSE unreachable for ${SSE_SILENCE_TIMEOUT}ms, starting IRC fallback`);
+                startIRC();
+            }, SSE_SILENCE_TIMEOUT);
+        }
     }
 
     /* ---------------- IRC fallback (tmi.js) ---------------- */

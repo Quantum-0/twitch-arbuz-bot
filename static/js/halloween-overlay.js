@@ -303,6 +303,11 @@ function bubbleDuration(text) {
 }
 
 function onChatMessage(msg, forceSpider = false) {
+  // XSS-защита: цвет вставляется в style и CSS-переменные — пропускаем только hex.
+  // Основная валидация в onChatMessageEvent, здесь — защита от будущих вызовов.
+  if (!/^#[0-9a-f]{6}$/i.test(msg.color || '')) {
+    msg.color = fallbackColor(msg.name || msg.username || '');
+  }
   const ms = bubbleDuration(msg.text);
 
   if (forceSpider || Math.random() < CONFIG.spider.chance) {
@@ -472,11 +477,29 @@ function subscribeEventSub() {
 
 /* ================== 10. ЧАТ через chat-listener.js ================== */
 
+// Окно дедупликации: chat-listener может доставить одно и то же сообщение
+// по двум транспортам (SSE + IRC fallback) почти одновременно.
+const DUPLICATE_MSG_WINDOW_MS = 2000;
+const recentChatMsgs = new Map(); // `${username}\u0000${text}` -> timestamp показа
+
+function isDuplicateChatMsg(msg) {
+  const now = Date.now();
+  for (const [key, shownAt] of recentChatMsgs) {
+    if (now - shownAt > DUPLICATE_MSG_WINDOW_MS) recentChatMsgs.delete(key);
+  }
+  const key = `${msg.username || ''}\u0000${msg.text}`;
+  const shownAt = recentChatMsgs.get(key);
+  if (shownAt !== undefined && now - shownAt <= DUPLICATE_MSG_WINDOW_MS) return true;
+  recentChatMsgs.set(key, now);
+  return false;
+}
+
 function onChatMessageEvent(e) {
   const msg = e.detail;
   if (!msg || !msg.text) return;
 
   if (CONFIG.chat.ignoreUsers.includes(msg.username)) return;
+  if (isDuplicateChatMsg(msg)) return;
 
   const color = /^#[0-9a-f]{6}$/i.test(msg.color || '') ? msg.color : fallbackColor(msg.username || '');
 
