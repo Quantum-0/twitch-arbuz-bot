@@ -596,7 +596,7 @@ function buildDebugPanel() {
   add('Подписка', () => handleServerEvent({ type: 'sub', user: pick(TEST_NAMES) }));
   add('Ресаб', () => handleServerEvent({ type: 'resub', user: pick(TEST_NAMES), months: 7 }));
   add('Рейд 5', () => handleServerEvent({ type: 'raid', user: 'RaiderX', count: 5 }));
-  add('Рейд 30', () => handleServerEvent({ type: 'raid', user: 'RaiderX', count: 30 }));
+  add('Рейд 30', () => handleServerEvent({ type: 'raid', user: 'RaiderY', count: 30 }));
   document.body.appendChild(panel);
 }
 
