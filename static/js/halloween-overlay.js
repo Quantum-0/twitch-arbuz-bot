@@ -51,7 +51,10 @@ const CONFIG = {
   },
 
   raid: {
-    maxGhosts: 250,
+    maxGhosts: 500,
+    viewersMultiplier: 3,
+    spawnDurationMs: 2500,
+    delayMs: 10000,
     width: [120, 230],
     speed: [260, 400],
     amp: [40, 230],
@@ -132,6 +135,8 @@ let nextLeafIn = 0;
 
 let windX = 0;
 
+const pendingRaidGhosts = [];
+
 function frame(now) {
   const dt = Math.min(0.05, (now - lastFrame) / 1000);
   lastFrame = now;
@@ -145,6 +150,11 @@ function frame(now) {
   if (windX !== 0) {
     const step = Math.sign(windX) * CONFIG.wind.decay * dt;
     windX = Math.sign(windX) !== Math.sign(windX - step) ? 0 : windX - step;
+  }
+
+  while (pendingRaidGhosts.length && pendingRaidGhosts[0] <= now) {
+    pendingRaidGhosts.shift();
+    spawnRaidGhost();
   }
 
   for (const a of actors) {
@@ -412,14 +422,36 @@ function spawnRaidGhost() {
 }
 
 function launchRaid(count) {
-  const n = clamp(Math.floor(count) || 1, 1, CONFIG.raid.maxGhosts);
-  if (n < count) console.warn(`Рейд ${count}: показано ${n} (raid.maxGhosts)`);
+  const R = CONFIG.raid;
+  const wanted = Math.floor(count) * R.viewersMultiplier;
+  const n = clamp(wanted || 1, 1, R.maxGhosts);
+  if (n < wanted) console.warn(`Рейд ${count} зрителей: ${wanted} призраков, показано ${n} (raid.maxGhosts)`);
   playSound('raid');
-  for (let i = 0; i < n; i++) spawnRaidGhost();
+  const now = performance.now();
+  for (let i = 0; i < n; i++) pendingRaidGhosts.push(now + rand(0, R.spawnDurationMs));
+  pendingRaidGhosts.sort((a, b) => a - b);
 }
 
 
 /* ================== 8. СОБЫТИЯ ОТ BACKEND (SSE twitch-events) ========== */
+
+// EventSub может доставить один и тот же рейд повторно (retry). Дублем считается
+// рейд от того же стримера в течение окна — фиксируем в момент получения события,
+// а не после задержки delayMs.
+const RAID_DEDUP_WINDOW_MS = 60000;
+const recentRaids = new Map(); // raider -> timestamp получения
+
+function isDuplicateRaid(ev) {
+  const now = Date.now();
+  for (const [raider, at] of recentRaids) {
+    if (now - at > RAID_DEDUP_WINDOW_MS) recentRaids.delete(raider);
+  }
+  const key = ev.user || '';
+  const at = recentRaids.get(key);
+  if (at !== undefined && now - at <= RAID_DEDUP_WINDOW_MS) return true;
+  recentRaids.set(key, now);
+  return false;
+}
 
 function handleServerEvent(ev) {
   switch (ev.type) {
@@ -429,7 +461,11 @@ function handleServerEvent(ev) {
       queueGhost(ev);
       break;
     case 'raid':
-      launchRaid(Number(ev.count) || 1);
+      if (isDuplicateRaid(ev)) {
+        console.warn('[halloween] Дубль рейда, пропущен:', ev);
+        break;
+      }
+      setTimeout(() => launchRaid(Number(ev.count) || 1), CONFIG.raid.delayMs);
       break;
     default:
       console.warn('Неизвестное событие', ev);
@@ -503,12 +539,23 @@ function onChatMessageEvent(e) {
 
   const color = /^#[0-9a-f]{6}$/i.test(msg.color || '') ? msg.color : fallbackColor(msg.username || '');
 
-  onChatMessage({
+  const message = {
     name: msg.display_name || msg.username || '',
     color,
     text: msg.text,
     emotes: msg.emotes || [],
-  });
+  };
+
+  // Ответы Quantum075Bot всегда показывает паук — проверка до фильтра "!".
+  if ((msg.username || '').toLowerCase() === 'quantum075bot') {
+    onChatMessage(message, true);
+    return;
+  }
+
+  // Команды чата (!...) тыквы не показывают.
+  if (msg.text.trimStart().startsWith('!')) return;
+
+  onChatMessage(message);
 }
 
 const WIND_COMMANDS = ['!шуш', '!фуф', '!дуть', '!дунуть', '!подуть', '!star'];
