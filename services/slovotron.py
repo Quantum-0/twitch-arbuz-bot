@@ -69,7 +69,7 @@ class SlovotronService:
                 await session.execute(sa.select(User).where(User.login_name == payload.channel))
             ).scalar_one_or_none()
         await self._chat_bot.send_message(
-            user, f"@{payload.data.winner.display_name} угадывает слово {payload.data.winning_word}! Поздравляем!"
+            user, f"@{payload.data.winner.display_name} угадывает слово «{payload.data.winning_word}»! Поздравляем!"
         )
         await self._ssem.broadcast(int(user.twitch_id), SSEChannel.SLOVOTRON, payload.model_dump_json())
 
