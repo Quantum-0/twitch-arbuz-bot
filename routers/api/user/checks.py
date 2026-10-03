@@ -290,6 +290,7 @@ def _reset_scope_binding(tg: TelegramSettings, scope: Literal["stream", "clips",
         tg.stream_connected_at = None
         tg.stream_notification_enabled = False
         tg.last_stream_message_id = None
+        tg.last_stream_offline_message_id = None
         tg.twitch_to_tg_enabled = False
         tg.tg_to_twitch_enabled = False
     elif scope == "clips":

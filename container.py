@@ -144,6 +144,7 @@ class Container(containers.DeclarativeContainer):
         tts_service=tts_service,
         mqtt=mqtt,
         statistics=statistics,
+        cache=cache,
     )
 
     job_store_factory = providers.Factory(

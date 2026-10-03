@@ -6,7 +6,9 @@
   stream.online / stream.offline — чтобы не ждать следующего логина.
 - ``telegram/result/{request_id}`` — результат отправки сообщения; для stream.online
   уведомлений (request_id = ``stream_online:{user_id}``) сохраняет message_id в БД
-  (``last_stream_message_id``) для последующего удаления при stream.offline.
+  (``last_stream_message_id``) для последующего удаления при stream.offline;
+  для offline-сообщений (``stream_offline:{user_id}``) — в
+  ``last_stream_offline_message_id`` (для детекта быстрого перезапуска стрима).
 - ``reconcile_stream_subscriptions`` — периодическая сверка (APScheduler):
   если у юзера включены уведомления, но EventSub-подписок нет, пытается
   пересоздать; при неудаче — снимает галочку ``stream_notification_enabled``.
@@ -154,6 +156,7 @@ async def _disable_stream_notification(user_id: int, db_session_factory) -> None
 
 
 _STREAM_ONLINE_PREFIX = "stream_online"
+_STREAM_OFFLINE_PREFIX = "stream_offline"
 
 
 async def handle_telegram_result(payload: dict[str, Any], db_session_factory) -> None:
@@ -161,7 +164,13 @@ async def handle_telegram_result(payload: dict[str, Any], db_session_factory) ->
 
     Для stream.online уведомлений (request_id = ``stream_online:{user_id}``)
     сохраняет ``message_id`` в ``last_stream_message_id`` для последующего
-    удаления при stream.offline.
+    удаления при stream.offline. Сюда же приходят результаты edit_message при
+    перезапуске стрима и их фолбэков (тот же request_id) — message_id корректно
+    перезаписывается.
+
+    Для offline-сообщений (request_id = ``stream_offline:{user_id}``) сохраняет
+    ``message_id`` в ``last_stream_offline_message_id`` — нужен для
+    удаления/редактирования при детекте быстрого перезапуска стрима.
     """
     try:
         result = SendResult(**payload)
@@ -169,18 +178,22 @@ async def handle_telegram_result(payload: dict[str, Any], db_session_factory) ->
         logger.warning("telegram/result: невалидный payload: %s", payload)
         return
 
-    if not result.request_id.startswith(_STREAM_ONLINE_PREFIX):
+    if result.request_id.startswith(_STREAM_ONLINE_PREFIX):
+        column = TelegramSettings.last_stream_message_id
+    elif result.request_id.startswith(_STREAM_OFFLINE_PREFIX):
+        column = TelegramSettings.last_stream_offline_message_id
+    else:
         return
 
     if not result.success or not result.message_id:
         logger.warning(
-            "telegram/result: stream.online отправка не удалась: request_id=%s error=%s",
+            "telegram/result: отправка не удалась: request_id=%s error=%s",
             result.request_id,
             result.error,
         )
         return
 
-    # Извлекаем user_id из request_id = "stream_online:{user_id}"
+    # Извлекаем user_id из request_id = "stream_online:{user_id}" / "stream_offline:{user_id}"
     parts = result.request_id.split(":", 1)
     if len(parts) != 2:
         return
@@ -191,13 +204,11 @@ async def handle_telegram_result(payload: dict[str, Any], db_session_factory) ->
 
     async with db_session_factory() as db:
         await db.execute(
-            sa.update(TelegramSettings)
-            .where(TelegramSettings.user_id == user_id)
-            .values(last_stream_message_id=result.message_id)
+            sa.update(TelegramSettings).where(TelegramSettings.user_id == user_id).values({column: result.message_id})
         )
         await db.commit()
 
-    logger.info("telegram/result: last_stream_message_id обновлён для user_id=%s", user_id)
+    logger.info("telegram/result: %s обновлён для user_id=%s", column.key, user_id)
 
 
 async def _reconcile_user_subs(
@@ -372,6 +383,7 @@ async def clear_telegram_chat_binding(
         if cleared_scope == "stream":
             tg.stream_notification_enabled = False
             tg.last_stream_message_id = None
+            tg.last_stream_offline_message_id = None
             tg.twitch_to_tg_enabled = False
             tg.tg_to_twitch_enabled = False
         elif cleared_scope == "clips":

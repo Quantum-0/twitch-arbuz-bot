@@ -27,6 +27,10 @@ class TelegramSettingsSchema(BaseModel):
     stream_notification_enabled: bool = False
     stream_offline_behavior: Literal["delete", "message", "keep"] = "keep"
     stream_message_template: str | None = None
+    stream_link_preview_enabled: bool = True
+    stream_offline_message_template: str | None = None
+    stream_restart_behavior: Literal["notify", "silent", "edit"] = "edit"
+    stream_restart_message_template: str | None = None
 
     clips_enabled: bool = False
     clips_mode: Literal["all", "featured"] = "all"
@@ -45,6 +49,10 @@ class TelegramSettingsUpdateSchema(BaseModel):
     stream_notification_enabled: bool | None = None
     stream_offline_behavior: Literal["delete", "message", "keep"] | None = None
     stream_message_template: str | None = None
+    stream_link_preview_enabled: bool | None = None
+    stream_offline_message_template: str | None = None
+    stream_restart_behavior: Literal["notify", "silent", "edit"] | None = None
+    stream_restart_message_template: str | None = None
     clips_enabled: bool | None = None
     clips_mode: Literal["all", "featured"] | None = None
     clips_delivery: Literal["video", "link"] | None = None
@@ -71,6 +79,7 @@ class SendMessageRequest(BaseModel):
     request_id: str = Field(..., description="UUID для корреляции response")
     chat_id: str
     message_text: str
+    disable_web_page_preview: bool = False
 
 
 class SendPhotoRequest(BaseModel):
@@ -106,6 +115,23 @@ class DeleteMessageRequest(BaseModel):
     request_id: str
     chat_id: str
     message_id: str
+
+
+class EditMessageRequest(BaseModel):
+    """Отредактировать текст сообщения в Telegram-чате по message_id.
+
+    Используется при детекте быстрого перезапуска стрима: сообщение об окончании
+    заменяется на текст перезапуска. Если редактирование не удалось (сообщение
+    удалено/недоступно) и задан ``fallback_message_text`` — TG-сервис отправляет
+    его как новое сообщение и возвращает его message_id в результате.
+    """
+
+    request_id: str
+    chat_id: str
+    message_id: str
+    message_text: str
+    fallback_message_text: str | None = None
+    disable_web_page_preview: bool = False
 
 
 # ── Ответ TG-сервиса (через MQTT twibot/telegram/result/{request_id}) ──────

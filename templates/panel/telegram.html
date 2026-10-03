@@ -35,6 +35,10 @@
                 <span>Включить уведомления о начале стрима</span>
                 <div class="toggle-switch" id="tg-stream-notif-toggle" data-name="stream_notification_enabled"></div>
             </div>
+            <div class="toggle-label">
+                <span>Отображать превью ссылки</span>
+                <div class="toggle-switch" id="tg-link-preview-toggle" data-name="stream_link_preview_enabled"></div>
+            </div>
             <div class="toggle-label" style="flex-direction: column; align-items: stretch;">
                 <span>Поведение при окончании стрима</span>
                 <div class="overlay-radio-panel">
@@ -49,10 +53,56 @@
                         </label>
                         <label class="overlay-radio-option">
                             <input type="radio" name="tg-offline-behavior" value="message" onchange="telegramSaveSettings()">
-                            Написать «Стрим завершён»
+                            Отправить сообщение об окончании
                         </label>
                     </fieldset>
                 </div>
+            </div>
+            <div class="toggle-label" style="flex-direction: column; align-items: stretch;">
+                <span>Шаблон текста уведомления об окончании стрима</span>
+                <textarea id="tg-offline-template" rows="3"
+                    style="background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); border-radius: 10px; color: var(--color-text); font-family: inherit; font-size: 14px; max-width: 720px; padding: 10px; resize: vertical; transition: border-color 0.2s;"
+                    placeholder="⚪️ Стрим завершён."></textarea>
+                <small class="overlay-copy-hint">
+                    Доступные плейсхолдеры: <code>{streamer}</code> — ник стримера,
+                    <code>{link}</code> — ссылка на стрим. Если оставить пустым — используется текст по умолчанию.
+                    Применяется при поведении «Отправить сообщение об окончании».
+                </small>
+            </div>
+            <div class="toggle-label" style="flex-direction: column; align-items: stretch;">
+                <span>Если стрим перезапустился в течение 15 минут</span>
+                <div class="overlay-radio-panel">
+                    <fieldset class="overlay-radio-options">
+                        <label class="overlay-radio-option">
+                            <input type="radio" name="tg-restart-behavior" value="edit" onchange="telegramSaveSettings()">
+                            Редактировать сообщение об окончании
+                        </label>
+                        <label class="overlay-radio-option">
+                            <input type="radio" name="tg-restart-behavior" value="silent" onchange="telegramSaveSettings()">
+                            Скрыть перезапуск
+                        </label>
+                        <label class="overlay-radio-option">
+                            <input type="radio" name="tg-restart-behavior" value="notify" onchange="telegramSaveSettings()">
+                            Присылать уведомления как обычно
+                        </label>
+                    </fieldset>
+                </div>
+                <small class="overlay-copy-hint">
+                    Если стрим «упал» из-за технических проблем и вернулся в эфир в течение 15 минут —
+                    бот может скрыть перезапуск (удалить сообщение об окончании и не писать о новом начале),
+                    сообщить о нём или прислать уведомления как обычно.
+                </small>
+            </div>
+            <div class="toggle-label" style="flex-direction: column; align-items: stretch;">
+                <span>Шаблон текста о перезапуске стрима</span>
+                <textarea id="tg-restart-template" rows="3"
+                    style="background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); border-radius: 10px; color: var(--color-text); font-family: inherit; font-size: 14px; max-width: 720px; padding: 10px; resize: vertical; transition: border-color 0.2s;"
+                    placeholder="🟠 Стрим упал, но был перезапущен."></textarea>
+                <small class="overlay-copy-hint">
+                    Доступные плейсхолдеры: <code>{streamer}</code> — ник стримера,
+                    <code>{link}</code> — ссылка на стрим. Если оставить пустым — используется текст по умолчанию.
+                    Применяется при поведении «Редактировать сообщение об окончании».
+                </small>
             </div>
             <div class="toggle-label" style="flex-direction: column; align-items: stretch;">
                 <span>Шаблон текста уведомления о начале стрима</span>
@@ -161,6 +211,8 @@
 
 <script>
     const TG_DEFAULT_TEMPLATE = "🔴 {streamer} начинает стрим!\n{title}\n{category}\n\n{link}";
+    const TG_DEFAULT_OFFLINE_TEMPLATE = "⚪️ Стрим завершён.";
+    const TG_DEFAULT_RESTART_TEMPLATE = "🟠 Стрим упал, но был перезапущен.";
 
     async function telegramLoadSettings() {
         try {
@@ -195,6 +247,13 @@
                 telegramSaveSettings();
             };
 
+            const linkPreviewToggle = document.getElementById('tg-link-preview-toggle');
+            linkPreviewToggle.classList.toggle('active', data.stream_link_preview_enabled !== false);
+            linkPreviewToggle.onclick = () => {
+                linkPreviewToggle.classList.toggle('active');
+                telegramSaveSettings();
+            };
+
             const clipsToggle = document.getElementById('tg-clips-toggle');
             clipsToggle.classList.toggle('active', data.clips_enabled);
             clipsToggle.onclick = () => {
@@ -215,13 +274,18 @@
                 if (input) input.checked = true;
             };
             setRadio('tg-offline-behavior', data.stream_offline_behavior || 'keep');
+            setRadio('tg-restart-behavior', data.stream_restart_behavior || 'edit');
             setRadio('tg-clips-mode', data.clips_mode || 'all');
             setRadio('tg-clips-delivery', data.clips_delivery || 'link');
             setRadio('tg-stickers-mode', data.stickers_mode || 'photo');
 
-            // ── Шаблон текста ──
+            // ── Шаблоны текста ──
             const templateField = document.getElementById('tg-stream-template');
             templateField.value = data.stream_message_template || TG_DEFAULT_TEMPLATE;
+            const offlineTemplateField = document.getElementById('tg-offline-template');
+            offlineTemplateField.value = data.stream_offline_message_template || TG_DEFAULT_OFFLINE_TEMPLATE;
+            const restartTemplateField = document.getElementById('tg-restart-template');
+            restartTemplateField.value = data.stream_restart_message_template || TG_DEFAULT_RESTART_TEMPLATE;
         } catch (e) {
             console.error('telegramLoadSettings error:', e);
         }
@@ -229,9 +293,11 @@
 
     async function telegramSaveSettings() {
         const streamEnabled = document.getElementById('tg-stream-notif-toggle')?.classList.contains('active');
+        const linkPreviewEnabled = document.getElementById('tg-link-preview-toggle')?.classList.contains('active');
         const clipsEnabled = document.getElementById('tg-clips-toggle')?.classList.contains('active');
         const stickersEnabled = document.getElementById('tg-stickers-toggle')?.classList.contains('active');
         const offlineBehavior = document.querySelector('input[name="tg-offline-behavior"]:checked')?.value;
+        const restartBehavior = document.querySelector('input[name="tg-restart-behavior"]:checked')?.value;
         const clipsMode = document.querySelector('input[name="tg-clips-mode"]:checked')?.value;
         const clipsDelivery = document.querySelector('input[name="tg-clips-delivery"]:checked')?.value;
         const stickersMode = document.querySelector('input[name="tg-stickers-mode"]:checked')?.value;
@@ -239,16 +305,28 @@
         const streamTemplateToSend = (streamTemplate === undefined || streamTemplate.trim() === TG_DEFAULT_TEMPLATE.trim())
             ? undefined
             : streamTemplate;
+        const offlineTemplate = document.getElementById('tg-offline-template')?.value;
+        const offlineTemplateToSend = (offlineTemplate === undefined || offlineTemplate.trim() === TG_DEFAULT_OFFLINE_TEMPLATE.trim())
+            ? undefined
+            : offlineTemplate;
+        const restartTemplate = document.getElementById('tg-restart-template')?.value;
+        const restartTemplateToSend = (restartTemplate === undefined || restartTemplate.trim() === TG_DEFAULT_RESTART_TEMPLATE.trim())
+            ? undefined
+            : restartTemplate;
 
         const body = {};
         if (streamEnabled !== undefined) body.stream_notification_enabled = streamEnabled;
+        if (linkPreviewEnabled !== undefined) body.stream_link_preview_enabled = linkPreviewEnabled;
         if (clipsEnabled !== undefined) body.clips_enabled = clipsEnabled;
         if (stickersEnabled !== undefined) body.stickers_enabled = stickersEnabled;
         if (offlineBehavior) body.stream_offline_behavior = offlineBehavior;
+        if (restartBehavior) body.stream_restart_behavior = restartBehavior;
         if (clipsMode) body.clips_mode = clipsMode;
         if (clipsDelivery) body.clips_delivery = clipsDelivery;
         if (stickersMode) body.stickers_mode = stickersMode;
         if (streamTemplateToSend !== undefined) body.stream_message_template = streamTemplateToSend;
+        if (offlineTemplateToSend !== undefined) body.stream_offline_message_template = offlineTemplateToSend;
+        if (restartTemplateToSend !== undefined) body.stream_restart_message_template = restartTemplateToSend;
 
         try {
             const resp = await fetch('/api/user/telegram/settings', {

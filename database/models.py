@@ -22,6 +22,7 @@ from sqlalchemy import (
     false,
     func,
     text,
+    true,
 )
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
@@ -605,6 +606,16 @@ class TelegramSettings(Base):
     stream_offline_behavior: Mapped[str] = mapped_column(String, default="keep", server_default="keep", nullable=False)
     stream_message_template: Mapped[str | None] = mapped_column(Text, nullable=True, default=None)
     last_stream_message_id: Mapped[str | None] = mapped_column(String, nullable=True, default=None)
+    stream_link_preview_enabled: Mapped[bool] = mapped_column(
+        Boolean, default=True, server_default=true(), nullable=False
+    )
+    stream_offline_message_template: Mapped[str | None] = mapped_column(Text, nullable=True, default=None)
+    # Поведение при быстром перезапуске стрима (в пределах _STREAM_RESTART_WINDOW_SECONDS):
+    # notify — обычное уведомление о начале; silent — скрыть перезапуск; edit —
+    # отредактировать сообщение об окончании на шаблон перезапуска.
+    stream_restart_behavior: Mapped[str] = mapped_column(String, default="edit", server_default="edit", nullable=False)
+    stream_restart_message_template: Mapped[str | None] = mapped_column(Text, nullable=True, default=None)
+    last_stream_offline_message_id: Mapped[str | None] = mapped_column(String, nullable=True, default=None)
 
     # ── Clips ──
     clips_enabled: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false(), nullable=False)

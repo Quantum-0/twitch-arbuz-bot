@@ -49,6 +49,10 @@ async def get_telegram_settings_endpoint(
         stream_notification_enabled=tg.stream_notification_enabled,
         stream_offline_behavior=tg.stream_offline_behavior,
         stream_message_template=tg.stream_message_template,
+        stream_link_preview_enabled=tg.stream_link_preview_enabled,
+        stream_offline_message_template=tg.stream_offline_message_template,
+        stream_restart_behavior=tg.stream_restart_behavior,
+        stream_restart_message_template=tg.stream_restart_message_template,
         clips_enabled=tg.clips_enabled,
         clips_mode=tg.clips_mode,
         clips_delivery=tg.clips_delivery,
@@ -211,6 +215,7 @@ async def disconnect_telegram_scope(
             tg.stream_connected_at = None
             tg.stream_notification_enabled = False
             tg.last_stream_message_id = None
+            tg.last_stream_offline_message_id = None
             tg.twitch_to_tg_enabled = False
             tg.tg_to_twitch_enabled = False
         elif scope == "clips":
