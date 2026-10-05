@@ -1,6 +1,8 @@
 from functools import lru_cache
 from pathlib import Path
 
+from config import settings
+
 _STATIC_DIR = Path("static")
 
 
@@ -23,3 +25,4 @@ def static_url(path: str) -> str:
 def register_template_globals(templates) -> None:
     """Регистрирует общие Jinja2-глобалы для экземпляра Jinja2Templates."""
     templates.env.globals["static_url"] = static_url
+    templates.env.globals["site_url"] = settings.base_url.rstrip("/")

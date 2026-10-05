@@ -3,7 +3,29 @@
 {% block title %}Часто задаваемые вопросы{% endblock %}
 {% block description %}Список вопросов и ответов Quantum0's Bot{% endblock %}
 
+{% block canonical_url %}{{ site_url }}/faq{% endblock %}
+
 {% block head_scripts %}
+<!-- Строка навигации Schema.org BreadcrumbList -->
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    {
+      "@type": "ListItem",
+      "position": 1,
+      "name": "Главная",
+      "item": "{{ site_url }}/"
+    },
+    {
+      "@type": "ListItem",
+      "position": 2,
+      "name": "FAQ"
+    }
+  ]
+}
+</script>
 <!-- Скрипт Schema.org FAQPage -->
 <script type="application/ld+json">
 {

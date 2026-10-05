@@ -7,13 +7,13 @@
     <title>{% block title %}Quantum0's Bot{% endblock %}</title>
     <meta name="description" content="{% block description %}Бот Quantum075Bot для начисления мемкоинов за баллы канала, автоматического shoutout за рейды и различных команд в чате, по типу !трусы !кусь !лизь !обнять и других, оверлей со звёздочкой на ниточке и словотрон.{% endblock %}"/>
 
-    {% set _url = "https://bot.quantum0.ru/" %}
+    {% set _url = self.canonical_url() | trim %}
     {% set _site_name = "Quantum0's Bot" %}
     {% set _title = self.title() | trim %}
     {% set _desc = self.description() | trim %}
     {% set _image = "https://bot.quantum0.ru/static/images/og-image.jpg" %}
 
-    <link rel="canonical" href="{{ _url }}"/>
+    <link rel="canonical" href="{% block canonical_url %}{{ site_url }}/{% endblock %}"/>
 
     <meta property="og:site_name" content="{{ _site_name }}"/>
     <meta property="og:locale" content="ru_RU"/>

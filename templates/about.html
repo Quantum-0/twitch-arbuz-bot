@@ -3,6 +3,30 @@
 {% block title %}О проекте — Quantum0's Bot{% endblock %}
 {% block description %}О проекте бота Quantum075Bot для начисления мемкоинов за баллы канала, автоматического shoutout зарейды и различных команд в чате, по типу !трусы !кусь !лизь !обнять и т.п.{% endblock %}
 
+{% block canonical_url %}{{ site_url }}/about{% endblock %}
+
+{% block head_scripts %}
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    {
+      "@type": "ListItem",
+      "position": 1,
+      "name": "Главная",
+      "item": "{{ site_url }}/"
+    },
+    {
+      "@type": "ListItem",
+      "position": 2,
+      "name": "О сервисе"
+    }
+  ]
+}
+</script>
+{% endblock %}
+
 {% block styles %}
 {% endblock %}
 

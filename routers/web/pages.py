@@ -263,6 +263,12 @@ async def profile_page(
         .correlate(User)
         .scalar_subquery()
     )
+    likes_given_count = (
+        sa.select(sa.func.count(UserLike.to_user_id))
+        .where(UserLike.from_user_id == User.id)
+        .correlate(User)
+        .scalar_subquery()
+    )
     is_liked = (
         sa.exists().where(UserLike.from_user_id == user.id, UserLike.to_user_id == User.id)
         if user is not None
@@ -270,14 +276,19 @@ async def profile_page(
     )
     profile_row = (
         await db.execute(
-            sa.select(User, likes_count.label("likes_count"), is_liked.label("is_liked"))
+            sa.select(
+                User,
+                likes_count.label("likes_count"),
+                likes_given_count.label("likes_given_count"),
+                is_liked.label("is_liked"),
+            )
             .options(joinedload(User.settings), joinedload(User.memealerts), joinedload(User.links))
             .where(User.login_name == profile_user)
         )
     ).one_or_none()
     if profile_row is None:
         raise HTTPException(404, "User not found")
-    profile_user_data, profile_likes_count, profile_is_liked = profile_row
+    profile_user_data, profile_likes_count, profile_likes_given_count, profile_is_liked = profile_row
     reference = (
         await db.scalar(
             sa.select(CharacterInfo)
@@ -291,9 +302,13 @@ async def profile_page(
     await db.commit()
     profile_user_dict = profile_user_data.__dict__
     profile_user_dict["likes_count"] = profile_likes_count
+    profile_user_dict["likes_given_count"] = profile_likes_given_count
     profile_user_dict["is_liked"] = profile_is_liked
     streams = await cache.as_cached(twitch.get_streams, [profile_user_data])
     followers_count = await cache.as_cached(twitch.get_followers_count, profile_user_data)
+    profile_followers_count = (
+        followers_count if followers_count is not None else (profile_user_data.followers_count or 0)
+    )
     profile_user_dict["is_live"] = set(streams.values()) != {None}
     # TODO
     # profile_user_dict["followers_count"] = followers_count
@@ -316,6 +331,7 @@ async def profile_page(
         {
             "user": user,
             "profile_user": profile_user_dict,
+            "profile_followers_count": profile_followers_count,
             "request": request,
             "ai_stickers_enabled": ai_stickers_enabled,
             "reference": reference,

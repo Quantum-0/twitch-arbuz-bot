@@ -3,6 +3,74 @@
 {% block title %}Профиль пользователя {{ profile_user.login_name }} в Quantum0's Bot{% endblock %}
 {% block description %}Профиль стримера {{ profile_user.login_name }} в Quantum0's Bot, список включённых у него функций и доступных команд в чате{% endblock %}
 
+{% block canonical_url %}{{ site_url }}/profile/{{ profile_user.login_name }}{% endblock %}
+
+{% block head_scripts %}
+{% set same_as = ["https://www.twitch.tv/" ~ profile_user.login_name] %}
+{% if profile_user.links.tiktok %}{% set same_as = same_as + ["https://www.tiktok.com/@" ~ profile_user.links.tiktok] %}{% endif %}
+{% if profile_user.links.youtube %}{% set same_as = same_as + ["https://youtube.com/" ~ profile_user.links.youtube] %}{% endif %}
+{% if profile_user.links.telegram %}{% set same_as = same_as + ["https://t.me/" ~ profile_user.links.telegram] %}{% endif %}
+{% if profile_user.settings.memealerts_link %}{% set same_as = same_as + ["https://memealerts.com/" ~ profile_user.settings.memealerts_link] %}{% endif %}
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    {
+      "@type": "ListItem",
+      "position": 1,
+      "name": "Главная",
+      "item": "{{ site_url }}/"
+    },
+    {
+      "@type": "ListItem",
+      "position": 2,
+      "name": "Стримеры",
+      "item": "{{ site_url }}/streamers"
+    },
+    {
+      "@type": "ListItem",
+      "position": 3,
+      "name": {{ profile_user.login_name | tojson }}
+    }
+  ]
+}
+</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "ProfilePage",
+  "dateCreated": {{ profile_user.created_at.isoformat() | tojson }},
+  "dateModified": {{ profile_user.interacted_at.isoformat() | tojson }},
+  "mainEntity": {
+    "@type": "Person",
+    "name": {{ profile_user.login_name | tojson }},
+    "identifier": {{ profile_user.twitch_id | tojson }},
+    "description": {{ ("Профиль стримера " ~ profile_user.login_name ~ " в Quantum0's Bot") | tojson }},
+    "image": {{ profile_user.profile_image_url | tojson }},
+    "interactionStatistic": [
+      {
+        "@type": "InteractionCounter",
+        "interactionType": "https://schema.org/FollowAction",
+        "userInteractionCount": {{ profile_followers_count }}
+      },
+      {
+        "@type": "InteractionCounter",
+        "interactionType": "https://schema.org/LikeAction",
+        "userInteractionCount": {{ profile_user.likes_count }}
+      }
+    ],
+    "agentInteractionStatistic": {
+      "@type": "InteractionCounter",
+      "interactionType": "https://schema.org/LikeAction",
+      "userInteractionCount": {{ profile_user.likes_given_count }}
+    },
+    "sameAs": {{ same_as | tojson }}
+  }
+}
+</script>
+{% endblock %}
+
 {% block content %}
 <div class="container">
 
