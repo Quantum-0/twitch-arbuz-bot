@@ -6,9 +6,10 @@
   stream.online / stream.offline — чтобы не ждать следующего логина.
 - ``telegram/result/{request_id}`` — результат отправки сообщения; для stream.online
   уведомлений (request_id = ``stream_online:{user_id}``) сохраняет message_id в БД
-  (``last_stream_message_id``) для последующего удаления при stream.offline;
-  для offline-сообщений (``stream_offline:{user_id}``) — в
-  ``last_stream_offline_message_id`` (для детекта быстрого перезапуска стрима).
+  (``last_stream_message_id``) для последующего удаления при подтверждённом
+  окончании (offline-``delete``); для offline-сообщений (``stream_offline:{user_id}``)
+  — в ``last_stream_offline_message_id`` (в целевой модели записывается, но не
+  читается; см. docs/telegram.md).
 - ``reconcile_stream_subscriptions`` — периодическая сверка (APScheduler):
   если у юзера включены уведомления, но EventSub-подписок нет, пытается
   пересоздать; при неудаче — снимает галочку ``stream_notification_enabled``.
@@ -164,13 +165,11 @@ async def handle_telegram_result(payload: dict[str, Any], db_session_factory) ->
 
     Для stream.online уведомлений (request_id = ``stream_online:{user_id}``)
     сохраняет ``message_id`` в ``last_stream_message_id`` для последующего
-    удаления при stream.offline. Сюда же приходят результаты edit_message при
-    перезапуске стрима и их фолбэков (тот же request_id) — message_id корректно
-    перезаписывается.
+    удаления при подтверждённом окончании (offline-``delete``).
 
     Для offline-сообщений (request_id = ``stream_offline:{user_id}``) сохраняет
-    ``message_id`` в ``last_stream_offline_message_id`` — нужен для
-    удаления/редактирования при детекте быстрого перезапуска стрима.
+    ``message_id`` в ``last_stream_offline_message_id`` — в целевой модели
+    записывается, но не читается (см. docs/telegram.md).
     """
     try:
         result = SendResult(**payload)

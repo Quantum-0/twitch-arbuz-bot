@@ -104,6 +104,9 @@ class Settings(BaseSettings):
     telegram_bot_username: str = "quantum0s_twitch_bot"
     telegram_service_url: str = "http://localhost:8001"
     telegram_service_api_key: str = "changeme"
+    # Окно перезапуска стрима = задержка подтверждения окончания = CD сообщений
+    # о рестарте (мин). Одна константа на всю механику, см. docs/telegram.md.
+    stream_restart_window_minutes: int = 15
     base_url: str = "https://bot.quantum0.ru"
     # Steam Web API key (https://steamcommunity.com/dev/apikey)
     steam_api_key: SecretStr = SecretStr("")

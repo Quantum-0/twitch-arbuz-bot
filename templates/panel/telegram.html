@@ -57,6 +57,11 @@
                         </label>
                     </fieldset>
                 </div>
+                <small class="overlay-copy-hint">
+                    Окончание подтверждается через 15 минут после ухода стримера с эфира. Если стрим вернётся
+                    раньше — ничего не удаляется и не отправляется. Само действие выполняется
+                    после подтверждения: удаление поста или сообщение об окончании.
+                </small>
             </div>
             <div class="toggle-label" style="flex-direction: column; align-items: stretch;">
                 <span>Шаблон текста уведомления об окончании стрима</span>
@@ -75,7 +80,7 @@
                     <fieldset class="overlay-radio-options">
                         <label class="overlay-radio-option">
                             <input type="radio" name="tg-restart-behavior" value="edit" onchange="telegramSaveSettings()">
-                            Редактировать сообщение об окончании
+                            Скрыть перезапуск (устаревшая опция)
                         </label>
                         <label class="overlay-radio-option">
                             <input type="radio" name="tg-restart-behavior" value="silent" onchange="telegramSaveSettings()">
@@ -83,14 +88,16 @@
                         </label>
                         <label class="overlay-radio-option">
                             <input type="radio" name="tg-restart-behavior" value="notify" onchange="telegramSaveSettings()">
-                            Присылать уведомления как обычно
+                            Сообщать о перезапуске
                         </label>
                     </fieldset>
                 </div>
                 <small class="overlay-copy-hint">
                     Если стрим «упал» из-за технических проблем и вернулся в эфир в течение 15 минут —
-                    бот может скрыть перезапуск (удалить сообщение об окончании и не писать о новом начале),
-                    сообщить о нём или прислать уведомления как обычно.
+                    бот может скрыть перезапуск (в чате останется только пост о начале стрима,
+                    ничего не удаляется и не редактируется) или сообщить о нём одним сообщением
+                    «Стрим упал, но был перезапущен» — не чаще, чем раз в 15 минут, чтобы
+                    не спамить при серии падений.
                 </small>
             </div>
             <div class="toggle-label" style="flex-direction: column; align-items: stretch;">
@@ -101,7 +108,7 @@
                 <small class="overlay-copy-hint">
                     Доступные плейсхолдеры: <code>{streamer}</code> — ник стримера,
                     <code>{link}</code> — ссылка на стрим. Если оставить пустым — используется текст по умолчанию.
-                    Применяется при поведении «Редактировать сообщение об окончании».
+                    Применяется при поведении «Сообщать о перезапуске».
                 </small>
             </div>
             <div class="toggle-label" style="flex-direction: column; align-items: stretch;">

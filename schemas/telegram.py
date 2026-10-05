@@ -29,7 +29,7 @@ class TelegramSettingsSchema(BaseModel):
     stream_message_template: str | None = None
     stream_link_preview_enabled: bool = True
     stream_offline_message_template: str | None = None
-    stream_restart_behavior: Literal["notify", "silent", "edit"] = "edit"
+    stream_restart_behavior: Literal["notify", "silent", "edit"] = "silent"
     stream_restart_message_template: str | None = None
 
     clips_enabled: bool = False

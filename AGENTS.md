@@ -70,6 +70,18 @@ poetry run uvicorn main:app --reload   # запустить дев-сервер
   (нет `gpt-image-2` и эндпоинта `/images/edits`; `glm-5.2` дороже на ~22–38%). Остаёмся на aitunnel
   (`config.openai_base_url`). Менять `openai_base_url` на routerai **нельзя**.
 
+## Telegram-интеграция
+
+- **Спецификация поведения:** `docs/telegram.md` — настройки, кейсы падения/перезапуска стрима,
+  Redis-ключи, MQTT-топики, конвенция request_id. **При любом изменении поведения интеграции —
+  обновлять этот файл в том же коммите.**
+- **Смежный TG-микросервис:** соседний репозиторий `../twibot-tg`
+- Основная логика уведомлений о стриме: `services/eventsub_service.py`
+  (`handle_stream_online` / `handle_stream_offline` / отложенная джоба `stream_offline_deferred:*`),
+  результаты доставок: `services/telegram_integration.py:handle_telegram_result`.
+- Окно перезапуска/задержка подтверждения окончания: `config.py:stream_restart_window_minutes`
+  (env `STREAM_RESTART_WINDOW_MINUTES`, дефолт 15).
+
 ## Структура проекта
 
 ```

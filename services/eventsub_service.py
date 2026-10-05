@@ -3,9 +3,11 @@ import json
 import logging
 import uuid
 from collections.abc import Callable
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import sqlalchemy as sa
+from apscheduler.jobstores.base import JobLookupError
 from opentelemetry import trace
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -49,6 +51,16 @@ from utils.tts import clean_tts_text, clean_tts_username, truncate_tts
 
 logger = logging.getLogger(__name__)
 tracer = trace.get_tracer(__name__)
+
+# Префикс APScheduler-джобы подтверждения окончания стрима (docs/telegram.md):
+# ставится в handle_stream_offline, снимается быстрым перезапуском или
+# исполняется как подтверждённое окончание.
+_DEFERRED_OFFLINE_JOB_PREFIX = "stream_offline_deferred"
+# Ретрай подтверждения, если Get Streams недоступен в момент срабатывания джобы
+# (live=None): до _DEFERRED_OFFLINE_MAX_ATTEMPTS проверок суммарно
+# с интервалом _DEFERRED_OFFLINE_RETRY_MINUTES.
+_DEFERRED_OFFLINE_MAX_ATTEMPTS = 3
+_DEFERRED_OFFLINE_RETRY_MINUTES = 2
 
 # TODO: убрать после полного перехода пользователей на v2.
 # Порог user_id для поэтапного уведомления v1-пользователей о миграции на v2.
@@ -492,10 +504,8 @@ class TwitchEventSubService:
     _STREAM_OFFLINE_REQUEST_PREFIX = "stream_offline"
     _STREAM_OFFLINE_TEXT = "⚪️ Стрим завершён."
     _STREAM_RESTART_TEXT = "🟠 Стрим упал, но был перезапущен."
-    # Окно, в пределах которого новый stream.online считается перезапуском упавшего
-    # стрима (технические проблемы у стримера), а не новым стримом.
-    _STREAM_RESTART_WINDOW_SECONDS = 15 * 60
-    _STREAM_RESTART_REDIS_KEY = "telegram:stream_restart"
+    # Redis-ключ CD сообщений о рестарте (режим notify): не чаще одного за окно.
+    _RESTART_NOTIFY_CD_REDIS_KEY = "telegram:restart_notify_cd"
 
     @task_wrapper
     @tracer.start_as_current_span("Twitch Eventsub: Stream online")
@@ -506,13 +516,14 @@ class TwitchEventSubService:
         request_id = ``stream_online:{user_id}`` — используется для корреляции
         результата (message_id) в ``handle_telegram_result``.
 
+        Если offline-джоба ещё жива (стрим упал < W минут назад и его окончание
+        не подтверждено) — это быстрый перезапуск: джоба отменяется, поведение
+        по ``stream_restart_behavior`` (см. ``_handle_quick_restart``).
+        Иначе — новый стрим, обычное уведомление.
+
         Заголовок и категория стрима подтягиваются отдельным запросом
         ``GET /helix/streams`` (app access token) — в самом событии stream.online
         этих полей нет (schema v1 содержит только broadcaster + started_at).
-
-        Если стрим перезапустился в пределах ``_STREAM_RESTART_WINDOW_SECONDS``
-        после окончания — поведение по ``stream_restart_behavior`` (см.
-        ``_handle_stream_restart``).
         """
         if isinstance(payload, dict):
             payload = StreamOnlineSchema.model_validate(payload, by_name=True)
@@ -526,13 +537,12 @@ class TwitchEventSubService:
         channel_name = payload.event.broadcaster_user_name
         stream_url = f"https://twitch.tv/{payload.event.broadcaster_user_login}"
 
-        restart_marker = await self._pop_stream_restart_marker(user.id)
-        if restart_marker is not None:
-            handled = await self._handle_stream_restart(user, tg, restart_marker, channel_name, stream_url)
-            if handled:
-                return
+        # Быстрый перезапуск (< W после stream.offline): отменяем подтверждение окончания.
+        if await self._cancel_deferred_stream_offline(user.id):
+            await self._handle_quick_restart(user, tg, channel_name, stream_url)
+            return
 
-        # Новый стрим (или restart с поведением notify/fallback) — обычное уведомление.
+        # Новый стрим — обычное уведомление.
         # stream.online v1 не содержит title/категорию — подтягиваем через Get Streams.
         title, category = await self._fetch_stream_meta(user)
 
@@ -549,90 +559,80 @@ class TwitchEventSubService:
             disable_web_page_preview=not tg.stream_link_preview_enabled,
         )
 
-    async def _pop_stream_restart_marker(self, user_id: int) -> dict[str, Any] | None:
-        """Достать и удалить Redis-маркер недавнего окончания стрима.
+    async def _cancel_deferred_stream_offline(self, user_id: int) -> bool:
+        """Отменить отложенную джобу подтверждения окончания стрима.
 
-        Маркер пишется в ``handle_stream_offline`` с TTL = окно перезапуска.
-        Возвращает ``{"online_message_id": str | None}`` или ``None``, если
-        стример не заканчивал стрим в пределах окна (или Redis недоступен).
+        Возвращает True, если джоба существовала — т.е. стрим упал < W минут
+        назад и это быстрый перезапуск, а не новый стрим.
         """
-        if self._cache is None:
-            return None
-        name = f"{self._STREAM_RESTART_REDIS_KEY}:{user_id}"
-        raw = await self._cache.get_str(name)
-        if raw is None:
-            return None
-        await self._cache.delete(name)
-        try:
-            marker = json.loads(raw)
-        except ValueError:
-            logger.warning("Невалидный stream_restart маркер для user_id=%s: %r", user_id, raw)
-            return None
-        return marker if isinstance(marker, dict) else None
+        from container_runtime import get_container
 
-    async def _handle_stream_restart(
+        try:
+            get_container().scheduler().remove_job(f"{_DEFERRED_OFFLINE_JOB_PREFIX}:{user_id}")
+            return True
+        except JobLookupError:
+            return False
+
+    async def _handle_quick_restart(
         self,
         user: User,
         tg: TelegramSettings,
-        restart_marker: dict[str, Any],
         channel_name: str,
         stream_url: str,
-    ) -> bool:
-        """Обработать быстрый перезапуск стрима по ``stream_restart_behavior``.
+    ) -> None:
+        """Обработать быстрый перезапуск стрима (< W после stream.offline).
 
-        - ``notify`` → обычное уведомление о начале (возвращает False).
-        - ``silent`` → удалить сообщение об окончании, НЕ отправлять уведомление
-          о начале (выглядит, будто стрим не прерывался); восстановить
-          ``last_stream_message_id`` из маркера, чтобы последующее окончание
-          продолжало работать (например, offline-``delete``).
-        - ``edit`` → отредактировать сообщение об окончании на шаблон перезапуска.
-          Если редактировать нечего (offline-поведение было ``delete``/``keep`` или
-          отправка не удалась) — fallback: обычное уведомление о начале (False).
-          При неудаче редактирования TG-сервис сам отправит ``fallback_message_text``
-          (обычный онлайн-текст) — его message_id придёт с тем же request_id.
+        Окончание не подтверждено, offline-действия не применялись, пост о
+        начале стрима остаётся на месте. Поведение по ``stream_restart_behavior``
+        (docs/telegram.md):
+
+        - ``silent``/``edit`` — тишина: ничего не удаляем и не редактируем,
+          будто стрим не прерывался (``edit`` ≡ ``silent``, сохранён для
+          совместимости).
+        - ``notify`` — сразу отправить сообщение о перезапуске, но не чаще
+          одного за окно: Redis-CD ``telegram:restart_notify_cd:{user_id}``
+          с TTL = W (анти-спам на серию падений).
         """
         behavior = tg.stream_restart_behavior or "edit"
         chat_id = tg.stream_chat_id
         if not chat_id:  # проверено в handle_stream_online, защита для независимых вызовов
-            return False
-
-        if behavior == "notify":
-            return False
-
-        if behavior == "silent":
-            offline_message_id = tg.last_stream_offline_message_id
-            if offline_message_id:
-                await self._publish_delete_message(chat_id, offline_message_id)
-            online_message_id = restart_marker.get("online_message_id")
-            await self._set_stream_message_ids(user.id, online_message_id=online_message_id)
-            logger.info("Перезапуск стрима скрыт для user_id=%s", user.id)
-            return True
-
-        # behavior == "edit"
-        offline_message_id = tg.last_stream_offline_message_id
-        if not offline_message_id:
+            return
+        if behavior != "notify":
             logger.info(
-                "Перезапуск user_id=%s: нет offline-сообщения для редактирования, обычное уведомление",
+                "Перезапуск стрима (< %d мин) скрыт для user_id=%s (behavior=%s)",
+                settings.stream_restart_window_minutes,
                 user.id,
+                behavior,
             )
-            return False
+            return
 
-        title, category = await self._fetch_stream_meta(user)
+        if self._cache is not None:
+            cd_key = f"{self._RESTART_NOTIFY_CD_REDIS_KEY}:{user.id}"
+            if await self._cache.get_str(cd_key) is not None:
+                logger.info("Перезапуск user_id=%s: CD активен, сообщение о рестарте не дублируем", user.id)
+                return
+            await self._cache.set_str(cd_key, "1", ttl=settings.stream_restart_window_minutes * 60)
+
         restart_text = self._render_stream_restart_message(tg, channel_name, stream_url)
-        fallback_text = self._render_stream_online_message(tg, channel_name, title, category, stream_url)
-        # Отредактированное сообщение становится «сообщением о текущем стриме»:
-        # последующие offline-действия (delete) будут применять его к нему.
-        await self._set_stream_message_ids(user.id, online_message_id=offline_message_id)
-        await self._publish_edit_message(
+        await self._publish_send_message(
             chat_id,
-            offline_message_id,
             restart_text,
-            fallback_message_text=fallback_text,
-            request_id=f"{self._STREAM_ONLINE_REQUEST_PREFIX}:{user.id}",
             disable_web_page_preview=not tg.stream_link_preview_enabled,
         )
-        logger.info("Перезапуск стрима: offline-сообщение отредактировано для user_id=%s", user.id)
-        return True
+        logger.info("Перезапуск стрима: отправлено сообщение для user_id=%s", user.id)
+
+    async def _is_stream_live(self, user: User) -> bool | None:
+        """Проверить через Get Streams, что стрим сейчас идёт.
+
+        Возвращает None при ошибке API — статус неизвестен (не подтверждён
+        ни офлайн, ни онлайн): деструктивные действия не выполняем.
+        """
+        try:
+            streams = await self._twitch.get_streams([user])
+        except Exception:
+            logger.warning("_is_stream_live: ошибка Get Streams для user_id=%s", user.id, exc_info=True)
+            return None
+        return streams.get(user) is not None
 
     @staticmethod
     def _render_stream_restart_message(tg: TelegramSettings, streamer: str, link: str) -> str:
@@ -709,19 +709,22 @@ class TwitchEventSubService:
     @task_wrapper
     @tracer.start_as_current_span("Twitch Eventsub: Stream offline")
     async def handle_stream_offline(self, payload: StreamOfflineSchema | dict[str, Any]) -> None:
-        """stream.offline EventSub → поведение по ``stream_offline_behavior``.
+        """stream.offline EventSub → отложить подтверждение окончания на W минут.
 
-        - ``delete``  → удалить сообщение о начале стрима (``last_stream_message_id``).
-        - ``message`` → отправить сообщение об окончании (шаблон
-          ``stream_offline_message_template``; request_id = ``stream_offline:{user_id}``,
-          чтобы ``handle_telegram_result`` сохранил message_id в
-          ``last_stream_offline_message_id`` — нужен для детекта перезапуска).
-        - ``keep``    → ничего не делать.
+        Ничего не отправляет и не удаляет сразу (docs/telegram.md): ставит
+        APScheduler-джобу ``stream_offline_deferred:{user_id}`` в персистентный
+        SQL jobstore (переживает рестарт приложения); ``replace_existing=True`` —
+        серия падений просто перезапускает таймер. Джоба через W проверит
+        Get Streams и только при подтверждённом офлайне выполнит
+        ``stream_offline_behavior``:
 
-        В любом случае пишется Redis-маркер недавнего окончания (TTL = окно
-        перезапуска) и очищаются ``last_stream_message_id`` /
-        ``last_stream_offline_message_id`` (последний заполнится результатом
-        отправки offline-сообщения).
+        - ``delete``  → удалить сообщение о начале стрима (``last_stream_message_id``);
+        - ``message`` → отправить сообщение об окончании (request_id =
+          ``stream_offline:{user_id}``, message_id сохранится в
+          ``last_stream_offline_message_id``);
+        - ``keep``    → ничего.
+
+        ``last_stream_message_id`` здесь НЕ чистится — он нужен джобе.
         """
         if isinstance(payload, dict):
             payload = StreamOfflineSchema.model_validate(payload, by_name=True)
@@ -732,30 +735,31 @@ class TwitchEventSubService:
         if tg is None or not tg.stream_notification_enabled or not tg.stream_chat_id:
             return
 
-        behavior = tg.stream_offline_behavior or "keep"
-        channel_name = payload.event.broadcaster_user_name
-        stream_url = f"https://twitch.tv/{payload.event.broadcaster_user_login}"
+        from container_runtime import get_container
 
-        # Маркер недавнего окончания — по нему handle_stream_online детектит перезапуск.
-        # При offline-поведении ``delete`` сообщение о начале удаляется — в маркер
-        # пишем None, чтобы silent-перезапуск не восстановил id несуществующего
-        # сообщения (последующий offline-``delete`` не пытался бы удалить его).
-        marker_online_id = None if behavior == "delete" else tg.last_stream_message_id
-        await self._set_stream_restart_marker(user.id, marker_online_id)
-
-        if behavior == "delete" and tg.last_stream_message_id:
-            await self._publish_delete_message(tg.stream_chat_id, tg.last_stream_message_id)
-        elif behavior == "message":
-            message_text = self._render_stream_offline_message(tg, channel_name, stream_url)
-            request_id = f"{self._STREAM_OFFLINE_REQUEST_PREFIX}:{user.id}"
-            await self._publish_send_message(
-                tg.stream_chat_id,
-                message_text,
-                request_id,
-                disable_web_page_preview=not tg.stream_link_preview_enabled,
+        run_date = datetime.now(UTC) + timedelta(minutes=settings.stream_restart_window_minutes)
+        try:
+            get_container().scheduler().add_job(
+                process_deferred_stream_offline,
+                trigger="date",
+                run_date=run_date,
+                id=f"{_DEFERRED_OFFLINE_JOB_PREFIX}:{user.id}",
+                replace_existing=True,
+                misfire_grace_time=None,
+                kwargs={"user_id": user.id},
             )
-
-        await self._clear_stream_message_ids(user.id)
+        except Exception:
+            logger.error(
+                "stream.offline user_id=%s: не удалось поставить stream_offline_deferred джобу",
+                user.id,
+                exc_info=True,
+            )
+            return
+        logger.info(
+            "stream.offline user_id=%s: подтверждение окончания отложено на %d мин",
+            user.id,
+            settings.stream_restart_window_minutes,
+        )
 
     @staticmethod
     def _render_stream_offline_message(tg: TelegramSettings, streamer: str, link: str) -> str:
@@ -777,17 +781,6 @@ class TwitchEventSubService:
                 template,
             )
             return TwitchEventSubService._STREAM_OFFLINE_TEXT
-
-    async def _set_stream_restart_marker(self, user_id: int, online_message_id: str | None) -> None:
-        """Записать Redis-маркер недавнего окончания стрима (TTL = окно перезапуска)."""
-        if self._cache is None:
-            return
-        marker = {"online_message_id": online_message_id}
-        await self._cache.set_str(
-            f"{self._STREAM_RESTART_REDIS_KEY}:{user_id}",
-            json.dumps(marker),
-            ttl=self._STREAM_RESTART_WINDOW_SECONDS,
-        )
 
     async def _publish_send_message(
         self,
@@ -874,9 +867,20 @@ class TwitchEventSubService:
             )
             await db.commit()
 
-    async def _clear_stream_message_ids(self, user_id: int) -> None:
-        """Очистить last_stream_message_id и last_stream_offline_message_id в БД."""
-        await self._set_stream_message_ids(user_id)
+    async def _clear_online_message_id(self, user_id: int) -> None:
+        """Обнулить только ``last_stream_message_id``.
+
+        ``last_stream_offline_message_id`` не трогаем: его записывает колбэк
+        ``handle_telegram_result`` по результату доставки «Завершён», и общая
+        очистка могла бы затереть его (race publish → cleanup → callback).
+        """
+        async with self._db_session_factory() as db:
+            await db.execute(
+                sa.update(TelegramSettings)
+                .where(TelegramSettings.user_id == user_id)
+                .values(last_stream_message_id=None)
+            )
+            await db.commit()
 
     # ── AI Stickers → Telegram ────────────────────────────────────────────
 
@@ -915,3 +919,101 @@ class TwitchEventSubService:
             },
         )
         logger.info("Стикер отправлен в Telegram для user_id=%s sticker_id=%s", user.id, sticker_id)
+
+
+async def process_deferred_stream_offline(user_id: int, attempt: int = 1) -> None:
+    """APScheduler-джоба ``stream_offline_deferred:{user_id}`` — подтверждённое окончание стрима.
+
+    Ставится в ``TwitchEventSubService.handle_stream_offline`` через W минут после
+    stream.offline (docs/telegram.md). Проверяет через Get Streams, что стрим
+    действительно офлайн, и только тогда выполняет ``stream_offline_behavior``
+    (delete → удалить пост о начале / message → «Завершён» / keep → ничего)
+    и чистит ``last_stream_message_id``.
+
+    Если Get Streams недоступен (статус неизвестен) — перезапланируется на
+    ``_DEFERRED_OFFLINE_RETRY_MINUTES`` минут, всего не более
+    ``_DEFERRED_OFFLINE_MAX_ATTEMPTS`` попыток.
+
+    Top-level функция (не метод класса) — обязательное требование сериализации
+    в персистентный SQL jobstore APScheduler.
+    """
+    from container_runtime import get_container
+
+    container = get_container()
+    service: TwitchEventSubService = container.twitch_eventsub_service()
+
+    async with service._db_session_factory() as db:  # noqa: SLF001
+        result = await db.execute(sa.select(User).options(selectinload(User.telegram)).where(User.id == user_id))
+        user = result.scalar_one_or_none()
+
+    if user is None:
+        return
+    tg = user.telegram
+    if tg is None or not tg.stream_notification_enabled or not tg.stream_chat_id:
+        return
+
+    live = await service._is_stream_live(user)  # noqa: SLF001
+    if live is None:
+        if attempt >= _DEFERRED_OFFLINE_MAX_ATTEMPTS:
+            logger.error(
+                "stream_offline_deferred: user_id=%s — Get Streams недоступен (%d попыток), "
+                "окончание не подтверждено, больше не повторяю",
+                user_id,
+                attempt,
+            )
+            return
+        retry_at = datetime.now(UTC) + timedelta(minutes=_DEFERRED_OFFLINE_RETRY_MINUTES)
+        try:
+            container.scheduler().add_job(
+                process_deferred_stream_offline,
+                trigger="date",
+                run_date=retry_at,
+                id=f"{_DEFERRED_OFFLINE_JOB_PREFIX}:{user_id}",
+                replace_existing=True,
+                misfire_grace_time=None,
+                kwargs={"user_id": user_id, "attempt": attempt + 1},
+            )
+        except Exception:
+            logger.error(
+                "stream_offline_deferred: user_id=%s — не удалось перезапланировать попытку %d",
+                user_id,
+                attempt + 1,
+                exc_info=True,
+            )
+            return
+        logger.warning(
+            "stream_offline_deferred: user_id=%s — Get Streams недоступен, окончание не подтверждено, "
+            "повтор через %d мин (попытка %d/%d)",
+            user_id,
+            _DEFERRED_OFFLINE_RETRY_MINUTES,
+            attempt + 1,
+            _DEFERRED_OFFLINE_MAX_ATTEMPTS,
+        )
+        return
+    if live:
+        logger.info(
+            "stream_offline_deferred: user_id=%s — стрим снова онлайн (гонка/отменённый рестарт), ничего не делаю",
+            user_id,
+        )
+        return
+
+    behavior = tg.stream_offline_behavior or "keep"
+    if behavior == "delete" and tg.last_stream_message_id:
+        await service._publish_delete_message(tg.stream_chat_id, tg.last_stream_message_id)  # noqa: SLF001
+    elif behavior == "message":
+        stream_url = f"https://twitch.tv/{user.login_name}"
+        message_text = service._render_stream_offline_message(tg, user.login_name, stream_url)  # noqa: SLF001
+        request_id = f"{TwitchEventSubService._STREAM_OFFLINE_REQUEST_PREFIX}:{user_id}"
+        await service._publish_send_message(  # noqa: SLF001
+            tg.stream_chat_id,
+            message_text,
+            request_id,
+            disable_web_page_preview=not tg.stream_link_preview_enabled,
+        )
+    # Чистим только online-id: offline-id заполняет колбэк доставки «Завершён».
+    await service._clear_online_message_id(user_id)  # noqa: SLF001
+    logger.info(
+        "stream_offline_deferred: user_id=%s — окончание подтверждено, применён behavior=%s",
+        user_id,
+        behavior,
+    )

@@ -24,7 +24,7 @@ DEFAULT_TELEGRAM = {
     "stream_message_template": None,
     "stream_link_preview_enabled": True,
     "stream_offline_message_template": None,
-    "stream_restart_behavior": "edit",
+    "stream_restart_behavior": "silent",
     "stream_restart_message_template": None,
     "clips_enabled": False,
     "clips_mode": "all",
