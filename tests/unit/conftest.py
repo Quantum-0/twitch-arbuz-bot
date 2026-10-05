@@ -5,7 +5,6 @@ from pytest_asyncio import is_async_test
 from database.models import User
 
 # !!! ORDER IS IMPORTANT !!!
-from tests.unit.fixtures import event_loop  # noqa
 from tests.unit.fixtures.twitch_message import twitch_message_event_model, twitch_message_event_raw  # noqa
 from twitch.state_manager import InMemoryStateManager
 

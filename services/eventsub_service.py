@@ -27,6 +27,7 @@ from exceptions import (
 from schemas.api import StatsType
 from schemas.enums import FileStorageDir
 from schemas.twitch import (
+    EventSubRevocationSchema,
     FollowWebhookSchema,
     PointRewardRedemptionWebhookSchema,
     RaidWebhookSchema,
@@ -227,6 +228,59 @@ class TwitchEventSubService:
             )
             await self._ssem.broadcast(broadcaster_id, SSEChannel.TWITCH_EVENTS, event)
 
+    async def handle_revocation(self, payload: EventSubRevocationSchema) -> None:
+        """EventSub revocation: Twitch отозвал подписку — отключаем соответствующий функционал.
+
+        Приходит с ``Twitch-Eventsub-Message-Type: revocation``, без поля ``event``.
+        ``authorization_revoked`` — пользователь отозвал авторизацию приложения,
+        ``user_removed`` — удалил аккаунт.
+        """
+        sub = payload.subscription
+        condition = sub.condition
+        broadcaster_id = condition.broadcaster_user_id or condition.to_broadcaster_user_id
+        logger.warning(
+            "EventSub revocation: type=%s, status=%s, broadcaster=%s",
+            sub.type,
+            sub.status,
+            broadcaster_id,
+        )
+        if broadcaster_id is None:
+            logger.error("Revocation без broadcaster_user_id, пропускаем: condition=%s", condition.model_dump())
+            return
+
+        if sub.type == "channel.chat.message":
+            # Чат-бот больше не получает сообщения канала — отключаем его у стримера.
+            await self._disable_chat_bot(broadcaster_id)
+            return
+
+        if sub.type == "channel.channel_points_custom_reward_redemption.add":
+            # Подписка на награду мертва: проверки в панели сами покажут
+            # «Подписка на награду не найдена», вручную стейт не трогаем.
+            return
+
+        if sub.type in {"channel.follow", "channel.subscribe", "channel.subscription.message", "channel.raid"}:
+            # Оверлейные подписки (heartbeat в Redis, см. routers/api/user/eventsub.py) —
+            # убираем запись, чтобы не считались активными.
+            if self._cache is not None:
+                await self._cache.delete(f"eventsub:overlay:{broadcaster_id}")
+            return
+
+        # stream.online / stream.offline: уведомления просто прекратятся, лога выше достаточно.
+
+    async def _disable_chat_bot(self, broadcaster_id: int) -> None:
+        """Отключить чат-бот стримеру (EventSub chat.message отозван)."""
+        async with self._db_session_factory() as db:
+            result = await db.execute(
+                sa.update(TwitchUserSettings)
+                .values(enable_chat_bot=False)
+                .where(TwitchUserSettings.user_id.in_(sa.select(User.id).where(User.twitch_id == str(broadcaster_id))))
+                .returning(TwitchUserSettings.user_id)
+            )
+            disabled = result.scalars().all()
+            await db.commit()
+        if disabled:
+            logger.warning("Чат-бот отключён из-за EventSub revocation: twitch_id=%s", broadcaster_id)
+
     @task_wrapper
     @tracer.start_as_current_span("Twitch Eventsub: Reward redemption")
     async def handle_reward_redemption(
@@ -267,7 +321,16 @@ class TwitchEventSubService:
                 payload.event.redemption_id,
             )
         except TwitchResourceNotFound:
-            logger.error("Cannot find redemption to cancel", exc_info=True)
+            # Ожидаемая гонка: redemption уже отменён/выполнен на стороне Twitch
+            # (стример разрешил вручную или повторная доставка вебхука) — не шумим в GlitchTip.
+            logger.warning(
+                "Redemption уже разрешён на стороне Twitch, отмена пропущена: reward=%s redemption=%s",
+                payload.subscription.condition.reward_id,
+                payload.event.redemption_id,
+            )
+            # FIXME: Это НЕ ожидаемое поведение. Управление reward redemption должно осуществляться ботом.
+            #  Если вылезла эта ошибка - значит пользователь включил на стороне твича чтоб награда автоматически считалась выполненной
+            #  Это не корректно, и нам нужно как-то уведомить пользователя, что награду необходимо отредактировать. Либо сделать это самим. Кстати да, наверно лучше самим отредактировать, убрав галочку "автоматически выполнять"
 
     async def _fulfill_redemption(self, user: User, payload: PointRewardRedemptionWebhookSchema) -> None:
         try:
@@ -277,7 +340,12 @@ class TwitchEventSubService:
                 payload.event.redemption_id,
             )
         except TwitchResourceNotFound:
-            logger.error("Cannot find redemption to fulfill", exc_info=True)
+            logger.warning(
+                "Redemption уже разрешён на стороне Twitch, подтверждение пропущено: reward=%s redemption=%s",
+                payload.subscription.condition.reward_id,
+                payload.event.redemption_id,
+            )
+            # FIXME: Аналогично с предыдущим
 
     async def reward_buy_memealerts(
         self,

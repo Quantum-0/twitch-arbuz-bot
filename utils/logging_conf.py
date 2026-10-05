@@ -49,7 +49,10 @@ LOGGING_CONFIG = {
         "httpcore.http11": {"level": "INFO", "propagate": False},
         "websockets.client": {"level": "WARN", "propagate": False},
         "botocore": {"level": "WARN", "propagate": False},
-        "opentelemetry.exporter.otlp.proto.grpc.exporter": {"level": "ERROR", "propagate": False},
+        # CRITICAL, а не ERROR: sentry-sdk перехватывает логи через monkeypatch
+        # logging.Logger.callHandlers, поэтому propagate=False не спасает от GlitchTip.
+        # Экспортёры OTel шумят именно на ERROR («Failed to export traces to ...»).
+        "opentelemetry.exporter.otlp.proto.grpc.exporter": {"level": "CRITICAL", "propagate": False},
         "aiobotocore.regions": {"level": "WARN", "propagate": False},
         "openai._base_client": {"level": "INFO", "propagate": False},
         # "twitch.bot": {"level": "DEBUG", "propagate": False},

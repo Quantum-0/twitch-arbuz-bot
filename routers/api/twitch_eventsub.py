@@ -14,6 +14,7 @@ from routers.helpers import parse_eventsub_payload
 from schemas.api import BaseErrorSchema
 from schemas.twitch import (
     ChatMessageSchema,
+    EventSubRevocationSchema,
     FollowWebhookSchema,
     PointRewardRedemptionWebhookSchema,
     RaidWebhookSchema,
@@ -59,6 +60,7 @@ async def eventsub_handler(
         PointRewardRedemptionWebhookSchema
         | RaidWebhookSchema
         | TwitchChallengeSchema
+        | EventSubRevocationSchema
         | ChatMessageSchema
         | StreamOnlineSchema
         | StreamOfflineSchema
@@ -76,6 +78,11 @@ async def eventsub_handler(
 
     if isinstance(payload, TwitchChallengeSchema):
         return PlainTextResponse(content=payload.challenge, media_type="text/plain")
+
+    if isinstance(payload, EventSubRevocationSchema):
+        logger.info("Handling eventsub revocation")
+        await service.handle_revocation(payload)
+        return Response(status_code=204)
 
     if isinstance(payload, PointRewardRedemptionWebhookSchema):
         logger.info("Handling reward redemption")

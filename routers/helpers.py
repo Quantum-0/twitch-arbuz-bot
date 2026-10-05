@@ -6,6 +6,7 @@ from pydantic import BaseModel, ValidationError
 from routers.security_helpers import verify_eventsub_signature
 from schemas.twitch import (
     ChatMessageSchema,
+    EventSubRevocationSchema,
     FollowWebhookSchema,
     PointRewardRedemptionWebhookSchema,
     RaidWebhookSchema,
@@ -40,6 +41,7 @@ async def parse_eventsub_payload(
     PointRewardRedemptionWebhookSchema
     | RaidWebhookSchema
     | TwitchChallengeSchema
+    | EventSubRevocationSchema
     | ChatMessageSchema
     | StreamOnlineSchema
     | StreamOfflineSchema
@@ -55,11 +57,14 @@ async def parse_eventsub_payload(
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid JSON body")
 
-    schema_cls: type[BaseModel] | None = (
-        TwitchChallengeSchema
-        if eventsub_message_type == "webhook_callback_verification"
-        else SCHEMA_BY_TYPE.get(eventsub_subscription_type)
-    )
+    # Сначала диспетчеризуем по message type: revocation и verification приходят
+    # с типом подписки обычного события, но без поля event.
+    if eventsub_message_type == "webhook_callback_verification":
+        schema_cls: type[BaseModel] | None = TwitchChallengeSchema
+    elif eventsub_message_type == "revocation":
+        schema_cls = EventSubRevocationSchema
+    else:
+        schema_cls = SCHEMA_BY_TYPE.get(eventsub_subscription_type)
 
     if not schema_cls:
         logger.warning(f"Determine schema {schema_cls} by eventsub_subscription_type: {eventsub_subscription_type}")

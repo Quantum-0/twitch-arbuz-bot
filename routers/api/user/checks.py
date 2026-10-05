@@ -22,6 +22,7 @@ from schemas.api import (
 from schemas.memealerts import MAChannel
 from services.memes_v2 import MemealertsOAuthService, MemealertsV2Service
 from services.sse_manager import SSEManager
+from services.twitch_token_service import TwitchTokenExpiredError
 from twitch.client.twitch import Twitch
 from utils.enums import SSEChannel
 from utils.tts import get_tts_settings
@@ -29,6 +30,19 @@ from utils.tts import get_tts_settings
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/check", tags=["User checks"])
+
+# Код проблемы для фронта: panel-scripts.js рендерит по нему HTML со ссылкой на /login.
+REAUTH_PROBLEM = "twitch_token_invalid"
+
+
+def _reward_check_response(problems: list[str]) -> CheckMemealertsRewardStatusResponseSchema:
+    if not problems:
+        state = "ok"
+    elif "Награда не найдена" in problems:
+        state = "missing"
+    else:
+        state = "broken"
+    return CheckMemealertsRewardStatusResponseSchema(result=not problems, problems=problems, state=state)
 
 
 @router.get(
@@ -54,7 +68,10 @@ async def check_heat_installed(
     twitch: Annotated[Twitch, Depends(Provide[Container.twitch])],
     user: User = Security(user_auth),
 ) -> CheckStatusResponseSchema:
-    exts = await twitch.get_user_active_ext(user)
+    try:
+        exts = await twitch.get_user_active_ext(user)
+    except TwitchTokenExpiredError:
+        return CheckStatusResponseSchema(result=False, problems=[REAUTH_PROBLEM])
     overlay = exts.overlay.get("1")
     if not overlay:
         return CheckStatusResponseSchema(result=False, problems=["Расширение твича не установлено"])
@@ -118,21 +135,14 @@ async def check_memealerts_reward(
     twitch: Annotated[Twitch, Depends(Provide[Container.twitch])],
     user: User = Security(user_auth),
 ) -> CheckMemealertsRewardStatusResponseSchema:
-    problems = await twitch.validate_reward_subscription(
-        user=user,
-        reward_id=str(user.memealerts.memealerts_reward),
-    )
-    if not problems:
-        state = "ok"
-    elif "Награда не найдена" in problems:
-        state = "missing"
-    else:
-        state = "broken"
-    return CheckMemealertsRewardStatusResponseSchema(
-        result=not problems,
-        problems=problems,
-        state=state,
-    )
+    try:
+        problems = await twitch.validate_reward_subscription(
+            user=user,
+            reward_id=str(user.memealerts.memealerts_reward),
+        )
+    except TwitchTokenExpiredError:
+        return _reward_check_response([REAUTH_PROBLEM])
+    return _reward_check_response(problems)
 
 
 @router.get("/ai-stickers-reward", response_model=CheckMemealertsRewardStatusResponseSchema)
@@ -142,15 +152,14 @@ async def check_ai_stickers_reward(
     user: User = Security(user_auth),
 ) -> CheckMemealertsRewardStatusResponseSchema:
     if not user.settings.ai_sticker_reward_id:
-        return CheckMemealertsRewardStatusResponseSchema(result=False, problems=["Награда не создана"], state="missing")
-    problems = await twitch.validate_reward_subscription(user=user, reward_id=str(user.settings.ai_sticker_reward_id))
-    if not problems:
-        state = "ok"
-    elif "Награда не найдена" in problems:
-        state = "missing"
-    else:
-        state = "broken"
-    return CheckMemealertsRewardStatusResponseSchema(result=not problems, problems=problems, state=state)
+        return _reward_check_response(["Награда не создана"])
+    try:
+        problems = await twitch.validate_reward_subscription(
+            user=user, reward_id=str(user.settings.ai_sticker_reward_id)
+        )
+    except TwitchTokenExpiredError:
+        return _reward_check_response([REAUTH_PROBLEM])
+    return _reward_check_response(problems)
 
 
 @router.get("/tts-reward", response_model=CheckMemealertsRewardStatusResponseSchema)
@@ -161,15 +170,12 @@ async def check_tts_reward(
 ) -> CheckMemealertsRewardStatusResponseSchema:
     tts = get_tts_settings(user)
     if not tts.tts_reward_id:
-        return CheckMemealertsRewardStatusResponseSchema(result=False, problems=["Награда не создана"], state="missing")
-    problems = await twitch.validate_reward_subscription(user=user, reward_id=str(tts.tts_reward_id))
-    if not problems:
-        state = "ok"
-    elif "Награда не найдена" in problems:
-        state = "missing"
-    else:
-        state = "broken"
-    return CheckMemealertsRewardStatusResponseSchema(result=not problems, problems=problems, state=state)
+        return _reward_check_response(["Награда не создана"])
+    try:
+        problems = await twitch.validate_reward_subscription(user=user, reward_id=str(tts.tts_reward_id))
+    except TwitchTokenExpiredError:
+        return _reward_check_response([REAUTH_PROBLEM])
+    return _reward_check_response(problems)
 
 
 @router.get("/tts-overlay", response_model=CheckStatusResponseSchema)

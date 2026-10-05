@@ -64,6 +64,27 @@ class TwitchChallengeSchema(BaseModel):
     challenge: str
 
 
+class WebhookSubscriptionRevocationConditionSchema(BaseModel):
+    """Condition из revocation-уведомления: состав полей зависит от типа подписки."""
+
+    broadcaster_user_id: int | None = None
+    to_broadcaster_user_id: int | None = None
+    from_broadcaster_user_id: int | None = None
+    user_id: int | None = None
+    reward_id: UUID | None = None
+
+
+class EventSubRevocationSchema(BaseModel):
+    """Revocation-уведомление (Twitch-Eventsub-Message-Type: revocation).
+
+    Twitch присылает только ``subscription`` без поля ``event``: подписка отозвана
+    (``authorization_revoked`` — пользователь отозвал авторизацию приложения,
+    ``user_removed`` — удалил аккаунт).
+    """
+
+    subscription: WebhookSubscriptionSchema[WebhookSubscriptionRevocationConditionSchema]
+
+
 class RaidWebhookEventSchema(BaseModel):
     from_broadcaster_user_id: int = Field(...)
     from_broadcaster_user_name: str = Field(..., examples=["Quantum075"])

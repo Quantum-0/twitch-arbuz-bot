@@ -1,5 +1,22 @@
 let coinSaveTimer = null;
 
+// Коды проблем бэкенда, которые рендерим как HTML (ссылки).
+// Остальные проблемы — обычный текст (textContent, безопасно).
+const PROBLEM_MESSAGES = {
+    twitch_token_invalid: 'Ошибка токена Twitch — <a href="/login">Переавторизуйтесь</a>',
+};
+
+function renderProblemItem(problem) {
+    const li = document.createElement("li");
+    const html = PROBLEM_MESSAGES[problem];
+    if (html) {
+        li.innerHTML = html;
+    } else {
+        li.textContent = problem;
+    }
+    return li;
+}
+
 function setupAiStickerReward(enabled) {
     fetch('/api/user/setup-ai-stickers', {
         method: 'POST',
@@ -366,9 +383,7 @@ async function checkStatus(card) {
             }
 
             (data.problems || []).forEach(problem => {
-                const li = document.createElement("li");
-                li.textContent = problem;
-                problems_list.appendChild(li);
+                problems_list.appendChild(renderProblemItem(problem));
             });
 
             // Обновляем кнопку управления наградой

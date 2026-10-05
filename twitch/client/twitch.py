@@ -22,14 +22,44 @@ from twitchAPI.object.api import (
     UserActiveExtensions,
 )
 from twitchAPI.twitch import Twitch as TwitchClient
-from twitchAPI.type import AuthScope, CustomRewardRedemptionStatus, TwitchResourceNotFound, UnauthorizedException
+from twitchAPI.type import (
+    AuthScope,
+    CustomRewardRedemptionStatus,
+    InvalidRefreshTokenException,
+    TwitchResourceNotFound,
+    UnauthorizedException,
+)
 
 from config import bot_scope, settings, user_scope
 from database.models import User
+from services.twitch_token_service import TwitchTokenExpiredError
 from utils.singleton import singleton
 
 logger = logging.getLogger(__name__)
 tracer = trace.get_tracer(__name__)
+
+
+async def _user_twitch_client(user: User, scope: list[AuthScope] | None = None) -> TwitchClient:
+    """Аутентифицировать Twitch-клиент токенами пользователя из БД.
+
+    Отсутствующие или безвозвратно невалидные токены (refresh отозван пользователем,
+    смена пароля) конвертируются в :class:`TwitchTokenExpiredError`, чтобы вызывающий
+    код показал просьбу переавторизоваться вместо необработанного 500.
+    """
+    if not user.access_token or not user.refresh_token:
+        raise TwitchTokenExpiredError("no_token", "У пользователя нет токенов Twitch")
+    twitch_user = await TwitchClient(settings.twitch_client_id, settings.twitch_client_secret)
+    try:
+        await twitch_user.set_user_authentication(
+            user.access_token,
+            user_scope if scope is None else scope,
+            user.refresh_token,
+        )
+    except (InvalidRefreshTokenException, UnauthorizedException) as exc:
+        logger.warning("Twitch токены пользователя %s невалидны, требуется переавторизация", user.login_name)
+        raise TwitchTokenExpiredError("invalid_refresh_token", "Требуется повторная авторизация") from exc
+    return twitch_user
+
 
 # Кэш app access token в Redis (client_credentials grant).
 # Twitch выдаёт токен на ~8 часов, но мы храним 5 минут для безопасности и
@@ -177,8 +207,7 @@ class Twitch:
         reward_description: str,
         is_user_input_required: bool,
     ) -> CustomReward:
-        twitch_user = await TwitchClient(settings.twitch_client_id, settings.twitch_client_secret)
-        await twitch_user.set_user_authentication(user.access_token, user_scope, user.refresh_token)
+        twitch_user = await _user_twitch_client(user)
         reward = await twitch_user.create_custom_reward(
             user.twitch_id,
             reward_title,
@@ -198,8 +227,7 @@ class Twitch:
         is_user_input_required: bool,
         should_redemptions_skip_request_queue: bool,
     ):
-        twitch_user = await TwitchClient(settings.twitch_client_id, settings.twitch_client_secret)
-        await twitch_user.set_user_authentication(user.access_token, user_scope, user.refresh_token)
+        twitch_user = await _user_twitch_client(user)
         rewards = await twitch_user.get_custom_reward(
             user.twitch_id,
             reward_id=reward_id,
@@ -243,13 +271,17 @@ class Twitch:
         reward_id: str,
         subscription_id: str | None = None,
     ) -> list[str]:
-        twitch_user = await TwitchClient(settings.twitch_client_id, settings.twitch_client_secret)
-        await twitch_user.set_user_authentication(user.access_token, user_scope, user.refresh_token)
-        rewards = await twitch_user.get_custom_reward(
-            user.twitch_id,
-            reward_id=reward_id,
-            only_manageable_rewards=True,
-        )
+        twitch_user = await _user_twitch_client(user)
+        try:
+            rewards = await twitch_user.get_custom_reward(
+                user.twitch_id,
+                reward_id=reward_id,
+                only_manageable_rewards=True,
+            )
+        except TwitchResourceNotFound:
+            # Награда удалена на стороне Twitch: get_custom_reward отвечает 404,
+            # а не пустым списком — это ожидаемое состояние «missing» для панели.
+            return ["Награда не найдена"]
         if len(rewards) == 0:
             return ["Награда не найдена"]
 
@@ -296,14 +328,12 @@ class Twitch:
 
     @staticmethod
     async def delete_reward(user, reward_id: UUID | str):
-        twitch_user = await TwitchClient(settings.twitch_client_id, settings.twitch_client_secret)
-        await twitch_user.set_user_authentication(user.access_token, user_scope, user.refresh_token)
+        twitch_user = await _user_twitch_client(user)
         await twitch_user.delete_custom_reward(user.twitch_id, str(reward_id))
 
     @staticmethod
     async def disable_reward(user, reward_id: UUID | str):
-        twitch_user = await TwitchClient(settings.twitch_client_id, settings.twitch_client_secret)
-        await twitch_user.set_user_authentication(user.access_token, user_scope, user.refresh_token)
+        twitch_user = await _user_twitch_client(user)
         await twitch_user.update_custom_reward(user.twitch_id, str(reward_id), is_enabled=False)
 
     @tracer.start_as_current_span("Twitch: Send warning")
@@ -704,12 +734,7 @@ class Twitch:
 
     @staticmethod
     async def set_bot_moder(user: User) -> None:
-        twitch_user = await TwitchClient(settings.twitch_client_id, settings.twitch_client_secret)
-        await twitch_user.set_user_authentication(
-            user.access_token,
-            [AuthScope.CHANNEL_MANAGE_MODERATORS, AuthScope.MODERATION_READ],
-            user.refresh_token,
-        )
+        twitch_user = await _user_twitch_client(user, [AuthScope.CHANNEL_MANAGE_MODERATORS, AuthScope.MODERATION_READ])
         mods: AsyncGenerator[Moderator] = twitch_user.get_moderators(user.twitch_id, first=100)
         async for mod in mods:
             if mod.user_id == "957818216":
@@ -719,10 +744,7 @@ class Twitch:
 
     @staticmethod
     async def get_followers(user: User) -> ChannelFollowersResult:
-        twitch_user = await TwitchClient(settings.twitch_client_id, settings.twitch_client_secret)
-        await twitch_user.set_user_authentication(
-            user.access_token, [AuthScope.MODERATOR_READ_FOLLOWERS], user.refresh_token
-        )
+        twitch_user = await _user_twitch_client(user, [AuthScope.MODERATOR_READ_FOLLOWERS])
         return await twitch_user.get_channel_followers(user.twitch_id, user.twitch_id, first=100)
         # TODO: load all via pagination
 
@@ -742,12 +764,7 @@ class Twitch:
 
     @staticmethod
     async def cancel_redemption(user: User, reward_id: UUID, redemption_id: UUID):
-        twitch_user = await TwitchClient(settings.twitch_client_id, settings.twitch_client_secret)
-        await twitch_user.set_user_authentication(
-            user.access_token,
-            [AuthScope.CHANNEL_MANAGE_REDEMPTIONS],
-            user.refresh_token,
-        )
+        twitch_user = await _user_twitch_client(user, [AuthScope.CHANNEL_MANAGE_REDEMPTIONS])
         await twitch_user.update_redemption_status(
             user.twitch_id,
             reward_id,
@@ -757,12 +774,7 @@ class Twitch:
 
     @staticmethod
     async def fulfill_redemption(user: User, reward_id: UUID, redemption_id: UUID):
-        twitch_user = await TwitchClient(settings.twitch_client_id, settings.twitch_client_secret)
-        await twitch_user.set_user_authentication(
-            user.access_token,
-            [AuthScope.CHANNEL_MANAGE_REDEMPTIONS],
-            user.refresh_token,
-        )
+        twitch_user = await _user_twitch_client(user, [AuthScope.CHANNEL_MANAGE_REDEMPTIONS])
         await twitch_user.update_redemption_status(
             user.twitch_id,
             reward_id,
@@ -774,24 +786,14 @@ class Twitch:
         self,
         user: User,
     ) -> UserActiveExtensions:
-        twitch_user = await TwitchClient(settings.twitch_client_id, settings.twitch_client_secret)
-        await twitch_user.set_user_authentication(
-            user.access_token,
-            [AuthScope.USER_EDIT_BROADCAST, AuthScope.USER_READ_BROADCAST],
-            user.refresh_token,
-        )
+        twitch_user = await _user_twitch_client(user, [AuthScope.USER_EDIT_BROADCAST, AuthScope.USER_READ_BROADCAST])
         return await twitch_user.get_user_active_extensions(user.twitch_id)
 
     async def install_heat_ext(
         self,
         user: User,
     ):
-        twitch_user = await TwitchClient(settings.twitch_client_id, settings.twitch_client_secret)
-        await twitch_user.set_user_authentication(
-            user.access_token,
-            [AuthScope.USER_EDIT_BROADCAST, AuthScope.USER_READ_BROADCAST],
-            user.refresh_token,
-        )
+        twitch_user = await _user_twitch_client(user, [AuthScope.USER_EDIT_BROADCAST, AuthScope.USER_READ_BROADCAST])
         await twitch_user.update_user_extensions(
             UserActiveExtensions(
                 overlay={"1": {"active": True, "id": "cr20njfkgll4okyrhag7xxph270sqk", "version": "2.1.1"}}
