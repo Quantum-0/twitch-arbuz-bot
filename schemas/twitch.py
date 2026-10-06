@@ -68,8 +68,8 @@ class WebhookSubscriptionRevocationConditionSchema(BaseModel):
     """Condition из revocation-уведомления: состав полей зависит от типа подписки."""
 
     broadcaster_user_id: int | None = None
-    to_broadcaster_user_id: int | None = None
-    from_broadcaster_user_id: int | None = None
+    to_broadcaster_user_id: int | Literal[""] | None = None
+    from_broadcaster_user_id: int | Literal[""] | None = None
     user_id: int | None = None
     reward_id: UUID | None = None
 

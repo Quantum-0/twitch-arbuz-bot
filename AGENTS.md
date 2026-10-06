@@ -105,6 +105,20 @@ poetry run uvicorn main:app --reload   # запустить дев-сервер
   Ишьюс от SDK (OTel exporter, `MqttCodeError` и пр.) часто являются инфраструктурным шумом —
   фильтровать по `environment=production` и `lastSeen`.
 
+## Инфраструктура (vds-msk)
+
+- **Jaeger:** compose в `~/jaeger/` (config `jaeger-config.yml`).
+  Хранилище in-memory с **кольцевым буфером `max_traces: 40000`** — лимит подобран под memory-лимит
+- Healthcheck: `wget http://127.0.0.1:13133/status`
+  (важно: путь `/status`, не `/`). Приложение шлёт трейсы на `jaeger:4317` (`config.otel_endpoint`),
+  семплирование 100% — глубокая история трейсов в буфере не хранится.
+- **Шум OTel в GlitchTip:** логгер `opentelemetry.exporter.otlp.proto.grpc.exporter` заглушен уровнем
+  CRITICAL (`utils/logging_conf.py`) — `propagate=False` не спасает, т.к. sentry-sdk ≥2.x перехватывает
+  логи monkeypatch'ем `logging.Logger.callHandlers`.
+- **Диск:** заполнение ~94% (окт-2026). Кандидаты на очистку: dangling-образы текущего сервиса
+  (~26G, `docker image prune`),
+  journald-архивы (`journalctl --vacuum-size=200M`, ~2.5G). Очистка — только по явному разрешению пользователя.
+
 ## Структура проекта
 
 ```

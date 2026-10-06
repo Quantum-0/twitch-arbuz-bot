@@ -237,15 +237,15 @@ class TwitchEventSubService:
         """
         sub = payload.subscription
         condition = sub.condition
-        broadcaster_id = condition.broadcaster_user_id or condition.to_broadcaster_user_id
+        broadcaster_id = condition.broadcaster_user_id or condition.to_broadcaster_user_id or None
         logger.warning(
             "EventSub revocation: type=%s, status=%s, broadcaster=%s",
             sub.type,
             sub.status,
             broadcaster_id,
         )
-        if broadcaster_id is None:
-            logger.error("Revocation без broadcaster_user_id, пропускаем: condition=%s", condition.model_dump())
+        if not broadcaster_id:
+            logger.warning("Revocation без broadcaster_user_id, пропускаем: condition=%s", condition.model_dump())
             return
 
         if sub.type == "channel.chat.message":
@@ -450,7 +450,7 @@ class TwitchEventSubService:
             self._inc_reward("failed", StatsType.REWARD_MEMECOINS)
             await self._chatbot.send_message(
                 user,
-                f"Ошибка начисления мемкоинов: Memealerts не принял установленный токен.",
+                "Ошибка начисления мемкоинов: Memealerts не принял установленный токен.",
             )
             await self._cancel_redemption(user, payload)
         except (MAInvalidTokenError, MAInvalidScopeError, MANoToken):

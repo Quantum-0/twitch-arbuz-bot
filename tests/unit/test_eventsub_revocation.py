@@ -112,3 +112,16 @@ async def test_revocation_without_broadcaster_is_ignored() -> None:
     await service.handle_revocation(build_revocation("channel.follow", {}))
 
     cache.delete.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_raid_revocation_with_empty_broadcaster_is_ignored() -> None:
+    """Twitch присылает from/to_broadcaster_user_id="" для рейдов «из ниоткуда»."""
+    cache = SimpleNamespace(delete=AsyncMock())
+    service = build_service(cache=cache)
+
+    payload = build_revocation("channel.raid", {"to_broadcaster_user_id": "", "from_broadcaster_user_id": ""})
+
+    await service.handle_revocation(payload)
+
+    cache.delete.assert_not_awaited()

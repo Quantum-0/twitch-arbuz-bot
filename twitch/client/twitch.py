@@ -26,6 +26,7 @@ from twitchAPI.type import (
     AuthScope,
     CustomRewardRedemptionStatus,
     InvalidRefreshTokenException,
+    InvalidTokenException,
     TwitchResourceNotFound,
     UnauthorizedException,
 )
@@ -55,7 +56,7 @@ async def _user_twitch_client(user: User, scope: list[AuthScope] | None = None) 
             user_scope if scope is None else scope,
             user.refresh_token,
         )
-    except (InvalidRefreshTokenException, UnauthorizedException) as exc:
+    except (InvalidRefreshTokenException, InvalidTokenException, UnauthorizedException) as exc:
         logger.warning("Twitch токены пользователя %s невалидны, требуется переавторизация", user.login_name)
         raise TwitchTokenExpiredError("invalid_refresh_token", "Требуется повторная авторизация") from exc
     return twitch_user
@@ -230,7 +231,7 @@ class Twitch:
         twitch_user = await _user_twitch_client(user)
         rewards = await twitch_user.get_custom_reward(
             user.twitch_id,
-            reward_id=reward_id,
+            reward_id=str(reward_id),
             only_manageable_rewards=True,
         )
         if len(rewards) == 0:
@@ -767,8 +768,8 @@ class Twitch:
         twitch_user = await _user_twitch_client(user, [AuthScope.CHANNEL_MANAGE_REDEMPTIONS])
         await twitch_user.update_redemption_status(
             user.twitch_id,
-            reward_id,
-            redemption_id,
+            str(reward_id),
+            str(redemption_id),
             CustomRewardRedemptionStatus.CANCELED,
         )
 
@@ -777,8 +778,8 @@ class Twitch:
         twitch_user = await _user_twitch_client(user, [AuthScope.CHANNEL_MANAGE_REDEMPTIONS])
         await twitch_user.update_redemption_status(
             user.twitch_id,
-            reward_id,
-            redemption_id,
+            str(reward_id),
+            str(redemption_id),
             CustomRewardRedemptionStatus.FULFILLED,
         )
 

@@ -8,7 +8,7 @@ const PROBLEM_MESSAGES = {
 
 function renderProblemItem(problem) {
     const li = document.createElement("li");
-    const html = PROBLEM_MESSAGES[problem];
+    const html = Object.hasOwn(PROBLEM_MESSAGES, problem) ? PROBLEM_MESSAGES[problem] : null;
     if (html) {
         li.innerHTML = html;
     } else {
@@ -386,8 +386,12 @@ async function checkStatus(card) {
                 problems_list.appendChild(renderProblemItem(problem));
             });
 
+            // При проблеме токена кнопки «создать/исправить награду» бесполезны —
+            // любое управление наградой вернёт ошибку до переавторизации.
+            const needsReauth = (data.problems || []).includes("twitch_token_invalid");
+
             // Обновляем кнопку управления наградой
-            if (type === "memealerts-reward") {
+            if (type === "memealerts-reward" && !needsReauth) {
                 switch (data.state) {
                     case "missing":
                         updateRewardButton("create");
@@ -400,7 +404,7 @@ async function checkStatus(card) {
                         break;
                 }
             }
-            if (type === "ai-stickers-reward" && typeof updateAiStickerRewardButton === "function") {
+            if (type === "ai-stickers-reward" && !needsReauth && typeof updateAiStickerRewardButton === "function") {
                 switch (data.state) {
                     case "missing":
                         updateAiStickerRewardButton("create");

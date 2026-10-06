@@ -13,6 +13,7 @@ from container import Container
 from database.models import MemealertsSettings, User
 from routers.security_helpers import user_auth
 from services.memes_v2 import MemealertsOAuthService
+from services.twitch_token_service import TwitchTokenExpiredError
 from twitch.client.twitch import Twitch
 
 logger = logging.getLogger(__name__)
@@ -59,7 +60,13 @@ async def disable_reward(
             },
             status_code=404,
         )
-    await twitch.disable_reward(user, user.memealerts.memealerts_reward)
+    try:
+        await twitch.disable_reward(user, user.memealerts.memealerts_reward)
+    except TwitchTokenExpiredError:
+        return JSONResponse(
+            {"title": "Ошибка", "message": "Токен Twitch недействителен. Выйдите из аккаунта и войдите снова."},
+            400,
+        )
     return JSONResponse(
         content={
             "title": "Memealerts",
@@ -83,6 +90,11 @@ async def create_reward(
             1000,
             "Награда начисляется автомагически. В комментарии к награде обязательно укажи свой полный ник или ID на Memealerts. ОБЯЗАТЕЛЬНО заберите приветственный бонус.",
             is_user_input_required=True,
+        )
+    except TwitchTokenExpiredError:
+        return JSONResponse(
+            {"title": "Ошибка", "message": "Токен Twitch недействителен. Выйдите из аккаунта и войдите снова."},
+            400,
         )
     except TwitchAPIException as exc:
         if "CREATE_CUSTOM_REWARD_DUPLICATE_REWARD" in str(exc):
@@ -116,11 +128,17 @@ async def update_reward(
 ):
     if not user.memealerts.memealerts_reward:
         return JSONResponse({"title": "Ошибка", "message": "Награда не существует."}, 400)
-    reward = await twitch.update_reward(
-        user,
-        user.memealerts.memealerts_reward,
-        is_enabled=True,
-        is_user_input_required=True,
-        should_redemptions_skip_request_queue=False,
-    )
+    try:
+        reward = await twitch.update_reward(
+            user,
+            user.memealerts.memealerts_reward,
+            is_enabled=True,
+            is_user_input_required=True,
+            should_redemptions_skip_request_queue=False,
+        )
+    except TwitchTokenExpiredError:
+        return JSONResponse(
+            {"title": "Ошибка", "message": "Токен Twitch недействителен. Выйдите из аккаунта и войдите снова."},
+            400,
+        )
     return JSONResponse({"title": "Успешно", "message": "Награда обновлена."}, 200)
