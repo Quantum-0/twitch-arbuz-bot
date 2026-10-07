@@ -25,15 +25,13 @@ from twitchAPI.twitch import Twitch as TwitchClient
 from twitchAPI.type import (
     AuthScope,
     CustomRewardRedemptionStatus,
-    InvalidRefreshTokenException,
-    InvalidTokenException,
     TwitchResourceNotFound,
     UnauthorizedException,
 )
 
 from config import bot_scope, settings, user_scope
+from container_runtime import get_container
 from database.models import User
-from services.twitch_token_service import TwitchTokenExpiredError
 from utils.singleton import singleton
 
 logger = logging.getLogger(__name__)
@@ -41,24 +39,23 @@ tracer = trace.get_tracer(__name__)
 
 
 async def _user_twitch_client(user: User, scope: list[AuthScope] | None = None) -> TwitchClient:
-    """Аутентифицировать Twitch-клиент токенами пользователя из БД.
+    """Аутентифицировать Twitch-клиент актуальным токеном пользователя.
 
-    Отсутствующие или безвозвратно невалидные токены (refresh отозван пользователем,
-    смена пароля) конвертируются в :class:`TwitchTokenExpiredError`, чтобы вызывающий
-    код показал просьбу переавторизоваться вместо необработанного 500.
+    Токен берётся у :meth:`TwitchTokenService.get_valid_access_token`: при
+    необходимости он обновляется с сохранением в БД. Отсутствующие или
+    безвозвратно невалидные токены (refresh отозван пользователем, смена пароля)
+    пробрасываются как :class:`TwitchTokenExpiredError`, чтобы вызывающий код
+    показал просьбу переавторизоваться вместо необработанного 500.
     """
-    if not user.access_token or not user.refresh_token:
-        raise TwitchTokenExpiredError("no_token", "У пользователя нет токенов Twitch")
+    token_service = get_container().twitch_token_service()
+    access_token = await token_service.get_valid_access_token(user)
     twitch_user = await TwitchClient(settings.twitch_client_id, settings.twitch_client_secret)
-    try:
-        await twitch_user.set_user_authentication(
-            user.access_token,
-            user_scope if scope is None else scope,
-            user.refresh_token,
-        )
-    except (InvalidRefreshTokenException, InvalidTokenException, UnauthorizedException) as exc:
-        logger.warning("Twitch токены пользователя %s невалидны, требуется переавторизация", user.login_name)
-        raise TwitchTokenExpiredError("invalid_refresh_token", "Требуется повторная авторизация") from exc
+    await twitch_user.set_user_authentication(
+        access_token,
+        user_scope if scope is None else scope,
+        user.refresh_token,
+        validate=False,
+    )
     return twitch_user
 
 
