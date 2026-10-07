@@ -1,8 +1,9 @@
 import base64
 import logging
 import time
-from collections.abc import AsyncGenerator
-from typing import Any
+from collections.abc import AsyncGenerator, Awaitable, Callable
+from functools import wraps
+from typing import Any, TypeVar
 from uuid import UUID
 
 import httpx
@@ -25,6 +26,9 @@ from twitchAPI.twitch import Twitch as TwitchClient
 from twitchAPI.type import (
     AuthScope,
     CustomRewardRedemptionStatus,
+    InvalidRefreshTokenException,
+    InvalidTokenException,
+    MissingScopeException,
     TwitchResourceNotFound,
     UnauthorizedException,
 )
@@ -32,21 +36,58 @@ from twitchAPI.type import (
 from config import bot_scope, settings, user_scope
 from container_runtime import get_container
 from database.models import User
+from services.twitch_token_service import TwitchTokenExpiredError
 from utils.singleton import singleton
 
 logger = logging.getLogger(__name__)
 tracer = trace.get_tracer(__name__)
+
+_ReturnTypeT = TypeVar("_ReturnTypeT")
+
+# Ошибки twitchAPI, означающие, что user-токен мёртв (отозван, смена пароля,
+# отозваны скоупы) и лечится только повторной авторизацией.
+_REAUTH_ERRORS = (InvalidRefreshTokenException, InvalidTokenException, MissingScopeException, UnauthorizedException)
+
+
+def _reauth_on_auth_error(
+    func: Callable[..., Awaitable[_ReturnTypeT]],
+) -> Callable[..., Awaitable[_ReturnTypeT]]:
+    """Конвертировать ошибки авторизации twitchAPI в :class:`TwitchTokenExpiredError`.
+
+    UX «переавторизуйтесь» в роутах построен на ``TwitchTokenExpiredError``
+    (``routers/api/user_api.py:_REAUTH_ERROR``, ``routers/api/user/checks.py:REAUTH_PROBLEM``).
+    Декоратор применяется к методам, работающим через user-токен: ошибки авторизации
+    twitchAPI (401, инвалидация refresh-токена, отсутствие нужного скоупа) приводятся
+    к тому же типу, вместо необработанного 500. Прочие исключения проходят насквозь.
+    """
+
+    @wraps(func)
+    async def wrapper(*args: Any, **kwargs: Any) -> _ReturnTypeT:
+        try:
+            return await func(*args, **kwargs)
+        except _REAUTH_ERRORS as exc:
+            logger.warning(
+                "Twitch отклонил авторизацию в %s (%s), требуется переавторизация",
+                func.__name__,
+                type(exc).__name__,
+            )
+            raise TwitchTokenExpiredError("twitch_auth_failed", "Требуется повторная авторизация") from exc
+
+    return wrapper
 
 
 async def _user_twitch_client(user: User, scope: list[AuthScope] | None = None) -> TwitchClient:
     """Аутентифицировать Twitch-клиент актуальным токеном пользователя.
 
     Токен берётся у :meth:`TwitchTokenService.get_valid_access_token`: при
-    необходимости он обновляется с сохранением в БД. Отсутствующие или
-    безвозвратно невалидные токены (refresh отозван пользователем, смена пароля)
-    пробрасываются как :class:`TwitchTokenExpiredError`, чтобы вызывающий код
-    показал просьбу переавторизоваться вместо необработанного 500.
+    необходимости он обновляется с сохранением в БД. Проверка ``validate=False``
+    намеренно пропускает повторную валидацию — токен только что проверен
+    токен-сервисом. Отсутствующие токены и безвозвратно невалидный refresh
+    приводят к :class:`TwitchTokenExpiredError`, чтобы вызывающий код показал
+    просьбу переавторизоваться вместо необработанного 500.
     """
+    if not user.access_token or not user.refresh_token:
+        raise TwitchTokenExpiredError("no_token", "У пользователя нет токенов Twitch")
     token_service = get_container().twitch_token_service()
     access_token = await token_service.get_valid_access_token(user)
     twitch_user = await TwitchClient(settings.twitch_client_id, settings.twitch_client_secret)
@@ -198,6 +239,7 @@ class Twitch:
         )
 
     @staticmethod
+    @_reauth_on_auth_error
     async def create_reward(
         user,
         reward_title: str,
@@ -216,6 +258,7 @@ class Twitch:
         return reward
 
     @classmethod
+    @_reauth_on_auth_error
     async def update_reward(
         cls,
         user: User,
@@ -264,6 +307,7 @@ class Twitch:
             await cls.subscribe_reward(user=user, reward_id=reward_id)
 
     @staticmethod
+    @_reauth_on_auth_error
     async def validate_reward_subscription(
         user: User,
         reward_id: str,
@@ -325,11 +369,13 @@ class Twitch:
         return {user: streams.get(user if isinstance(user, str) else user.login_name) for user in users}
 
     @staticmethod
+    @_reauth_on_auth_error
     async def delete_reward(user, reward_id: UUID | str):
         twitch_user = await _user_twitch_client(user)
         await twitch_user.delete_custom_reward(user.twitch_id, str(reward_id))
 
     @staticmethod
+    @_reauth_on_auth_error
     async def disable_reward(user, reward_id: UUID | str):
         twitch_user = await _user_twitch_client(user)
         await twitch_user.update_custom_reward(user.twitch_id, str(reward_id), is_enabled=False)
@@ -761,6 +807,7 @@ class Twitch:
         return await anext(twitch_user.get_users())
 
     @staticmethod
+    @_reauth_on_auth_error
     async def set_bot_moder(user: User) -> None:
         twitch_user = await _user_twitch_client(user, [AuthScope.CHANNEL_MANAGE_MODERATORS, AuthScope.MODERATION_READ])
         mods: AsyncGenerator[Moderator] = twitch_user.get_moderators(user.twitch_id, first=100)
@@ -771,6 +818,7 @@ class Twitch:
         await twitch_user.add_channel_moderator(user.twitch_id, "957818216")
 
     @staticmethod
+    @_reauth_on_auth_error
     async def get_followers(user: User) -> ChannelFollowersResult:
         twitch_user = await _user_twitch_client(user, [AuthScope.MODERATOR_READ_FOLLOWERS])
         return await twitch_user.get_channel_followers(user.twitch_id, user.twitch_id, first=100)
@@ -791,6 +839,7 @@ class Twitch:
         return bool(result.data)
 
     @staticmethod
+    @_reauth_on_auth_error
     async def cancel_redemption(user: User, reward_id: UUID, redemption_id: UUID):
         twitch_user = await _user_twitch_client(user, [AuthScope.CHANNEL_MANAGE_REDEMPTIONS])
         await twitch_user.update_redemption_status(
@@ -801,6 +850,7 @@ class Twitch:
         )
 
     @staticmethod
+    @_reauth_on_auth_error
     async def fulfill_redemption(user: User, reward_id: UUID, redemption_id: UUID):
         twitch_user = await _user_twitch_client(user, [AuthScope.CHANNEL_MANAGE_REDEMPTIONS])
         await twitch_user.update_redemption_status(
@@ -810,6 +860,7 @@ class Twitch:
             CustomRewardRedemptionStatus.FULFILLED,
         )
 
+    @_reauth_on_auth_error
     async def get_user_active_ext(
         self,
         user: User,
@@ -817,6 +868,7 @@ class Twitch:
         twitch_user = await _user_twitch_client(user, [AuthScope.USER_EDIT_BROADCAST, AuthScope.USER_READ_BROADCAST])
         return await twitch_user.get_user_active_extensions(user.twitch_id)
 
+    @_reauth_on_auth_error
     async def install_heat_ext(
         self,
         user: User,
