@@ -105,6 +105,9 @@ async def control_panel(
                 "enabled_v2": user.memealerts.access_token is not None,
             },
             "slovotron_secret": overlay_secret,
+            # Кнопка «Привязать Telegram» (OIDC) видна только при настроенном client_id/secret.
+            "telegram_login_enabled": settings.telegram_login_client_id is not None
+            and bool(settings.telegram_login_client_secret.get_secret_value()),
         },
     )
 

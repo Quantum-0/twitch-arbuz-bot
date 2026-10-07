@@ -22,6 +22,7 @@ from services.statistics import StatisticsService
 from services.steam import SteamService
 from services.stickers import StickersService
 from services.stickers_processor import StickerProcessor
+from services.telegram_oidc import TelegramLoginService
 from services.tts import TTSService
 from services.twitch_token_service import TwitchTokenService
 from twitch.chat.bot import ChatBot
@@ -49,6 +50,7 @@ class Container(containers.DeclarativeContainer):
             "routers.web.service_routes",
             "routers.web.memealerts_routes",
             "routers.web.steam_routes",
+            "routers.web.telegram_routes",
             "routers.web.pages",
             "routers.web.galleries",
             "routers.web.overlays",
@@ -130,6 +132,7 @@ class Container(containers.DeclarativeContainer):
         statistics=statistics,
     )
     steam_service = providers.Singleton(SteamService)
+    telegram_login_service = providers.Singleton(TelegramLoginService)
     twitch_eventsub_service = providers.Singleton(
         TwitchEventSubService,
         twitch=twitch,

@@ -100,6 +100,21 @@ class Cache:
             if not no_error:
                 raise
 
+    async def set_str_nx(self, name: str, value: str, ttl: int = 3600, no_error: bool = True) -> bool:
+        """Атомарно записать строку, только если ключа ещё нет (SET NX EX).
+
+        True — ключ записан (слот дедупа занят нами), False — ключ уже существует
+        (кто-то уже занял). При недоступном Redis возвращает True — дедуп
+        пропускается (лучше редкий дубль, чем потерянное уведомление).
+        """
+        try:
+            return bool(await self._r.set(f"cache:{name}", value, ex=ttl, nx=True))
+        except Exception:
+            logger.error("Error writing str (nx) to redis", exc_info=True)
+            if not no_error:
+                raise
+            return True
+
     async def delete(self, name: str, no_error: bool = True) -> None:
         try:
             await self._r.delete(f"cache:{name}")

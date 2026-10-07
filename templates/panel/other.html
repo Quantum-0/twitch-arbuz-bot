@@ -16,6 +16,16 @@
 </div>
 
 <div style="margin-top: 20px;">
+    <h4>Telegram</h4>
+    <p><small>Привязанный Telegram может использоваться для уведомлений о проблемах с вашими интеграциями — например, если Twitch отзовёт авторизацию бота.</small></p>
+    {% if user.telegram and user.telegram.telegram_user_id %}
+        <button class="btn-danger" onclick="unlinkTelegramAccount()">Отвязать Telegram</button>
+    {% elif telegram_login_enabled %}
+        <button class="install-btn" onclick="linkTelegramAccount()">Привязать Telegram</button>
+    {% endif %}
+</div>
+
+<div style="margin-top: 20px;">
     <h4>Steam</h4>
     <p><small>Это позволит использовать команду !стим и добавит ссылку на ваш стим в команду !ссылки</small></p>
     {% if user.links.steam_id %}

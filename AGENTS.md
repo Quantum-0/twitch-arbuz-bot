@@ -75,6 +75,12 @@ poetry run uvicorn main:app --reload   # запустить дев-сервер
 - **Спецификация поведения:** `docs/telegram.md` — настройки, кейсы падения/перезапуска стрима,
   Redis-ключи, MQTT-топики, конвенция request_id. **При любом изменении поведения интеграции —
   обновлять этот файл в том же коммите.**
+- **Личная привязка TG (`telegram_user_id`):** заполняется приватными чатами по deep-link
+  (`handle_chat_connected`) и Telegram Login OIDC (`services/telegram_oidc.py`,
+  `/auth/telegram/*`, кнопка в «Других настройках», конфиг `telegram_login_client_id/secret`).
+- **Revocation-уведомления:** `services/eventsub_service.py:notify_revocation` (fire-and-forget из
+  `handle_revocation`), дедуп Redis `revocation_notified:{twitch_id}` (24 ч), для стрим-типов
+  снимает `stream_notification_enabled`.
 - **Смежный TG-микросервис:** соседний репозиторий `../twibot-tg`
 - Основная логика уведомлений о стриме: `services/eventsub_service.py`
   (`handle_stream_online` / `handle_stream_offline` / отложенная джоба `stream_offline_deferred:*`),

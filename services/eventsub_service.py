@@ -2,6 +2,7 @@ import asyncio
 import json
 import logging
 import uuid
+from uuid import UUID
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -234,7 +235,20 @@ class TwitchEventSubService:
         Приходит с ``Twitch-Eventsub-Message-Type: revocation``, без поля ``event``.
         ``authorization_revoked`` — пользователь отозвал авторизацию приложения,
         ``user_removed`` — удалил аккаунт.
+
+        После основной обработки fire-and-forget отправляет юзеру TG-уведомление
+        (``notify_revocation``): один реальный отзыв порождает несколько
+        revocation-callback'ов, поэтому внутри — дедуп по Redis на 24 часа.
         """
+        await self._process_revocation(payload)
+
+        condition = payload.subscription.condition
+        broadcaster_id = condition.broadcaster_user_id or condition.to_broadcaster_user_id or None
+        if broadcaster_id:
+            asyncio.create_task(self.notify_revocation(broadcaster_id, payload.subscription.type))
+
+    async def _process_revocation(self, payload: EventSubRevocationSchema) -> None:
+        """Основная обработка revocation (отключение фич по типу подписки)."""
         sub = payload.subscription
         condition = sub.condition
         broadcaster_id = condition.broadcaster_user_id or condition.to_broadcaster_user_id or None
@@ -280,6 +294,68 @@ class TwitchEventSubService:
             await db.commit()
         if disabled:
             logger.warning("Чат-бот отключён из-за EventSub revocation: twitch_id=%s", broadcaster_id)
+
+    # ── Revocation → Telegram notification ─────────────────────────────────
+
+    # Дедуп-ключ уведомлений об отзыве (без префикса ``telegram:`` — так согласовано
+    # в ТЗ docs/tz/telegram-revocation-notifications.md): один реальный отзыв
+    # авторизации порождает несколько revocation-callback'ов.
+    _REVOCATION_NOTIFIED_REDIS_KEY = "revocation_notified"
+    _REVOCATION_TTL_SECONDS = 24 * 60 * 60
+    _REVOCATION_STREAM_TYPES = {"stream.online", "stream.offline"}
+    _REVOCATION_TEXTS = {
+        "channel.chat.message": "Чат-бот отключён: Twitch отозвал авторизацию. Переавторизуйтесь на bot.quantum0.ru",
+        "channel.channel_points_custom_reward_redemption.add": (
+            "Награды отключены: Twitch отозвал авторизацию. Переавторизуйтесь на bot.quantum0.ru"
+        ),
+    }
+    _REVOCATION_DEFAULT_TEXT = (
+        "Twitch-интеграция отключена: Twitch отозвал авторизацию. Переавторизуйтесь на bot.quantum0.ru"
+    )
+
+    async def notify_revocation(self, user_id: int, kind: str) -> None:
+        """Отправить юзеру TG-уведомление об отзыве авторизации Twitch.
+
+        ``user_id`` — twitch_id (broadcaster). Сообщение уходит в личный чат
+        юзера с ботом (``TelegramSettings.telegram_user_id``); без привязки —
+        тихий выход.
+
+        Для стрим-типов (stream.online/offline) дополнительно снимает тогл
+        ``stream_notification_enabled`` — до guard'а привязки, чтобы сброс
+        работал и без личной привязки TG.
+
+        Дедуп: Redis-ключ ``revocation_notified:{user_id}`` с TTL 24 ч.
+        ``request_id = revocation:{user_id}`` (без ``/`` — см. docs/telegram.md);
+        результат доставки не обрабатывается (message_id не сохраняется).
+
+        Ошибки логируются и глушатся: уведомление не должно ломать обработку
+        revocation и 204-ответ Twitch.
+        """
+        try:
+            user = await self._get_user_by_id_or_login(user_id)
+            tg: TelegramSettings | None = user.telegram
+
+            if kind in self._REVOCATION_STREAM_TYPES:
+                from services.telegram_integration import _disable_stream_notification
+
+                await _disable_stream_notification(user.id, self._db_session_factory)
+
+            chat_id = tg.telegram_user_id if tg is not None else None
+            if not chat_id:
+                return
+
+            dedup_key = f"{self._REVOCATION_NOTIFIED_REDIS_KEY}:{user_id}"
+            if self._cache is not None and not await self._cache.set_str_nx(
+                dedup_key, "1", ttl=self._REVOCATION_TTL_SECONDS
+            ):
+                logger.info("Revocation-уведомление для user_id=%s уже отправлялось (дедуп)", user_id)
+                return
+
+            text = self._REVOCATION_TEXTS.get(kind, self._REVOCATION_DEFAULT_TEXT)
+            await self._publish_send_message(chat_id, text, request_id=f"revocation:{user_id}")
+            logger.info("Revocation-уведомление отправлено: user_id=%s kind=%s", user_id, kind)
+        except Exception:
+            logger.error("notify_revocation: ошибка отправки уведомления user_id=%s", user_id, exc_info=True)
 
     @task_wrapper
     @tracer.start_as_current_span("Twitch Eventsub: Reward redemption")
@@ -328,9 +404,11 @@ class TwitchEventSubService:
                 payload.subscription.condition.reward_id,
                 payload.event.redemption_id,
             )
-            # FIXME: Это НЕ ожидаемое поведение. Управление reward redemption должно осуществляться ботом.
-            #  Если вылезла эта ошибка - значит пользователь включил на стороне твича чтоб награда автоматически считалась выполненной
-            #  Это не корректно, и нам нужно как-то уведомить пользователя, что награду необходимо отредактировать. Либо сделать это самим. Кстати да, наверно лучше самим отредактировать, убрав галочку "автоматически выполнять"
+            # Redemption закрыт раньше бота: либо юзер включил «автоматически
+            # выполнять» (should_redemptions_skip_request_queue), либо гонка
+            # дублей вебхука. notify_reward_autofulfill отличает эти случаи
+            # по фактическому флагу награды.
+            asyncio.create_task(self.notify_reward_autofulfill(user, payload.subscription.condition.reward_id))
 
     async def _fulfill_redemption(self, user: User, payload: PointRewardRedemptionWebhookSchema) -> None:
         try:
@@ -345,7 +423,60 @@ class TwitchEventSubService:
                 payload.subscription.condition.reward_id,
                 payload.event.redemption_id,
             )
-            # FIXME: Аналогично с предыдущим
+            asyncio.create_task(self.notify_reward_autofulfill(user, payload.subscription.condition.reward_id))
+
+    _REWARD_AUTOFULFILL_REDIS_KEY = "reward_autofulfill_notified"
+    _REWARD_AUTOFULFILL_TTL_SECONDS = 24 * 60 * 60
+    _REWARD_AUTOFULFILL_TEXT = (
+        "У награды Twitch было включено «автоматически выполнять» — бот не мог "
+        "подтверждать и возвращать баллы за неё. Мы выключили эту галочку сами. "
+        "Проверьте настройки награды в панели: bot.quantum0.ru"
+    )
+
+    async def notify_reward_autofulfill(self, user: User, reward_id: str | UUID) -> None:
+        """Авто-фикс «автоматически выполнять» у награды + TG-уведомление.
+
+        Вызывается fire-and-forget из обработчиков ``TwitchResourceNotFound`` в
+        ``_cancel_redemption`` / ``_fulfill_redemption``. Порядок:
+
+        1. ``fix_reward_autofulfill`` — читает флаг награды и, если включён,
+           выключает его; ``False`` (флаг уже выключен / награда удалена) —
+           тихий выход, это гонка дублей вебхука, чинить нечего.
+        2. Уведомление в личный TG (``telegram_user_id``), если привязан.
+
+        Дедуп: атомарный Redis-ключ ``reward_autofulfill_notified:{twitch_id}:{reward_id}``
+        (TTL 24 ч) — до отправки, чтобы параллельные redemption не дали дублей.
+        ``request_id = reward_autofulfill:{twitch_id}``; результат доставки
+        не обрабатывается. Ошибки логируются и глушатся.
+        """
+        try:
+            fixed = await self._twitch.fix_reward_autofulfill(user, reward_id)
+            if not fixed:
+                return
+
+            chat_id = user.telegram.telegram_user_id if user.telegram is not None else None
+            if not chat_id:
+                return
+
+            dedup_key = f"{self._REWARD_AUTOFULFILL_REDIS_KEY}:{user.twitch_id}:{reward_id}"
+            if self._cache is not None and not await self._cache.set_str_nx(
+                dedup_key, "1", ttl=self._REWARD_AUTOFULFILL_TTL_SECONDS
+            ):
+                return
+
+            await self._publish_send_message(
+                chat_id,
+                self._REWARD_AUTOFULFILL_TEXT,
+                request_id=f"reward_autofulfill:{user.twitch_id}",
+            )
+            logger.info("Авто-фикс «автоматически выполнять»: reward=%s user_id=%s", reward_id, user.twitch_id)
+        except Exception:
+            logger.error(
+                "notify_reward_autofulfill: ошибка user_id=%s reward=%s",
+                user.twitch_id,
+                reward_id,
+                exc_info=True,
+            )
 
     async def reward_buy_memealerts(
         self,

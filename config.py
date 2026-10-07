@@ -104,6 +104,13 @@ class Settings(BaseSettings):
     telegram_bot_username: str = "quantum0s_twitch_bot"
     telegram_service_url: str = "http://localhost:8001"
     telegram_service_api_key: str = "changeme"
+    # Telegram Login (OpenID Connect, core.telegram.org/bots/telegram-login):
+    # Client ID/Secret выдаёт @BotFather (Login Widget → Allowed URLs).
+    # client_id — числовой id бота. Если не задан — кнопка «Привязать Telegram»
+    # в панели скрыта, /auth/telegram редиректит обратно на /panel.
+    telegram_login_client_id: int | None = None
+    telegram_login_client_secret: SecretStr = SecretStr("")
+    telegram_login_redirect_url: AnyHttpUrl = "https://bot.quantum0.ru/auth/telegram/callback"
     # Окно перезапуска стрима = задержка подтверждения окончания = CD сообщений
     # о рестарте (мин). Одна константа на всю механику, см. docs/telegram.md.
     stream_restart_window_minutes: int = 15

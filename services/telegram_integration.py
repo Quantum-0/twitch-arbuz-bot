@@ -43,6 +43,10 @@ async def handle_chat_connected(payload: dict[str, Any], db_session_factory) -> 
     (``stream_notification_enabled=True``), сразу создаёт EventSub-подписки
     stream.online / stream.offline — иначе юзер получил бы уведомления только
     после следующего логина на сайте (см. ``login_callback_task``).
+
+    Для приватных чатов (chat_type == "private") дополнительно заполняет
+    ``telegram_user_id``: chat_id приватного чата = Telegram user id юзера
+    (используется для персональных уведомлений — revocation и т.п.).
     """
     user_id = payload.get("user_id")
     scope = payload.get("scope")
@@ -93,6 +97,13 @@ async def handle_chat_connected(payload: dict[str, Any], db_session_factory) -> 
         else:
             logger.warning("chat_connected: неизвестный scope=%s", scope)
             return
+
+        # Приватный чат = личный чат юзера с ботом: chat_id совпадает с его
+        # Telegram user id → запоминаем для персональных уведомлений
+        # (revocation и т.п., см. docs/telegram.md). Группы/каналы не подходят:
+        # там chat_id — id чата, а не юзера.
+        if chat_type == "private":
+            tg.telegram_user_id = chat_id
 
         # Для stream: подписываемся на EventSub сразу, если уведомления уже включены.
         # Делаем это в той же транзакции после коммита настроек — чтобы Twitch-вызовы

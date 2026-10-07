@@ -337,6 +337,36 @@ class Twitch:
         twitch_user = await _user_twitch_client(user)
         await twitch_user.update_custom_reward(user.twitch_id, str(reward_id), is_enabled=False)
 
+    @staticmethod
+    async def fix_reward_autofulfill(user: User, reward_id: UUID | str) -> bool:
+        """Выключить у награды «автоматически выполнять», если она включена.
+
+        Вызывается при TwitchResourceNotFound в fulfill/cancel redemption:
+        включённый ``should_redemptions_skip_request_queue`` закрывает
+        redemption раньше бота, и бот не может ни подтверждать, ни возвращать баллы.
+
+        True — галочка была включена и выключена сейчас (нужно уведомить юзера);
+        False — галочка уже выключена (404 — гонка дублей вебхука) или награда
+        не найдена/удалена.
+        """
+        twitch_user = await _user_twitch_client(user)
+        try:
+            rewards = await twitch_user.get_custom_reward(
+                user.twitch_id,
+                reward_id=str(reward_id),
+                only_manageable_rewards=True,
+            )
+        except TwitchResourceNotFound:
+            return False
+        if len(rewards) == 0 or not rewards[0].should_redemptions_skip_request_queue:
+            return False
+        await twitch_user.update_custom_reward(
+            user.twitch_id,
+            str(reward_id),
+            should_redemptions_skip_request_queue=False,
+        )
+        return True
+
     @tracer.start_as_current_span("Twitch: Send warning")
     async def send_warning(
         self,

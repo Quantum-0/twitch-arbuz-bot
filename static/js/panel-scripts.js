@@ -248,6 +248,32 @@ function linkSteam() {
     window.location.href = '/auth/steam';
 }
 
+function linkTelegramAccount() {
+    window.location.href = '/auth/telegram';
+}
+
+function unlinkTelegramAccount() {
+    fetch('/api/user/telegram/unlink-account', {
+        method: 'POST',
+    })
+    .then(res => res.json().then(data => ({ ok: res.ok, data })))
+    .then(({ok, data}) => {
+        showNotification(data.title || 'Telegram', data.message, !ok);
+        if (ok) {
+            // Перерисовываем блок Telegram, чтобы заменить кнопку на «Привязать».
+            const tgBtn = document.querySelector('.btn-danger[onclick="unlinkTelegramAccount()"]');
+            if (tgBtn) {
+                const newBtn = document.createElement('button');
+                newBtn.className = 'install-btn';
+                newBtn.setAttribute('onclick', 'linkTelegramAccount()');
+                newBtn.textContent = 'Привязать Telegram';
+                tgBtn.replaceWith(newBtn);
+            }
+        }
+    })
+    .catch(err => showNotification('Ошибка', err.message, true));
+}
+
 function unlinkSteam() {
     fetch('/api/user/steam/unlink', {
         method: 'POST',

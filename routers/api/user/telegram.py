@@ -166,6 +166,24 @@ async def generate_connect_link(
     return JSONResponse({"url": url}, 200)
 
 
+@router.post("/unlink-account", response_class=JSONResponse)
+async def unlink_telegram_account(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    user: User = Security(user_auth),  # noqa: B008
+):
+    """Отвязать личный Telegram-аккаунт (``telegram_user_id``).
+
+    Персональные уведомления (об отзыве авторизации Twitch и т.п.) больше не
+    отправляются. Привязки чатов (stream/clips/stickers) не трогаются.
+    """
+    tg = user.telegram
+    if tg is None or not tg.telegram_user_id:
+        return JSONResponse({"title": "Нечего отвязывать", "message": "Telegram не привязан."}, 208)
+    tg.telegram_user_id = None
+    await db.commit()
+    return JSONResponse({"title": "Готово", "message": "Telegram-аккаунт отвязан."}, 200)
+
+
 @router.post("/disconnect/{scope}")
 @inject
 async def disconnect_telegram_scope(
