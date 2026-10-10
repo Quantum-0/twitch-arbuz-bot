@@ -2,6 +2,7 @@ import os
 from collections.abc import AsyncGenerator
 
 import pytest
+import pytest_asyncio
 from alembic.config import Config as AlembicConfig
 from docker.errors import DockerException
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, create_async_engine
@@ -9,6 +10,9 @@ from testcontainers.postgres import PostgresContainer
 
 from alembic import command
 from database.models import User
+
+# Все async-фикстуры — на session-loop: тесты едут с loop_scope="session"
+# (conftest.py), фикстура на function-loop отдала бы коннекты чужому циклу.
 
 
 @pytest.fixture(scope="session")
@@ -37,7 +41,7 @@ def migrations(postgres_container):
     command.upgrade(alembic_cfg, "head")
 
 
-@pytest.fixture(scope="function")
+@pytest_asyncio.fixture(scope="function", loop_scope="session")
 async def test_engine(postgres_container, migrations) -> AsyncGenerator:
     """Создаём движок к тестовой БД и накатываем миграции через Alembic."""
     url = postgres_container.get_connection_url().replace("postgresql+psycopg2://", "postgresql+asyncpg://")
@@ -48,7 +52,7 @@ async def test_engine(postgres_container, migrations) -> AsyncGenerator:
         await engine.dispose()
 
 
-@pytest.fixture
+@pytest_asyncio.fixture(loop_scope="session")
 async def db_session(test_engine: AsyncEngine) -> AsyncGenerator[AsyncSession, None]:
     async with test_engine.connect() as connection:
         transaction = await connection.begin()
@@ -68,7 +72,7 @@ async def db_session(test_engine: AsyncEngine) -> AsyncGenerator[AsyncSession, N
             await connection.close()
 
 
-@pytest.fixture
+@pytest_asyncio.fixture(loop_scope="session")
 async def test_user(db_session):
     """Создаём тестового пользователя в БД с моком Twitch API."""
 
@@ -90,5 +94,11 @@ async def test_user(db_session):
     )
     db_session.add(user)
     await db_session.commit()
-    await db_session.refresh(user)
+    # Прогреваем lazy-relationship'ы (реальный user_auth делает joinedload этих
+    # атрибутов, а шаблоны читают user.settings/memealerts/tts синхронно —
+    # без прогрева рендер страницы падает с MissingGreenlet).
+    await db_session.refresh(
+        user,
+        attribute_names=["settings", "memealerts", "links", "tts", "telegram"],
+    )
     return user

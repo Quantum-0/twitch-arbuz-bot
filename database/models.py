@@ -562,6 +562,63 @@ class Statistics(Base):
     )
 
 
+class ServerMetric(Base):
+    """Агрегированные метрики нагрузки хоста (6-часовые окна) для страницы «Сервер».
+
+    Коллектор (``services/server_metrics.py``) раз в 5 минут снимает сэмпл нагрузки
+    хоста через read-only маунты (``/:/host:ro``, ``/proc:/host/proc:ro`` — паттерн
+    node-exporter) и буферизует сэмплы в Redis, а раз в 6 часов агрегирует их в одну
+    строку этой таблицы: avg/max для CPU и load average, последнее наблюдение для
+    диска/RAM, сумма дельт для сети. ``NULL`` в колонке — данных за окно не было
+    (например, все тики без предыдущих кумулятивных каунтеров после рестарта).
+    """
+
+    __tablename__ = "server_metrics"
+    __table_args__ = (
+        # Одно 6-часовое окно — одна строка; уникальность нужна для идемпотентного
+        # повторного flush (ON CONFLICT DO NOTHING).
+        Index("server_metrics_bucket_ts_key", "bucket_ts", unique=True),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    bucket_ts: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        doc="Начало 6-часового окна агрегации (UTC, кратно 6 часам).",
+    )
+    cpu_avg: Mapped[float | None] = mapped_column(Float, nullable=True, doc="Средняя загрузка CPU за окно, %.")
+    cpu_max: Mapped[float | None] = mapped_column(
+        Float,
+        nullable=True,
+        doc="Пиковая загрузка CPU за окно (max по 5-минутным сэмплам), %.",
+    )
+    load1_avg: Mapped[float | None] = mapped_column(Float, nullable=True, doc="Средний load average (1 мин) за окно.")
+    load5_avg: Mapped[float | None] = mapped_column(Float, nullable=True, doc="Средний load average (5 мин) за окно.")
+    load15_avg: Mapped[float | None] = mapped_column(Float, nullable=True, doc="Средний load average (15 мин) за окно.")
+    load5_max: Mapped[float | None] = mapped_column(
+        Float,
+        nullable=True,
+        doc="Пиковый load average (5 мин) за окно (max по 5-минутным сэмплам).",
+    )
+    mem_used_percent: Mapped[float | None] = mapped_column(
+        Float,
+        nullable=True,
+        doc="Занятая RAM, % (последнее наблюдение окна).",
+    )
+    disk_used_percent: Mapped[float | None] = mapped_column(
+        Float,
+        nullable=True,
+        doc="Занятый диск, % (последнее наблюдение окна).",
+    )
+    disk_free_gb: Mapped[float | None] = mapped_column(
+        Float,
+        nullable=True,
+        doc="Свободное место на диске, ГБ (последнее наблюдение окна).",
+    )
+    net_rx_mb: Mapped[float | None] = mapped_column(Float, nullable=True, doc="Принято сетью за окно, МБ.")
+    net_tx_mb: Mapped[float | None] = mapped_column(Float, nullable=True, doc="Отправлено сетью за окно, МБ.")
+
+
 class TelegramSettings(Base):
     """Настройки Telegram-интеграции для стримера (1:1 с User, lazy-создание).
 

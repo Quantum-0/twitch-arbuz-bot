@@ -16,6 +16,7 @@ from services.moderation import ModerationService
 from services.mqtt import MQTTClient
 from services.redis_state_manager import RedisStateManager, init_redis
 from services.s3 import FileStorage
+from services.server_metrics import ServerMetricsService
 from services.slovotron import SlovotronService
 from services.sse_manager import SSEManager
 from services.statistics import StatisticsService
@@ -43,6 +44,7 @@ class Container(containers.DeclarativeContainer):
             "routers.api.user.eventsub",
             "routers.api.user.streamers",
             "routers.api.user.stats",
+            "routers.api.user.staff",
             "routers.api.user.steam",
             "routers.api.user.telegram",
             "routers.api.user.checks",
@@ -80,6 +82,10 @@ class Container(containers.DeclarativeContainer):
     )
     statistics = providers.Singleton(
         StatisticsService,
+        db_session_factory=db_session_factory,
+    )
+    server_metrics = providers.Singleton(
+        ServerMetricsService,
         db_session_factory=db_session_factory,
     )
     twitch = providers.Singleton(Twitch)

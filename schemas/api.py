@@ -188,6 +188,55 @@ class StatsSeriesResponseSchema(BaseModel):
     series: list[StatsSeriesItemSchema]
 
 
+class ServerMetricsPeriod(StrEnum):
+    """Период выборки метрик хоста (разрешение строк — 6 часов)."""
+
+    ONE_DAY = "1d"
+    THREE_DAYS = "3d"
+    SEVEN_DAYS = "7d"
+    THIRTY_DAYS = "30d"
+
+
+class ServerAlertSchema(BaseModel):
+    """Сработавший лимит метрики хоста (плашка на /server + бейджи меню)."""
+
+    metric: str = Field(examples=["disk", "cpu", "mem", "load5"])
+    value: float
+    limit: float
+    severity: str = Field(examples=["warning", "critical"])
+
+
+class ServerMetricPointSchema(BaseModel):
+    """Одна точка (6-часовое окно) метрик хоста. None — данных за окно не было."""
+
+    datetime: datetime
+    cpu_avg: float | None = None
+    cpu_max: float | None = None
+    load1_avg: float | None = None
+    load5_avg: float | None = None
+    load15_avg: float | None = None
+    load5_max: float | None = None
+    mem_used_percent: float | None = None
+    disk_used_percent: float | None = None
+    disk_free_gb: float | None = None
+    net_rx_mb: float | None = None
+    net_tx_mb: float | None = None
+
+
+class ServerMetricsResponseSchema(BaseModel):
+    """Ответ ручки /api/user/server-metrics: ряд точек + активные алерты."""
+
+    points: list[ServerMetricPointSchema]
+    alerts: list[ServerAlertSchema]
+
+
+class StaffBadgesSchema(BaseModel):
+    """Ответ ручки /api/user/staff-badges: счётчики для значков в меню (только штат)."""
+
+    server_alerts: int = Field(ge=0)
+    pending_references: int = Field(ge=0)
+
+
 class TTSRoleTriggerSchema(BaseModel):
     """Разрешения одной роли по триггерам (строка матрицы 6×4)."""
 

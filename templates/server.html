@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+{% block title %}Сервер — Quantum0's Bot{% endblock %}
+{% block description %}Мониторинг нагрузки хоста: диск, CPU, RAM, сеть. Только для модераторов.{% endblock %}
+
+{% block styles %}
+.server-page { max-width: 1100px; margin: 0 auto; }
+.server-controls {
+    display: flex; flex-wrap: wrap; gap: 12px; align-items: end;
+}
+.server-controls label {
+    display: flex; flex-direction: column; gap: 4px;
+    font-size: 0.9em; color: var(--color-text-muted);
+}
+.server-controls select,
+.server-controls input {
+    padding: 8px 10px; border-radius: 8px;
+    border: 1px solid var(--color-border);
+    background: var(--color-bg); color: var(--color-text);
+}
+.server-controls button { margin: 0; }
+.server-muted { color: var(--color-text-muted); font-size: 0.9em; }
+.server-alert-banner {
+    display: none; margin: 16px 0; padding: 14px 18px; border-radius: 10px;
+    background: var(--color-danger); color: #fff; font-weight: 600;
+    line-height: 1.5; white-space: pre-line;
+    animation: serverBannerPulse 2s infinite;
+}
+.server-alert-banner.warning { background: #c98207; }
+.server-alert-banner.show { display: block; }
+@keyframes serverBannerPulse {
+    0% { box-shadow: 0 0 0 0 rgba(229, 57, 53, 0.55); }
+    70% { box-shadow: 0 0 0 10px rgba(229, 57, 53, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(229, 57, 53, 0); }
+}
+.server-charts {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 16px;
+}
+@media (max-width: 800px) { .server-charts { grid-template-columns: 1fr; } }
+.server-chart-card {
+    background: var(--color-bg-secondary); border-radius: 8px; padding: 12px;
+}
+.server-chart-card h3 { margin: 0 0 8px; font-size: 1em; }
+.server-chart-wrap { position: relative; height: 240px; width: 100%; }
+.server-empty {
+    color: var(--color-text-muted); padding: 40px; text-align: center;
+    background: var(--color-bg-secondary); border-radius: 8px; margin-top: 16px;
+}
+{% endblock %}
+
+{% block content %}
+<div class="server-page">
+    <h2>Сервер</h2>
+    <p class="server-muted">Нагрузка хоста, агрегация по 6-часовым окнам. Время — UTC, на фронте конвертируется в локальное.</p>
+
+    <div class="server-alert-banner" id="serverAlertBanner" role="alert"></div>
+
+    <section>
+        <div class="server-controls">
+            <label>Диапазон
+                <select id="server-range">
+                    <option value="custom">(произвольно)</option>
+                    <option value="1d">24 часа</option>
+                    <option value="3d">3 дня</option>
+                    <option value="7d" selected>7 дней</option>
+                    <option value="30d">30 дней</option>
+                </select>
+            </label>
+            <label>От (UTC)
+                <input type="datetime-local" id="server-from">
+            </label>
+            <label>До (UTC)
+                <input type="datetime-local" id="server-to">
+            </label>
+            <label>Авто
+                <select id="server-autorefresh">
+                    <option value="0">выкл</option>
+                    <option value="600" selected>10 мин</option>
+                </select>
+            </label>
+            <button id="server-refresh">Обновить</button>
+        </div>
+    </section>
+
+    <div class="server-empty" id="serverEmpty" hidden>Нет данных за период.</div>
+
+    <section class="server-charts" id="serverCharts">
+        <div class="server-chart-card">
+            <h3>Диск, % занято</h3>
+            <div class="server-chart-wrap"><canvas id="serverDiskChart"></canvas></div>
+        </div>
+        <div class="server-chart-card">
+            <h3>CPU, % (avg / max)</h3>
+            <div class="server-chart-wrap"><canvas id="serverCpuChart"></canvas></div>
+        </div>
+        <div class="server-chart-card">
+            <h3>RAM, % занято</h3>
+            <div class="server-chart-wrap"><canvas id="serverRamChart"></canvas></div>
+        </div>
+        <div class="server-chart-card">
+            <h3>Сеть, МБ за окно (rx / tx)</h3>
+            <div class="server-chart-wrap"><canvas id="serverNetChart"></canvas></div>
+        </div>
+        <div class="server-chart-card">
+            <h3>Load average (1 / 5 / 15)</h3>
+            <div class="server-chart-wrap"><canvas id="serverLoadChart"></canvas></div>
+        </div>
+        <div class="server-chart-card">
+            <h3>Свободно на диске, ГБ</h3>
+            <div class="server-chart-wrap"><canvas id="serverDiskFreeChart"></canvas></div>
+        </div>
+    </section>
+</div>
+{% endblock %}
+
+{% block head_scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+{% endblock %}
+
+{% block body_scripts %}
+<script src="{{ static_url('js/server.js') }}"></script>
+{% endblock %}

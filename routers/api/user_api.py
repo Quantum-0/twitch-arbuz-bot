@@ -25,6 +25,7 @@ from routers.api.user.eventsub import router as eventsub_overlay_router
 from routers.api.user.likes import router as likes_router
 from routers.api.user.memealerts import router as memealerts_router
 from routers.api.user.overlay import router as overlay_router
+from routers.api.user.staff import router as staff_router
 from routers.api.user.stats import router as stats_router
 from routers.api.user.steam import router as steam_router
 from routers.api.user.streamers import router as streamers_router
@@ -69,6 +70,7 @@ router.include_router(overlay_router)
 router.include_router(eventsub_overlay_router)
 router.include_router(streamers_router)
 router.include_router(stats_router)
+router.include_router(staff_router)
 router.include_router(steam_router)
 router.include_router(telegram_router)
 

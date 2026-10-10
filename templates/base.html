@@ -71,8 +71,9 @@
         {% if user %}
         <a href="/stickers" style="color: white; text-decoration: none;">AI-Стикеры</a>
         {% endif %}
-        {% if user and user.login_name|lower in ['quantum075', 'fufigg', 'beatr1xo', 'toad_anna', 'anna_toad', 'd_e_l_y', 'fra3a'] %}
-        <a href="/moderation/references" style="color: white; text-decoration: none;">Модерация референсов</a>
+        {% if user and is_staff(user) %}
+        <a href="/server" style="color: white; text-decoration: none;" id="serverNavLink">Сервер<span class="staff-badge" id="serverBadge" hidden></span></a>
+        <a href="/moderation/references" style="color: white; text-decoration: none;" id="moderationNavLink">Модерация референсов<span class="staff-badge" id="moderationBadge" hidden></span></a>
         {% endif %}
         {% if user and user.in_beta_test %}
         <a href="/kinda_roadmap" style="color: white; text-decoration: none;">TODO</a>
@@ -333,6 +334,40 @@
         }
     })();
     </script>
+
+    {% if user and is_staff(user) %}
+    <script>
+    // Бейджи меню для штата: алерты сервера + непроверенные референсы.
+    // Поллинг раз в 5 минут; сами данные отдаются только модераторам (гейт в API).
+    (function () {
+        var POLL_MS = 5 * 60 * 1000;
+
+        function toggleBadge(el, count) {
+            if (!el) return;
+            if (count > 0) {
+                el.textContent = count > 99 ? "99+" : String(count);
+                el.hidden = false;
+            } else {
+                el.hidden = true;
+            }
+        }
+
+        function updateBadges() {
+            fetch("/api/user/staff-badges", { credentials: "same-origin" })
+                .then(function (resp) { return resp.ok ? resp.json() : null; })
+                .then(function (data) {
+                    if (!data) return;
+                    toggleBadge(document.getElementById("serverBadge"), data.server_alerts || 0);
+                    toggleBadge(document.getElementById("moderationBadge"), data.pending_references || 0);
+                })
+                .catch(function () {});
+        }
+
+        updateBadges();
+        setInterval(updateBadges, POLL_MS);
+    })();
+    </script>
+    {% endif %}
 
     {% block body_scripts %}{% endblock %}
 

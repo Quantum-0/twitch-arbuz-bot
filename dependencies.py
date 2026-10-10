@@ -37,6 +37,7 @@ async def lifespan(app: "FastAPI | None" = None):
     state_manager = container.state_manager()
     cache = container.cache()
     statistics = container.statistics()
+    server_metrics = container.server_metrics()
     sse_manager = container.sse_manager()
     scheduler = container.scheduler()
     memealerts_auth = container.memealerts_auth()
@@ -48,6 +49,7 @@ async def lifespan(app: "FastAPI | None" = None):
     await state_manager.startup(redis)
     await cache.startup(redis, binary_redis)
     await statistics.startup(redis)
+    await server_metrics.startup(redis)
     await sse_manager.startup(redis)
     await memealerts_auth.startup(redis, statistics)
     twitch_token_service.startup(redis)
@@ -158,6 +160,37 @@ async def lifespan(app: "FastAPI | None" = None):
         minute="0",
         second="0",
         id="cleanup_old_statistics",
+        replace_existing=True,
+    )
+    # ── Мониторинг хоста (страница «Сервер») ──
+    # Тик раз в 5 минут: сэмпл нагрузки хоста (через ro-маунты) → Redis-буфер.
+    # second=45 — чтобы разнести с другими пятиминутными джобами (clips: 30).
+    scheduler.add_job(
+        server_metrics.tick,
+        trigger="cron",
+        minute="*/5",
+        second="45",
+        id="server_metrics_tick",
+        replace_existing=True,
+    )
+    # Агрегация буфера закрытых 6-часовых окон в таблицу server_metrics.
+    scheduler.add_job(
+        server_metrics.flush_to_db,
+        trigger="cron",
+        hour="*/6",
+        minute="1",
+        second="0",
+        id="server_metrics_flush",
+        replace_existing=True,
+    )
+    # Суточная очистка метрик хоста (ретеншен 30 дней; minute=10 — после statistics).
+    scheduler.add_job(
+        server_metrics.cleanup_old_data,
+        trigger="cron",
+        hour="4",
+        minute="10",
+        second="0",
+        id="cleanup_server_metrics",
         replace_existing=True,
     )
 

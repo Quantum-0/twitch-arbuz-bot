@@ -4,6 +4,17 @@ from pytest_asyncio import is_async_test
 
 from database.models import User
 
+# Регистрация фикстур БД/клиента: без явного импорта модулей pytest их не видит,
+# и все роут-тесты падают с "fixture 'client' not found".
+from tests.unit.fixtures.client_fixtures import client, session_override, test_user_cookie, user_auth_mock  # noqa: F401
+from tests.unit.fixtures.database_fixtures import (  # noqa: F401
+    db_session,
+    migrations,
+    postgres_container,
+    test_engine,
+    test_user,
+)
+
 # !!! ORDER IS IMPORTANT !!!
 from tests.unit.fixtures.twitch_message import twitch_message_event_model, twitch_message_event_raw  # noqa
 from twitch.state_manager import InMemoryStateManager

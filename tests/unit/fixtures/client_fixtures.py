@@ -4,12 +4,16 @@ from collections.abc import AsyncGenerator
 
 import itsdangerous
 import pytest
+import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dependencies import get_db
 from main import app
 from routers.security_helpers import user_auth, user_auth_optional
+
+# Тесты едут с loop_scope="session" (conftest.py) — async-фикстуры должны
+# использовать тот же цикл, иначе коннекты БД окажутся на чужом loop.
 
 
 @pytest.fixture(scope="function", autouse=True)
@@ -24,6 +28,10 @@ def session_override(db_session):
 def user_auth_mock(db_session, test_user):
     app.dependency_overrides[user_auth] = lambda: test_user
     app.dependency_overrides[user_auth_optional] = lambda: test_user
+    yield test_user
+    # Иначе override утекает в соседние тесты, ждущие 401.
+    app.dependency_overrides.pop(user_auth, None)
+    app.dependency_overrides.pop(user_auth_optional, None)
 
 
 @pytest.fixture(scope="function")
@@ -34,7 +42,7 @@ def test_user_cookie(test_user) -> dict[str, str]:
     return {"session": cookie.decode("utf-8")}
 
 
-@pytest.fixture(scope="function")
+@pytest_asyncio.fixture(loop_scope="session")
 async def client(session_override) -> AsyncGenerator[AsyncClient, None]:
     """HTTPX клиент для тестов."""
     transport = ASGITransport(app=app)

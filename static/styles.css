@@ -1272,6 +1272,38 @@ section h3 {
     }
 }
 
+/* Мигающий значок-счётчик на кнопках меню для штата («Сервер» — алерты хоста,
+   «Модерация» — непроверенные референсы). */
+
+.staff-badge {
+    display: inline-block;
+    min-width: 18px;
+    height: 18px;
+    margin-left: 6px;
+    padding: 0 5px;
+    border-radius: 9px;
+    background: var(--color-danger);
+    color: #fff;
+    font-size: 0.72em;
+    font-weight: 700;
+    line-height: 18px;
+    text-align: center;
+    vertical-align: middle;
+    animation: staffBadgePulse 1.6s infinite;
+}
+
+@keyframes staffBadgePulse {
+    0% {
+        box-shadow: 0 0 0 0 rgba(229, 57, 53, 0.7);
+    }
+    70% {
+        box-shadow: 0 0 0 7px rgba(229, 57, 53, 0);
+    }
+    100% {
+        box-shadow: 0 0 0 0 rgba(229, 57, 53, 0);
+    }
+}
+
 /* Modal window */
 
 .modal {

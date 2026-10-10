@@ -119,6 +119,20 @@ class Settings(BaseSettings):
     steam_api_key: SecretStr = SecretStr("")
     steam_return_to_url: AnyHttpUrl = "https://bot.quantum0.ru/auth/steam/callback"
 
+    # ── Мониторинг сервера (страница «Сервер», только модераторы) ──
+    # Путь ro-маунта корня хоста в контейнер (compose: /:/host:ro + /proc:/host/proc:ro,
+    # паттерн node-exporter). В dev без маунта коллектор тихо пропускает тик.
+    server_metrics_host_root: str = "/host"
+    # Срок хранения агрегированных метрик хоста в БД (дней).
+    server_metrics_retention_days: int = 30
+    # Лимиты для алертов (красная плашка на /server + мигающие бейджи в меню).
+    # Warning — при достижении 80% лимита, critical — при превышении.
+    server_alert_disk_percent: int = 90
+    server_alert_cpu_percent: int = 90
+    server_alert_mem_percent: int = 90
+    # Лимит load average (5 мин); VDS ~2 vCPU, лимит = 2 × ядра.
+    server_alert_load5: float = 4.0
+
     @property
     def login_twitch_url(self) -> str:
         scope: str = "+".join([sp.value for sp in user_scope] + user_scope_extra)

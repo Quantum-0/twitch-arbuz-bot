@@ -26,6 +26,7 @@ from twitch.client.twitch import Twitch
 from twitch.state_manager import StateManager
 from utils.overlay_secret import ensure_overlay_secret
 from utils.reference_moderation import MIN_REFERENCE_FOLLOWERS, ensure_reference_moderator, is_reference_admin
+from utils.staff import ensure_staff
 from utils.template_globals import register_template_globals
 from utils.tts import get_tts_settings
 
@@ -458,6 +459,22 @@ async def stats_page(
         return RedirectResponse("/")
     return templates.TemplateResponse(
         "stats.html",
+        {
+            "request": request,
+            "user": user,
+        },
+    )
+
+
+@router.get("/server", response_class=HTMLResponse)
+async def server_page(
+    request: Request,
+    user: Annotated[User, Security(user_auth)],
+):
+    """Страница мониторинга хоста (диск/CPU/RAM/сеть) — только модераторам."""
+    ensure_staff(user)
+    return templates.TemplateResponse(
+        "server.html",
         {
             "request": request,
             "user": user,

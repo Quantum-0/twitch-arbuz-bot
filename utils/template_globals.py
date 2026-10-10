@@ -2,6 +2,7 @@ from functools import lru_cache
 from pathlib import Path
 
 from config import settings
+from utils.staff import is_staff
 
 _STATIC_DIR = Path("static")
 
@@ -26,3 +27,5 @@ def register_template_globals(templates) -> None:
     """Регистрирует общие Jinja2-глобалы для экземпляра Jinja2Templates."""
     templates.env.globals["static_url"] = static_url
     templates.env.globals["site_url"] = settings.base_url.rstrip("/")
+    # Проверка штатного доступа в шаблонах (видимость пунктов меню).
+    templates.env.globals["is_staff"] = is_staff
