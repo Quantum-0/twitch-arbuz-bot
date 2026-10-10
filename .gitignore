@@ -11,3 +11,6 @@ __pycache__
 /.run/
 *.pem
 .env.bak
+
+# Мониторинг диска: пустая директория для bind-mount (docker-compose)
+/host-metrics/

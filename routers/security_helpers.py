@@ -5,7 +5,7 @@ import secrets
 from typing import Annotated
 
 import sqlalchemy as sa
-from fastapi import Depends, Header, HTTPException
+from fastapi import Depends, Header, HTTPException, Security
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from opentelemetry import trace
 from sqlalchemy.exc import DBAPIError
@@ -19,6 +19,7 @@ from database.database import AsyncSessionLocal
 from database.models import User
 from dependencies import get_db
 from services.follow_check import refresh_followed_to_admin
+from utils.staff import is_staff
 
 INTERACTION_UPDATE_INTERVAL_SECONDS = 15
 INTERACTION_UPDATE_LOCK_TIMEOUT_MS = 50
@@ -115,6 +116,19 @@ async def user_auth(
     # sqlalchemy.exc.InterfaceError: (sqlalchemy.dialects.postgresql.asyncpg.InterfaceError) <class 'asyncpg.exceptions._base.InterfaceError'>: cannot call Transaction.rollback(): the underlying connection is closed
     await db.commit()
 
+    return user
+
+
+@tracer.start_as_current_span("Staff Authentification")
+async def staff_auth(user: Annotated[User, Security(user_auth)]) -> User:
+    """Гейт штатного доступа (модератор/админ): страница «Сервер» и staff-API.
+
+    Список — ``utils.staff.is_staff`` (источник ``REFERENCE_MODERATOR_LOGINS``,
+    состав не меняем). Используется как Security-зависимость: неавторизованному
+    — 401 (от user_auth), авторизованному не-штатному — 403 до вызова ручки.
+    """
+    if not is_staff(user):
+        raise HTTPException(status_code=403, detail="No access to staff area")
     return user
 
 

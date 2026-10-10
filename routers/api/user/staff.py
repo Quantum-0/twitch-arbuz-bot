@@ -1,7 +1,7 @@
 """Staff-only API: метрики хоста для страницы «Сервер» и бейджи меню.
 
-Доступ — только модераторам/админу (``utils.staff.ensure_staff``): нагрузка
-хоста и очередь модерации не подлежат публичному показу.
+Доступ — только модераторам/админам через Security-зависимость ``staff_auth``
+(нагрузка хоста и очередь модерации не подлежат публичному показу).
 
 Сервис метрик берётся через ``get_container()`` (конвенция AGENTS.md для
 не-endpoint зависимостей), а не ``Provide[...]`` — так зависимость можно
@@ -18,7 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from container_runtime import get_container
 from database.models import CharacterInfo, ServerMetric, User
 from dependencies import get_db
-from routers.security_helpers import user_auth
+from routers.security_helpers import staff_auth
 from schemas.api import (
     ServerAlertSchema,
     ServerMetricPointSchema,
@@ -27,7 +27,6 @@ from schemas.api import (
     StaffBadgesSchema,
 )
 from services.server_metrics import Alert, ServerMetricsService
-from utils.staff import ensure_staff
 
 router = APIRouter(prefix="", tags=["Staff"])
 
@@ -41,12 +40,12 @@ PERIOD_DELTA: dict[ServerMetricsPeriod, timedelta] = {
 
 
 def get_server_metrics_service(
-    user: Annotated[User, Security(user_auth)],  # noqa: ARG001 — гейт авторизации
+    _staff: Annotated[User, Security(staff_auth)],  # noqa: ARG001 — гейт доступа
 ) -> ServerMetricsService:
     """DI-провайдер сервиса метрик хоста (переопределяется в тестах).
 
-    Зависит от ``user_auth``, чтобы 401 неавторизованному отдавался до попытки
-    разрешить контейнер (иначе в окружении без контейнера ответ был бы 500).
+    Зависит от ``staff_auth``, чтобы 401/403 отдавались до попытки разрешить
+    контейнер (иначе в окружении без контейнера ответ был бы 500).
     """
     return get_container().server_metrics()
 
@@ -81,7 +80,7 @@ def _alert_schema(alert: Alert) -> ServerAlertSchema:
 )
 async def get_server_metrics(
     metrics: Annotated[ServerMetricsService, Depends(get_server_metrics_service)],
-    user: Annotated[User, Security(user_auth)],
+    _staff: Annotated[User, Security(staff_auth)],
     period: Annotated[
         ServerMetricsPeriod,
         Query(description="Диапазон выборки, если не заданы from/to"),
@@ -96,7 +95,6 @@ async def get_server_metrics(
     ] = None,
 ) -> ServerMetricsResponseSchema:
     """Серия 6-часовых агрегатов нагрузки хоста + текущие алерты. Только штат."""
-    ensure_staff(user)
     dt_to = dt_to or datetime.now(UTC)
     dt_from = dt_from or dt_to - PERIOD_DELTA[period]
     rows = await metrics.get_chart(dt_from, dt_to)
@@ -117,10 +115,9 @@ async def get_server_metrics(
 async def get_staff_badges(
     db: Annotated[AsyncSession, Depends(get_db)],
     metrics: Annotated[ServerMetricsService, Depends(get_server_metrics_service)],
-    user: Annotated[User, Security(user_auth)],
+    _staff: Annotated[User, Security(staff_auth)],
 ) -> StaffBadgesSchema:
     """Счётчики для мигающих значков меню: алерты хоста + непроверенные референсы."""
-    ensure_staff(user)
     alerts = await metrics.get_active_alerts()
     pending = (
         await db.execute(sa.select(sa.func.count()).select_from(CharacterInfo).where(CharacterInfo.approved.is_(None)))

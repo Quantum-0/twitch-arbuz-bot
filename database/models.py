@@ -615,8 +615,16 @@ class ServerMetric(Base):
         nullable=True,
         doc="Свободное место на диске, ГБ (последнее наблюдение окна).",
     )
-    net_rx_mb: Mapped[float | None] = mapped_column(Float, nullable=True, doc="Принято сетью за окно, МБ.")
-    net_tx_mb: Mapped[float | None] = mapped_column(Float, nullable=True, doc="Отправлено сетью за окно, МБ.")
+    net_rx_mb: Mapped[float | None] = mapped_column(
+        Float,
+        nullable=True,
+        doc="Принято сетью (трафик сервиса, rx) за окно, МБ.",
+    )
+    net_tx_mb: Mapped[float | None] = mapped_column(
+        Float,
+        nullable=True,
+        doc="Отправлено сетью (трафик сервиса, tx) за окно, МБ.",
+    )
 
 
 class TelegramSettings(Base):

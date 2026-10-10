@@ -1,10 +1,16 @@
 """Коллектор метрик нагрузки хоста для страницы «Сервер» (только модераторы).
 
-Метрики хоста читаются через read-only bind-маунты (паттерн node-exporter):
-``statvfs(/host)`` — диск, ``/host/proc/{stat,meminfo,loadavg,net/dev}`` —
-CPU/RAM/load/сеть. Собственный ``/proc`` контейнера namespace-изолирован,
-поэтому настоящие значения даёт только смонтированный хостовый. docker.sock не
-используется — контейнер не получает контроля над docker.
+Источники метрик выбраны так, чтобы НЕ давать контейнеру доступ к файлам хоста
+(никаких ``/:/host:ro`` и ``/proc:/host/proc:ro``):
+
+- **CPU / RAM / load** — собственный ``/proc`` контейнера: в Docker (без lxcfs)
+  ``/proc/stat``, ``/proc/meminfo`` и ``/proc/loadavg`` показывают хостовые
+  значения — PID-namespace виртуализирует только списки процессов;
+- **диск** — ``statvfs`` пустой директории, забиндленной с корневого раздела
+  хоста (``./host-metrics:/host/fs:ro``): statvfs возвращает статистику ФС,
+  содержимое каталога не читается;
+- **сеть** — счётчики собственного veth (``/proc/net/dev`` в netns контейнера):
+  трафик сервиса, а не всего хоста.
 
 Схема сбора (см. docs/tz/server-monitoring.md):
 - тик раз в 5 минут (APScheduler): сэмпл → Redis-буфер ``server_metrics:buffer``
@@ -81,7 +87,11 @@ class Alert:
 
 @dataclass(frozen=True)
 class HostSample:
-    """Один 5-минутный сэмпл нагрузки хоста (NULL — источник недоступен)."""
+    """Один 5-минутный сэмпл нагрузки хоста (NULL — источник недоступен).
+
+    cpu/net — дельты кумулятивных каунтеров между тиками; сеть — счётчики veth
+    контейнера (трафик сервиса, не всего хоста).
+    """
 
     ts: datetime
     cpu_percent: float | None
@@ -189,7 +199,7 @@ def evaluate_alerts(metric: Any) -> list[Alert]:
 
 
 # ----------------------------------------------------------------------
-# Чтение /proc и statvfs хоста (defensive: любая неудача → None)
+# Чтение /proc (собственный, контейнера) и statvfs (defensive: неудача → None)
 # ----------------------------------------------------------------------
 
 
@@ -255,7 +265,11 @@ def _read_loadavg(proc_dir: Path) -> tuple[float, float, float] | None:
 
 
 def _read_net_counters(proc_dir: Path) -> tuple[int, int] | None:
-    """Суммарные (rx_bytes, tx_bytes) по всем интерфейсам, кроме loopback ``lo``."""
+    """Суммарные (rx_bytes, tx_bytes) по всем интерфейсам, кроме loopback ``lo``.
+
+    Читается собственный /proc/net/dev контейнера: в netns это счётчики veth,
+    то есть трафик сервиса (не всего хоста).
+    """
     text = _read_text(proc_dir / "net" / "dev")
     if text is None:
         return None
@@ -275,10 +289,14 @@ def _read_net_counters(proc_dir: Path) -> tuple[int, int] | None:
     return rx, tx
 
 
-def _read_disk(host_root: Path) -> tuple[float, float] | None:
-    """``(used_percent, free_gb)`` по statvfs корня хоста; free — доступное не-root (f_bavail)."""
+def _read_disk(disk_path: Path) -> tuple[float, float] | None:
+    """``(used_percent, free_gb)`` по statvfs пути; free — доступное не-root (f_bavail).
+
+    ``disk_path`` — пустая директория, забиндленная с мониторимого раздела хоста:
+    statvfs возвращает статистику файловой системы, содержимое каталога не читается.
+    """
     try:
-        st = os.statvfs(host_root)
+        st = os.statvfs(disk_path)
     except OSError:
         return None
     total = st.f_blocks * st.f_frsize
@@ -319,14 +337,13 @@ def _net_from_prev(prev: dict[str, str], net: tuple[int, int]) -> tuple[float | 
         return None, None
 
 
-def _collect_sample(host_root: Path, prev: dict[str, str]) -> _TickResult | None:
-    """Собирает сэмпл из всех источников; None, если не прочитался ни один (нет /host)."""
-    proc_dir = host_root / "proc"
+def _collect_sample(proc_dir: Path, disk_path: Path, prev: dict[str, str]) -> _TickResult | None:
+    """Собирает сэмпл из всех источников; None, если не прочитался ни один."""
     cpu = _read_cpu_counters(proc_dir)
     net = _read_net_counters(proc_dir)
     load = _read_loadavg(proc_dir)
     mem = _read_meminfo(proc_dir)
-    disk = _read_disk(host_root)
+    disk = _read_disk(disk_path)
     if cpu is None and net is None and load is None and mem is None and disk is None:
         return None
 
@@ -380,14 +397,21 @@ class ServerMetricsService:
     чтения хоста или Redis логируется и пропускается.
     """
 
-    def __init__(self, db_session_factory: Callable[[], AsyncSession]) -> None:
+    def __init__(
+        self,
+        db_session_factory: Callable[[], AsyncSession],
+        proc_dir: str | None = None,
+        disk_path: str | None = None,
+    ) -> None:
         self._db = db_session_factory
         self._r: Redis | None = None
-        self._host_root = settings.server_metrics_host_root
+        # Каталоги переопределяются тестами; продакшн-дефолты — из конфига.
+        self._proc_dir = Path(proc_dir or settings.server_metrics_proc_dir)
+        self._disk_path = Path(disk_path or settings.server_metrics_disk_path)
 
     async def startup(self, redis: aioredis.Redis) -> None:
         self._r = redis
-        logger.info("ServerMetricsService started")
+        logger.info("ServerMetricsService started (proc=%s, disk=%s)", self._proc_dir, self._disk_path)
 
     # ------------------------------------------------------------------
     # Сбор (тик раз в 5 минут)
@@ -403,14 +427,12 @@ class ServerMetricsService:
     async def _tick(self) -> None:
         if self._r is None:
             return
-        host_root = Path(self._host_root)
-        if not host_root.is_dir():
-            logger.debug("Host mount %s unavailable, skipping server metrics tick", self._host_root)
-            return
         prev = _decode_map(await self._r.hgetall(STATE_KEY))
-        result = _collect_sample(host_root, prev)
+        result = _collect_sample(self._proc_dir, self._disk_path, prev)
         if result is None:
-            logger.debug("No host metrics readable from %s, skipping tick", self._host_root)
+            logger.debug(
+                "No host metrics readable (proc=%s, disk=%s), skipping tick", self._proc_dir, self._disk_path
+            )
             return
         await self._store_sample(result)
 

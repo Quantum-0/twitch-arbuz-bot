@@ -186,15 +186,21 @@ def test_cpu_percent_delta():
 # ----------------------------------------------------------------------
 
 
-def _make_service(db_session: Any = None, host_root: str = "/nonexistent-host") -> ServerMetricsService:
-    service = ServerMetricsService(_factory(db_session) if db_session else _factory(None))
-    service._host_root = host_root
-    return service
+def _make_service(
+    db_session: Any = None,
+    proc_dir: str = "/nonexistent-proc",
+    disk_path: str = "/nonexistent-disk",
+) -> ServerMetricsService:
+    return ServerMetricsService(
+        _factory(db_session),
+        proc_dir=proc_dir,
+        disk_path=disk_path,
+    )
 
 
 @pytest.mark.asyncio
-async def test_tick_skips_without_host_mount(tmp_path):
-    service = _make_service(host_root=str(tmp_path / "nohost"))
+async def test_tick_skips_without_sources(tmp_path):
+    service = _make_service(proc_dir=str(tmp_path / "no-proc"), disk_path=str(tmp_path / "no-disk"))
     fake = FakeRedis()
     await service.startup(fake)  # type: ignore[arg-type]
     await service.tick()
@@ -220,7 +226,7 @@ def _write_host_files(root: Any) -> None:
 @pytest.mark.asyncio
 async def test_tick_records_sample_with_deltas(tmp_path):
     _write_host_files(tmp_path)
-    service = _make_service(host_root=str(tmp_path))
+    service = _make_service(proc_dir=str(tmp_path / "proc"), disk_path=str(tmp_path))
     fake = FakeRedis()
     await fake.hset(STATE_KEY, mapping={"cpu_idle": 600, "cpu_total": 800, "net_rx": 0, "net_tx": 0})
     await service.startup(fake)  # type: ignore[arg-type]
@@ -247,7 +253,7 @@ async def test_tick_records_sample_with_deltas(tmp_path):
 async def test_tick_first_run_without_prev_counters(tmp_path):
     """Первый тик после рестарта: cpu/net = NULL, но сэмпл записывается."""
     _write_host_files(tmp_path)
-    service = _make_service(host_root=str(tmp_path))
+    service = _make_service(proc_dir=str(tmp_path / "proc"), disk_path=str(tmp_path))
     fake = FakeRedis()
     await service.startup(fake)  # type: ignore[arg-type]
 

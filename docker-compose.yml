@@ -11,11 +11,11 @@ services:
       - "host.docker.internal:host-gateway"
     volumes:
       - ./models:/root/.u2net
-      # Мониторинг хоста (страница «Сервер»): read-only маунты по паттерну node-exporter.
-      # /:/host:ro — statvfs для df хоста; /proc:/host/proc:ro — CPU/RAM/load/сеть.
-      # docker.sock НЕ монтируется — контейнер не получает контроля над docker.
-      - /:/host:ro
-      - /proc:/host/proc:ro
+      # Мониторинг диска (страница «Сервер»): statvfs пустой директории на
+      # корневом разделе хоста. CPU/RAM/load берутся из собственного /proc
+      # контейнера (в Docker они хостовые), сеть — счётчики veth. Полный
+      # read-only доступ к / и /proc хоста сознательно НЕ даётся.
+      - ./host-metrics:/host/fs:ro
 
 #  redis:
 #    image: redis:8.8.0-alpine

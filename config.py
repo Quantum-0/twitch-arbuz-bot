@@ -120,9 +120,16 @@ class Settings(BaseSettings):
     steam_return_to_url: AnyHttpUrl = "https://bot.quantum0.ru/auth/steam/callback"
 
     # ── Мониторинг сервера (страница «Сервер», только модераторы) ──
-    # Путь ro-маунта корня хоста в контейнер (compose: /:/host:ro + /proc:/host/proc:ro,
-    # паттерн node-exporter). В dev без маунта коллектор тихо пропускает тик.
-    server_metrics_host_root: str = "/host"
+    # Каталог /proc для метрик CPU/RAM/load/сеть. По умолчанию — собственный /proc
+    # контейнера: в Docker (без lxcfs) /proc/stat, /proc/meminfo и /proc/loadavg
+    # показывают хостовые значения, а /proc/net/dev — трафик veth контейнера
+    # (трафик сервиса, не всего хоста). Хостовый /proc НЕ монтируется — полный
+    # read-only доступ к / и /proc хоста exposing все файлы при RCE отклонён.
+    server_metrics_proc_dir: str = "/proc"
+    # Путь на мониторимом разделе хоста для statvfs (диск): пустая директория,
+    # забиндленная в compose как ./host-metrics:/host/fs:ro. statvfs возвращает
+    # статистику файловой системы — содержимое каталога не читается и не важно.
+    server_metrics_disk_path: str = "/host/fs"
     # Срок хранения агрегированных метрик хоста в БД (дней).
     server_metrics_retention_days: int = 30
     # Лимиты для алертов (красная плашка на /server + мигающие бейджи в меню).
