@@ -9,6 +9,7 @@ __all__ = [
     "MARefreshTokenError",
     "MATokenRefreshError",
     "MAInvalidTokenError",
+    "MANotSupporterError",
     "MAUnavailableError",
     "MAValidationRespError",
     "MANoToken",
@@ -60,6 +61,10 @@ class MATokenRefreshError(MAError):
 
 class MAInvalidTokenError(MAError):
     pass
+
+
+class MANotSupporterError(MAError):
+    """Получатель коинов не является саппортером стримера в MemeAlerts."""
 
 
 class MAUnavailableError(MAError):

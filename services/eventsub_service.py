@@ -2,10 +2,10 @@ import asyncio
 import json
 import logging
 import uuid
-from uuid import UUID
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 from typing import Any
+from uuid import UUID
 
 import sqlalchemy as sa
 from apscheduler.jobstores.base import JobLookupError
@@ -21,6 +21,7 @@ from exceptions import (
     MAInvalidScopeError,
     MAInvalidTokenError,
     MANoToken,
+    MANotSupporterError,
     MATokenExpiredError,
     MATokenInvalidError,
     MAUserNotFoundError,
@@ -566,6 +567,15 @@ class TwitchEventSubService:
                 user,
                 "Пользователь не найден в MemeAlerts. Баллы возвращены. "
                 "Проверьте ID или имя; новому зрителю может потребоваться забрать приветственный бонус.",
+            )
+            await self._cancel_redemption(user, payload)
+        except MANotSupporterError:
+            logger.warning("MA user is not a supporter of this streamer: %s", payload.event.user_input)
+            self._inc_reward("failed", StatsType.REWARD_MEMECOINS)
+            await self._chatbot.send_message(
+                user,
+                "Зритель ещё не является саппортером канала в MemeAlerts. Баллы возвращены. "
+                "Зрителю нужно зайти на страницу мемалёртса и забрать приветственный бонус.",
             )
             await self._cancel_redemption(user, payload)
         except MATokenExpiredError:

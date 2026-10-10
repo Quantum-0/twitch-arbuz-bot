@@ -24,6 +24,7 @@ from exceptions import (
     MAInvalidScopeError,
     MAInvalidTokenError,
     MANoToken,
+    MANotSupporterError,
     MARefreshTokenError,
     MATokenRefreshError,
     MAUnavailableError,
@@ -37,6 +38,8 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 tracer = trace.get_tracer(__name__)
+
+MA_NOT_A_SUPPORTER_MESSAGE = "User is not a supporter of this streamer"
 
 T = TypeVar("T", bound=str)
 
@@ -700,7 +703,13 @@ class MemealertsV2Service:
             if response.status_code == 404:
                 raise MAUserNotFoundError
             if response.status_code in {401, 403}:
-                logger.error(f"Access error from MA. Resp: {response.json()}")
+                try:
+                    resp_body = response.json()
+                except ValueError:
+                    resp_body = {}
+                logger.error(f"Access error from MA. Resp: {resp_body}")
+                if resp_body.get("message") == MA_NOT_A_SUPPORTER_MESSAGE:
+                    raise MANotSupporterError
                 raise MAInvalidTokenError
             data = response.json()
             try:
