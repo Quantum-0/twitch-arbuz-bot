@@ -97,10 +97,11 @@ twitch-bot (vds-msk)  ⇄  MQTT/EMQX (префикс топиков: twibot/)  �
 2. **Telegram Login (OpenID Connect)**, core.telegram.org/bots/telegram-login:
    кнопка «Привязать Telegram» в «Других настройках» панели →
    `GET /auth/telegram` (state + PKCE S256 в сессии) → oauth.telegram.org →
-   `GET /auth/telegram/callback` → обмен code на `id_token` → валидация JWT
-   (RS256/ES256 по JWKS, `iss`, `aud`, `exp`) → claim `id` →
-   `telegram_user_id`, claim `username` (фолбэк `preferred_username`) →
-   `telegram_username`.
+    `GET /auth/telegram/callback` → обмен code на `id_token` → валидация JWT
+    (RS256/ES256 по JWKS, `iss`, `aud`, `exp`) → claim `id` (Telegram шлёт
+    числом или числовой строкой — нормализуется к int) →
+    `telegram_user_id`, claim `username` (фолбэк `preferred_username`) →
+    `telegram_username`.
 
    **Важно:** у хоста основного сервиса (vds-msk) нет доступа к серверам
    Telegram, поэтому оба серверных запроса идут **релеем через TG-микросервис**

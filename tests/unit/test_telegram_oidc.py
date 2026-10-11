@@ -38,6 +38,7 @@ def make_id_token(
     iss: str = "https://oauth.telegram.org",
     expires_in: int = 3600,
     tg_id: int = 987654321,
+    id_claim: int | str | None = None,
 ) -> str:
     now = datetime.now(UTC)
     claims = {
@@ -46,7 +47,7 @@ def make_id_token(
         "sub": "1234123412341234123",
         "iat": int(now.timestamp()),
         "exp": int((now + timedelta(seconds=expires_in)).timestamp()),
-        "id": tg_id,
+        "id": tg_id if id_claim is None else id_claim,
         "name": "John Doe",
         "preferred_username": "johndoe",
     }
@@ -197,6 +198,29 @@ async def test_validate_id_token_rejects_foreign_signature(monkeypatch) -> None:
     # JWKS содержит чужой публичный ключ → подпись не сходится.
     patch_jwks(monkeypatch, other_key)
     token = make_id_token(signing_key)
+
+    assert await make_login().validate_id_token(token) is None
+
+
+async def test_validate_id_token_accepts_string_id_claim(monkeypatch) -> None:
+    """Реальный Telegram шлёт `id` числовой строкой — нормализуем к int."""
+    configure(monkeypatch)
+    key = gen_rsa_key()
+    patch_jwks(monkeypatch, key)
+    token = make_id_token(key, id_claim="194573162")
+
+    claims = await make_login().validate_id_token(token)
+
+    assert claims is not None
+    assert claims["id"] == 194573162
+    assert isinstance(claims["id"], int)
+
+
+async def test_validate_id_token_rejects_non_numeric_id_claim(monkeypatch) -> None:
+    configure(monkeypatch)
+    key = gen_rsa_key()
+    patch_jwks(monkeypatch, key)
+    token = make_id_token(key, id_claim="abc-123")
 
     assert await make_login().validate_id_token(token) is None
 

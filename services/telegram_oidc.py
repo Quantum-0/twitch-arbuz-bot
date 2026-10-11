@@ -196,7 +196,11 @@ class TelegramLoginService:
             logger.error("Telegram Login: unexpected id_token validation error", exc_info=True)
             return None
 
-        if not isinstance(claims.get("id"), int):
+        # Telegram шлёт ``id`` числом или числовой строкой — нормализуем к int.
+        raw_id = claims.get("id")
+        if isinstance(raw_id, str) and raw_id.isdigit():
+            claims["id"] = raw_id = int(raw_id)
+        if not isinstance(raw_id, int):
             logger.warning("Telegram Login: id_token without numeric `id` claim: %s", claims)
             return None
         return claims
