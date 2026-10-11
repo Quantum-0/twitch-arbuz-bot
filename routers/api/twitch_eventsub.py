@@ -26,6 +26,7 @@ from schemas.twitch import (
 )
 from services.eventsub_service import TwitchEventSubService
 from services.mqtt import MQTTClient
+from services.stream_notifications import StreamNotificationsService
 from twitch.chat.bot import ChatBot
 
 router = APIRouter(prefix="/twitch")
@@ -72,6 +73,7 @@ async def eventsub_handler(
     chat_bot: Annotated[ChatBot, Depends(Provide[Container.chat_bot])],
     mqtt: Annotated[MQTTClient, Depends(Provide[Container.mqtt])],
     service: Annotated[TwitchEventSubService, Depends(Provide[Container.twitch_eventsub_service])],
+    stream_notifications: Annotated[StreamNotificationsService, Depends(Provide[Container.stream_notifications])],
     streamer_id: Annotated[int, Path(...)],
 ):
     logger.info(f"Got eventsub. Type: {type(payload)}")
@@ -100,10 +102,10 @@ async def eventsub_handler(
         await mqtt.publish(f"twitch/{payload.subscription.condition.broadcaster_user_id}/message", payload.event)
     elif isinstance(payload, StreamOnlineSchema):
         logger.info("Handling stream.online")
-        await service.handle_stream_online(payload)
+        await stream_notifications.handle_stream_online(payload)
     elif isinstance(payload, StreamOfflineSchema):
         logger.info("Handling stream.offline")
-        await service.handle_stream_offline(payload)
+        await stream_notifications.handle_stream_offline(payload)
     elif isinstance(payload, FollowWebhookSchema):
         logger.info("Handling follow")
         await service.handle_follow(payload)

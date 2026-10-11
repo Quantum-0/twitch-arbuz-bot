@@ -82,8 +82,9 @@ poetry run uvicorn main:app --reload   # запустить дев-сервер
   `handle_revocation`), дедуп Redis `revocation_notified:{twitch_id}` (24 ч), для стрим-типов
   снимает `stream_notification_enabled`.
 - **Смежный TG-микросервис:** соседний репозиторий `../twibot-tg`
-- Основная логика уведомлений о стриме: `services/eventsub_service.py`
-  (`handle_stream_online` / `handle_stream_offline` / отложенная джоба `stream_offline_deferred:*`),
+- Основная логика уведомлений о стриме: `services/stream_notifications.py`
+  (`handle_stream_online` / `handle_stream_offline` / отложенная джоба `stream_offline_deferred:*`;
+  вызывается из `routers/api/twitch_eventsub.py`),
   результаты доставок: `services/telegram_integration.py:handle_telegram_result`.
 - Окно перезапуска/задержка подтверждения окончания: `config.py:stream_restart_window_minutes`
   (env `STREAM_RESTART_WINDOW_MINUTES`, дефолт 15).

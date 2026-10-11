@@ -13,6 +13,7 @@ coverage html --skip-empty --omit="*/tests/*"
 Если В ЛЮБОМ МЕСТЕ стрельнуло InvalidRefreshTokenException - делаем логаут
 
 TODO:
+- конфиг поделить на категории
 - ФЗ-152
   - пользовательское соглашение (templates/legal/agreement.html) - доработать
   - политика конфиденциальности (templates/legal/privacy.html) — DONE

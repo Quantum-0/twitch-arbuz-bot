@@ -23,6 +23,7 @@ from services.statistics import StatisticsService
 from services.steam import SteamService
 from services.stickers import StickersService
 from services.stickers_processor import StickerProcessor
+from services.stream_notifications import StreamNotificationsService
 from services.telegram_oidc import TelegramLoginService
 from services.tts import TTSService
 from services.twitch_token_service import TwitchTokenService
@@ -153,6 +154,13 @@ class Container(containers.DeclarativeContainer):
         tts_service=tts_service,
         mqtt=mqtt,
         statistics=statistics,
+        cache=cache,
+    )
+    stream_notifications = providers.Singleton(
+        StreamNotificationsService,
+        twitch=twitch,
+        db_session_factory=db_session_factory,
+        mqtt=mqtt,
         cache=cache,
     )
 
