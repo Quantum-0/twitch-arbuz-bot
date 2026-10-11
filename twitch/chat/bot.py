@@ -337,8 +337,6 @@ class ChatBot:
         current_channels = {
             sub.condition.get("broadcaster_user_id") for sub in subs if sub.type == "channel.chat.message"
         }
-        logger.debug(f"desired_channels: {desired_channels}")
-        logger.debug(f"current_channels: {current_channels}")
 
         if (
             settings.exception_to_many_unsubscribes

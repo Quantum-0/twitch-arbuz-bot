@@ -1277,19 +1277,25 @@ section h3 {
 
 .staff-badge {
     display: inline-block;
-    min-width: 18px;
-    height: 18px;
+    width: 20px;
+    height: 20px;
     margin-left: 6px;
-    padding: 0 5px;
-    border-radius: 9px;
+    padding: 0;
+    border-radius: 50%;
     background: var(--color-danger);
     color: #fff;
-    font-size: 0.72em;
+    font-size: 0.65em;
     font-weight: 700;
-    line-height: 18px;
+    line-height: 20px;
     text-align: center;
     vertical-align: middle;
     animation: staffBadgePulse 1.6s infinite;
+}
+
+/* display: inline-block выше перебивает UA-стиль [hidden] — возвращаем скрытие,
+   иначе значок виден (и мигает) даже при нулевом счётчике. */
+.staff-badge[hidden] {
+    display: none;
 }
 
 @keyframes staffBadgePulse {

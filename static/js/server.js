@@ -13,7 +13,7 @@
         to: document.getElementById("server-to"),
         autorefresh: document.getElementById("server-autorefresh"),
         refresh: document.getElementById("server-refresh"),
-        empty: document.getElementById("server-empty"),
+        empty: document.getElementById("serverEmpty"),
         charts: document.getElementById("serverCharts"),
         banner: document.getElementById("serverAlertBanner")
     };
@@ -226,7 +226,12 @@
             .then(function (resp) {
                 if (resp.status === 401) throw new Error("Нужна авторизация.");
                 if (!resp.ok) throw new Error("Ошибка загрузки (" + resp.status + ").");
-                return resp.json();
+                // Пустое тело (прокси/сбой) без проверки падало бы внутри resp.json()
+                // с невнятным «Unexpected end of JSON input».
+                return resp.text().then(function (text) {
+                    if (!text.trim()) throw new Error("Пустой ответ сервера.");
+                    return JSON.parse(text);
+                });
             })
             .then(function (data) {
                 renderBanner(data.alerts || []);
