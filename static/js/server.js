@@ -15,7 +15,7 @@
         refresh: document.getElementById("server-refresh"),
         empty: document.getElementById("server-empty"),
         charts: document.getElementById("serverCharts"),
-        banner: document.getElementById("server-alert-banner")
+        banner: document.getElementById("serverAlertBanner")
     };
 
     var charts = {};
@@ -231,7 +231,7 @@
             .then(function (data) {
                 renderBanner(data.alerts || []);
                 if (!data.points || !data.points.length) {
-                    renderEmpty("Нет данных за период — коллектор недоступен (нет /host-маунта) или метрики ещё не собраны.");
+                    renderEmpty("Нет данных за период — коллектор недоступен (нет /proc или bind-директории) либо метрики ещё не собраны.");
                     return;
                 }
                 els.empty.hidden = true;
@@ -270,9 +270,12 @@
     els.refresh.addEventListener("click", function () { refresh(); });
 
     // Перерисовать графики при смене темы (цвета берутся из CSS-переменных).
-    document.getElementById("themeToggle").addEventListener("click", function () {
-        setTimeout(refresh, 50);
-    });
+    var themeToggleBtn = document.getElementById("themeToggle");
+    if (themeToggleBtn) {
+        themeToggleBtn.addEventListener("click", function () {
+            setTimeout(refresh, 50);
+        });
+    }
 
     readUrlState();
     if (els.range.value !== "custom" && !els.from.value) applyRangePreset();

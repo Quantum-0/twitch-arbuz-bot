@@ -25,8 +25,9 @@ CPU % и сетевые дельты считаются между двумя ч
 (переживают рестарт). Первый тик после рестарта записывает cpu/net = NULL.
 
 Алерты (``evaluate_alerts``) вычисляются по последнему живому сэмплу из Redis
-(свежесть ≤ 5 мин) с фолбэком на последнюю строку БД: critical — превышение
-лимита, warning — достижение 80% лимита (раннее предупреждение о заполнении диска).
+(свежесть ≤ TTL ``server_metrics:last`` ~30 мин; сами сэмплы — раз в 5 мин) с
+фолбэком на свежую строку БД: critical — превышение лимита, warning — достижение
+80% лимита (раннее предупреждение о заполнении диска).
 """
 
 import json
@@ -65,6 +66,9 @@ BUFFER_TTL_SECONDS = 12 * 60 * 60
 LAST_TTL_SECONDS = 30 * 60
 # TTL каунтеров — чтобы при отключении фичи ключ не висел вечно.
 STATE_TTL_SECONDS = 7 * 24 * 60 * 60
+# Максимальный возраст строки БД, по которой ещё считаем алерты (фолбэк после
+# смерти коллектора: свежее окно + предыдущее, старше — считаем данных нет).
+FALLBACK_MAX_AGE = timedelta(hours=48)
 
 SEVERITY_WARNING = "warning"
 SEVERITY_CRITICAL = "critical"
@@ -192,7 +196,7 @@ def evaluate_alerts(metric: Any) -> list[Alert]:
         if value is None:
             continue
         if value >= limit:
-            alerts.append(Alert(metric=name, value=value, limit=limit, severity=SEVERITY_CRITICAL))
+            alerts.append(Alert(metric=name, value=round(value, 2), limit=limit, severity=SEVERITY_CRITICAL))
         elif value >= limit * WARNING_RATIO:
             alerts.append(Alert(metric=name, value=round(value, 2), limit=limit, severity=SEVERITY_WARNING))
     return alerts
@@ -215,7 +219,8 @@ def _read_cpu_counters(proc_dir: Path) -> tuple[int, int] | None:
     text = _read_text(proc_dir / "stat")
     if not text:
         return None
-    first = text.splitlines()[0] if text.splitlines() else ""
+    lines = text.splitlines()
+    first = lines[0] if lines else ""
     parts = first.split()[1:]
     try:
         values = [int(p) for p in parts]
@@ -389,6 +394,13 @@ def _decode_map(data: dict[Any, Any]) -> dict[str, str]:
     return result
 
 
+def ensure_utc(dt: datetime) -> datetime:
+    """Naive-даты трактуются как UTC (иначе asyncpg интерпретировал бы их в TZ сервера)."""
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=UTC)
+    return dt.astimezone(UTC)
+
+
 class ServerMetricsService:
     """Сбор метрик хоста: 5-минутные сэмплы в Redis → 6-часовые строки в БД.
 
@@ -430,9 +442,7 @@ class ServerMetricsService:
         prev = _decode_map(await self._r.hgetall(STATE_KEY))
         result = _collect_sample(self._proc_dir, self._disk_path, prev)
         if result is None:
-            logger.debug(
-                "No host metrics readable (proc=%s, disk=%s), skipping tick", self._proc_dir, self._disk_path
-            )
+            logger.debug("No host metrics readable (proc=%s, disk=%s), skipping tick", self._proc_dir, self._disk_path)
             return
         await self._store_sample(result)
 
@@ -491,7 +501,12 @@ class ServerMetricsService:
 
         # Обработанные сэмплы убираем из буфера (окно закрыто, повторная
         # агрегация не нужна); сэмплы текущего окна остаются до следующего flush.
-        keep = len(samples) - len(closed)
+        # keep считаем по RAW-записям: непарсибельный мусор (остаток старого
+        # формата) тоже считается обработанным и удаляется. Операция не
+        # атомарна (INSERT и LTRIM отдельно) — сознательно: при сбое между ними
+        # повторный flush упрётся в ON CONFLICT DO NOTHING; тики идут на :45,
+        # flush — на :01, пересечение практически исключено.
+        keep = len([raw for raw in raw_items if (s := _parse_sample(raw)) is not None and s.ts >= current_window])
         if keep:
             await self._r.ltrim(BUFFER_KEY, -keep, -1)
         else:
@@ -500,23 +515,32 @@ class ServerMetricsService:
     @tracer.start_as_current_span("ServerMetrics: retention cleanup")
     async def cleanup_old_data(self) -> None:
         """Джоба APScheduler: удалить строки старше ``server_metrics_retention_days``."""
-        async with self._db() as session:
-            cutoff = datetime.now(UTC) - timedelta(days=settings.server_metrics_retention_days)
-            await session.execute(sa.delete(ServerMetric).where(ServerMetric.bucket_ts < cutoff))
-            await session.commit()
+        try:
+            async with self._db() as session:
+                cutoff = datetime.now(UTC) - timedelta(days=settings.server_metrics_retention_days)
+                await session.execute(sa.delete(ServerMetric).where(ServerMetric.bucket_ts < cutoff))
+                await session.commit()
+        except Exception:
+            logger.error("server metrics cleanup failed", exc_info=True)
 
     # ------------------------------------------------------------------
     # Чтение (API страницы «Сервер»)
     # ------------------------------------------------------------------
 
     async def get_chart(self, dt_from: datetime, dt_to: datetime) -> list[ServerMetric]:
-        """Строки метрик за диапазон [dt_from, dt_to], по возрастанию окна."""
+        """Строки метрик за диапазон [dt_from, dt_to], по возрастанию окна.
+
+        Naive-границы трактуются как UTC (см. ``ensure_utc``).
+        """
         async with self._db() as session:
             return list(
                 (
                     await session.execute(
                         sa.select(ServerMetric)
-                        .where(ServerMetric.bucket_ts >= dt_from, ServerMetric.bucket_ts <= dt_to)
+                        .where(
+                            ServerMetric.bucket_ts >= ensure_utc(dt_from),
+                            ServerMetric.bucket_ts <= ensure_utc(dt_to),
+                        )
                         .order_by(ServerMetric.bucket_ts)
                     )
                 )
@@ -533,18 +557,23 @@ class ServerMetricsService:
             )
 
     async def get_active_alerts(self) -> list[Alert]:
-        """Алерты по последнему живому сэмплу из Redis (свежесть ≤ 5 мин).
+        """Алерты по последнему живому сэмплу из Redis (свежесть ≤ TTL ~30 мин).
 
-        Фолбэк — последняя строка БД (например, dev без /host-маунта, но с историей);
-        если данных нет вовсе — пустой список.
+        Фолбэк — последняя строка БД не старше ``FALLBACK_MAX_AGE`` (иначе при
+        долгом простое коллектора на бейджах висел бы вечный алерт); при недоступном
+        Redis — тоже БД; если данных нет вовсе — пустой список.
         """
         if self._r is not None:
-            raw = await self._r.get(LAST_KEY)
+            try:
+                raw = await self._r.get(LAST_KEY)
+            except Exception:
+                logger.error("server metrics: Redis GET failed, falling back to DB", exc_info=True)
+                raw = None
             if raw:
                 sample = _parse_sample(raw)
                 if sample is not None:
                     return evaluate_alerts(sample)
         latest = await self.get_latest_row()
-        if latest is None:
+        if latest is None or latest.bucket_ts < datetime.now(UTC) - FALLBACK_MAX_AGE:
             return []
         return evaluate_alerts(latest)

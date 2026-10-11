@@ -135,3 +135,9 @@ async def test_staff_badges_counts_for_moderator(client, user_auth_mock, test_us
 async def test_server_metrics_requires_login(client):
     resp = await client.get("/api/user/server-metrics")
     assert resp.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_staff_badges_requires_login(client):
+    resp = await client.get("/api/user/staff-badges")
+    assert resp.status_code == 401

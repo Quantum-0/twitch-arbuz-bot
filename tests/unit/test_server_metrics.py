@@ -14,6 +14,7 @@ from config import settings
 from database.models import ServerMetric
 from services.server_metrics import (
     BUFFER_KEY,
+    FALLBACK_MAX_AGE,
     LAST_KEY,
     SEVERITY_CRITICAL,
     SEVERITY_WARNING,
@@ -24,6 +25,7 @@ from services.server_metrics import (
     _floor_to_window,
     _sample_to_json,
     aggregate_samples,
+    ensure_utc,
     evaluate_alerts,
 )
 from tests.unit.fixtures.fake_redis import FakeRedis, session_factory
@@ -362,3 +364,59 @@ async def test_get_active_alerts_no_data_returns_empty(db_session):
     service = _make_service(db_session)
     await service.startup(FakeRedis())  # type: ignore[arg-type]
     assert await service.get_active_alerts() == []
+
+
+@pytest.mark.asyncio
+async def test_get_active_alerts_stale_db_row_ignored(db_session):
+    """Фолбэк на БД ограничен свежестью: строка старше FALLBACK_MAX_AGE не даёт алерт."""
+    service = _make_service(db_session)
+    await service.startup(FakeRedis())  # type: ignore[arg-type]
+
+    stale_window = _floor_to_window(datetime.now(UTC) - FALLBACK_MAX_AGE - timedelta(hours=1))
+    db_session.add(ServerMetric(bucket_ts=stale_window, disk_used_percent=95.0))
+    await db_session.commit()
+
+    assert await service.get_active_alerts() == []
+
+
+# ----------------------------------------------------------------------
+# Разное (нормализация дат, сбросы каунтеров, битые /proc-файлы)
+# ----------------------------------------------------------------------
+
+
+def test_ensure_utc_naive_treated_as_utc():
+    naive = datetime(2026, 10, 10, 12, 0)
+    assert ensure_utc(naive).tzinfo is UTC
+    assert ensure_utc(naive) == datetime(2026, 10, 10, 12, 0, tzinfo=UTC)
+    aware = datetime(2026, 10, 10, 12, 0, tzinfo=UTC)
+    assert ensure_utc(aware) == aware
+
+
+def test_net_delta_counter_reset_returns_none():
+    from services.server_metrics import _net_delta
+
+    assert _net_delta(100, 150) == 50.0
+    assert _net_delta(200, 150) is None  # сброс каунтера (рестарт хоста)
+
+
+@pytest.mark.asyncio
+async def test_tick_with_malformed_proc_files(tmp_path):
+    """Битые /proc-файлы не роняют тик: поля None, остальные источники работают."""
+    proc = tmp_path / "proc"
+    proc.mkdir(parents=True)
+    (proc / "stat").write_text("garbage without numbers\n")
+    (proc / "meminfo").write_text("MemTotal: abc kB\n")
+    (proc / "loadavg").write_text("")
+    # net/dev отсутствует вовсе
+    service = _make_service(proc_dir=str(proc), disk_path=str(tmp_path))
+    fake = FakeRedis()
+    await service.startup(fake)  # type: ignore[arg-type]
+
+    await service.tick()
+
+    sample = json.loads(fake.lists[BUFFER_KEY][0])
+    assert sample["cpu_percent"] is None
+    assert sample["mem_used_percent"] is None
+    assert sample["load1"] is None
+    assert sample["net_rx_bytes"] is None
+    assert sample["disk_used_percent"] is not None  # statvfs tmp_path работает
