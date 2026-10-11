@@ -66,6 +66,7 @@ def build_tg(**overrides) -> SimpleNamespace:
         "stickers_connected_at": None,
         "stream_notification_enabled": False,
         "telegram_user_id": None,
+        "telegram_username": None,
         "user_id": 1,
     }
     fields.update(overrides)
@@ -111,3 +112,27 @@ async def test_private_chat_overwrites_stale_telegram_user_id() -> None:
     await handle_chat_connected(dict(PAYLOAD), factory)
 
     assert tg.telegram_user_id == "424242"
+
+
+@pytest.mark.asyncio
+async def test_private_chat_fills_telegram_username() -> None:
+    """Payload приватного чата несёт username юзера — сохраняем его."""
+    tg = build_tg()
+    _, factory = build_db(tg)
+
+    await handle_chat_connected({**PAYLOAD, "username": "ivan_p"}, factory)
+
+    assert tg.telegram_username == "ivan_p"
+    assert tg.telegram_user_id == "424242"
+
+
+@pytest.mark.asyncio
+async def test_private_chat_without_username_keeps_existing() -> None:
+    """Нет username в payload (старый TG-сервис / юзер без username) — не затираем."""
+    tg = build_tg(telegram_username="from_oidc")
+    _, factory = build_db(tg)
+
+    await handle_chat_connected(dict(PAYLOAD), factory)
+
+    assert tg.telegram_user_id == "424242"
+    assert tg.telegram_username == "from_oidc"

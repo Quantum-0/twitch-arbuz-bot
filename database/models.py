@@ -696,7 +696,13 @@ class TelegramSettings(Base):
     # ── Chat mirroring (future, не реализуем в MVP) ──
     twitch_to_tg_enabled: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false(), nullable=False)
     tg_to_twitch_enabled: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false(), nullable=False)
+
+    # ── Личный Telegram-аккаунт (приватные уведомления) ──
+    # Telegram user id (он же chat_id личного чата с ботом) и username
+    # (для отображения в панели; заполняется при привязке и может быть
+    # None — username у TG-аккаунта бывает не задан).
     telegram_user_id: Mapped[str | None] = mapped_column(String, nullable=True, default=None)
+    telegram_username: Mapped[str | None] = mapped_column(String, nullable=True, default=None)
 
     user: Mapped["User"] = relationship("User", back_populates="telegram")
 

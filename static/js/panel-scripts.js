@@ -233,6 +233,14 @@ document.addEventListener('DOMContentLoaded', () => {
     if (coinInput) {
         coinInput.addEventListener('input', triggerCoinSave);
     }
+    // Неудачная привязка Telegram: /panel?tg_link=failed (редирект из callback).
+    const linkParams = new URLSearchParams(window.location.search);
+    if (linkParams.get('tg_link') === 'failed') {
+        showNotification('Telegram', 'Не удалось привязать Telegram-аккаунт. Попробуйте позже.', true);
+        linkParams.delete('tg_link');
+        const rest = linkParams.toString();
+        window.history.replaceState({}, '', window.location.pathname + (rest ? `?${rest}` : ''));
+    }
 });
 
 function resetOverlaySecret() {
@@ -268,6 +276,10 @@ function unlinkTelegramAccount() {
                 newBtn.setAttribute('onclick', 'linkTelegramAccount()');
                 newBtn.textContent = 'Привязать Telegram';
                 tgBtn.replaceWith(newBtn);
+            }
+            const tgUsernameLine = document.getElementById('tg-username-line');
+            if (tgUsernameLine) {
+                tgUsernameLine.remove();
             }
         }
     })

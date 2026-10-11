@@ -180,6 +180,7 @@ async def unlink_telegram_account(
     if tg is None or not tg.telegram_user_id:
         return JSONResponse({"title": "Нечего отвязывать", "message": "Telegram не привязан."}, 208)
     tg.telegram_user_id = None
+    tg.telegram_username = None
     await db.commit()
     return JSONResponse({"title": "Готово", "message": "Telegram-аккаунт отвязан."}, 200)
 

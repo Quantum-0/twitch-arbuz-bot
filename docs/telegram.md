@@ -21,6 +21,10 @@
   Telegram (`telegram_user_id`) — приватные чаты по deep-link + Telegram Login
   (OIDC, кнопка в «Других настройках»); TG-уведомления при отзыве авторизации
   Twitch (revocation) с дедупом на 24 ч.
+- ✅ 2026-10-11, имплементировано в коде (деплой ожидает): обмен code и fetch
+  JWKS в Telegram Login идут через релей TG-микросервиса (`/api/oauth/token`,
+  `/api/oauth/jwks`) — у хоста основного сервиса нет доступа к Telegram;
+  сохранение `telegram_username` (OIDC + приватные `chat_connected`).
 - После деплоя на прод — актуализировать этот список.
 
 ## Архитектура и смежный сервис
@@ -36,7 +40,9 @@ twitch-bot (vds-msk)  ⇄  MQTT/EMQX (префикс топиков: twibot/)  �
   `~/twibot-tg`, docker compose, контейнер `twibot-tg`). aiogram 3: long polling,
   выполняет MQTT-команды → Bot API, отдаёт результаты и события о подключении
   чатов. HTTP API: `/api/healthcheck`, `/api/connect` (генерация deep-link),
-  `/api/chat_status` (проверка, что бот не кикнут), debug-ручки под API-ключом.
+  `/api/chat_status` (проверка, что бот не кикнут), `/api/oauth/token` и
+  `/api/oauth/jwks` (релей Telegram Login — обмен code → id_token и JWKS;
+  все под `X-Api-Key`), debug-ручки под API-ключом.
 
 Всё, что касается отправки/удаления/редактирования сообщений и подключения
 чатов, нужно искать в **обоих** репозиториях.
@@ -84,24 +90,39 @@ twitch-bot (vds-msk)  ⇄  MQTT/EMQX (префикс топиков: twibot/)  �
    `chat_connected` с `chat_type == "private"` chat_id приватного чата =
    Telegram user id → пишем в `telegram_user_id`
    (`services/telegram_integration.py:handle_chat_connected`). Группы/каналы
-   не заполняют поле (там chat_id — id чата, а не юзера).
+   не заполняют поле (там chat_id — id чата, а не юзера). Payload приватного
+   чата дополнительно несёт `username` (Telegram username юзера) → пишем в
+   `telegram_username`; если поля нет (старый TG-сервис / юзер без username) —
+   существующее значение не затираем.
 2. **Telegram Login (OpenID Connect)**, core.telegram.org/bots/telegram-login:
    кнопка «Привязать Telegram» в «Других настройках» панели →
    `GET /auth/telegram` (state + PKCE S256 в сессии) → oauth.telegram.org →
-   `GET /auth/telegram/callback` → обмен code на `id_token` (Basic auth
-   client_id:client_secret) → валидация JWT (RS256/ES256 по JWKS, `iss`,
-   `aud`, `exp`) → claim `id` → `telegram_user_id`.
+   `GET /auth/telegram/callback` → обмен code на `id_token` → валидация JWT
+   (RS256/ES256 по JWKS, `iss`, `aud`, `exp`) → claim `id` →
+   `telegram_user_id`, claim `username` (фолбэк `preferred_username`) →
+   `telegram_username`.
+
+   **Важно:** у хоста основного сервиса (vds-msk) нет доступа к серверам
+   Telegram, поэтому оба серверных запроса идут **релеем через TG-микросервис**
+   (vds-ams): `POST {telegram_service_url}/api/oauth/token` (form-поля и
+   Basic auth client_id:client_secret пробрасываются транзитом) и
+   `GET /api/oauth/jwks` (JWKS для проверки подписи; кэш ключей — PyJWKClient,
+   `_ProxiedJWKClient` в twitch-bot). Релей прибит к фиксированным URL
+   oauth.telegram.org и ничего не логирует (в трафике токены и secret).
+   При неудачном обмене — редирект `/panel?tg_link=failed` + тост в панели.
+
    Сервис: `services/telegram_oidc.py` (`TelegramLoginService`), роуты:
    `routers/web/telegram_routes.py`. Конфиг: `telegram_login_client_id`
    (числовой id бота, выдаёт @BotFather → Login Widget),
    `telegram_login_client_secret`, `telegram_login_redirect_url`
-   (дефолт `https://bot.quantum0.ru/auth/telegram/callback`).
+   (дефолт `https://bot.quantum0.ru/auth/telegram/callback`);
+   `telegram_service_url`/`telegram_service_api_key` — доступ к релею.
    Scope: `openid profile telegram:bot_access` (последний — разрешение боту
    писать юзеру в личку). Если client_id/secret не заданы — кнопка в панели
    скрыта, флоу отключён.
    Отвязка: `POST /api/user/telegram/unlink-account` (кнопка «Отвязать
-   Telegram» в панели) — чистит только `telegram_user_id`, привязки чатов
-   не трогает.
+   Telegram» в панели) — чистит `telegram_user_id` и `telegram_username`,
+   привязки чатов не трогает.
 
 ## Уведомления при отзыве авторизации Twitch (EventSub revocation)
 
@@ -250,7 +271,7 @@ Twitch. Две причины: юзер включил у награды «ав�
 
 | Таблица | Использование |
 |---|---|
-| `telegram_settings` | Все настройки и привязки чатов, `last_stream_message_id`, `last_stream_offline_message_id`, `telegram_user_id` (личный TG-аккаунт, см. выше) |
+| `telegram_settings` | Все настройки и привязки чатов, `last_stream_message_id`, `last_stream_offline_message_id`, `telegram_user_id` + `telegram_username` (личный TG-аккаунт, см. выше) |
 | `twitch_bot_users` | Связка user_id ↔ twitch_id (для EventSub-условий и Get Streams) |
 | `apscheduler_jobs` | SQL jobstore APScheduler, в т.ч. джобы `stream_offline_deferred:{user_id}` |
 
@@ -277,7 +298,7 @@ twibot-tg — на `twibot/telegram/+`.
 | Топик | Payload | Для чего |
 |---|---|---|
 | `telegram/result/{request_id}` | `SendResult` (`request_id`, `success`, `message_id`, `error`) | Результат любой отправки; `handle_telegram_result` сохраняет message_id в БД |
-| `telegram/chat_connected` | `{user_id, scope, chat_id, chat_type, chat_title}` | Привязка чата (scope: stream/clips/stickers); создаёт EventSub-подписки |
+| `telegram/chat_connected` | `{user_id, scope, chat_id, chat_type, chat_title, username?}` | Привязка чата (scope: stream/clips/stickers); создаёт EventSub-подписки; `username` — только для приватных чатов (Telegram username юзера) |
 | `telegram/chat_disconnected` | `{user_id, scope, chat_id}` | Бота кикнули/он ушёл: очистка привязки, снятие EventSub |
 
 ### Конвенция request_id

@@ -101,9 +101,14 @@ async def handle_chat_connected(payload: dict[str, Any], db_session_factory) -> 
         # Приватный чат = личный чат юзера с ботом: chat_id совпадает с его
         # Telegram user id → запоминаем для персональных уведомлений
         # (revocation и т.п., см. docs/telegram.md). Группы/каналы не подходят:
-        # там chat_id — id чата, а не юзера.
+        # там chat_id — id чата, а не юзера. ``username`` в payload может
+        # отсутствовать (старый TG-сервис / юзер без username) — тогда не
+        # трогаем, чтобы не затирать значение, полученное через OIDC.
         if chat_type == "private":
             tg.telegram_user_id = chat_id
+            username = payload.get("username")
+            if isinstance(username, str) and username:
+                tg.telegram_username = username
 
         # Для stream: подписываемся на EventSub сразу, если уведомления уже включены.
         # Делаем это в той же транзакции после коммита настроек — чтобы Twitch-вызовы

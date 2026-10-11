@@ -3,9 +3,10 @@
 Флоу:
 - ``GET /auth/telegram`` — генерация state + PKCE-пары (в сессию), редирект
   на oauth.telegram.org (только для залогиненных).
-- ``GET /auth/telegram/callback`` — приём ``code``/``state``, обмен на id_token,
-  валидация (JWKS, RS256/ES256), сохранение ``telegram_user_id`` в
-  ``TelegramSettings``, редирект на ``/panel``.
+- ``GET /auth/telegram/callback`` — приём ``code``/``state``, обмен на id_token
+  (через релей TG-микросервиса), валидация (JWKS, RS256/ES256), сохранение
+  ``telegram_user_id``/``telegram_username`` в ``TelegramSettings``, редирект
+  на ``/panel`` (при ошибке обмена — ``/panel?tg_link=failed``).
 
 Отвязка личного аккаунта (POST /api/user/telegram/unlink-account) —
 см. ``routers/api/user/telegram.py``.
@@ -70,23 +71,23 @@ async def telegram_callback(
     verifier = request.session.pop(_SESSION_VERIFIER_KEY, None)
     request.session.pop(_SESSION_STATE_KEY, None)
 
-    if (
-        not code
-        or not state
-        or not verifier
-        or not expected_state
-        or not secrets.compare_digest(state, expected_state)
-    ):
+    if not code or not state or not verifier or not expected_state or not secrets.compare_digest(state, expected_state):
         logger.warning("Telegram callback: invalid state or missing code (user_id=%s)", user.id)
         return RedirectResponse(url="/panel")
 
     claims = await login.exchange_code(code, verifier)
     if claims is None:
         logger.warning("Telegram callback: token exchange/validation failed (user_id=%s)", user.id)
-        return RedirectResponse(url="/panel")
+        return RedirectResponse(url="/panel?tg_link=failed")
 
     tg = await ensure_telegram_settings(db, user)
     tg.telegram_user_id = str(claims["id"])
+    tg.telegram_username = login.extract_username(claims)
     await db.commit()
-    logger.info("Telegram linked: user_id=%s telegram_user_id=%s", user.id, tg.telegram_user_id)
+    logger.info(
+        "Telegram linked: user_id=%s telegram_user_id=%s username=%s",
+        user.id,
+        tg.telegram_user_id,
+        tg.telegram_username,
+    )
     return RedirectResponse(url="/panel")
