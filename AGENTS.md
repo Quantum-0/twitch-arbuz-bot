@@ -124,9 +124,12 @@ poetry run uvicorn main:app --reload   # запустить дев-сервер
 - **Шум OTel в GlitchTip:** логгер `opentelemetry.exporter.otlp.proto.grpc.exporter` заглушен уровнем
   CRITICAL (`utils/logging_conf.py`) — `propagate=False` не спасает, т.к. sentry-sdk ≥2.x перехватывает
   логи monkeypatch'ем `logging.Logger.callHandlers`.
-- **Диск:** заполнение ~94% (окт-2026). Кандидаты на очистку: dangling-образы текущего сервиса
-  (~26G, `docker image prune`),
-  journald-архивы (`journalctl --vacuum-size=200M`, ~2.5G). Очистка — только по явному разрешению пользователя.
+- **Бэкапы:** все на сервере в `~/backup` (структура, команды и восстановление — `~/backup/README.md`).
+  Ежедневный `pg_dump` БД `twitch_bot` — systemd-таймер `pg-backup.timer` (04:30 MSK + jitter,
+  ротация 14 дней, логи `journalctl -u pg-backup.service`).
+  **Перед любой миграцией на сервере** запускать из корня репо `./backup-before-migrate.sh <лейбл>`
+  (дамп `twitch_bot_pre-mig_*` не ротируется; откат — `pg_restore --clean --if-exists`).
+  Офсайт-копии нет — бэкапы защищают от кривых миграций, но не от потери диска.
 
 ## Структура проекта
 
