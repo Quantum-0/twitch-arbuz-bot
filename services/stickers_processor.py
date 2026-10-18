@@ -7,10 +7,15 @@ from typing import Any
 
 import numpy as np
 from PIL import Image, ImageFilter
-from rembg import new_session, remove
 from scipy.ndimage import binary_dilation, distance_transform_edt, label
 
 from config import settings
+
+# ВАЖНО: rembg импортируется ЛАЗИЛЬНО (внутри _load_session/_process_image_sync),
+# а не на уровне модуля: импорт rembg тянет onnxruntime, который при загрузке
+# сканирует PCI-устройства (шумные W-предупреждения GetPciBusId в логах) и
+# занимает память. При sticker_rembg_enabled=False onnxruntime не должен
+# импортироваться вовсе.
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +42,8 @@ class StickerProcessor:
     def _load_session(self) -> None:
         """Синхронная загрузка onnx-сессии. Запускается в фоне, не блокирует startup."""
         try:
+            from rembg import new_session  # ленивый импорт: см. комментарий в шапке модуля
+
             session = new_session("isnet-anime")
             with self._session_lock:
                 self._session = session
@@ -105,6 +112,8 @@ class StickerProcessor:
             if not is_square or not self._has_green_background(img) or self.session is None:
                 # Если не подходит под условия — возвращаем оригинал БЕЗ обработки
                 return image_bytes
+
+            from rembg import remove  # ленивый импорт: см. комментарий в шапке модуля
 
             ai_output = remove(
                 img,
