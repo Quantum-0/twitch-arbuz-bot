@@ -86,6 +86,11 @@ class Settings(BaseSettings):
     # 0.37-0.54; 2.5-4 => 0.49 -- 4.42
     ai_cost_multiplier: float = 1.08  # 8%
     ai_cost_single_call: float = 0.1  # 10kop
+    # Нейронка удаления фона (rembg isnet-anime). Модели gpt-image-2.5-* генерируют
+    # прозрачный фон сами (background=transparent), поэтому rembg можно не грузить
+    # при старте контейнера: False — не загружать onnx-сессию и не стартовать воркер
+    # старого зелёного пайплайна (обводка/тень из альфа-канала работают без нейронки).
+    sticker_rembg_enabled: bool = False
     s3_sticker_expires_days: int = 7
     otel_endpoint: AnyHttpUrl | None = "http://localhost:4317"
     otel_service_name: str = "twitch-bot"

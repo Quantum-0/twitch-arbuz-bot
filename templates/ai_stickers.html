@@ -81,8 +81,9 @@
     <div class="overlay-control overlay-radio-panel">
         <div class="target-behaviour-title">Модель генерации</div>
         <fieldset class="overlay-radio-options" id="model-choice">
-            <label class="overlay-radio-option"><input type="radio" name="ai_sticker_model" value="mini" {{ 'checked' if settings.ai_sticker_model == 'mini' }}> <span>Дешевле, но ниже качество</span></label>
-            <label class="overlay-radio-option"><input type="radio" name="ai_sticker_model" value="quality" {{ 'checked' if settings.ai_sticker_model == 'quality' }}> <span>Качественнее, но выше стоимость</span></label>
+            <label class="overlay-radio-option"><input type="radio" name="ai_sticker_model" value="mini" {{ 'checked' if settings.ai_sticker_model == 'mini' }}> <span>Дешёвая модель</span></label>
+            <label class="overlay-radio-option"><input type="radio" name="ai_sticker_model" value="flare" {{ 'checked' if settings.ai_sticker_model in ('flare', 'quality') }}> <span>Модель 2.5 Flare</span></label>
+            <label class="overlay-radio-option"><input type="radio" name="ai_sticker_model" value="sunburst" {{ 'checked' if settings.ai_sticker_model == 'sunburst' }}> <span>Модель 2.5 Sunburst</span></label>
         </fieldset>
     </div>
 </section>

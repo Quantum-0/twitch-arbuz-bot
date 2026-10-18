@@ -16,7 +16,7 @@ from config import settings
 from database.models import CharacterInfo, GeneratedImage, TwitchUserSettings, User
 from schemas.api import StatsType
 from schemas.enums import AIReferenceUsagePolicy, AIStickerModel, FileStorageDir
-from services.ai import OpenAIClient
+from services.ai import ImageBackground, OpenAIClient
 from services.image_resizer import ImageResizer
 from services.s3 import FileNotExistError, FileStorage
 from services.statistics import StatisticsService
@@ -26,6 +26,13 @@ logger = logging.getLogger(__name__)
 tracer = trace.get_tracer(__name__)
 
 FileID = UUID
+
+# Режим настройки (AIStickerModel) -> имя модели в OpenAI Image API.
+AI_STICKER_MODELS: dict[AIStickerModel, str] = {
+    AIStickerModel.MINI: "gpt-image-1-mini",
+    AIStickerModel.FLARE: "gpt-image-2.5-flare",
+    AIStickerModel.SUNBURST: "gpt-image-2.5-sunburst",
+}
 
 
 class RewardRedemptionProcessingError(Exception):
@@ -144,13 +151,17 @@ class StickersService:
             return None
 
     @tracer.start_as_current_span("Stickers: Generate sticker")
-    async def _generate_sticker(self, prompt: str, files: list[bytes], model: str) -> tuple[bytes, float]:
+    async def _generate_sticker(
+        self, prompt: str, files: list[bytes], model: str, background: ImageBackground | None = None
+    ) -> tuple[bytes, float]:
         logger.debug("Generating sticker by prompt")
         try:
             if files:
-                image, cost = await self._ai.generate_sticker_by_refs(prompt=prompt, refs=files, model=model)
+                image, cost = await self._ai.generate_sticker_by_refs(
+                    prompt=prompt, refs=files, model=model, background=background
+                )
             else:
-                image, cost = await self._ai.generate_sticker(prompt=prompt, model=model)
+                image, cost = await self._ai.generate_sticker(prompt=prompt, model=model, background=background)
         except BadRequestError as exc:
             if _is_moderation_blocked(exc):
                 logger.debug("Sticker generation was blocked by AI service moderation")
@@ -272,7 +283,7 @@ class StickersService:
     async def _prepare_final_prompt(
         self, prompt: str, characters: dict[str, str], with_files: bool, transparent_background: bool = False
     ) -> str:
-        # Пропмт для дешёвой модели
+        # Пропмт для дешёвой модели (gpt-image-1-mini)
         if transparent_background:
             if characters:
                 descriptions_str = "\n\nCharacter descriptions:" + "\n".join(
@@ -285,7 +296,8 @@ class StickersService:
                 return f"Generate an image of drawn in cartoon style `{prompt}` with transparent background and the white outline like a sticker.{descriptions_str}\n\nThe appearance of the characters in the attached files"
             return f"Image of drawn in cartoon style `{prompt}` with transparent background and the white outline like a sticker.{descriptions_str}"
 
-        # Инструкция для идеального хромакея без спецэффектов
+        # Инструкция для моделей gpt-image-2.5-* (нативная прозрачность через
+        # background=transparent; обводку и тень рисует наша пост-обработка)
         if characters:
             descriptions_str = (
                 "\n\n[Character Definitions]\n"
@@ -299,11 +311,12 @@ class StickersService:
             descriptions_str = ""
 
         bg_instruction = (
-            "The entire background must be a single, solid, uniform bright chroma key green color. "
-            "It must be a completely flat vivid green studio background with absolutely no gradients, "
-            "no textures, no patterns, and no lighting shifts. "
-            "The character must not cast any shadows onto the background, and there must be no outlines, "
-            "borders, or frames around the character."
+            "The entire background must be fully transparent (alpha = 0). "
+            "Do not render any background color, texture, pattern or scenery — "
+            "only the character (and explicitly requested objects) on a fully transparent background, "
+            "suitable for use as a die-cut sticker. "
+            "Do not add any outline, border, glow, or frame around the character — "
+            "it will be added in post-processing."
         )
 
         character_rules = (
@@ -376,23 +389,32 @@ class StickersService:
         if channel.balance <= 0:
             raise NegativeBalanceError
 
-        use_mini_model = channel.settings.ai_sticker_model == AIStickerModel.MINI
-        model = "gpt-image-1-mini" if use_mini_model else "gpt-image-2"
+        try:
+            sticker_setting = AIStickerModel(channel.settings.ai_sticker_model)
+        except ValueError:
+            # Легаси-значение (например, "quality" до миграции) -> flare
+            logger.warning("Unknown ai_sticker_model %r, falling back to flare", channel.settings.ai_sticker_model)
+            sticker_setting = AIStickerModel.FLARE
+        use_mini_model = sticker_setting == AIStickerModel.MINI
+        model = AI_STICKER_MODELS[sticker_setting]
+        # 2.5-модели поддерживают нативную прозрачность (background=transparent);
+        # mini рисует прозрачный фон по промпту, параметр ей не нужен.
+        background: ImageBackground | None = None if use_mini_model else "transparent"
         characters, files = await self._handle_refs_from_prompt(prompt, channel)
         prompt_for_call = await self._prepare_final_prompt(
             prompt, characters, with_files=bool(files), transparent_background=use_mini_model
         )
-        image, cost = await self._generate_sticker(prompt_for_call, files, model=model)
+        image, cost = await self._generate_sticker(prompt_for_call, files, model=model, background=background)
         file_id = uuid4()
         resized_image = await self._resizer.resize(image)
-        # Пост-обработка (rembg/обводка/тень) выполняется только для gpt-image-2;
+        # Пост-обработка (обводка/тень по альфа-каналу) выполняется для 2.5-моделей;
         # для mini-модели пост-обработка пропускается (transparent bg уже в модели).
         if use_mini_model:
             sticker = resized_image
         else:
             pp_start = monotonic()
             try:
-                sticker = await self._sticker_processor.process(resized_image)
+                sticker = await self._sticker_processor.outline(resized_image)
             finally:
                 if self._statistics is not None:
                     elapsed_ms = int((monotonic() - pp_start) * 1000)

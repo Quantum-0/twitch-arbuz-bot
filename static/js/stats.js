@@ -25,10 +25,11 @@
         sse_connections: ["total", "unique_users", "unique_pairs", "__split__"],
         heat_proxy_messages: [""],
         heat_proxy_bytes: [""],
-        // Timing для ИИ-стикеров: подтипы — разные стадии (gen_mini/gen_quality/
-        // post_processing), их нельзя усреднять вместе → «(все)» убрано.
+        // Timing для ИИ-стикеров: подтипы — разные стадии (gen_mini/gen_flare/
+        // gen_sunburst/gen_quality (legacy gpt-image-2)/post_processing), их нельзя
+        // усреднять вместе → «(все)» убрано.
         // Доступен только режим «раздельно» (top-N подтипов).
-        ai_sticker_processing_time: ["gen_mini", "gen_quality", "post_processing", "__split__"],
+        ai_sticker_processing_time: ["gen_mini", "gen_flare", "gen_sunburst", "gen_quality", "post_processing", "__split__"],
         ma_token_refresh: [
             "",
             "success",
@@ -59,7 +60,9 @@
         unique_users: "по пользователям",
         unique_pairs: "по типам",
         gen_mini: "генерация (mini)",
-        gen_quality: "генерация (quality)",
+        gen_flare: "генерация (flare)",
+        gen_sunburst: "генерация (sunburst)",
+        gen_quality: "генерация (quality, legacy)",
         post_processing: "пост-обработка",
         // MA token refresh subtypes
         invalid_grant: "токен отозван",

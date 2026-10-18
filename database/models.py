@@ -263,7 +263,7 @@ class TwitchUserSettings(Base):
     ai_reference_show_in_profile: Mapped[bool] = mapped_column(
         Boolean, default=False, server_default=false(), nullable=False
     )
-    ai_sticker_model: Mapped[str] = mapped_column(String, default="quality", server_default="quality", nullable=False)
+    ai_sticker_model: Mapped[str] = mapped_column(String, default="flare", server_default="flare", nullable=False)
     ai_reference_usage_policy: Mapped[str] = mapped_column(
         String, default="with_my_character", server_default="with_my_character", nullable=False
     )

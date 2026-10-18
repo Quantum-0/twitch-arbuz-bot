@@ -2,13 +2,15 @@ import asyncio
 import io
 import logging
 import threading
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable
 from typing import Any
 
 import numpy as np
 from PIL import Image, ImageFilter
 from rembg import new_session, remove
 from scipy.ndimage import binary_dilation, distance_transform_edt, label
+
+from config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +49,13 @@ class StickerProcessor:
     async def start(self):
         """Запуск фонового воркера, который обрабатывает задачи по очереди"""
         # Запускаем загрузку модели в отдельном потоке, чтобы не блокировать lifespan.
-        threading.Thread(target=self._load_session, daemon=True, name="rembg-loader").start()
+        # Если нейронка удаления фона отключена конфигом (модели gpt-image-2.5-*
+        # генерируют прозрачный фон сами) — не грузим onnx-сессию вовсе.
+        if settings.sticker_rembg_enabled:
+            threading.Thread(target=self._load_session, daemon=True, name="rembg-loader").start()
+        else:
+            logger.info("rembg disabled by config (sticker_rembg_enabled=False): onnx model is not loaded")
+            self._session_ready.set()
         if not self.is_running:
             self.is_running = True
             self.worker_task = asyncio.create_task(self._worker_loop())
@@ -92,7 +100,9 @@ class StickerProcessor:
 
             # Проверяем, квадратное ли оно и есть ли зеленый фон
             is_square = img.width == img.height
-            if not is_square or not self._has_green_background(img):
+            # Нейронка не загружена (sticker_rembg_enabled=False или ошибка загрузки) —
+            # старый зелёный пайплайн недоступен, возвращаем оригинал без обработки.
+            if not is_square or not self._has_green_background(img) or self.session is None:
                 # Если не подходит под условия — возвращаем оригинал БЕЗ обработки
                 return image_bytes
 
@@ -236,16 +246,100 @@ class StickerProcessor:
                 if isinstance(obj, Image.Image):
                     obj.close()
 
+    def _outline_from_alpha_sync(self, image_bytes: bytes) -> bytes:
+        """
+        Синхронная пост-обработка для моделей с нативной прозрачностью (gpt-image-2.5-*):
+        белая обводка + тень по уже готовому альфа-каналу. Нейронка удаления фона не нужна.
+        Выполняется в отдельном потоке, чтобы не блокировать сервер.
+        """
+        try:
+            img = Image.open(io.BytesIO(image_bytes)).convert("RGBA")
+            data = np.array(img)
+            final_alpha = data[:, :, 3]
+
+            # Если модель проигнорировала прозрачность (фон почти непрозрачный) —
+            # корректную вырезную маску построить нельзя, отдаём оригинал.
+            transparent_ratio = float((final_alpha < 128).mean())
+            if transparent_ratio < 0.005:
+                logger.warning("Sticker has almost no transparent pixels (%.4f), skip outline", transparent_ratio)
+                return image_bytes
+
+            # --- БЛОК ИДЕАЛЬНО ГЛАДКОЙ БЕЛОЙ ОБВОДКИ (маска = альфа-канал модели) ---
+            stroke_thickness = 5
+            anti_aliasing_softness = 1.1
+
+            base_mask_img = Image.fromarray(final_alpha, mode="L")
+            blurred_mask = base_mask_img.filter(ImageFilter.GaussianBlur(radius=stroke_thickness))
+
+            thresh = 8
+            smooth_mask = blurred_mask.point(
+                lambda x: (
+                    255
+                    if x > thresh + 10
+                    else (int((x - thresh) * (255 / 10) * anti_aliasing_softness) if x > thresh else 0)
+                )
+            )
+
+            height, width = final_alpha.shape
+            outline_data = np.zeros((height, width, 4), dtype=np.uint8)
+            outline_data[:, :, :3] = 255
+            outline_data[:, :, 3] = np.array(smooth_mask)
+
+            character_data = data.copy()
+
+            outline_img = Image.fromarray(outline_data)
+            character_img = Image.fromarray(character_data)
+            final_result = Image.alpha_composite(outline_img, character_img)
+
+            # --- БЛОК ДОБАВЛЕНИЯ ТЕНИ ---
+            shadow_offset = (5, 8)
+            shadow_blur = 12
+            shadow_opacity = 0.4
+
+            shadow_layer = Image.new("RGBA", final_result.size, (0, 0, 0, 0))
+            shadow_mask = Image.fromarray(np.array(smooth_mask), mode="L")
+            shadow_mask = shadow_mask.filter(ImageFilter.GaussianBlur(radius=shadow_blur))
+            shadow_mask = shadow_mask.point(lambda x: int(x * shadow_opacity))
+
+            shadow_color = Image.new("RGBA", final_result.size, (0, 0, 0, 255))
+            shadow_layer.paste(shadow_color, (0, 0), shadow_mask)
+
+            offset_shadow_layer = Image.new("RGBA", final_result.size, (0, 0, 0, 0))
+            offset_shadow_layer.paste(shadow_layer, shadow_offset)
+            final_result = Image.alpha_composite(offset_shadow_layer, final_result)
+
+            output = io.BytesIO()
+            final_result.save(output, format="PNG", optimize=True)
+            return output.getvalue()
+        finally:
+            for name in (
+                "img",
+                "base_mask_img",
+                "blurred_mask",
+                "smooth_mask",
+                "outline_img",
+                "character_img",
+                "shadow_layer",
+                "shadow_mask",
+                "shadow_color",
+                "offset_shadow_layer",
+                "final_result",
+            ):
+                obj = locals().get(name)
+                if isinstance(obj, Image.Image):
+                    obj.close()
+
     async def _worker_loop(self):
         """Бесконечный цикл, обрабатывающий строго по одной задаче из очереди"""
+        handler: Callable[[bytes], bytes]
         while self.is_running:
             # Ждем, пока в очереди появится задача (не нагружает CPU в ожидании)
-            future, image_bytes = await self.queue.get()
+            future, handler, image_bytes = await self.queue.get()
             try:
                 # Запускаем тяжелую синхронную обработку в отдельном системном потоке (ThreadPool).
                 # Это гарантирует, что сетевой async-код FastAPI НЕ заблокируется!
                 loop = asyncio.get_running_loop()
-                result = await loop.run_in_executor(None, self._process_image_sync, image_bytes)
+                result = await loop.run_in_executor(None, handler, image_bytes)
 
                 # Возвращаем результат обратно в конкретный API-запрос
                 future.set_result(result)
@@ -254,20 +348,35 @@ class StickerProcessor:
             finally:
                 self.queue.task_done()
 
+    @staticmethod
+    async def _collect_bytes(image_stream: AsyncIterator[bytes] | bytes) -> bytes:
+        if isinstance(image_stream, bytes):
+            return image_stream
+        # Собираем чанки байт из асинхронного потока в один массив
+        chunks = []
+        async for chunk in image_stream:
+            chunks.append(chunk)
+        return b"".join(chunks)
+
     async def process(self, image_stream: AsyncIterator[bytes] | bytes) -> bytes:
         """
-        Основной асинхронный метод для вызова из API.
-        Принимает асинхронный итератор байт, собирает их и ставит в очередь.
+        Основной асинхронный метод для вызова из API (старый зелёный пайплайн:
+        rembg + чистка хромакея + обводка + тень). Требует загруженной нейронки.
         """
-        if isinstance(image_stream, bytes):
-            image_bytes = image_stream
-        else:
-            # Собираем чанки байт из асинхронного потока в один массив
-            chunks = []
-            async for chunk in image_stream:
-                chunks.append(chunk)
-            image_bytes = b"".join(chunks)
+        if not settings.sticker_rembg_enabled:
+            # Нейронка отключена конфигом — зелёный пайплайн недоступен.
+            return await self._collect_bytes(image_stream)
+        return await self._enqueue(self._process_image_sync, image_stream)
 
+    async def outline(self, image_stream: AsyncIterator[bytes] | bytes) -> bytes:
+        """
+        Пост-обработка для моделей с нативной прозрачностью (gpt-image-2.5-*):
+        белая обводка + тень по альфа-каналу, без нейронки удаления фона.
+        """
+        return await self._enqueue(self._outline_from_alpha_sync, image_stream)
+
+    async def _enqueue(self, handler: Callable[[bytes], bytes], image_stream: AsyncIterator[bytes] | bytes) -> bytes:
+        image_bytes = await self._collect_bytes(image_stream)
         if not image_bytes:
             raise ValueError("Empty image data")
 
@@ -277,7 +386,7 @@ class StickerProcessor:
 
         # Кладем задачу в очередь. Если очередь полна (наплыв > 100 человек),
         # запрос будет асинхронно ждать свободного места, не тратя память.
-        await self.queue.put((future, image_bytes))
+        await self.queue.put((future, handler, image_bytes))
 
         # Ждем, пока воркер обработает именно нашу картинку
         return await future

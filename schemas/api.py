@@ -119,8 +119,9 @@ class StatsType(StrEnum):
     # сообщений, sum_ms — суммарные байты.
     HEAT_PROXY_BYTES = "heat_proxy_bytes"
     # Timing-метрика: avg время (мс) этапов генерации ИИ-стикеров.
-    # Subtype: "gen_mini" (gpt-image-1-mini HTTP), "gen_quality" (gpt-image-2
-    # HTTP), "post_processing" (пост-обработка после gpt-image-2: rembg/обводка/тень).
+    # Subtype: "gen_mini" (gpt-image-1-mini HTTP), "gen_flare" (gpt-image-2.5-flare
+    # HTTP), "gen_sunburst" (gpt-image-2.5-sunburst HTTP), "gen_quality" (legacy
+    # gpt-image-2), "post_processing" (пост-обработка: обводка/тень по альфа-каналу).
     AI_STICKER_PROCESSING_TIME = "ai_sticker_processing_time"
     # Counter: исходы обновления OAuth-токена MemeAlerts.
     # Subtype: "success" | "invalid_grant" | "invalid_client" | "invalid_request" |

@@ -14,7 +14,8 @@ class FileStorageDir(StrEnum):
 
 class AIStickerModel(StrEnum):
     MINI = "mini"
-    QUALITY = "quality"
+    FLARE = "flare"
+    SUNBURST = "sunburst"
 
 
 class AIReferenceUsagePolicy(StrEnum):
