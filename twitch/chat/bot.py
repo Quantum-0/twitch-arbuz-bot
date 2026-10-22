@@ -20,7 +20,9 @@ from config import settings
 from database.models import TwitchUserSettings, User
 from exceptions import ToManyChatUnsubscribesStartupException, UserNotFoundInDatabase
 from schemas.api import StatsType
+from schemas.enums import BanFeature, ChatterRole
 from schemas.twitch import ChatMessageWebhookEventSchema
+from services.bans import BanService
 from services.mqtt import MQTTClient
 from services.sse_manager import SSEManager
 from services.statistics import StatisticsService
@@ -72,12 +74,14 @@ class ChatBot:
         mqtt: MQTTClient,
         statistics: StatisticsService | None = None,
         sse_manager: SSEManager | None = None,
+        bans: BanService | None = None,
     ) -> None:
         self._user_list_manager = UserListManager()
         self._twitch: Twitch = None  # type: ignore
         self._db_session_factory = db_session_factory
         self._statistics = statistics
         self._sse_manager = sse_manager
+        self._bans = bans
         self._handler_manager: MessagesHandlerManager = MessagesHandlerManager(
             state_manager, self.send_message, self._db_session_factory
         )
@@ -129,6 +133,8 @@ class ChatBot:
         self._command_manager.register(LinksCommand)
         self._command_manager.register(MemealertsLinkCommand)
         self._command_manager.register(SteamCommand)
+        self._command_manager.register(BanCommand)
+        self._command_manager.register(UnbanCommand)
 
         # chat.register_event(ChatEvent.MESSAGE, on_message)
         logger.debug("On_message handler registered")
@@ -271,6 +277,33 @@ class ChatBot:
             current_span.set_attribute("msg.channel", message.broadcaster_user_login)
             current_span.set_attribute("msg.chatter", message.chatter_user_login)
 
+        # ── Баны (до загрузки стримера из БД: twitch-ID есть в самом сообщении) ──
+        if self._bans is not None:
+            streamer_bans = await self._bans.get_effective(str(message.broadcaster_user_id))
+            # Global-бан стримера с фичей site — канал полностью игнорируется
+            # (тихо: EventSub-подписки не трогаем, обратимо при разбане).
+            if streamer_bans.is_site_banned():
+                logger.info(f"Skip message on banned streamer channel `{channel}`")
+                _message_processing_start.set(None)
+                _message_processing_task.set(None)
+                return
+
+            chatter_role = classify_chatter(message.badges, message.chatter_user_login)
+            if chatter_role != ChatterRole.BOT:
+                chatter_bans = await self._bans.get_effective(str(message.chatter_user_id))
+                if chatter_bans.is_banned(BanFeature.CHAT_BOT, str(message.broadcaster_user_id)):
+                    # Забанен на чат-бота: команды/хендлеры не выполняем, но
+                    # пользователь остаётся в списке активных (цель команд) и
+                    # в SSE-овервее чата. Без обращений к БД.
+                    if self._statistics is not None:
+                        self._statistics.inc(StatsType.BAN_BLOCKED, subtype=BanFeature.CHAT_BOT.value)
+                    logger.info(f"Skip commands for banned chatter `{message.chatter_user_login}` on `{channel}`")
+                    await self._user_list_manager.handle(channel, message)
+                    await self._broadcast_message_to_sse(message)
+                    _message_processing_start.set(None)
+                    _message_processing_task.set(None)
+                    return
+
         async with self._get_user_with_settings_by_twitch_id(message.broadcaster_user_id) as user:
             if user.login_name != message.broadcaster_user_login:
                 user.login_name = message.broadcaster_user_login
@@ -285,38 +318,41 @@ class ChatBot:
             await self._command_manager.handle(user_settings, user, message)
             await self._handler_manager.handle(user_settings, user, message)
 
-        # Broadcast в SSE msg-канал для оверлеев с chat control.
-        # Проверяем наличие подписчиков и отправляем fire-and-forget.
-        if self._sse_manager is not None and user.twitch_id is not None:
-            try:
-                broadcaster_id = int(user.twitch_id)
-                if await self._sse_manager.has_clients(broadcaster_id, SSEChannel.MESSAGE):
-                    role = classify_chatter(message.badges, message.chatter_user_login)
-                    emotes = [
-                        {"id": f.emote.id, "text": f.text}
-                        for f in message.message.fragments
-                        if f.type == "emote" and f.emote
-                    ]
-                    payload = json.dumps(
-                        {
-                            "text": message.message.text,
-                            "username": message.chatter_user_login,
-                            "display_name": message.chatter_user_name,
-                            "color": message.color,
-                            "role": role.value,
-                            "emotes": emotes,
-                        },
-                        ensure_ascii=False,
-                    )
-                    await self._sse_manager.broadcast(broadcaster_id, SSEChannel.MESSAGE, payload)
-            except (TypeError, ValueError):
-                pass
+        await self._broadcast_message_to_sse(message)
 
         # Если ни один handler не ответил — всё равно сбрасываем ContextVar,
         # чтобы потенциально активная контекстная переменная не «протекла» в
         # следующий вызов этой же задачи (если она переиспользуется event loop'ом).
         _message_processing_start.set(None)
         _message_processing_task.set(None)
+
+    async def _broadcast_message_to_sse(self, message: ChatMessageWebhookEventSchema) -> None:
+        """Broadcast в SSE msg-канал для оверлеев с chat control (fire-and-forget)."""
+        if self._sse_manager is None:
+            return
+        try:
+            broadcaster_id = int(message.broadcaster_user_id)
+            if await self._sse_manager.has_clients(broadcaster_id, SSEChannel.MESSAGE):
+                role = classify_chatter(message.badges, message.chatter_user_login)
+                emotes = [
+                    {"id": f.emote.id, "text": f.text}
+                    for f in message.message.fragments
+                    if f.type == "emote" and f.emote
+                ]
+                payload = json.dumps(
+                    {
+                        "text": message.message.text,
+                        "username": message.chatter_user_login,
+                        "display_name": message.chatter_user_name,
+                        "color": message.color,
+                        "role": role.value,
+                        "emotes": emotes,
+                    },
+                    ensure_ascii=False,
+                )
+                await self._sse_manager.broadcast(broadcaster_id, SSEChannel.MESSAGE, payload)
+        except (TypeError, ValueError):
+            pass
 
     async def update_bot_channels(self):
         logger.info("Updating bot channels")

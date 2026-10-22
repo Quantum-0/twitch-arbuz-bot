@@ -11,8 +11,12 @@
         message_outgoing: [""],
         // reward_*: «(все)» убрано — succeed/success ⊆ received, суммирование
         // double-count'ит. Показываем только конкретные подтипы.
-        reward_memecoins: ["received", "succeed", "failed"],
-        reward_ai_stickers: ["received", "success", "failed_on_moderation"],
+        reward_memecoins: ["received", "succeed", "failed", "banned"],
+        reward_ai_stickers: ["received", "success", "failed_on_moderation", "banned"],
+        // Блокировки TTS: сабтайпы — триггер (command/reward) и бан.
+        tts_blocked: ["command", "reward", "banned"],
+        // Действия, отклонённые из-за бана пользователя. Сабтайп — заблокированная функция.
+        ban_blocked: ["chat_bot", "memecoins", "ai_stickers", "tts"],
         // Для command_handled subtype — имя команды; предлагаем «все» или
         // «раздельно» (фронт идёт к /api/user/stats/series за топ-N подтипов).
         command_handled: ["", "__split__"],
@@ -54,8 +58,16 @@
         success: "успешно",
         failed: "ошибки",
         failed_on_moderation: "отклонено модерацией",
+        banned: "отклонено баном",
         incoming: "входящие",
         outgoing: "исходящие",
+        // ban_blocked / tts_blocked
+        chat_bot: "чат-бот",
+        memecoins: "мемкоины",
+        ai_stickers: "ИИ-стикеры",
+        tts: "TTS",
+        command: "команда",
+        reward: "награда",
         total: "всего",
         unique_users: "по пользователям",
         unique_pairs: "по типам",
@@ -101,6 +113,8 @@
         heat_proxy_bytes: "Heat: данные",
         ai_sticker_processing_time: "ИИ-стикеры: время",
         ma_token_refresh: "MA: обновление токена",
+        tts_blocked: "TTS: блокировки",
+        ban_blocked: "Отклонено баном",
         users_count: "Пользователи бота",
     };
 

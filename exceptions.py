@@ -4,6 +4,7 @@ __all__ = [
     "UserNotFoundInDatabase",
     "NotInBetaTest",
     "ToManyChatUnsubscribesStartupException",
+    "UserBannedError",
     "MADuplicateUserError",
     "MATokenInvalidError",
     "MARefreshTokenError",
@@ -29,6 +30,18 @@ class NotInBetaTest(Exception):
 
 class ToManyChatUnsubscribesStartupException(Exception):
     """Слишком много пользователей пытаемся отключить от чата. Кажется что-то пошло не так, падаем в ошибку."""
+
+
+class UserBannedError(Exception):
+    """Пользователь забанен в сервисе (global-бан с фичей ``site``).
+
+    Выбрасывается из ``user_auth`` / ``user_auth_optional``; обработчик в
+    ``main.py`` редиректит HTML-запросы на ``/banned``, API — JSON 403.
+    """
+
+    def __init__(self, target_twitch_id: str):
+        self.target_twitch_id: str = target_twitch_id
+        super().__init__(f"User {target_twitch_id} is banned")
 
 
 class MADuplicateUserError(MAError):

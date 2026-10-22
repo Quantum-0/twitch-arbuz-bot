@@ -25,7 +25,7 @@ from exceptions import (
     MAUserNotFoundError,
 )
 from schemas.api import StatsType
-from schemas.enums import FileStorageDir
+from schemas.enums import BanFeature, FileStorageDir
 from schemas.twitch import (
     EventSubRevocationSchema,
     FollowWebhookSchema,
@@ -34,6 +34,7 @@ from schemas.twitch import (
     SubscribeWebhookSchema,
     SubscriptionMessageWebhookSchema,
 )
+from services.bans import BanService
 from services.cache import Cache
 from services.memes import MemealertsService
 from services.memes_v2 import MemealertsOAuthService, MemealertsV2Service
@@ -85,6 +86,7 @@ class TwitchEventSubService:
         mqtt: MQTTClient | None = None,
         statistics: StatisticsService | None = None,
         cache: Cache | None = None,
+        bans: BanService | None = None,
     ):
         self._twitch = twitch
         self._chatbot = chatbot
@@ -99,6 +101,7 @@ class TwitchEventSubService:
         self._mqtt = mqtt
         self._statistics = statistics
         self._cache = cache
+        self._bans = bans
 
     def _inc_reward(self, subtype: str, type_: StatsType) -> None:
         """Fire-and-forget инкремент счётчика наград (без if-обёрток в вызывающем коде)."""
@@ -379,6 +382,19 @@ class TwitchEventSubService:
 
         user = await self._get_user_by_id_or_login(payload_model.event.broadcaster_user_id)
 
+        # Бан стримера или зрителя → отмена награды (баллы возвращаются).
+        if await self._is_reward_banned(user, payload_model):
+            await self._cancel_redemption(user=user, payload=payload_model)
+            return
+
+        await self._dispatch_reward(user, payload_model)
+
+    async def _dispatch_reward(
+        self,
+        user: User,
+        payload_model: PointRewardRedemptionWebhookSchema,
+    ) -> None:
+        """Маршрутизация награды по reward_id: мемкоины / ИИ-стикер / TTS."""
         if user.memealerts.memealerts_reward == payload_model.subscription.condition.reward_id:
             await self.reward_buy_memealerts(user=user, payload=payload_model)
         elif user.settings.ai_sticker_reward_id == payload_model.subscription.condition.reward_id:
@@ -397,6 +413,54 @@ class TwitchEventSubService:
                 await self._chatbot.send_message(user, exc.chatbot_response)
                 if exc.cancel_redemption:
                     await self._cancel_redemption(user=user, payload=payload_model)
+
+    async def _is_reward_banned(
+        self,
+        user: User,
+        payload_model: PointRewardRedemptionWebhookSchema,
+    ) -> bool:
+        """Забанен ли стример (site) или выкупающий зритель (фича этой награды).
+
+        Вызывающий код при True отменяет награду (баллы возвращаются зрителю).
+        Побочный эффект: сообщение в чат и метрика при бане зрителя.
+        """
+        if self._bans is None:
+            return False
+
+        # Global-бан стримера (site) — канал игнорируется.
+        if await self._bans.is_site_banned(str(user.twitch_id)):
+            logger.info("Redemption on banned streamer channel %s cancelled", user.twitch_id)
+            return True
+
+        # Фича, ограничиваемая баном, определяется типом награды.
+        reward_feature: BanFeature | None = None
+        stats_type: StatsType | None = None
+        if user.memealerts.memealerts_reward == payload_model.subscription.condition.reward_id:
+            reward_feature, stats_type = BanFeature.MEMECOINS, StatsType.REWARD_MEMECOINS
+        elif user.settings.ai_sticker_reward_id == payload_model.subscription.condition.reward_id:
+            reward_feature, stats_type = BanFeature.AI_STICKERS, StatsType.REWARD_AI_STICKERS
+        elif user.tts is not None and user.tts.tts_reward_id == payload_model.subscription.condition.reward_id:
+            # Блок бана TTS пишем в TTS_BLOCKED (семейство «заблокировано»),
+            # а не в счётчик озвученных сообщений.
+            reward_feature, stats_type = BanFeature.TTS, StatsType.TTS_BLOCKED
+
+        if reward_feature is None or not await self._bans.is_banned(
+            str(payload_model.event.user_id), str(user.twitch_id), reward_feature
+        ):
+            return False
+
+        logger.info(
+            "Redemption by banned chatter %s (%s) cancelled",
+            payload_model.event.user_login,
+            reward_feature.value,
+        )
+        if stats_type is not None:
+            self._inc_reward("banned", stats_type)
+        await self._chatbot.send_message(
+            user,
+            f"@{payload_model.event.user_login}, тебе ограничен доступ к этой награде хЪ",
+        )
+        return True
 
     async def _cancel_redemption(self, user: User, payload: PointRewardRedemptionWebhookSchema) -> None:
         try:

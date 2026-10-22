@@ -20,6 +20,7 @@ from dependencies import get_db
 from routers.security_helpers import admin_auth, staff_auth, user_auth, user_auth_optional
 from routers.web.overlays import get_temp_commands
 from schemas.enums import ChatterRole, TTSTrigger
+from services.bans import BanService
 from services.cache import Cache
 from twitch.chat.bot import ChatBot
 from twitch.client.twitch import Twitch
@@ -686,5 +687,55 @@ async def roadmap_page(
             ],
             "request": request,
             "user": user,
+        },
+    )
+
+
+@router.get("/bans", response_class=HTMLResponse)
+async def bans_page(
+    request: Request,
+    user: Annotated[User, Security(user_auth)],
+):
+    """Управление банами: стример — свой канал, стафф — все баны + global-управление."""
+    return templates.TemplateResponse(
+        "bans.html",
+        {
+            "request": request,
+            "user": user,
+        },
+    )
+
+
+@router.get("/banned", response_class=HTMLResponse)
+@inject
+async def banned_page(
+    request: Request,
+    bans_service: Annotated[BanService, Depends(Provide[Container.bans])],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Страница-заглушка для забаненных (global-бан с фичей site).
+
+    ВАЖНО: без user_auth/user_auth_optional — иначе редирект зациклится.
+    Сессия и данные бана читаются вручную.
+    """
+    user_id: str | None = request.session.get("user_id") if request.session else None
+    user: User | None = None
+    ban = None
+    if user_id:
+        user = (await db.execute(sa.select(User).where(User.twitch_id == user_id))).scalar_one_or_none()
+    if user is not None:
+        try:
+            ban = await bans_service.get_site_ban(user.twitch_id)
+        except Exception:
+            logger.exception("Failed to load site ban for /banned page")
+    if ban is None:
+        # Не забанен (или разбанен, но попал сюда по старой ссылке) — домой.
+        return RedirectResponse(url="/panel" if user is not None else "/", status_code=303)
+    return templates.TemplateResponse(
+        "banned.html",
+        {
+            "request": request,
+            "user": user,
+            "ban": ban,
         },
     )

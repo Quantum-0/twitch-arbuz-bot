@@ -26,6 +26,7 @@ from starlette.staticfiles import StaticFiles
 
 from config import settings
 from dependencies import lifespan as lifespan_dep
+from exceptions import UserBannedError
 from routers.routers import api_router, router_for_robots, user_router
 from utils.logging_conf import LOGGING_CONFIG
 
@@ -126,6 +127,14 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 
 logging.config.dictConfig(LOGGING_CONFIG)
 logger = logging.getLogger(__name__)
+
+
+@app.exception_handler(UserBannedError)
+async def user_banned_handler(request: Request, exc: UserBannedError):
+    """Забаненный стример (global-бан с фичей site): любой HTML-URL → /banned, API → 403."""
+    if request.url.path.startswith("/api"):
+        return JSONResponse(content={"detail": "Access denied: user is banned"}, status_code=403)
+    return RedirectResponse(url="/banned", status_code=status.HTTP_303_SEE_OTHER)
 
 
 @app.exception_handler(Exception)

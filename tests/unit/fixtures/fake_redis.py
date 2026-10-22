@@ -86,6 +86,15 @@ class FakeRedis:
     async def set(self, name: str, value: str, ex: int | None = None) -> None:  # noqa: ARG002
         self.values[name] = value
 
+    async def incr(self, name: str) -> int:
+        value = int(self.values.get(name, "0")) + 1
+        self.values[name] = str(value)
+        return value
+
+    async def expire(self, name: str, seconds: int) -> bool:  # noqa: ARG002
+        self.ttls[name] = seconds
+        return True
+
     def pipeline(self, transaction: bool = False) -> FakePipeline:  # noqa: ARG002
         return FakePipeline(self)
 

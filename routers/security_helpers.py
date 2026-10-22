@@ -1,6 +1,7 @@
 import asyncio
 import hashlib
 import hmac
+import logging
 import secrets
 from typing import Annotated
 
@@ -15,9 +16,12 @@ from starlette import status
 from starlette.requests import Request
 
 from config import settings
+from container_runtime import get_container
 from database.database import AsyncSessionLocal
 from database.models import User
 from dependencies import get_db
+from exceptions import UserBannedError
+from services.bans import BanService
 from services.follow_check import refresh_followed_to_admin
 from utils.staff import is_staff
 
@@ -27,8 +31,35 @@ INTERACTION_UPDATE_LOCK_TIMEOUT_MS = 50
 # Login создателя бота — для него скипаем проверку зафолловленности (отладка).
 ADMIN_LOGIN = "quantum075"
 
-
+logger = logging.getLogger(__name__)
 tracer = trace.get_tracer(__name__)
+
+
+def _get_bans_service() -> BanService | None:
+    """BanService без требования инициализации контейнера ( юнит-тесты без DI)."""
+    try:
+        return get_container().bans()
+    except Exception:
+        return None
+
+
+async def _ensure_not_banned(user: User) -> None:
+    """Редирект-блок забаненного стримера (global-бан с фичей ``site``).
+
+    Вызывается из user_auth / user_auth_optional после загрузки пользователя.
+    HTML-запросы обработчик в main.py редиректит на /banned, API получают 403.
+    """
+    bans = _get_bans_service()
+    if bans is None:
+        return
+    try:
+        if await bans.is_site_banned(user.twitch_id):
+            raise UserBannedError(user.twitch_id)
+    except UserBannedError:
+        raise
+    except Exception:
+        # Проверка бана не должна валить авторизацию целиком (Redis/БД сбои).
+        logger.exception("Ban check failed for user %s, allowing request", user.twitch_id)
 
 
 @tracer.start_as_current_span("Updating user's interacted_at")
@@ -98,6 +129,8 @@ async def user_auth(
     if not user:
         raise HTTPException(status_code=403, detail="User not found")
 
+    await _ensure_not_banned(user)
+
     current_span = trace.get_current_span()
     if current_span.is_recording():
         current_span.set_attribute("auth.authorized", True)
@@ -113,7 +146,7 @@ async def user_auth(
         asyncio.create_task(refresh_followed_to_admin(user.id))
 
     # FIX:
-    # sqlalchemy.exc.InterfaceError: (sqlalchemy.dialects.postgresql.asyncpg.InterfaceError) <class 'asyncpg.exceptions._base.InterfaceError'>: cannot call Transaction.rollback(): the underlying connection is closed
+    # sqlalchemy.exc.InterfaceError: (sqlalchemy.dialects.postgresql.asyncpg.InterfaceError) <class 'asyncpg.exceptions._base.InterfaceError'> cannot call Transaction.rollback(): the underlying connection is closed
     await db.commit()
 
     return user
@@ -153,6 +186,8 @@ async def user_auth_optional(
     )
     user: User | None = result.scalar_one_or_none()  # type: ignore
     if user:
+        await _ensure_not_banned(user)
+
         current_span = trace.get_current_span()
         if current_span.is_recording():
             current_span.set_attribute("auth.authorized", True)

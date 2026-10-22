@@ -1,6 +1,7 @@
 from fastapi import APIRouter
 
 from routers.api.admin_api import router as admin_api_router
+from routers.api.bans import router as bans_api_router
 from routers.api.extension import router as api_extension_router
 from routers.api.galleries import router as galleries_api_router
 from routers.api.profile_api import router as profile_api_router
@@ -30,6 +31,7 @@ api_router.include_router(profile_api_router, tags=["Profile"])
 api_router.include_router(reference_moderation_router)
 api_router.include_router(slovotron_api_router, tags=["Slovotron"])
 api_router.include_router(api_extension_router, tags=["Extension"])
+api_router.include_router(bans_api_router)
 api_router.include_router(galleries_api_router)
 
 # User

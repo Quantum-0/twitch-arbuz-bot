@@ -806,6 +806,20 @@ class Twitch:
         await twitch_user.set_user_authentication(access_token, [], refresh_token)
         return await anext(twitch_user.get_users())
 
+    @tracer.start_as_current_span("Twitch: Get user by login (bot client)")
+    async def get_bot_user_by_login(self, login: str) -> TwitchUser | None:
+        """Резолв логина Twitch в пользователя (id/login/display_name) от имени бота.
+
+        Используется подсистемой банов: таргет может не быть пользователем сайта,
+        поэтому identity достаётся из Helix по логину. None — логин не найден.
+        """
+        login = login.strip().lstrip("@").lower()
+        if not login:
+            return None
+        async for user in self._twitch.get_users(logins=[login]):
+            return user
+        return None
+
     @staticmethod
     @_reauth_on_auth_error
     async def set_bot_moder(user: User) -> None:

@@ -6,6 +6,7 @@ from dependency_injector import containers, providers
 from config import settings
 from database.database import AsyncSessionLocal
 from services.ai import OpenAIClient
+from services.bans import BanService
 from services.cache import Cache
 from services.clips_poller import ClipsPollerService
 from services.eventsub_service import TwitchEventSubService
@@ -35,6 +36,7 @@ class Container(containers.DeclarativeContainer):
     wiring_config = containers.WiringConfiguration(
         modules=[
             "routers.api.admin_api",
+            "routers.api.bans",
             "routers.api.extension",
             "routers.api.galleries",
             "routers.api.twitch_eventsub",
@@ -81,6 +83,11 @@ class Container(containers.DeclarativeContainer):
     cache = providers.Singleton(
         Cache,
     )
+    bans = providers.Singleton(
+        BanService,
+        db_session_factory=db_session_factory,
+        cache=cache,
+    )
     statistics = providers.Singleton(
         StatisticsService,
         db_session_factory=db_session_factory,
@@ -99,6 +106,7 @@ class Container(containers.DeclarativeContainer):
         mqtt=mqtt,
         statistics=statistics,
         sse_manager=sse_manager,
+        bans=bans,
     )
     ai = providers.Singleton(OpenAIClient, db_session_factory=db_session_factory, statistics=statistics)
     slovotron = providers.Singleton(
@@ -155,6 +163,7 @@ class Container(containers.DeclarativeContainer):
         mqtt=mqtt,
         statistics=statistics,
         cache=cache,
+        bans=bans,
     )
     stream_notifications = providers.Singleton(
         StreamNotificationsService,

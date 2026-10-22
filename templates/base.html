@@ -70,6 +70,7 @@
         <a href="/streamers" style="color: white; text-decoration: none;">Стримеры</a>
         {% if user %}
         <a href="/stickers" style="color: white; text-decoration: none;">AI-Стикеры</a>
+        <a href="/bans" style="color: white; text-decoration: none;">Баны</a>
         {% endif %}
         {% if user and is_staff(user) %}
         <a href="/server" style="color: white; text-decoration: none;" id="serverNavLink">Сервер<span class="staff-badge" id="serverBadge" hidden></span></a>

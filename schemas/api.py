@@ -137,6 +137,9 @@ class StatsType(StrEnum):
     # Counter: число сообщений, заблокированных модерацией при попытке TTS.
     # Subtype — триггер ("command" / "reward" / "external" / ...).
     TTS_BLOCKED = "tts_blocked"
+    # Counter: число действий, отклонённых из-за бана пользователя.
+    # Subtype — заблокированная функция (значение BanFeature: chat_bot / memecoins / ...).
+    BAN_BLOCKED = "ban_blocked"
     # Timing-метрика: avg время (мс) синтеза TTS во внешнем API.
     TTS_PROCESSING_TIME = "tts_processing_time"
 

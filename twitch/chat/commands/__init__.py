@@ -1,3 +1,4 @@
+from .ban import BanCommand, UnbanCommand
 from .banana import BananaCommand
 from .bite import BiteCommand
 from .bonk import BonkCommand
@@ -29,6 +30,8 @@ from .youtube import LinkYoutubeCommand
 
 __all__ = [
     "BananaCommand",
+    "BanCommand",
+    "UnbanCommand",
     "BiteCommand",
     "BoopCommand",
     "BonkCommand",

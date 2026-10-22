@@ -1,0 +1,138 @@
+{% extends "base.html" %}
+{% block title %}Баны — Quantum0's Bot{% endblock %}
+{% block description %}Управление банами: ограничения доступа зрителей к чат-боту, мемкоинам, ИИ-стикерам и TTS.{% endblock %}
+
+{% block styles %}
+.bans-page { max-width: 1100px; margin: 0 auto; }
+.bans-intro { color: var(--color-text-muted); margin-bottom: 18px; line-height: 1.5; }
+.bans-layout { display: grid; grid-template-columns: 340px 1fr; gap: 20px; align-items: start; }
+@media (max-width: 900px) { .bans-layout { grid-template-columns: 1fr; } }
+.ban-form-card {
+    background: var(--color-bg-secondary); border-radius: 10px; padding: 18px;
+    display: flex; flex-direction: column; gap: 12px;
+}
+.ban-form-card h3 { margin: 0; }
+.ban-form-card label { display: flex; flex-direction: column; gap: 4px; font-size: 0.9em; color: var(--color-text-muted); }
+.ban-form-card input[type=text], .ban-form-card select, .ban-form-card textarea {
+    padding: 8px 10px; border-radius: 8px;
+    border: 1px solid var(--color-border);
+    background: var(--color-bg); color: var(--color-text);
+    font: inherit;
+}
+.ban-features { display: flex; flex-direction: column; gap: 6px; }
+.ban-features label {
+    flex-direction: row; align-items: center; gap: 8px; color: var(--color-text); cursor: pointer;
+}
+.ban-form-note { font-size: 0.85em; color: var(--color-text-muted); line-height: 1.5; }
+.bans-toolbar { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 12px; align-items: center; }
+.bans-toolbar select, .bans-toolbar input {
+    padding: 8px 10px; border-radius: 8px;
+    border: 1px solid var(--color-border);
+    background: var(--color-bg); color: var(--color-text);
+}
+.bans-table { width: 100%; border-collapse: collapse; background: var(--color-bg-secondary); border-radius: 10px; overflow: hidden; }
+.bans-table th, .bans-table td { padding: 10px 12px; text-align: left; border-bottom: 1px solid var(--color-border); font-size: 0.92em; vertical-align: top; }
+.bans-table th { color: var(--color-text-muted); font-weight: 600; }
+.bans-table tr:last-child td { border-bottom: none; }
+.ban-scope-badge, .ban-feature-badge {
+    display: inline-block; padding: 2px 8px; border-radius: 6px; font-size: 0.8em; font-weight: 600;
+    margin: 1px 3px 1px 0; white-space: nowrap;
+}
+.ban-scope-badge.global { background: rgba(229, 57, 53, 0.2); color: #ef5350; }
+.ban-scope-badge.channel { background: rgba(255, 152, 0, 0.18); color: #ffa726; }
+.ban-feature-badge { background: var(--color-bg); border: 1px solid var(--color-border); color: var(--color-text-muted); }
+.ban-target-login { color: var(--color-text-muted); font-size: 0.88em; }
+.ban-muted { color: var(--color-text-muted); }
+.ban-expired { opacity: 0.5; }
+.bans-empty { padding: 30px; text-align: center; color: var(--color-text-muted); background: var(--color-bg-secondary); border-radius: 10px; }
+.ban-unban-btn {
+    padding: 6px 12px; border-radius: 6px; border: none; cursor: pointer;
+    background: rgba(229, 57, 53, 0.15); color: #ef5350; font-weight: 600;
+}
+.ban-unban-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+{% endblock %}
+
+{% block content %}
+<div class="bans-page">
+    <h1>Баны</h1>
+    <p class="bans-intro" id="bansIntro">Загрузка…</p>
+
+    <div class="bans-layout">
+        <div class="ban-form-card" id="banFormCard" hidden>
+            <h3 id="banFormTitle">Бан на моём канале</h3>
+            <label>
+                Логин Twitch
+                <input type="text" id="banLogin" placeholder="Vasya" maxlength="64" autocomplete="off"/>
+            </label>
+            <label>
+                Ограничить функции
+                <div class="ban-features" id="banFeatures">
+                    <label><input type="checkbox" name="feature" value="chat_bot" checked/> Чат-бот (команды)</label>
+                    <label><input type="checkbox" name="feature" value="memecoins" checked/> Начисление мемкоинов</label>
+                    <label><input type="checkbox" name="feature" value="ai_stickers" checked/> ИИ-стикеры</label>
+                    <!-- <label><input type="checkbox" name="feature" value="tts" checked/> TTS</label> -->
+                </div>
+            </label>
+            <label>
+                Срок
+                <select id="banDuration">
+                    <option value="">Навсегда</option>
+                    <option value="1">1 час</option>
+                    <option value="12">12 часов</option>
+                    <option value="24">1 день</option>
+                    <option value="72">3 дня</option>
+                    <option value="168">7 дней</option>
+                    <option value="720">30 дней</option>
+                </select>
+            </label>
+            <label>
+                Причина (необязательно)
+                <textarea id="banReason" rows="2" maxlength="512" placeholder="Спам командами"></textarea>
+            </label>
+            <label id="banScopeRow" hidden>
+                Радиус
+                <select id="banScope">
+                    <option value="channel">Мой канал</option>
+                    <option value="global">Весь сервис (стафф)</option>
+                </select>
+            </label>
+            <p class="ban-form-note" id="banFullNote" hidden>
+                Если таргет — пользователь сайта (стример), будет выдан <b>полный бан</b>:
+                все функции + блокировка доступа к сервису, независимо от выбранных галочек.
+            </p>
+            <button type="button" id="banSubmit">Забанить</button>
+        </div>
+
+        <div>
+            <div class="bans-toolbar" id="bansToolbar" hidden>
+                <select id="bansFilterScope">
+                    <option value="">Все баны</option>
+                    <option value="global">Только глобальные</option>
+                    <option value="channel">Только канальные</option>
+                </select>
+                <input type="text" id="bansFilterSearch" placeholder="Поиск по логину…"/>
+            </div>
+            <table class="bans-table" id="bansTable" hidden>
+                <thead>
+                <tr>
+                    <th>Кто</th>
+                    <th>Радиус</th>
+                    <th>Функции</th>
+                    <th>Причина</th>
+                    <th>Выдан</th>
+                    <th>До</th>
+                    <th></th>
+                </tr>
+                </thead>
+                <tbody id="bansTableBody"></tbody>
+            </table>
+            <div class="bans-empty" id="bansEmpty" hidden>Банов нет</div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block body_scripts %}
+<script src="/static/js/notifications.js"></script>
+<script src="/static/js/bans.js"></script>
+{% endblock %}

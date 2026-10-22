@@ -627,6 +627,61 @@ class ServerMetric(Base):
     )
 
 
+class Ban(Base):
+    """Бан зрителя или стримера (подсистема банов, см. ``services/bans.py``).
+
+    Ключи — twitch-ID (строки), а не внутренние ``User.id``: зритель может не
+    быть пользователем сайта (нет FK на target), а бан канала должен пережить
+    пересоздание строки ``User``. Логины хранятся денормализованно только для
+    отображения (логин в Twitch может смениться).
+
+    Уникальность ``(target_twitch_id, scope, channel_twitch_id)`` с
+    ``NULLS NOT DISTINCT``: повторный бан того же человека в том же радиусе —
+    upsert с мерджем ``features``. ``features`` — список значений
+    ``schemas.enums.BanFeature``. Бан действует, пока ``expires_at`` не
+    наступил (NULL — бессрочный).
+    """
+
+    __tablename__ = "bans"
+    __table_args__ = (
+        Index(
+            "bans_target_scope_channel_key",
+            "target_twitch_id",
+            "scope",
+            "channel_twitch_id",
+            unique=True,
+            postgresql_nulls_not_distinct=True,
+        ),
+        Index("ix_bans_channel_twitch_id", "channel_twitch_id"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+
+    target_twitch_id: Mapped[str] = mapped_column(String, nullable=False)
+    target_login: Mapped[str] = mapped_column(String, nullable=False)
+    target_name: Mapped[str] = mapped_column(String, nullable=False)
+
+    scope: Mapped[str] = mapped_column(String, nullable=False)
+    # twitch_id канала для scope=channel; NULL для scope=global.
+    channel_twitch_id: Mapped[str | None] = mapped_column(String, nullable=True, default=None)
+    channel_login: Mapped[str | None] = mapped_column(String, nullable=True, default=None)
+
+    features: Mapped[list[str]] = mapped_column(JSONB, nullable=False, default=list, server_default="[]")
+
+    reason: Mapped[str | None] = mapped_column(Text, nullable=True, default=None)
+
+    created_by_twitch_id: Mapped[str] = mapped_column(String, nullable=False)
+    created_by_login: Mapped[str] = mapped_column(String, nullable=False)
+    created_by_role: Mapped[str] = mapped_column(String, nullable=False)
+
+    # naive-UTC: now() at time zone 'utc' не зависит от TimeZone сессии БД
+    # (прямой func.now() писал бы локальное время сервера).
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=text("(now() at time zone 'utc')"), nullable=False
+    )
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, default=None)
+
+
 class TelegramSettings(Base):
     """Настройки Telegram-интеграции для стримера (1:1 с User, lazy-создание).
 

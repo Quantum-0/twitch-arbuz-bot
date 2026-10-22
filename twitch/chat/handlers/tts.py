@@ -18,8 +18,9 @@ from opentelemetry import trace
 
 from database.models import TwitchUserSettings, User
 from schemas.api import StatsType
-from schemas.enums import TTSTrigger
+from schemas.enums import BanFeature, TTSTrigger
 from schemas.twitch import ChatMessageWebhookEventSchema
+from services.bans import BanService
 from services.moderation import ModerationService
 from services.sse_manager import SSEManager
 from twitch.chat.handlers.handlers import CommonMessagesHandler, HandlerResult
@@ -97,6 +98,11 @@ class TTSHandler(CommonMessagesHandler):
         if not role_perms.get(trigger.value, False):
             return HandlerResult.SKIPED
 
+        # 4.5 Бан по фиче TTS (канальный/global): не озвучиваем. Проверка после
+        # матрицы разрешений — если сообщение и так не озвучивалось, кэш не трогаем.
+        if await self._skip_if_tts_banned(streamer, message):
+            return HandlerResult.SKIPED
+
         # 5. Cooldown (per-user / per-channel) — in-memory через StateManager.
         cd_msg = await self._check_and_set_cooldown(streamer, message, tts)
         if cd_msg is not None:
@@ -125,6 +131,20 @@ class TTSHandler(CommonMessagesHandler):
 
         # Не блокируем команды/другие handlers.
         return HandlerResult.HANDLED_AND_CONTINUE
+
+    async def _skip_if_tts_banned(self, streamer: User, message: ChatMessageWebhookEventSchema) -> bool:
+        """Забанен ли чаттер по фиче TTS на этом канале → лог + метрика. Fail-open при сбое Redis/БД."""
+        try:
+            bans: BanService = self._container.bans()
+            banned = await bans.is_banned(str(message.chatter_user_id), str(streamer.twitch_id), BanFeature.TTS)
+        except Exception:
+            logger.exception("TTS ban check failed, voicing anyway: chatter=%s", message.chatter_user_login)
+            return False
+        if banned:
+            if self._statistics is not None:
+                self._statistics.inc(StatsType.TTS_BLOCKED, subtype="banned")
+            logger.info("TTS skip: banned chatter %s on %s", message.chatter_user_login, streamer.login_name)
+        return banned
 
     async def _check_and_set_cooldown(self, streamer: User, message: ChatMessageWebhookEventSchema, tts) -> str | None:
         """Проверить и проставить КД.
