@@ -47,8 +47,24 @@ class NegativeBalanceError(RewardRedemptionProcessingError):
 
 
 class ModerationBlockedException(RewardRedemptionProcessingError):
+    def __init__(self, chatbot_response: str | None = None):
+        if chatbot_response is None:
+            chatbot_response = "Запрос отклонён системой модерации как небезопасный для стрима. Баллы возвращены!"
+        super().__init__(chatbot_response)
+
+
+class CopyrightBlockedError(ModerationBlockedException):
+    """Модерационный блок, в промпте найден упоминание защищённого персонажа/франшизы.
+
+    Провайдер (aitunnel/OpenAI) не раскрывает причину блока (текст всегда
+    "Your request was rejected by the safety system"), поэтому копирайт-кейс
+    определяется эвристикой по промпту — см. ``_mentions_protected_ip``.
+    """
+
     def __init__(self):
-        super().__init__("Запрос отклонён системой модерации как небезопасный для стрима. Баллы возвращены!")
+        super().__init__(
+            "Стикер нарушает авторские права: в запросе упомянут защищённый персонаж или франшиза. Баллы возвращены!"
+        )
 
 
 class AIProviderBudgetExceededError(RewardRedemptionProcessingError):
@@ -81,6 +97,76 @@ def _is_moderation_blocked(exc: BadRequestError) -> bool:
         return True
     text = _extract_api_message(exc).lower()
     return any(kw in text for kw in _MODERATION_KEYWORDS)
+
+
+# Эвристика копирайт-блоков: известные защищённые персонажи/франшизы (ru + en,
+# lowercase substring — матчит словоформы: «шрек/шреком/shrek's»). Провайдер
+# не сообщает причину блока, поэтому копирайт детектим по промпту зрителя.
+# Список расширяемый: новые кейсы ловим по warning-логам blocked_by_moderation.
+_IP_MARKERS: tuple[str, ...] = (
+    "шрек",
+    "shrek",
+    "микки",
+    "mickey",
+    "дисней",
+    "disney",
+    "покемон",
+    "pokemon",
+    "пикачу",
+    "pikachu",
+    "соник",
+    "sonic",
+    "марио",
+    "mario",
+    "наруто",
+    "naruto",
+    "губка боб",
+    "spongebob",
+    "бэтмен",
+    "batman",
+    "супермен",
+    "superman",
+    "человек-паук",
+    "spiderman",
+    "spider-man",
+    "марвел",
+    "marvel",
+    "халк",
+    "hulk",
+    "гоку",
+    "goku",
+    "hello kitty",
+    "винни пух",
+    "winnie the pooh",
+    "гарри поттер",
+    "harry potter",
+    "том и джерри",
+    "tom and jerry",
+    "стич",
+    "stitch",
+    "миньон",
+    "minion",
+    "грут",
+    "groot",
+    "дедпул",
+    "deadpool",
+    "джокер",
+    "joker",
+    "звёздные войны",
+    "star wars",
+    "дарт вейдер",
+    "darth vader",
+    "йода",
+    "yoda",
+)
+
+
+def _mentions_protected_ip(prompt: str) -> str | None:
+    lower = prompt.lower()
+    for marker in _IP_MARKERS:
+        if marker in lower:
+            return marker
+    return None
 
 
 class OpenAIBadRequestException(RewardRedemptionProcessingError):
@@ -164,7 +250,18 @@ class StickersService:
                 image, cost = await self._ai.generate_sticker(prompt=prompt, model=model, background=background)
         except BadRequestError as exc:
             if _is_moderation_blocked(exc):
-                logger.debug("Sticker generation was blocked by AI service moderation")
+                marker = _mentions_protected_ip(prompt)
+                # Провайдер не раскрывает причину блока — логируем тело ошибки
+                # и промпт, чтобы классифицировать кейс (копирайт / safety).
+                logger.warning(
+                    "Sticker generation blocked by AI provider moderation: "
+                    "provider_error=%r matched_ip_marker=%r prompt=%r",
+                    _extract_api_message(exc),
+                    marker,
+                    prompt,
+                )
+                if marker is not None:
+                    raise CopyrightBlockedError from exc
                 raise ModerationBlockedException from exc
             raise OpenAIBadRequestException(exc) from exc
         except APIStatusError as exc:
