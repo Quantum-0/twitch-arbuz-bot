@@ -110,6 +110,7 @@ async def overlay_slovotron(
         url=f"https://slovotron.fra3a.ru/?obs-overlay=1&"
         f"channel={channel_name}&inactive_timeout={inactive_timeout}&"
         f"inactive_opacity={inactive_opacity}&webhook_secret={secret}&"
+        f"win_notification_enable=0&"
         f"webhook_url={request.base_url}api/webhook/slovotron"
     )
 
