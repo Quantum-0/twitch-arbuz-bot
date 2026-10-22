@@ -28,9 +28,13 @@
 <div class="banned-page">
     <div class="banned-icon">🚫</div>
     <div class="banned-title">Доступ к сервису заблокирован</div>
+    {% set viewer_features = ban.features | reject("equalto", "site") | list %}
     <p class="banned-text">
         Ваш аккаунт был заблокирован администрацией бота Quantum0's Bot.
-        Во время блокировки недоступны панель управления, чат-бот, награды и прочие функции сервиса на всех каналах.
+        Во время блокировки недоступны панель управления и настройки бота.
+        {% if viewer_features %}
+        Также ограничено использование функций бота как зрителя: {{ viewer_features | join(", ") }}.
+        {% endif %}
     </p>
     <dl class="banned-details">
         <dt>Аккаунт</dt>

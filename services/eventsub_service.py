@@ -419,18 +419,17 @@ class TwitchEventSubService:
         user: User,
         payload_model: PointRewardRedemptionWebhookSchema,
     ) -> bool:
-        """Забанен ли стример (site) или выкупающий зритель (фича этой награды).
+        """Забанен ли ВЫКУПАЮЩИЙ зритель по фиче этой награды.
 
+        Фичи бана действуют на пользователя как на зрителя: global-бан блокирует
+        награду во всех чатах, канальный — на канале выдавшего. Работа наград на
+        собственном канале забаненного никаким баном не останавливается;
+        ``site`` закрывает только доступ к сайту (``security_helpers``).
         Вызывающий код при True отменяет награду (баллы возвращаются зрителю).
-        Побочный эффект: сообщение в чат и метрика при бане зрителя.
+        Побочный эффект: сообщение в чат и метрика.
         """
         if self._bans is None:
             return False
-
-        # Global-бан стримера (site) — канал игнорируется.
-        if await self._bans.is_site_banned(str(user.twitch_id)):
-            logger.info("Redemption on banned streamer channel %s cancelled", user.twitch_id)
-            return True
 
         # Фича, ограничиваемая баном, определяется типом награды.
         reward_feature: BanFeature | None = None
@@ -443,10 +442,11 @@ class TwitchEventSubService:
             # Блок бана TTS пишем в TTS_BLOCKED (семейство «заблокировано»),
             # а не в счётчик озвученных сообщений.
             reward_feature, stats_type = BanFeature.TTS, StatsType.TTS_BLOCKED
+        if reward_feature is None:
+            return False
 
-        if reward_feature is None or not await self._bans.is_banned(
-            str(payload_model.event.user_id), str(user.twitch_id), reward_feature
-        ):
+        # Бан зрителя (global или канальный) по фиче этой награды.
+        if not await self._bans.is_banned(str(payload_model.event.user_id), str(user.twitch_id), reward_feature):
             return False
 
         logger.info(

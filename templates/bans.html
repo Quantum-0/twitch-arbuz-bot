@@ -71,6 +71,7 @@
                     <label><input type="checkbox" name="feature" value="memecoins" checked/> Начисление мемкоинов</label>
                     <label><input type="checkbox" name="feature" value="ai_stickers" checked/> ИИ-стикеры</label>
                     <!-- <label><input type="checkbox" name="feature" value="tts" checked/> TTS</label> -->
+                    <label id="banFeatureSite" hidden><input type="checkbox" name="feature" value="site"/> Сайт (доступ к панели)</label>
                 </div>
             </label>
             <label>
@@ -97,8 +98,9 @@
                 </select>
             </label>
             <p class="ban-form-note" id="banFullNote" hidden>
-                Если таргет — пользователь сайта (стример), будет выдан <b>полный бан</b>:
-                все функции + блокировка доступа к сервису, независимо от выбранных галочек.
+                Чат-бот / мемкоины / ИИ-стикеры ограничивают таргет как зрителя (при глобальном бане — во всех чатах,
+                при канальном — на одном канале); бот на собственном канале таргета не отключается.
+                «Сайт» закрывает доступ к панели и настройкам бота.
             </p>
             <button type="button" id="banSubmit">Забанить</button>
         </div>

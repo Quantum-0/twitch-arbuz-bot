@@ -21,7 +21,7 @@ from container import Container
 from database.models import Ban, User
 from routers.security_helpers import user_auth
 from schemas.ban_schemas import BanCreatedSchema, BanCreateSchema, BanOutSchema, BansListSchema
-from schemas.enums import FULL_BAN_FEATURES, VIEWER_BAN_FEATURES, BanFeature, BanScope
+from schemas.enums import VIEWER_BAN_FEATURES, BanFeature, BanScope
 from services.bans import BanService
 from services.cache import Cache
 from twitch.client.twitch import Twitch
@@ -115,18 +115,16 @@ async def create_ban(
     # Сотрудникам сервиса (модераторам/админам) нельзя ограничить доступ к сайту —
     # иначе забаненный модератор теряет и доступ к управлению банами.
     target_is_staff = is_reference_moderator(target.login)
-    if target_is_staff and BanFeature.SITE in payload.features:
-        raise HTTPException(status_code=403, detail="Нельзя ограничить доступ к сайту сотрудникам сервиса")
 
-    full_ban = False
     features = sorted(set(payload.features), key=lambda f: f.value)
     if payload.scope == BanScope.GLOBAL:
-        # Зарегистрированный пользователь (стример) → полный бан автоматически.
-        # Исключение — сотрудники сервиса: только запрошенные фичи, без site.
-        if not target_is_staff and await bans_service.is_registered_user(str(target.id)):
-            features = sorted(FULL_BAN_FEATURES, key=lambda f: f.value)
-            full_ban = True
-        elif not features:
+        # Фичи viewer-бана (chat_bot/memecoins/ai_stickers/tts) действуют на
+        # таргет КАК НА ЗРИТЕЛЯ: global — во всех чатах, channel — на одном.
+        # Бот на собственном канале таргета не отключается никаким баном;
+        # «site» закрывает только доступ к сайту/панели.
+        if BanFeature.SITE in features and target_is_staff:
+            raise HTTPException(status_code=403, detail="Нельзя ограничить доступ к сайту сотрудникам сервиса")
+        if not features:
             raise HTTPException(status_code=422, detail="Укажите хотя бы одну ограничиваемую функцию")
     else:
         # Канальный бан не может ограничивать доступ к сайту; по умолчанию — все
@@ -151,7 +149,7 @@ async def create_ban(
             else "streamer"
         ),
     )
-    return BanCreatedSchema(ban=_to_out(ban, can_manage=True), full_ban=full_ban)
+    return BanCreatedSchema(ban=_to_out(ban, can_manage=True))
 
 
 @router.delete("/{ban_id}")

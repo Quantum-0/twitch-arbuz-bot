@@ -278,31 +278,10 @@ class ChatBot:
             current_span.set_attribute("msg.chatter", message.chatter_user_login)
 
         # ── Баны (до загрузки стримера из БД: twitch-ID есть в самом сообщении) ──
-        if self._bans is not None:
-            streamer_bans = await self._bans.get_effective(str(message.broadcaster_user_id))
-            # Global-бан стримера с фичей site — канал полностью игнорируется
-            # (тихо: EventSub-подписки не трогаем, обратимо при разбане).
-            if streamer_bans.is_site_banned():
-                logger.info(f"Skip message on banned streamer channel `{channel}`")
-                _message_processing_start.set(None)
-                _message_processing_task.set(None)
-                return
-
-            chatter_role = classify_chatter(message.badges, message.chatter_user_login)
-            if chatter_role != ChatterRole.BOT:
-                chatter_bans = await self._bans.get_effective(str(message.chatter_user_id))
-                if chatter_bans.is_banned(BanFeature.CHAT_BOT, str(message.broadcaster_user_id)):
-                    # Забанен на чат-бота: команды/хендлеры не выполняем, но
-                    # пользователь остаётся в списке активных (цель команд) и
-                    # в SSE-овервее чата. Без обращений к БД.
-                    if self._statistics is not None:
-                        self._statistics.inc(StatsType.BAN_BLOCKED, subtype=BanFeature.CHAT_BOT.value)
-                    logger.info(f"Skip commands for banned chatter `{message.chatter_user_login}` on `{channel}`")
-                    await self._user_list_manager.handle(channel, message)
-                    await self._broadcast_message_to_sse(message)
-                    _message_processing_start.set(None)
-                    _message_processing_task.set(None)
-                    return
+        if await self._drop_for_bans(message, channel):
+            _message_processing_start.set(None)
+            _message_processing_task.set(None)
+            return
 
         async with self._get_user_with_settings_by_twitch_id(message.broadcaster_user_id) as user:
             if user.login_name != message.broadcaster_user_login:
@@ -325,6 +304,37 @@ class ChatBot:
         # следующий вызов этой же задачи (если она переиспользуется event loop'ом).
         _message_processing_start.set(None)
         _message_processing_task.set(None)
+
+    async def _drop_for_bans(self, message: ChatMessageWebhookEventSchema, channel: str) -> bool:
+        """Бан-гейт сообщения (до загрузки стримера из БД — twitch-ID есть в самом сообщении).
+
+        Фичи бана действуют на пользователя КАК НА ЗРИТЕЛЯ: молчит только сам
+        забаненный. Канал стримера не отключается никаким баном — бот на нём
+        продолжает работать с последними настройками (site-бан закрывает лишь
+        доступ к сайту, см. ``security_helpers._ensure_not_banned``).
+
+        :return: True — сообщение обслужено (banned-chatter: списки/SSE), но
+            команды/хендлеры выполнять нельзя; вызывающий код выходит после
+            сброса ContextVar.
+        """
+        if self._bans is None:
+            return False
+        if classify_chatter(message.badges, message.chatter_user_login) == ChatterRole.BOT:
+            return False
+
+        chatter_bans = await self._bans.get_effective(str(message.chatter_user_id))
+        if not chatter_bans.is_banned(BanFeature.CHAT_BOT, str(message.broadcaster_user_id)):
+            return False
+
+        # Забанен на чат-бота (global — во всех чатах, channel — на этом канале):
+        # команды/хендлеры не выполняем, но пользователь остаётся в списке
+        # активных (цель команд) и в SSE-овервее чата. Без обращений к БД.
+        if self._statistics is not None:
+            self._statistics.inc(StatsType.BAN_BLOCKED, subtype=BanFeature.CHAT_BOT.value)
+        logger.info(f"Skip commands for banned chatter `{message.chatter_user_login}` on `{channel}`")
+        await self._user_list_manager.handle(channel, message)
+        await self._broadcast_message_to_sse(message)
+        return True
 
     async def _broadcast_message_to_sse(self, message: ChatMessageWebhookEventSchema) -> None:
         """Broadcast в SSE msg-канал для оверлеев с chat control (fire-and-forget)."""

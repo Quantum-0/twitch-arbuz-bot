@@ -10,9 +10,8 @@ from schemas.enums import BanFeature, BanScope
 class BanCreateSchema(BaseModel):
     """Выдача бана.
 
-    Для ``scope=global`` и незарегистрированного таргета — точечные ``features``;
-    если таргет является пользователем сайта (стримером), сервер игнорирует
-    ``features`` и выдаёт полный бан (все фичи + site).
+    Фичи выбираются явно (для global-бана тоже): можно точечно — например,
+    только ``site`` (доступ к панели), не трогая чат-бота и награды.
     Для ``scope=channel`` бан всегда накладывается на канал самого запросившего.
     """
 
@@ -51,4 +50,3 @@ class BansListSchema(BaseModel):
 
 class BanCreatedSchema(BaseModel):
     ban: BanOutSchema
-    full_ban: bool = Field(description="Таргет — пользователь сайта: выдан полный бан (все фичи + site).")

@@ -398,7 +398,42 @@ async def test_on_message_banned_on_other_channel_allows(chat_bot, ban_service, 
 
 
 @pytest.mark.asyncio
-async def test_on_message_banned_streamer_channel_ignored(chat_bot, ban_service):
+async def test_on_message_streamer_chat_bot_ban_channel_served(chat_bot, ban_service, test_user):  # noqa: ARG001
+    # Фичи бана действуют на таргет КАК НА ЗРИТЕЛЯ: global chat_bot-бан
+    # стримера НЕ отключает бот на его канале — команды работают у других.
+    await _issue(
+        ban_service,
+        target_twitch_id="123456",
+        target_login="test_user",
+        scope=BanScope.GLOBAL,
+        channel_twitch_id=None,
+        channel_login=None,
+        features=[BanFeature.CHAT_BOT],
+    )
+    await chat_bot.on_message(_chat_message())  # пишет незабаненный зритель 777
+    assert chat_bot._calls == ["commands", "commands"]  # noqa: SLF001
+
+
+@pytest.mark.asyncio
+async def test_on_message_globally_banned_chatter_blocked_on_own_channel(chat_bot, ban_service, test_user):  # noqa: ARG001
+    # Global chat_bot-бан блокирует команды ВЕЗДЕ, включая собственный канал.
+    await _issue(
+        ban_service,
+        target_twitch_id="123456",
+        target_login="test_user",
+        scope=BanScope.GLOBAL,
+        channel_twitch_id=None,
+        channel_login=None,
+        features=[BanFeature.CHAT_BOT],
+    )
+    await chat_bot.on_message(_chat_message(chatter_id=123456, chatter_login="test_user"))
+    assert chat_bot._calls == []  # noqa: SLF001
+
+
+@pytest.mark.asyncio
+async def test_on_message_site_banned_streamer_channel_served(chat_bot, ban_service, test_user):  # noqa: ARG001
+    # Спецификация site-бана: закрывает только доступ к сайту/настройкам.
+    # Бот на канале стримера продолжает работать, site-бан канал НЕ глушит.
     await _issue(
         ban_service,
         target_twitch_id="123456",
@@ -409,7 +444,22 @@ async def test_on_message_banned_streamer_channel_ignored(chat_bot, ban_service)
         features=[BanFeature.SITE],
     )
     await chat_bot.on_message(_chat_message())
-    assert chat_bot._calls == []  # noqa: SLF001
+    assert chat_bot._calls == ["commands", "commands"]  # noqa: SLF001
+
+
+@pytest.mark.asyncio
+async def test_on_message_chatter_site_ban_allows_commands(chat_bot, ban_service, test_user):  # noqa: ARG001
+    # Зритель с global-баном только по site: на чужих каналах чат-бот
+    # отвечает ему как обычно (site ≠ chat_bot).
+    await _issue(
+        ban_service,
+        scope=BanScope.GLOBAL,
+        channel_twitch_id=None,
+        channel_login=None,
+        features=[BanFeature.SITE],
+    )
+    await chat_bot.on_message(_chat_message())
+    assert chat_bot._calls == ["commands", "commands"]  # noqa: SLF001
 
 
 @pytest.mark.asyncio
@@ -460,6 +510,18 @@ async def test_ban_create_rate_limit_semantics(fake_cache):
     assert not await cache.check_rate_limit("bans_create:1", 10, 60)
     # Другой пользователь не зависит от чужого лимита
     assert await cache.check_rate_limit("bans_create:2", 10, 60)
+
+
+@pytest.mark.asyncio
+async def test_check_rate_limit_heals_missing_ttl(fake_cache):
+    # Ключ остался без TTL (крэш между INCR и EXPIRE) — без лечения вечный 429.
+    cache, fake = fake_cache
+    fake.values["rate_limit:heal"] = "5"
+    assert fake.ttls.get("rate_limit:heal") is None
+
+    assert await cache.check_rate_limit("heal", 10, 60)  # 6 ≤ 10 — пропускаем
+
+    assert fake.ttls.get("rate_limit:heal") == 60  # TTL восстановлен
 
 
 # ----------------------------------------------------------------------

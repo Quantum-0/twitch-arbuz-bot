@@ -112,6 +112,12 @@
     function updateFormTitle() {
         const scope = state.staff ? el("banScope").value : "channel";
         el("banFormTitle").textContent = scope === "global" ? "Глобальный бан" : "Бан на моём канале";
+        // «Сайт» имеет смысл только для глобального бана (стафф)
+        const siteRow = el("banFeatureSite");
+        if (siteRow) {
+            siteRow.hidden = scope !== "global";
+            if (scope !== "global") siteRow.querySelector("input").checked = false;
+        }
     }
 
     async function createBan() {
@@ -147,11 +153,7 @@
             const data = await response.json().catch(() => null);
             if (!response.ok) throw new Error((data && data.detail) || "Не удалось выдать бан");
             const target = data.ban.target_name;
-            if (typeof showNotification === "function") {
-                showNotification("Готово", data.full_ban
-                    ? `${target} — пользователь сайта, выдан полный бан (все функции + блокировка сервиса).`
-                    : `${target} забанен.`);
-            }
+            if (typeof showNotification === "function") showNotification("Готово", `${target} забанен.`);
             el("banLogin").value = "";
             el("banReason").value = "";
             await load();

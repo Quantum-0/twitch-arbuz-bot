@@ -95,6 +95,11 @@ class FakeRedis:
         self.ttls[name] = seconds
         return True
 
+    async def ttl(self, name: str) -> int:
+        if name not in self.values:
+            return -2
+        return self.ttls.get(name, -1)
+
     def pipeline(self, transaction: bool = False) -> FakePipeline:  # noqa: ARG002
         return FakePipeline(self)
 

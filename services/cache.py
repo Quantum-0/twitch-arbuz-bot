@@ -127,7 +127,10 @@ class Cache:
         key = "rate_limit:" + key
         try:
             count = await self._r.incr(key)
-            if count == 1:
+            # Ключ мог остаться без TTL (крэш между INCR и EXPIRE при первом
+            # инкременте) — без лечения счётчик никогда не сбросится и будет
+            # вечный 429. Восстанавливаем TTL при обнаружении.
+            if count == 1 or await self._r.ttl(key) == -1:
                 await self._r.expire(key, window_s)
             return count <= limit
         except Exception:
