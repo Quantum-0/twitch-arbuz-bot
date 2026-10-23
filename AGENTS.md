@@ -68,7 +68,7 @@ poetry run uvicorn main:app --reload   # запустить дев-сервер
   `cookie_consent_at`, `boosty_dismissed_at`, `boosty_clicks`).
 - **Провайдер ИИ-стикеров:** проверка aitunnel vs routerai показала, что переход на routerai **невыгоден**
   (нет `gpt-image-2` и эндпоинта `/images/edits`; `glm-5.2` дороже на ~22–38%). Остаёмся на aitunnel
-  (`config.openai_base_url`). Менять `openai_base_url` на routerai **нельзя**.
+  (env `OPENAI_BASE_URL`, `config.py:AISettings.base_url`). Менять на routerai **нельзя**.
 
 ## Telegram-интеграция
 
@@ -88,7 +88,7 @@ poetry run uvicorn main:app --reload   # запустить дев-сервер
   (`handle_stream_online` / `handle_stream_offline` / отложенная джоба `stream_offline_deferred:*`;
   вызывается из `routers/api/twitch_eventsub.py`),
   результаты доставок: `services/telegram_integration.py:handle_telegram_result`.
-- Окно перезапуска/задержка подтверждения окончания: `config.py:stream_restart_window_minutes`
+- Окно перезапуска/задержка подтверждения окончания: `config.py:AppSettings.stream_restart_window_minutes`
   (env `STREAM_RESTART_WINDOW_MINUTES`, дефолт 15).
 
 ## Трекинг ошибок (GlitchTip MCP)

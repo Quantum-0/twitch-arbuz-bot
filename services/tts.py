@@ -66,11 +66,11 @@ class TTSService:
         self._model: str = ""
 
     async def startup(self) -> None:
-        self._token = settings.tts_api_token.get_secret_value()
-        self._url = settings.tts_api_url
+        self._token = settings.tts.api_token.get_secret_value()
+        self._url = settings.tts.api_url
         if not self._url:
             raise TTSServiceError("TTS service is not configured (no URL)")
-        self._model = settings.tts_model
+        self._model = settings.tts.model
 
     async def shutdown(self) -> None:
         # httpx.AsyncClient создаётся per-request, отдельного закрывать не нужно.

@@ -68,12 +68,12 @@ class Container(containers.DeclarativeContainer):
     db_session_factory = providers.Object(AsyncSessionLocal)
     redis = providers.Resource(
         init_redis,
-        redis_url=settings.redis_url,
+        redis_url=settings.redis.url,
     )
     binary_redis = providers.Resource(
         init_redis,
         binary=True,
-        redis_url=settings.redis_url,
+        redis_url=settings.redis.url,
     )
     state_manager = providers.Singleton(
         RedisStateManager,
@@ -175,7 +175,7 @@ class Container(containers.DeclarativeContainer):
 
     job_store_factory = providers.Factory(
         SQLAlchemyJobStore,
-        url=settings.db_url,
+        url=settings.db.url,
     )
 
     scheduler = providers.Singleton(

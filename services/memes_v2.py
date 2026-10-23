@@ -487,15 +487,15 @@ class MemealertsOAuthService:
 
         grant_type = "refresh_token" if refresh_token else "authorization_code"
         data: dict[str, Any] = {
-            "client_id": settings.memealerts_client_id.get_secret_value(),
-            "client_secret": settings.memealerts_client_secret.get_secret_value(),
+            "client_id": settings.memealerts.client_id.get_secret_value(),
+            "client_secret": settings.memealerts.client_secret.get_secret_value(),
             "grant_type": grant_type,
         }
         if refresh_token:
             data["refresh_token"] = refresh_token
         if authorization_code:
             data["code"] = authorization_code
-            data["redirect_uri"] = settings.memealerts_redirect_url
+            data["redirect_uri"] = settings.memealerts.redirect_url
         async with self._refresh_semaphore, httpx.AsyncClient() as client:
             response = await client.post(
                 "https://memealerts.com/oauth/token",

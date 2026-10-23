@@ -239,7 +239,7 @@ class ClipsPollerService:
                     params=params,
                     headers={
                         "Authorization": f"Bearer {access_token}",
-                        "Client-Id": settings.twitch_client_id,
+                        "Client-Id": settings.twitch.client_id,
                     },
                     timeout=15,
                 )
@@ -283,7 +283,7 @@ class ClipsPollerService:
                 },
                 headers={
                     "Authorization": f"Bearer {access_token}",
-                    "Client-Id": settings.twitch_client_id,
+                    "Client-Id": settings.twitch.client_id,
                 },
                 timeout=15,
             )

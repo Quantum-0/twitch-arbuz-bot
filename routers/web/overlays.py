@@ -63,7 +63,7 @@ async def overlay_tts(
         {
             "request": request,
             "channel_id": channel_id,
-            "model": (tts.model if tts and tts.model else settings.tts_model),
+            "model": (tts.model if tts and tts.model else settings.tts.model),
             "tts_speech_url": f"{request.base_url}overlay/tts/speech",
         },
     )

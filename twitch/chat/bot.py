@@ -152,7 +152,7 @@ class ChatBot:
         """
         if not message:
             return
-        if settings.direct_sending_messages:
+        if settings.app.direct_sending_messages:
             await self.send_message_via_api(chat, message)
         else:
             await self.send_message_via_broker(chat, message)
@@ -385,8 +385,8 @@ class ChatBot:
         }
 
         if (
-            settings.exception_to_many_unsubscribes
-            and len(current_channels) - len(desired_channels) > settings.exception_to_many_unsubscribes
+            settings.app.exception_to_many_unsubscribes
+            and len(current_channels) - len(desired_channels) > settings.app.exception_to_many_unsubscribes
         ):
             raise ToManyChatUnsubscribesStartupException
 

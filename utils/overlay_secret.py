@@ -22,7 +22,7 @@ def compute_legacy_overlay_secret(login_name: str) -> UUID:
     overlay_secret ещё не установлен в БД. Значение совпадает с тем, что
     раньше вычислялось на лету для slovotron.
     """
-    return uuid3(namespace=settings.slovotron_secret, name=login_name)
+    return uuid3(namespace=settings.slovotron.secret, name=login_name)
 
 
 async def ensure_overlay_secret(db: AsyncSession, user: User) -> UUID:

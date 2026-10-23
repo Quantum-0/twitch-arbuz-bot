@@ -299,7 +299,7 @@ def verify_extension_token(authorization: str | None, channel_id: str | int) -> 
     try:
         payload = jwt.decode(
             token,
-            base64.b64decode(settings.extension_secret.get_secret_value()),
+            base64.b64decode(settings.twitch.extension_secret.get_secret_value()),
             algorithms=["HS256"],
         )
     except jwt.PyJWTError:

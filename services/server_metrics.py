@@ -18,7 +18,7 @@
 - flush раз в 6 часов: сэмплы закрытых окон агрегируются в одну строку
   ``server_metrics`` (avg/max для CPU и load, last для диска/RAM, сумма дельт
   для сети), буфер обрезается;
-- cleanup раз в сутки: строки старше ``settings.server_metrics_retention_days``.
+- cleanup раз в сутки: строки старше ``settings.monitoring.metrics_retention_days``.
 
 CPU % и сетевые дельты считаются между двумя чтениями кумулятивных каунтеров
 (``/proc/stat`` и ``/proc/net/dev``); предыдущие каунтеры хранятся в Redis
@@ -187,10 +187,10 @@ def evaluate_alerts(metric: Any) -> list[Alert]:
     """
     alerts: list[Alert] = []
     checks: list[tuple[str, float | None, float]] = [
-        ("disk", _first_attr(metric, ("disk_used_percent",)), float(settings.server_alert_disk_percent)),
-        ("cpu", _first_attr(metric, ("cpu_percent", "cpu_max")), float(settings.server_alert_cpu_percent)),
-        ("mem", _first_attr(metric, ("mem_used_percent",)), float(settings.server_alert_mem_percent)),
-        ("load5", _first_attr(metric, ("load5", "load5_max")), float(settings.server_alert_load5)),
+        ("disk", _first_attr(metric, ("disk_used_percent",)), float(settings.monitoring.alert_disk_percent)),
+        ("cpu", _first_attr(metric, ("cpu_percent", "cpu_max")), float(settings.monitoring.alert_cpu_percent)),
+        ("mem", _first_attr(metric, ("mem_used_percent",)), float(settings.monitoring.alert_mem_percent)),
+        ("load5", _first_attr(metric, ("load5", "load5_max")), float(settings.monitoring.alert_load5)),
     ]
     for name, value, limit in checks:
         if value is None:
@@ -418,8 +418,8 @@ class ServerMetricsService:
         self._db = db_session_factory
         self._r: Redis | None = None
         # Каталоги переопределяются тестами; продакшн-дефолты — из конфига.
-        self._proc_dir = Path(proc_dir or settings.server_metrics_proc_dir)
-        self._disk_path = Path(disk_path or settings.server_metrics_disk_path)
+        self._proc_dir = Path(proc_dir or settings.monitoring.metrics_proc_dir)
+        self._disk_path = Path(disk_path or settings.monitoring.metrics_disk_path)
 
     async def startup(self, redis: aioredis.Redis) -> None:
         self._r = redis
@@ -517,7 +517,7 @@ class ServerMetricsService:
         """Джоба APScheduler: удалить строки старше ``server_metrics_retention_days``."""
         try:
             async with self._db() as session:
-                cutoff = datetime.now(UTC) - timedelta(days=settings.server_metrics_retention_days)
+                cutoff = datetime.now(UTC) - timedelta(days=settings.monitoring.metrics_retention_days)
                 await session.execute(sa.delete(ServerMetric).where(ServerMetric.bucket_ts < cutoff))
                 await session.commit()
         except Exception:

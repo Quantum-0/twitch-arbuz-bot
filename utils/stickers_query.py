@@ -19,7 +19,7 @@ def build_public_stickers_query(before: datetime | None = None, limit: int = 10)
         .where(GeneratedImage.file_id.is_not(None))
         .where(TwitchUserSettings.ai_stickers_show_in_profile.is_(True))
         .where(
-            GeneratedImage.created_at > sa.func.now() - sa.text(f"interval '{settings.s3_sticker_expires_days} days'")
+            GeneratedImage.created_at > sa.func.now() - sa.text(f"interval '{settings.s3.sticker_expires_days} days'")
         )
         .order_by(GeneratedImage.created_at.desc())
         .limit(limit + 1)
@@ -50,7 +50,7 @@ def build_stickers_query(
         .outerjoin(User, User.twitch_id == sa.cast(GeneratedImage.on_channel, sa.String))
         .where(GeneratedImage.file_id.is_not(None))
         .where(
-            GeneratedImage.created_at > sa.func.now() - sa.text(f"interval '{settings.s3_sticker_expires_days} days'")
+            GeneratedImage.created_at > sa.func.now() - sa.text(f"interval '{settings.s3.sticker_expires_days} days'")
         )
         .order_by(GeneratedImage.created_at.desc())
         .limit(limit + 1)

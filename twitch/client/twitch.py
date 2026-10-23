@@ -90,7 +90,7 @@ async def _user_twitch_client(user: User, scope: list[AuthScope] | None = None) 
         raise TwitchTokenExpiredError("no_token", "У пользователя нет токенов Twitch")
     token_service = get_container().twitch_token_service()
     access_token = await token_service.get_valid_access_token(user)
-    twitch_user = await TwitchClient(settings.twitch_client_id, settings.twitch_client_secret)
+    twitch_user = await TwitchClient(settings.twitch.client_id, settings.twitch.client_secret)
     await twitch_user.set_user_authentication(
         access_token,
         user_scope if scope is None else scope,
@@ -118,7 +118,7 @@ def make_ebs_jwt(channel_id: str, user_id: str = "") -> str:
     }
     return jwt.encode(
         payload,
-        base64.b64decode(settings.extension_secret.get_secret_value()),
+        base64.b64decode(settings.twitch.extension_secret.get_secret_value()),
         algorithm="HS256",
     )
 
@@ -149,8 +149,8 @@ class Twitch:
             response = await client.post(
                 "https://id.twitch.tv/oauth2/token",
                 params={
-                    "client_id": settings.twitch_client_id,
-                    "client_secret": settings.twitch_client_secret,
+                    "client_id": settings.twitch.client_id,
+                    "client_secret": settings.twitch.client_secret,
                     "grant_type": "client_credentials",
                 },
                 timeout=10,
@@ -163,8 +163,10 @@ class Twitch:
         return token
 
     async def startup(self):
-        twitch = await TwitchClient(settings.twitch_client_id, settings.twitch_client_secret)
-        await twitch.set_user_authentication(settings.bot_access_token, bot_scope, settings.bot_refresh_token)
+        twitch = await TwitchClient(settings.twitch.client_id, settings.twitch.client_secret)
+        await twitch.set_user_authentication(
+            settings.twitch.bot_access_token, bot_scope, settings.twitch.bot_refresh_token
+        )
         self._twitch = twitch
 
     async def send_chat_message_raw(
@@ -188,7 +190,7 @@ class Twitch:
                 "https://api.twitch.tv/helix/chat/messages",
                 headers={
                     "Authorization": f"Bearer {self._twitch.get_app_token()}",
-                    "Client-Id": settings.twitch_client_id,
+                    "Client-Id": settings.twitch.client_id,
                     "Content-Type": "application/json",
                 },
                 json=payload,
@@ -218,13 +220,13 @@ class Twitch:
                 params={"broadcaster_id": broadcaster_id},
                 headers={
                     "Authorization": f"Bearer {token}",
-                    "Client-Id": settings.extension_id,
+                    "Client-Id": settings.twitch.extension_id,
                     "Content-Type": "application/json",
                 },
                 json={
                     "text": text[:280],
-                    "extension_id": settings.extension_id,
-                    "extension_version": settings.extension_version,
+                    "extension_id": settings.twitch.extension_id,
+                    "extension_version": settings.twitch.extension_version,
                 },
             )
 
@@ -478,8 +480,10 @@ class Twitch:
             return res
         except UnauthorizedException:
             # await self._twitch.refresh_used_token() ???
-            twitch = await TwitchClient(settings.twitch_client_id, settings.twitch_client_secret)
-            await twitch.set_user_authentication(settings.bot_access_token, bot_scope, settings.bot_refresh_token)
+            twitch = await TwitchClient(settings.twitch.client_id, settings.twitch.client_secret)
+            await twitch.set_user_authentication(
+                settings.twitch.bot_access_token, bot_scope, settings.twitch.bot_refresh_token
+            )
             self._twitch = twitch
             result = await self._twitch.get_eventsub_subscriptions()
         res = []
@@ -494,8 +498,8 @@ class Twitch:
             response = await client.post(
                 "https://id.twitch.tv/oauth2/token",
                 params={
-                    "client_id": settings.twitch_client_id,
-                    "client_secret": settings.twitch_client_secret,
+                    "client_id": settings.twitch.client_id,
+                    "client_secret": settings.twitch.client_secret,
                     "grant_type": "client_credentials",
                 },
             )
@@ -506,7 +510,7 @@ class Twitch:
                     "https://api.twitch.tv/helix/eventsub/subscriptions",
                     headers={
                         "Authorization": "Bearer " + app_token,
-                        "Client-Id": settings.twitch_client_id,
+                        "Client-Id": settings.twitch.client_id,
                         "Content-Type": "application/json",
                     },
                     json={
@@ -518,8 +522,8 @@ class Twitch:
                         },
                         "transport": {
                             "method": "webhook",
-                            "callback": str(settings.reward_redemption_webhook) + f"/{user.twitch_id}",
-                            "secret": settings.twitch_webhook_secret.get_secret_value(),
+                            "callback": str(settings.twitch.reward_redemption_webhook) + f"/{user.twitch_id}",
+                            "secret": settings.twitch.webhook_secret.get_secret_value(),
                         },
                     },
                 )
@@ -536,8 +540,8 @@ class Twitch:
             response = await client.post(
                 "https://id.twitch.tv/oauth2/token",
                 params={
-                    "client_id": settings.twitch_client_id,
-                    "client_secret": settings.twitch_client_secret,
+                    "client_id": settings.twitch.client_id,
+                    "client_secret": settings.twitch.client_secret,
                     "grant_type": "client_credentials",
                 },
             )
@@ -546,7 +550,7 @@ class Twitch:
                 "https://api.twitch.tv/helix/eventsub/subscriptions",
                 headers={
                     "Authorization": "Bearer " + app_token,
-                    "Client-Id": settings.twitch_client_id,
+                    "Client-Id": settings.twitch.client_id,
                     "Content-Type": "application/json",
                 },
                 json={
@@ -558,8 +562,8 @@ class Twitch:
                     },
                     "transport": {
                         "method": "webhook",
-                        "callback": str(settings.reward_redemption_webhook) + f"/{user.twitch_id}",
-                        "secret": settings.twitch_webhook_secret.get_secret_value(),
+                        "callback": str(settings.twitch.reward_redemption_webhook) + f"/{user.twitch_id}",
+                        "secret": settings.twitch.webhook_secret.get_secret_value(),
                     },
                 },
             )
@@ -575,8 +579,8 @@ class Twitch:
         #     },
         #     transport={
         #         "method": "webhook",
-        #         "callback": str(settings.reward_redemption_webhook) + f"/{user.twitch_id}",
-        #         "secret": settings.twitch_webhook_secret.get_secret_value(),
+        #         "callback": str(settings.twitch.reward_redemption_webhook) + f"/{user.twitch_id}",
+        #         "secret": settings.twitch.webhook_secret.get_secret_value(),
         #     },
         # )
         # return result
@@ -586,7 +590,7 @@ class Twitch:
                 "https://api.twitch.tv/helix/eventsub/subscriptions",
                 headers={
                     "Authorization": "Bearer " + app_token,
-                    "Client-Id": settings.twitch_client_id,
+                    "Client-Id": settings.twitch.client_id,
                     "Content-Type": "application/json",
                 },
                 json={
@@ -597,8 +601,8 @@ class Twitch:
                     },
                     "transport": {
                         "method": "webhook",
-                        "callback": str(settings.reward_redemption_webhook) + f"/{user.twitch_id}",
-                        "secret": settings.twitch_webhook_secret.get_secret_value(),
+                        "callback": str(settings.twitch.reward_redemption_webhook) + f"/{user.twitch_id}",
+                        "secret": settings.twitch.webhook_secret.get_secret_value(),
                     },
                 },
             )
@@ -632,7 +636,7 @@ class Twitch:
                 "https://api.twitch.tv/helix/eventsub/subscriptions",
                 headers={
                     "Authorization": "Bearer " + app_token,
-                    "Client-Id": settings.twitch_client_id,
+                    "Client-Id": settings.twitch.client_id,
                     "Content-Type": "application/json",
                 },
                 json={
@@ -641,8 +645,8 @@ class Twitch:
                     "condition": condition,
                     "transport": {
                         "method": "webhook",
-                        "callback": str(settings.reward_redemption_webhook) + f"/{user.twitch_id}",
-                        "secret": settings.twitch_webhook_secret.get_secret_value(),
+                        "callback": str(settings.twitch.reward_redemption_webhook) + f"/{user.twitch_id}",
+                        "secret": settings.twitch.webhook_secret.get_secret_value(),
                     },
                 },
             )
@@ -708,7 +712,7 @@ class Twitch:
                 "https://api.twitch.tv/helix/eventsub/subscriptions",
                 headers={
                     "Authorization": "Bearer " + app_token,
-                    "Client-Id": settings.twitch_client_id,
+                    "Client-Id": settings.twitch.client_id,
                     "Content-Type": "application/json",
                 },
                 json={
@@ -719,8 +723,8 @@ class Twitch:
                     },
                     "transport": {
                         "method": "webhook",
-                        "callback": str(settings.reward_redemption_webhook) + f"/{user.twitch_id}",
-                        "secret": settings.twitch_webhook_secret.get_secret_value(),
+                        "callback": str(settings.twitch.reward_redemption_webhook) + f"/{user.twitch_id}",
+                        "secret": settings.twitch.webhook_secret.get_secret_value(),
                     },
                 },
             )
@@ -738,7 +742,7 @@ class Twitch:
                 "https://api.twitch.tv/helix/eventsub/subscriptions",
                 headers={
                     "Authorization": "Bearer " + app_token,
-                    "Client-Id": settings.twitch_client_id,
+                    "Client-Id": settings.twitch.client_id,
                     "Content-Type": "application/json",
                 },
                 json={
@@ -749,8 +753,8 @@ class Twitch:
                     },
                     "transport": {
                         "method": "webhook",
-                        "callback": str(settings.reward_redemption_webhook) + f"/{user.twitch_id}",
-                        "secret": settings.twitch_webhook_secret.get_secret_value(),
+                        "callback": str(settings.twitch.reward_redemption_webhook) + f"/{user.twitch_id}",
+                        "secret": settings.twitch.webhook_secret.get_secret_value(),
                     },
                 },
             )
@@ -783,11 +787,11 @@ class Twitch:
             response = await client.post(
                 "https://id.twitch.tv/oauth2/token",
                 data={
-                    "client_id": settings.twitch_client_id,
-                    "client_secret": settings.twitch_client_secret,
+                    "client_id": settings.twitch.client_id,
+                    "client_secret": settings.twitch.client_secret,
                     "code": authorization_code,
                     "grant_type": "authorization_code",
-                    "redirect_uri": settings.login_redirect_url,
+                    "redirect_uri": settings.twitch.login_redirect_url,
                 },
             )
             tokens = response.json()
@@ -802,7 +806,7 @@ class Twitch:
 
     @staticmethod
     async def get_self(access_token, refresh_token) -> TwitchUser:
-        twitch_user = await TwitchClient(settings.twitch_client_id, settings.twitch_client_secret)
+        twitch_user = await TwitchClient(settings.twitch.client_id, settings.twitch.client_secret)
         await twitch_user.set_user_authentication(access_token, [], refresh_token)
         return await anext(twitch_user.get_users())
 

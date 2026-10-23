@@ -60,20 +60,20 @@ async def lifespan(app: "FastAPI | None" = None):
     await tts_service.startup()
     await stickers_processor.start()
 
-    if settings.update_bot_channels_on_startup:
+    if settings.app.update_bot_channels_on_startup:
         await chat_bot.update_bot_channels()
 
     eventsub_service = container.twitch_eventsub_service()
 
-    if not settings.direct_handle_messages:
+    if not settings.app.direct_handle_messages:
         mqtt.subscribe("twitch/+/message", chat_bot.on_message)
 
-    if not settings.direct_sending_messages:
+    if not settings.app.direct_sending_messages:
         # mqtt.subscribe("/twitch/outgoing/chat/+", chat_bot.send_message_from_broker)
         raise NotImplementedError
         # TODO: перенести топики в константы
 
-    if not settings.direct_handle_rewards:
+    if not settings.app.direct_handle_rewards:
         mqtt.subscribe("twitch/+/reward-redemption", eventsub_service.handle_reward_redemption)
 
     mqtt.subscribe("slovotron/+/+", slovotron.handle_webhook)

@@ -204,8 +204,8 @@ class TwitchTokenService:
             response = await client.post(
                 "https://id.twitch.tv/oauth2/token",
                 data={
-                    "client_id": settings.twitch_client_id,
-                    "client_secret": settings.twitch_client_secret,
+                    "client_id": settings.twitch.client_id,
+                    "client_secret": settings.twitch.client_secret,
                     "grant_type": "refresh_token",
                     "refresh_token": refresh_token,
                 },

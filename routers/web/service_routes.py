@@ -29,7 +29,7 @@ async def favicon():
 
 @router.get("/login", response_class=RedirectResponse)
 async def login():
-    return RedirectResponse(settings.login_twitch_url)
+    return RedirectResponse(settings.twitch.login_url)
 
 
 @router.get("/logout", response_class=RedirectResponse)

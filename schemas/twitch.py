@@ -32,7 +32,7 @@ class WebhookSubscriptionRaidConditionSchema(BaseModel):
 
 class WebhookTransportSchema(BaseModel):
     method: str = Field(..., examples=["webhook"])
-    callback: AnyHttpUrl = Field(..., examples=[str(settings.reward_redemption_webhook) + "/123"])
+    callback: AnyHttpUrl = Field(..., examples=[str(settings.twitch.reward_redemption_webhook) + "/123"])
 
 
 T = TypeVar("T", bound=BaseModel)

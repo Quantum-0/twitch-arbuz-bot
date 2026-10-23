@@ -283,7 +283,7 @@ class StickersService:
     @tracer.start_as_current_span("Stickers: Save to DB")
     async def _save_to_db(self, file_id: FileID, prompt: str, chatter: str, channel: User, cost: float):
         logger.debug("Saving sticker to database")
-        delta = Decimal(cost * settings.ai_cost_multiplier + settings.ai_cost_single_call)
+        delta = Decimal(cost * settings.ai.cost_multiplier + settings.ai.cost_single_call)
         async with self._db_session_factory() as session, session.begin():
             locked = (
                 await session.execute(sa.select(User).where(User.id == channel.id).with_for_update())

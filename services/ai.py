@@ -36,8 +36,8 @@ class OpenAIClient:
 
     async def startup(self):
         self._client = AsyncOpenAI(
-            api_key=settings.openai_api_key.get_secret_value(),
-            base_url=settings.openai_base_url,
+            api_key=settings.ai.api_key.get_secret_value(),
+            base_url=settings.ai.base_url,
         )
 
     async def generate_sticker_by_refs(

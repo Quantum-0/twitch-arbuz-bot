@@ -23,10 +23,10 @@ tracer = trace.get_tracer(__name__)
 class MQTTClient:
     def __init__(self):
         self._client: Client | None = None
-        self._client_id = settings.mqtt_client_id
-        self._host = settings.mqtt_host
-        self._username = settings.mqtt_username.get_secret_value()
-        self._password = settings.mqtt_password.get_secret_value()
+        self._client_id = settings.mqtt.client_id
+        self._host = settings.mqtt.host
+        self._username = settings.mqtt.username.get_secret_value()
+        self._password = settings.mqtt.password.get_secret_value()
         self._prefix = "twibot"
 
         self._handlers: list[tuple[str, Callable[..., Awaitable[None]]]] = []

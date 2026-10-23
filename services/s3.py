@@ -18,10 +18,10 @@ class FileNotExistError(S3Exception):
 class FileStorage:
     def __init__(self, session: aioboto3.Session):
         self._session = session
-        self._endpoint_url = settings.s3_url
-        self._access_key = settings.s3_access_key
-        self._secret_key = settings.s3_secret_key
-        self._bucket = settings.s3_bucket
+        self._endpoint_url = settings.s3.url
+        self._access_key = settings.s3.access_key
+        self._secret_key = settings.s3.secret_key
+        self._bucket = settings.s3.bucket
         self._client_kwargs = {
             "service_name": "s3",
             "endpoint_url": str(self._endpoint_url),

@@ -32,10 +32,10 @@ class SteamService:
     def build_auth_url(self) -> str:
         """Сформировать URL для инициации OpenID-логина через Steam.
 
-        ``openid.return_to`` и ``openid.realm`` берутся из ``settings.steam_return_to_url``.
+        ``openid.return_to`` и ``openid.realm`` берутся из ``settings.steam.return_to_url``.
         Realm — это scheme + host (+ port), без пути (требование OpenID-спеки).
         """
-        return_to = str(settings.steam_return_to_url)
+        return_to = str(settings.steam.return_to_url)
         parsed = urlparse(return_to)
         realm = f"{parsed.scheme}://{parsed.netloc}"
         params = {
@@ -98,7 +98,7 @@ class SteamService:
                 response = await client.get(
                     f"{STEAM_API_BASE}/ISteamUser/GetPlayerSummaries/v0002/",
                     params={
-                        "key": settings.steam_api_key.get_secret_value(),
+                        "key": settings.steam.api_key.get_secret_value(),
                         "steamids": steam_id,
                     },
                     timeout=10.0,

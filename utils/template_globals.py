@@ -26,6 +26,6 @@ def static_url(path: str) -> str:
 def register_template_globals(templates) -> None:
     """Регистрирует общие Jinja2-глобалы для экземпляра Jinja2Templates."""
     templates.env.globals["static_url"] = static_url
-    templates.env.globals["site_url"] = settings.base_url.rstrip("/")
+    templates.env.globals["site_url"] = settings.app.base_url.rstrip("/")
     # Проверка штатного доступа в шаблонах (видимость пунктов меню).
     templates.env.globals["is_staff"] = is_staff

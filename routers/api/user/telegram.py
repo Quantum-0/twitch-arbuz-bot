@@ -141,8 +141,8 @@ async def generate_connect_link(
     try:
         async with httpx.AsyncClient() as client:
             response = await client.post(
-                f"{settings.telegram_service_url}/api/connect",
-                headers={"X-Api-Key": settings.telegram_service_api_key},
+                f"{settings.telegram.service_url}/api/connect",
+                headers={"X-Api-Key": settings.telegram.service_api_key},
                 json={
                     "user_id": user.id,
                     "scope": data.scope,
@@ -151,7 +151,7 @@ async def generate_connect_link(
                 timeout=10,
             )
     except httpx.ConnectError:
-        logger.error("TG-сервис недоступен: %s", settings.telegram_service_url, exc_info=True)
+        logger.error("TG-сервис недоступен: %s", settings.telegram.service_url, exc_info=True)
         return JSONResponse({"title": "Ошибка", "message": "TG-сервис недоступен."}, 503)
 
     if not response.is_success:
@@ -162,7 +162,7 @@ async def generate_connect_link(
     if not short_id:
         return JSONResponse({"title": "Ошибка", "message": "TG-сервис не вернул short_id."}, 502)
 
-    url = f"https://t.me/{settings.telegram_bot_username}?start={short_id}"
+    url = f"https://t.me/{settings.telegram.bot_username}?start={short_id}"
     return JSONResponse({"url": url}, 200)
 
 

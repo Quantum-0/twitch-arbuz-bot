@@ -191,7 +191,7 @@ async def check_tts_overlay(
 @router.get("/tts-server", response_model=CheckStatusResponseSchema)
 async def check_tts_server() -> CheckStatusResponseSchema:
     """Проверить доступность внешнего TTS-сервера через /health."""
-    parts = urlsplit(settings.tts_api_url)
+    parts = urlsplit(settings.tts.api_url)
     health_url = urlunsplit((parts.scheme, parts.netloc, "/health", "", ""))
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
@@ -230,7 +230,7 @@ async def check_telegram(
     # 1. Проверка доступности TG-сервиса.
     try:
         async with httpx.AsyncClient(timeout=2.0) as client:
-            resp = await client.get(f"{settings.telegram_service_url}/api/healthcheck")
+            resp = await client.get(f"{settings.telegram.service_url}/api/healthcheck")
     except httpx.HTTPError:
         return CheckStatusResponseSchema(result=False, problems=["TG-сервис недоступен"])
     if resp.status_code != 200:
@@ -254,8 +254,8 @@ async def check_telegram(
         try:
             async with httpx.AsyncClient(timeout=10.0) as client:
                 status_resp = await client.post(
-                    f"{settings.telegram_service_url}/api/chat_status",
-                    headers={"X-Api-Key": settings.telegram_service_api_key},
+                    f"{settings.telegram.service_url}/api/chat_status",
+                    headers={"X-Api-Key": settings.telegram.service_api_key},
                     json={"chat_id": chat_id},
                 )
         except httpx.HTTPError:

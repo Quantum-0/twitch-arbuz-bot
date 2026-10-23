@@ -107,8 +107,8 @@ async def control_panel(
             },
             "slovotron_secret": overlay_secret,
             # Кнопка «Привязать Telegram» (OIDC) видна только при настроенном client_id/secret.
-            "telegram_login_enabled": settings.telegram_login_client_id is not None
-            and bool(settings.telegram_login_client_secret.get_secret_value()),
+            "telegram_login_enabled": settings.telegram.login_client_id is not None
+            and bool(settings.telegram.login_client_secret.get_secret_value()),
         },
     )
 
@@ -130,7 +130,7 @@ async def ai_stickers_page(
                 .where(GeneratedImage.file_id.is_not(None))
                 .where(
                     GeneratedImage.created_at
-                    > sa.func.now() - sa.text(f"interval '{settings.s3_sticker_expires_days} days'")
+                    > sa.func.now() - sa.text(f"interval '{settings.s3.sticker_expires_days} days'")
                 )
                 .order_by(GeneratedImage.created_at.desc())
                 .limit(10)

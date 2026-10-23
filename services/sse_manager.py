@@ -124,7 +124,7 @@ class SSEManager:
             conn = HeatUpstreamConnection(
                 user_id=user_id,
                 sse_manager=self,
-                url=settings.heat_url + str(user_id),
+                url=settings.app.heat_url + str(user_id),
                 statistics=self._statistics,
             )
 

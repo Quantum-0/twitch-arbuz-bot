@@ -3,7 +3,7 @@
 Выделено из ``TwitchEventSubService`` (там остался EventSub-домен: награды,
 мемкоины, стикеры, TTS, revocation). Спецификация поведения — ``docs/telegram.md``.
 
-Модель (W = ``settings.stream_restart_window_minutes``, дефолт 15 мин):
+Модель (W = ``settings.app.stream_restart_window_minutes``, дефолт 15 мин):
 
 - ``stream.offline`` → ничего не делает сразу: ставит APScheduler-джобу
   ``stream_offline_deferred:{user_id}`` на ``now + W`` (``replace_existing`` —
@@ -272,7 +272,7 @@ class StreamNotificationsService:
         if behavior != "notify":
             logger.info(
                 "Перезапуск стрима (< %d мин) скрыт для user_id=%s (behavior=%s)",
-                settings.stream_restart_window_minutes,
+                settings.app.stream_restart_window_minutes,
                 user.id,
                 behavior,
             )
@@ -283,7 +283,7 @@ class StreamNotificationsService:
             if await self._cache.get_str(cd_key) is not None:
                 logger.info("Перезапуск user_id=%s: CD активен, сообщение о рестарте не дублируем", user.id)
                 return
-            await self._cache.set_str(cd_key, "1", ttl=settings.stream_restart_window_minutes * 60)
+            await self._cache.set_str(cd_key, "1", ttl=settings.app.stream_restart_window_minutes * 60)
 
         restart_text = render_stream_restart_message(tg, channel_name, stream_url)
         await self._publish_send_message(
@@ -354,7 +354,7 @@ class StreamNotificationsService:
 
         from container_runtime import get_container
 
-        run_date = datetime.now(UTC) + timedelta(minutes=settings.stream_restart_window_minutes)
+        run_date = datetime.now(UTC) + timedelta(minutes=settings.app.stream_restart_window_minutes)
         try:
             get_container().scheduler().add_job(
                 process_deferred_stream_offline,
@@ -375,7 +375,7 @@ class StreamNotificationsService:
         logger.info(
             "stream.offline user_id=%s: подтверждение окончания отложено на %d мин",
             user.id,
-            settings.stream_restart_window_minutes,
+            settings.app.stream_restart_window_minutes,
         )
 
     # ── MQTT-публикации в TG-микросервис ───────────────────────────────────

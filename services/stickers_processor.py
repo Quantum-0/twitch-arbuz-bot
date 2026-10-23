@@ -58,7 +58,7 @@ class StickerProcessor:
         # Запускаем загрузку модели в отдельном потоке, чтобы не блокировать lifespan.
         # Если нейронка удаления фона отключена конфигом (модели gpt-image-2.5-*
         # генерируют прозрачный фон сами) — не грузим onnx-сессию вовсе.
-        if settings.sticker_rembg_enabled:
+        if settings.ai.sticker_rembg_enabled:
             threading.Thread(target=self._load_session, daemon=True, name="rembg-loader").start()
         else:
             logger.info("rembg disabled by config (sticker_rembg_enabled=False): onnx model is not loaded")
@@ -372,7 +372,7 @@ class StickerProcessor:
         Основной асинхронный метод для вызова из API (старый зелёный пайплайн:
         rembg + чистка хромакея + обводка + тень). Требует загруженной нейронки.
         """
-        if not settings.sticker_rembg_enabled:
+        if not settings.ai.sticker_rembg_enabled:
             # Нейронка отключена конфигом — зелёный пайплайн недоступен.
             return await self._collect_bytes(image_stream)
         return await self._enqueue(self._process_image_sync, image_stream)

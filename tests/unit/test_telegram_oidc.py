@@ -23,8 +23,8 @@ def make_login() -> TelegramLoginService:
 
 
 def configure(monkeypatch) -> None:
-    monkeypatch.setattr(settings, "telegram_login_client_id", CLIENT_ID)
-    monkeypatch.setattr(settings, "telegram_login_client_secret", SecretStr(CLIENT_SECRET))
+    monkeypatch.setattr(settings.telegram, "login_client_id", CLIENT_ID)
+    monkeypatch.setattr(settings.telegram, "login_client_secret", SecretStr(CLIENT_SECRET))
 
 
 def gen_rsa_key():
@@ -119,8 +119,8 @@ def test_is_configured(monkeypatch) -> None:
 
 
 def test_not_configured_by_default(monkeypatch) -> None:
-    monkeypatch.setattr(settings, "telegram_login_client_id", None)
-    monkeypatch.setattr(settings, "telegram_login_client_secret", SecretStr(""))
+    monkeypatch.setattr(settings.telegram, "login_client_id", None)
+    monkeypatch.setattr(settings.telegram, "login_client_secret", SecretStr(""))
     assert make_login().is_configured is False
 
 
@@ -148,7 +148,7 @@ def test_build_auth_url(monkeypatch) -> None:
     assert q["state"] == ["state123"]
     assert q["code_challenge"] == ["challenge456"]
     assert q["code_challenge_method"] == ["S256"]
-    assert q["redirect_uri"] == [str(settings.telegram_login_redirect_url)]
+    assert q["redirect_uri"] == [str(settings.telegram.login_redirect_url)]
 
 
 async def test_validate_id_token_ok(monkeypatch) -> None:
@@ -254,8 +254,8 @@ async def test_exchange_code_goes_through_relay(monkeypatch) -> None:
     assert claims is not None
     assert claims["id"] == 987654321
     sent = FakeAsyncClient.captured
-    assert sent["url"] == f"{settings.telegram_service_url}/api/oauth/token"
-    assert sent["headers"] == {"X-Api-Key": settings.telegram_service_api_key}
+    assert sent["url"] == f"{settings.telegram.service_url}/api/oauth/token"
+    assert sent["headers"] == {"X-Api-Key": settings.telegram.service_api_key}
     # Basic auth (client_id:client_secret) идёт транзитом через релей.
     assert sent["auth"] == (str(CLIENT_ID), CLIENT_SECRET)
     assert sent["json"]["grant_type"] == "authorization_code"
@@ -328,5 +328,5 @@ def test_proxied_jwk_client_fetches_via_relay(monkeypatch) -> None:
     data = client.fetch_data()
 
     assert data == {"keys": []}
-    assert captured["url"] == f"{settings.telegram_service_url}/api/oauth/jwks"
-    assert captured["headers"] == {"X-Api-Key": settings.telegram_service_api_key}
+    assert captured["url"] == f"{settings.telegram.service_url}/api/oauth/jwks"
+    assert captured["headers"] == {"X-Api-Key": settings.telegram.service_api_key}

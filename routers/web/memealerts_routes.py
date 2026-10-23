@@ -36,8 +36,8 @@ async def memealerts_auth(
         "iat": datetime.datetime.now(tz=UTC),
         "exp": datetime.datetime.now(tz=UTC) + timedelta(minutes=5),
     }
-    state = jwt.encode(payload, settings.memealerts_state_secret.get_secret_value())
-    url = settings.memealerts_oauth_url.replace("{state}", state)
+    state = jwt.encode(payload, settings.memealerts.state_secret.get_secret_value())
+    url = settings.memealerts.oauth_url.replace("{state}", state)
     return RedirectResponse(url)
 
 
@@ -53,7 +53,7 @@ async def callback(
     user: Any = Security(user_auth),
 ):
     try:
-        decoded = jwt.decode(state, settings.memealerts_state_secret.get_secret_value(), algorithms=["HS256"])
+        decoded = jwt.decode(state, settings.memealerts.state_secret.get_secret_value(), algorithms=["HS256"])
     except jwt.ExpiredSignatureError as exc:
         raise HTTPException(403, detail="Signature has expired") from exc
     except jwt.InvalidTokenError as exc:

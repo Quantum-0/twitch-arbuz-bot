@@ -89,7 +89,7 @@ async def eventsub_handler(
     if isinstance(payload, PointRewardRedemptionWebhookSchema):
         logger.info("Handling reward redemption")
         await mqtt.publish(f"twitch/{payload.subscription.condition.broadcaster_user_id}/reward-redemption", payload)
-        if settings.direct_handle_rewards:
+        if settings.app.direct_handle_rewards:
             await service.handle_reward_redemption(payload)
     elif isinstance(payload, RaidWebhookSchema):
         logger.info("Handling raid")
@@ -97,7 +97,7 @@ async def eventsub_handler(
         await mqtt.publish(f"twitch/{payload.subscription.condition.to_broadcaster_user_id}/raid", payload)
     elif isinstance(payload, ChatMessageSchema):
         logger.info("Handling message webhook")
-        if settings.direct_handle_messages:
+        if settings.app.direct_handle_messages:
             asyncio.create_task(chat_bot.on_message(payload.event))
         await mqtt.publish(f"twitch/{payload.subscription.condition.broadcaster_user_id}/message", payload.event)
     elif isinstance(payload, StreamOnlineSchema):

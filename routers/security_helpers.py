@@ -96,7 +96,7 @@ async def verify_eventsub_signature(
     expected = (
         "sha256="
         + hmac.new(
-            key=settings.twitch_webhook_secret.get_secret_value().encode(),
+            key=settings.twitch.webhook_secret.get_secret_value().encode(),
             msg=hmac_msg.encode(),
             digestmod=hashlib.sha256,
         ).hexdigest()
@@ -221,10 +221,10 @@ def admin_auth(
     credentials: Annotated[HTTPBasicCredentials, Depends(security)],
 ):
     current_username_bytes = credentials.username.encode("utf8")
-    correct_username_bytes = settings.admin_api_login.encode()
+    correct_username_bytes = settings.app.admin_api_login.encode()
     is_correct_username = secrets.compare_digest(current_username_bytes, correct_username_bytes)
     current_password_bytes = credentials.password.encode("utf8")
-    correct_password_bytes = settings.admin_api_password.encode()
+    correct_password_bytes = settings.app.admin_api_password.encode()
     is_correct_password = secrets.compare_digest(current_password_bytes, correct_password_bytes)
     if not (is_correct_username and is_correct_password):
         raise HTTPException(

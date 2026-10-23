@@ -16,7 +16,7 @@
   дебаунс `stream.offline` (отложенная джоба `stream_offline_deferred:*` +
   проверка Get Streams), notify-CD (`telegram:restart_notify_cd:*`),
   упразднение Redis-маркера `telegram:stream_restart:*` и edit-ветки,
-  настройка `Settings.stream_restart_window_minutes`.
+  настройка `AppSettings.stream_restart_window_minutes`.
 - ✅ 2026-10-06, имплементировано в коде (деплой ожидает): привязка личного
   Telegram (`telegram_user_id`) — приватные чаты по deep-link + Telegram Login
   (OIDC, кнопка в «Других настройках»); TG-уведомления при отзыве авторизации
@@ -52,7 +52,7 @@ twitch-bot (vds-msk)  ⇄  MQTT/EMQX (префикс топиков: twibot/)  �
 `W` — окно перезапуска, задержка подтверждения окончания и CD сообщений о
 рестарте. Одна величина на всё:
 
-- Конфиг: `Settings.stream_restart_window_minutes` (`config.py`),
+- Конфиг: `AppSettings.stream_restart_window_minutes` (`config.py`),
   env `STREAM_RESTART_WINDOW_MINUTES`, **дефолт 15**, в `.env` не задаём.
 
 ## Настройки (таблица `telegram_settings`)

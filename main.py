@@ -30,9 +30,9 @@ from exceptions import UserBannedError
 from routers.routers import api_router, router_for_robots, user_router
 from utils.logging_conf import LOGGING_CONFIG
 
-if settings.sentry_dsn:
+if settings.app.sentry_dsn:
     sentry_sdk.init(
-        dsn=str(settings.sentry_dsn),
+        dsn=str(settings.app.sentry_dsn),
         integrations=[StarletteIntegration(), FastApiIntegration()],
     )
 else:
@@ -49,7 +49,7 @@ app = FastAPI(lifespan=lifespan)
 
 # OTEL
 trace_provider = TracerProvider()
-trace_processor = BatchSpanProcessor(OTLPSpanExporter(endpoint=str(settings.otel_endpoint)))
+trace_processor = BatchSpanProcessor(OTLPSpanExporter(endpoint=str(settings.app.otel_endpoint)))
 trace_provider.add_span_processor(trace_processor)
 trace.set_tracer_provider(trace_provider)
 tracer = trace.get_tracer(__name__)
@@ -99,7 +99,7 @@ PrometheusInstrumentator().instrument(app).expose(app)
 #     allow_headers=["Content-Type", "Authorization"],
 # )
 
-app.add_middleware(SessionMiddleware, secret_key=settings.middleware_secret_key)
+app.add_middleware(SessionMiddleware, secret_key=settings.app.middleware_secret_key)
 app.include_router(router=api_router)
 app.include_router(router=user_router)
 app.include_router(router=router_for_robots)

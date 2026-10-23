@@ -72,8 +72,8 @@ class _ProxiedJWKClient(PyJWKClient):
         try:
             with httpx.Client(timeout=10.0) as client:
                 response = client.get(
-                    f"{settings.telegram_service_url}{TG_RELAY_JWKS_PATH}",
-                    headers={"X-Api-Key": settings.telegram_service_api_key},
+                    f"{settings.telegram.service_url}{TG_RELAY_JWKS_PATH}",
+                    headers={"X-Api-Key": settings.telegram.service_api_key},
                 )
                 response.raise_for_status()
                 return response.json()
@@ -108,15 +108,15 @@ class TelegramLoginService:
     @property
     def is_configured(self) -> bool:
         """Заданы ли client_id/client_secret (флоу привязки доступен)."""
-        return settings.telegram_login_client_id is not None and bool(
-            settings.telegram_login_client_secret.get_secret_value()
+        return settings.telegram.login_client_id is not None and bool(
+            settings.telegram.login_client_secret.get_secret_value()
         )
 
     def build_auth_url(self, state: str, code_challenge: str) -> str:
         """Сформировать URL инициации авторизации на oauth.telegram.org."""
         params = {
-            "client_id": str(settings.telegram_login_client_id),
-            "redirect_uri": str(settings.telegram_login_redirect_url),
+            "client_id": str(settings.telegram.login_client_id),
+            "redirect_uri": str(settings.telegram.login_redirect_url),
             "response_type": "code",
             "scope": TELEGRAM_LOGIN_SCOPES,
             "state": state,
@@ -138,18 +138,18 @@ class TelegramLoginService:
         try:
             async with httpx.AsyncClient(timeout=15.0) as client:
                 response = await client.post(
-                    f"{settings.telegram_service_url}{TG_RELAY_TOKEN_PATH}",
+                    f"{settings.telegram.service_url}{TG_RELAY_TOKEN_PATH}",
                     json={
                         "grant_type": "authorization_code",
                         "code": code,
-                        "redirect_uri": str(settings.telegram_login_redirect_url),
-                        "client_id": str(settings.telegram_login_client_id),
+                        "redirect_uri": str(settings.telegram.login_redirect_url),
+                        "client_id": str(settings.telegram.login_client_id),
                         "code_verifier": code_verifier,
                     },
-                    headers={"X-Api-Key": settings.telegram_service_api_key},
+                    headers={"X-Api-Key": settings.telegram.service_api_key},
                     auth=(
-                        str(settings.telegram_login_client_id),
-                        settings.telegram_login_client_secret.get_secret_value(),
+                        str(settings.telegram.login_client_id),
+                        settings.telegram.login_client_secret.get_secret_value(),
                     ),
                 )
                 response.raise_for_status()
@@ -182,7 +182,7 @@ class TelegramLoginService:
                 id_token,
                 signing_key.key,
                 algorithms=["RS256", "ES256"],
-                audience=str(settings.telegram_login_client_id),
+                audience=str(settings.telegram.login_client_id),
                 issuer=TELEGRAM_ISSUER,
             )
         except jwt.PyJWKClientError:

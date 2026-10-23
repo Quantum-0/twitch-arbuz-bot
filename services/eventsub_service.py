@@ -799,7 +799,7 @@ class TwitchEventSubService:
             logger.warning("MQTT не доступен, не могу отправить стикер в Telegram")
             return
 
-        sticker_url = f"{settings.base_url}/files/{FileStorageDir.AI_GENERATED_STICKER}/{sticker_id}"
+        sticker_url = f"{settings.app.base_url}/files/{FileStorageDir.AI_GENERATED_STICKER}/{sticker_id}"
         caption = f"🎨 {chatter_name}: {prompt}"[:1024]
         request_id = f"sticker:{user.id}:{sticker_id}"
 

@@ -76,7 +76,7 @@ def test_evaluate_alerts_warning_band():
     metric = SimpleNamespace(disk_used_percent=75.0, cpu_percent=None, mem_used_percent=None, load5=None)
     alerts = evaluate_alerts(metric)
     assert [(a.metric, a.severity) for a in alerts] == [("disk", SEVERITY_WARNING)]
-    assert alerts[0].limit == float(settings.server_alert_disk_percent)
+    assert alerts[0].limit == float(settings.monitoring.alert_disk_percent)
 
 
 def test_evaluate_alerts_uses_cpu_max_for_db_row():
@@ -321,7 +321,7 @@ async def test_flush_idempotent_on_conflict(db_session):
 @pytest.mark.asyncio
 async def test_cleanup_old_data_retention(db_session):
     service = _make_service(db_session)
-    old = ServerMetric(bucket_ts=datetime.now(UTC) - timedelta(days=settings.server_metrics_retention_days + 5))
+    old = ServerMetric(bucket_ts=datetime.now(UTC) - timedelta(days=settings.monitoring.metrics_retention_days + 5))
     fresh = ServerMetric(bucket_ts=datetime.now(UTC))
     db_session.add_all([old, fresh])
     await db_session.commit()
