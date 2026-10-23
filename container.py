@@ -66,22 +66,24 @@ class Container(containers.DeclarativeContainer):
     )
 
     db_session_factory = providers.Object(AsyncSessionLocal)
-    redis = providers.Resource(
+    redis = providers.Singleton(
         init_redis,
         redis_url=settings.redis.url,
     )
-    binary_redis = providers.Resource(
+    binary_redis = providers.Singleton(
         init_redis,
         binary=True,
         redis_url=settings.redis.url,
     )
     state_manager = providers.Singleton(
         RedisStateManager,
-        # redis=redis,
+        redis=redis,
         default_ttl=24 * 60 * 60,
     )
     cache = providers.Singleton(
         Cache,
+        redis=redis,
+        binary_redis=binary_redis,
     )
     bans = providers.Singleton(
         BanService,
@@ -91,14 +93,16 @@ class Container(containers.DeclarativeContainer):
     statistics = providers.Singleton(
         StatisticsService,
         db_session_factory=db_session_factory,
+        redis=redis,
     )
     server_metrics = providers.Singleton(
         ServerMetricsService,
         db_session_factory=db_session_factory,
+        redis=redis,
     )
-    twitch = providers.Singleton(Twitch)
+    twitch = providers.Singleton(Twitch, redis=redis)
     mqtt = providers.Singleton(MQTTClient)
-    sse_manager = providers.Singleton(SSEManager, statistics=statistics)
+    sse_manager = providers.Singleton(SSEManager, statistics=statistics, redis=redis)
     chat_bot = providers.Singleton(
         ChatBot,
         db_session_factory=db_session_factory,
@@ -113,9 +117,18 @@ class Container(containers.DeclarativeContainer):
         SlovotronService, db_session_factory=db_session_factory, chat_bot=chat_bot, ssem=sse_manager
     )
     memealerts = providers.Singleton(MemealertsService, db_session_factory=db_session_factory)  # deprecated!!!
-    memealerts_auth = providers.Singleton(MemealertsOAuthService, db_session_factory=db_session_factory)
+    memealerts_auth = providers.Singleton(
+        MemealertsOAuthService,
+        db_session_factory=db_session_factory,
+        redis=redis,
+        statistics=statistics,
+    )
     memealerts_v2 = providers.Singleton(MemealertsV2Service, db_session_factory=db_session_factory)
-    twitch_token_service = providers.Singleton(TwitchTokenService, db_session_factory=db_session_factory)
+    twitch_token_service = providers.Singleton(
+        TwitchTokenService,
+        db_session_factory=db_session_factory,
+        redis=redis,
+    )
     clips_poller = providers.Singleton(
         ClipsPollerService,
         db_session_factory=db_session_factory,

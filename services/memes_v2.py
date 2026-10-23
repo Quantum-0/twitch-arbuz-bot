@@ -142,10 +142,6 @@ class MemealertsOAuthService:
         self._statistics = statistics
         self._refresh_semaphore = asyncio.Semaphore(10)
 
-    async def startup(self, redis: aioredis.Redis, statistics: "StatisticsService | None") -> None:
-        self._redis = redis
-        self._statistics = statistics
-
     def _stat_refresh(self, subtype: str) -> None:
         if self._statistics is not None:
             self._statistics.inc(StatsType.MA_TOKEN_REFRESH, subtype=subtype)

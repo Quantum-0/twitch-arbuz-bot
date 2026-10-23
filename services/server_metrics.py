@@ -39,7 +39,6 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
-import redis.asyncio as aioredis
 import sqlalchemy as sa
 from opentelemetry import trace
 from redis.asyncio import Redis
@@ -412,18 +411,15 @@ class ServerMetricsService:
     def __init__(
         self,
         db_session_factory: Callable[[], AsyncSession],
+        redis: Redis,
         proc_dir: str | None = None,
         disk_path: str | None = None,
     ) -> None:
         self._db = db_session_factory
-        self._r: Redis | None = None
+        self._r = redis
         # Каталоги переопределяются тестами; продакшн-дефолты — из конфига.
         self._proc_dir = Path(proc_dir or settings.monitoring.metrics_proc_dir)
         self._disk_path = Path(disk_path or settings.monitoring.metrics_disk_path)
-
-    async def startup(self, redis: aioredis.Redis) -> None:
-        self._r = redis
-        logger.info("ServerMetricsService started (proc=%s, disk=%s)", self._proc_dir, self._disk_path)
 
     # ------------------------------------------------------------------
     # Сбор (тик раз в 5 минут)
@@ -437,8 +433,6 @@ class ServerMetricsService:
             logger.error("server metrics tick failed", exc_info=True)
 
     async def _tick(self) -> None:
-        if self._r is None:
-            return
         prev = _decode_map(await self._r.hgetall(STATE_KEY))
         result = _collect_sample(self._proc_dir, self._disk_path, prev)
         if result is None:
@@ -447,8 +441,6 @@ class ServerMetricsService:
         await self._store_sample(result)
 
     async def _store_sample(self, result: _TickResult) -> None:
-        if self._r is None:
-            return
         sample_json = _sample_to_json(result.sample)
         pipe = self._r.pipeline(transaction=False)
         pipe.rpush(BUFFER_KEY, sample_json)
@@ -477,8 +469,6 @@ class ServerMetricsService:
             logger.error("server metrics flush failed", exc_info=True)
 
     async def _flush(self) -> None:
-        if self._r is None:
-            return
         raw_items = await self._r.lrange(BUFFER_KEY, 0, -1)
         samples = [s for s in (_parse_sample(raw) for raw in raw_items) if s is not None]
         if not samples:
@@ -563,16 +553,15 @@ class ServerMetricsService:
         долгом простое коллектора на бейджах висел бы вечный алерт); при недоступном
         Redis — тоже БД; если данных нет вовсе — пустой список.
         """
-        if self._r is not None:
-            try:
-                raw = await self._r.get(LAST_KEY)
-            except Exception:
-                logger.error("server metrics: Redis GET failed, falling back to DB", exc_info=True)
-                raw = None
-            if raw:
-                sample = _parse_sample(raw)
-                if sample is not None:
-                    return evaluate_alerts(sample)
+        try:
+            raw = await self._r.get(LAST_KEY)
+        except Exception:
+            logger.error("server metrics: Redis GET failed, falling back to DB", exc_info=True)
+            raw = None
+        if raw:
+            sample = _parse_sample(raw)
+            if sample is not None:
+                return evaluate_alerts(sample)
         latest = await self.get_latest_row()
         if latest is None or latest.bucket_ts < datetime.now(UTC) - FALLBACK_MAX_AGE:
             return []

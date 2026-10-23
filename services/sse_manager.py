@@ -37,17 +37,14 @@ class SSEConnection:
 
 
 class SSEManager:
-    def __init__(self, statistics: StatisticsService | None = None):
+    def __init__(self, redis: aioredis.Redis, statistics: StatisticsService | None = None):
         # user_id -> channel -> set[SSEConnection]
         self._connections: dict[int, dict[SSEChannel, set[SSEConnection]]] = defaultdict(lambda: defaultdict(set))
         self._heat_connections: dict[int, HeatUpstreamConnection] = {}
         self._lock = asyncio.Lock()
         self._heat_lock = asyncio.Lock()
-        self._r: aioredis.Redis | None = None
-        self._statistics = statistics
-
-    async def startup(self, redis: aioredis.Redis) -> None:
         self._r = redis
+        self._statistics = statistics
 
     async def connect(
         self,
@@ -70,11 +67,10 @@ class SSEManager:
             self._connections[user_id][channel].add(conn)
 
         # Новый коннект — грейс-ключ больше не нужен (есть живой клиент).
-        if self._r is not None:
-            try:
-                await self._r.delete(_grace_key(user_id, channel))
-            except Exception:
-                logger.error("Error deleting SSE grace key", exc_info=True)
+        try:
+            await self._r.delete(_grace_key(user_id, channel))
+        except Exception:
+            logger.error("Error deleting SSE grace key", exc_info=True)
 
         if channel == SSEChannel.HEAT:
             await self._ensure_heat(user_id)
@@ -104,7 +100,7 @@ class SSEManager:
 
         # Последний клиент ушёл — кладём грейс-ключ, чтобы в течение SSE_GRACE_TTL_S
         # секунд канал считался «подключённым» (на случай быстрого реконнекта OBS).
-        if became_empty and self._r is not None:
+        if became_empty:
             try:
                 await self._r.setex(_grace_key(user_id, channel), SSE_GRACE_TTL_S, "1")
             except Exception:
@@ -162,12 +158,11 @@ class SSEManager:
             return True
         # Грейс-период: последний клиент отключился недавно — считаем «ещё подключён»,
         # чтобы микро-разрывы EventSource (OBS/браузер ~3с реконнект) не роняли награды.
-        if self._r is not None:
-            try:
-                return bool(await self._r.exists(_grace_key(user_id, channel)))
-            except Exception:
-                logger.error("Error checking SSE grace key", exc_info=True)
-        return False
+        try:
+            return bool(await self._r.exists(_grace_key(user_id, channel)))
+        except Exception:
+            logger.error("Error checking SSE grace key", exc_info=True)
+            return False
 
     async def snapshot(self) -> dict[str, int]:
         """Возвращает мгновенный снапшот активных SSE-подключений.

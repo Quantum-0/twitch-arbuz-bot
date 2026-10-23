@@ -34,11 +34,9 @@ def _host_sample(disk: float) -> HostSample:
 @pytest.fixture
 def metrics_service(db_session):
     """Сервис метрик на FakeRedis + тестовой сессии; live-сэмпл с критичным диском."""
-    service = ServerMetricsService(session_factory(db_session))
     fake = FakeRedis()
     fake.values[LAST_KEY] = _sample_to_json(_host_sample(disk=95.0))
-    service._r = fake  # noqa: SLF001 — подмена redis без startup()
-    return service
+    return ServerMetricsService(session_factory(db_session), redis=fake)
 
 
 @pytest.fixture

@@ -127,11 +127,7 @@ def make_ebs_jwt(channel_id: str, user_id: str = "") -> str:
 class Twitch:
     _twitch: TwitchClient = None  # type: ignore
 
-    def __init__(self):
-        self._redis: aioredis.Redis | None = None
-
-    def startup_redis(self, redis: aioredis.Redis) -> None:
-        """Передать Redis-клиент для кэширования app access token."""
+    def __init__(self, redis: aioredis.Redis):
         self._redis = redis
 
     async def _get_app_access_token(self) -> str:
@@ -140,10 +136,9 @@ class Twitch:
         Используется для EventSub-подписок stream.online / stream.offline / channel.raid.
         Все эти подписки cost=0 и не требуют user-scopes — достаточно app token.
         """
-        if self._redis is not None:
-            cached = await self._redis.get(_APP_TOKEN_REDIS_KEY)
-            if cached:
-                return cached  # type: ignore[return-value]
+        cached = await self._redis.get(_APP_TOKEN_REDIS_KEY)
+        if cached:
+            return cached  # type: ignore[return-value]
 
         async with httpx.AsyncClient() as client:
             response = await client.post(
@@ -158,8 +153,7 @@ class Twitch:
             response.raise_for_status()
             token = response.json()["access_token"]
 
-        if self._redis is not None:
-            await self._redis.set(_APP_TOKEN_REDIS_KEY, token, ex=_APP_TOKEN_TTL)
+        await self._redis.set(_APP_TOKEN_REDIS_KEY, token, ex=_APP_TOKEN_TTL)
         return token
 
     async def startup(self):

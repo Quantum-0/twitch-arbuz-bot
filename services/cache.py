@@ -14,13 +14,15 @@ T = TypeVar("T")
 
 
 class Cache:
-    def __init__(self, default_ttl: int = 4 * 60 * 60):
-        # self._r = init_redis()
-        self._default_ttl = default_ttl
-
-    async def startup(self, redis: aioredis.Redis, binary_redis: aioredis.Redis):
+    def __init__(
+        self,
+        redis: aioredis.Redis,
+        binary_redis: aioredis.Redis,
+        default_ttl: int = 4 * 60 * 60,
+    ):
         self._r = redis
         self._rb = binary_redis
+        self._default_ttl = default_ttl
 
     def _generate_key(self, func: Callable[..., Awaitable[None]], args: tuple, kwargs: dict) -> str:
         """Генерация уникального ключа на основе имени функции и её аргументов."""

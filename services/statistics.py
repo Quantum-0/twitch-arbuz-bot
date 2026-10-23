@@ -18,7 +18,6 @@ from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-import redis.asyncio as aioredis
 import sqlalchemy as sa
 from opentelemetry import trace
 from redis.asyncio import Redis
@@ -183,15 +182,11 @@ class StatisticsService:
     # TTL на flush-ключи в Redis — чтобы при сбоях дампа мусор не копился.
     HASH_TTL_SECONDS = 2 * 60 * 60  # 2 часа
 
-    def __init__(self, db_session_factory: Callable[[], AsyncSession]) -> None:
+    def __init__(self, db_session_factory: Callable[[], AsyncSession], redis: Redis) -> None:
         self._db = db_session_factory
-        self._r: Redis | None = None
+        self._r = redis
         # Храним ссылки на fire-and-forget таски, чтобы их не убил GC.
         self._tasks: set[asyncio.Task[Any]] = set()
-
-    async def startup(self, redis: aioredis.Redis) -> None:
-        self._r = redis
-        logger.info("StatisticsService started")
 
     # ------------------------------------------------------------------
     # Инкремент
@@ -211,9 +206,6 @@ class StatisticsService:
         Redis не роняло обработку чата. ``amount`` по умолчанию = 1; для
         byte-счётчиков можно передать размер сообщения.
         """
-        if self._r is None:
-            # Сервис ещё не стартовал (или Redis умер при init) — теряем метрику.
-            return
         coro = self._inc(str(type_), subtype, channel_id, amount)
         task = asyncio.create_task(coro)
         self._tasks.add(task)
@@ -236,16 +228,12 @@ class StatisticsService:
         Та же механика используется для sum-метрик (``SUM_TYPES``), где ``count``
         — число событий, а ``sum_ms`` — суммарный объём (например, байты Heat).
         """
-        if self._r is None:
-            return
         coro = self._inc_timing(str(type_), subtype, channel_id, value_ms)
         task = asyncio.create_task(coro)
         self._tasks.add(task)
         task.add_done_callback(self._tasks.discard)
 
     async def _inc(self, type_: str, subtype: str, channel_id: int | None, amount: int = 1) -> None:
-        if self._r is None:
-            return
         try:
             bucket = _floor_to_bucket(datetime.now(UTC), BUCKET_SECONDS)
             key = self._bucket_key(bucket)
@@ -258,8 +246,6 @@ class StatisticsService:
             logger.error("Statistics inc failed for type=%s subtype=%s", type_, subtype, exc_info=True)
 
     async def _inc_timing(self, type_: str, subtype: str, channel_id: int | None, value_ms: int) -> None:
-        if self._r is None:
-            return
         try:
             bucket = _floor_to_bucket(datetime.now(UTC), BUCKET_SECONDS)
             key = self._bucket_key(bucket)
@@ -303,16 +289,12 @@ class StatisticsService:
         даёт число уникальных каналов, на которых были сообщения (входящие или
         исходящие — определяется ``subtype``).
         """
-        if self._r is None:
-            return
         coro = self._mark_channel(subtype, channel_id)
         task = asyncio.create_task(coro)
         self._tasks.add(task)
         task.add_done_callback(self._tasks.discard)
 
     async def _mark_channel(self, subtype: str, channel_id: int) -> None:
-        if self._r is None:
-            return
         try:
             bucket = _floor_to_bucket(datetime.now(UTC), BUCKET_SECONDS)
             key = self._channels_key(subtype, bucket)
@@ -344,8 +326,6 @@ class StatisticsService:
         Используется для SSE-подключений: раз в минуту APScheduler-джоб делает
         snapshot ``SSEManager`` и вызывает этот метод.
         """
-        if self._r is None:
-            return
         if not values:
             return
         coro = self._set_gauge(str(type_), values)
@@ -354,8 +334,6 @@ class StatisticsService:
         task.add_done_callback(self._tasks.discard)
 
     async def _set_gauge(self, type_: str, values: dict[str, int]) -> None:
-        if self._r is None:
-            return
         try:
             bucket = _floor_to_bucket(datetime.now(UTC), BUCKET_SECONDS)
             key = self._bucket_key(bucket)
@@ -393,9 +371,6 @@ class StatisticsService:
         ``SCARD`` (число уникальных каналов) записывается в ``count`` с
         ``type=active_channels`` и ``subtype=incoming``/``outgoing``.
         """
-        if self._r is None:
-            logger.warning("StatisticsService.flush_to_db called before startup")
-            return
         current_bucket = _floor_to_bucket(datetime.now(UTC), BUCKET_SECONDS)
         try:
             keys = [k async for k in self._r.scan_iter(match=f"{self.HASH_KEY_PREFIX}*")]
@@ -421,8 +396,6 @@ class StatisticsService:
 
     async def _flush_channels(self, current_bucket: datetime) -> None:
         """Обрабатывает ``statistics:channels:*`` SET-ключи и заливает SCARD в БД."""
-        if self._r is None:
-            return
         try:
             ch_keys = [k async for k in self._r.scan_iter(match=f"{self.CHANNELS_KEY_PREFIX}*")]
         except Exception:
@@ -441,8 +414,6 @@ class StatisticsService:
             await self._dump_channels_set(key_str, subtype, bucket)
 
     async def _dump_one(self, key: str, bucket: datetime) -> None:
-        if self._r is None:
-            return
         try:
             raw = await self._r.hgetall(key)
         except Exception:
@@ -575,8 +546,6 @@ class StatisticsService:
 
     async def _dump_channels_set(self, key: str, subtype: str, bucket: datetime) -> None:
         """Считает SCARD и пишет строку с type=active_channels, count=scard."""
-        if self._r is None:
-            return
         try:
             count = await self._r.scard(key)
         except Exception:

@@ -192,9 +192,11 @@ def _make_service(
     db_session: Any = None,
     proc_dir: str = "/nonexistent-proc",
     disk_path: str = "/nonexistent-disk",
+    redis: Any = None,
 ) -> ServerMetricsService:
     return ServerMetricsService(
         _factory(db_session),
+        redis=redis,
         proc_dir=proc_dir,
         disk_path=disk_path,
     )
@@ -202,9 +204,8 @@ def _make_service(
 
 @pytest.mark.asyncio
 async def test_tick_skips_without_sources(tmp_path):
-    service = _make_service(proc_dir=str(tmp_path / "no-proc"), disk_path=str(tmp_path / "no-disk"))
     fake = FakeRedis()
-    await service.startup(fake)  # type: ignore[arg-type]
+    service = _make_service(proc_dir=str(tmp_path / "no-proc"), disk_path=str(tmp_path / "no-disk"), redis=fake)
     await service.tick()
     assert fake.lists.get(BUFFER_KEY, []) == []
     assert fake.values.get(LAST_KEY) is None
@@ -228,10 +229,9 @@ def _write_host_files(root: Any) -> None:
 @pytest.mark.asyncio
 async def test_tick_records_sample_with_deltas(tmp_path):
     _write_host_files(tmp_path)
-    service = _make_service(proc_dir=str(tmp_path / "proc"), disk_path=str(tmp_path))
     fake = FakeRedis()
     await fake.hset(STATE_KEY, mapping={"cpu_idle": 600, "cpu_total": 800, "net_rx": 0, "net_tx": 0})
-    await service.startup(fake)  # type: ignore[arg-type]
+    service = _make_service(proc_dir=str(tmp_path / "proc"), disk_path=str(tmp_path), redis=fake)
 
     await service.tick()
 
@@ -255,9 +255,8 @@ async def test_tick_records_sample_with_deltas(tmp_path):
 async def test_tick_first_run_without_prev_counters(tmp_path):
     """Первый тик после рестарта: cpu/net = NULL, но сэмпл записывается."""
     _write_host_files(tmp_path)
-    service = _make_service(proc_dir=str(tmp_path / "proc"), disk_path=str(tmp_path))
     fake = FakeRedis()
-    await service.startup(fake)  # type: ignore[arg-type]
+    service = _make_service(proc_dir=str(tmp_path / "proc"), disk_path=str(tmp_path), redis=fake)
 
     await service.tick()
 
@@ -274,9 +273,8 @@ async def test_tick_first_run_without_prev_counters(tmp_path):
 
 @pytest.mark.asyncio
 async def test_flush_aggregates_closed_windows_only(db_session):
-    service = _make_service(db_session)
     fake = FakeRedis()
-    await service.startup(fake)  # type: ignore[arg-type]
+    service = _make_service(db_session, redis=fake)
 
     now = datetime.now(UTC)
     prev_window = _floor_to_window(now) - timedelta(hours=6)
@@ -301,9 +299,8 @@ async def test_flush_aggregates_closed_windows_only(db_session):
 
 @pytest.mark.asyncio
 async def test_flush_idempotent_on_conflict(db_session):
-    service = _make_service(db_session)
     fake = FakeRedis()
-    await service.startup(fake)  # type: ignore[arg-type]
+    service = _make_service(db_session, redis=fake)
 
     now = datetime.now(UTC)
     prev_window = _floor_to_window(now) - timedelta(hours=6)
@@ -334,9 +331,8 @@ async def test_cleanup_old_data_retention(db_session):
 
 @pytest.mark.asyncio
 async def test_get_active_alerts_live_sample_wins_over_db(db_session):
-    service = _make_service(db_session)
     fake = FakeRedis()
-    await service.startup(fake)  # type: ignore[arg-type]
+    service = _make_service(db_session, redis=fake)
 
     # В БД — спокойная строка, в Redis — живой сэмпл с критичным диском
     db_session.add(ServerMetric(bucket_ts=_floor_to_window(datetime.now(UTC)), disk_used_percent=50.0))
@@ -349,8 +345,7 @@ async def test_get_active_alerts_live_sample_wins_over_db(db_session):
 
 @pytest.mark.asyncio
 async def test_get_active_alerts_fallback_to_db(db_session):
-    service = _make_service(db_session)
-    await service.startup(FakeRedis())  # type: ignore[arg-type]
+    service = _make_service(db_session, redis=FakeRedis())
 
     db_session.add(ServerMetric(bucket_ts=_floor_to_window(datetime.now(UTC)), disk_used_percent=93.0))
     await db_session.commit()
@@ -361,16 +356,14 @@ async def test_get_active_alerts_fallback_to_db(db_session):
 
 @pytest.mark.asyncio
 async def test_get_active_alerts_no_data_returns_empty(db_session):
-    service = _make_service(db_session)
-    await service.startup(FakeRedis())  # type: ignore[arg-type]
+    service = _make_service(db_session, redis=FakeRedis())
     assert await service.get_active_alerts() == []
 
 
 @pytest.mark.asyncio
 async def test_get_active_alerts_stale_db_row_ignored(db_session):
     """Фолбэк на БД ограничен свежестью: строка старше FALLBACK_MAX_AGE не даёт алерт."""
-    service = _make_service(db_session)
-    await service.startup(FakeRedis())  # type: ignore[arg-type]
+    service = _make_service(db_session, redis=FakeRedis())
 
     stale_window = _floor_to_window(datetime.now(UTC) - FALLBACK_MAX_AGE - timedelta(hours=1))
     db_session.add(ServerMetric(bucket_ts=stale_window, disk_used_percent=95.0))
@@ -408,9 +401,8 @@ async def test_tick_with_malformed_proc_files(tmp_path):
     (proc / "meminfo").write_text("MemTotal: abc kB\n")
     (proc / "loadavg").write_text("")
     # net/dev отсутствует вовсе
-    service = _make_service(proc_dir=str(proc), disk_path=str(tmp_path))
     fake = FakeRedis()
-    await service.startup(fake)  # type: ignore[arg-type]
+    service = _make_service(proc_dir=str(proc), disk_path=str(tmp_path), redis=fake)
 
     await service.tick()
 

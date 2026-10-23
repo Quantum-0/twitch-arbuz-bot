@@ -290,10 +290,8 @@ async def test_get_site_ban(ban_service):
 
 @pytest.fixture
 def fake_cache() -> tuple[Cache, FakeRedis]:
-    cache = Cache()
     fake = FakeRedis()
-    cache._r = fake  # noqa: SLF001
-    cache._rb = fake  # noqa: SLF001
+    cache = Cache(redis=fake, binary_redis=fake)
     return cache, fake
 
 

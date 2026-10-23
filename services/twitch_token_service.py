@@ -68,9 +68,6 @@ class TwitchTokenService:
         self._redis = redis
         self._refresh_semaphore = asyncio.Semaphore(10)
 
-    def startup(self, redis: aioredis.Redis) -> None:
-        self._redis = redis
-
     # ── Публичные методы ──────────────────────────────────────────────────
 
     async def get_valid_access_token(self, user: User) -> str:

@@ -1,9 +1,8 @@
 import asyncio
 import json
 import logging
-from collections.abc import AsyncGenerator, AsyncIterator
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from typing import Any
 
 import redis.asyncio as aioredis
 from opentelemetry import trace
@@ -26,12 +25,9 @@ tracer = trace.get_tracer(__name__)
 
 
 class RedisStateManager(StateManager):
-    def __init__(self, default_ttl: int = 4 * 60 * 60):
-        # self._r = init_redis()
-        self._default_ttl = default_ttl
-
-    async def startup(self, redis: aioredis.Redis):
+    def __init__(self, redis: Redis, default_ttl: int = 4 * 60 * 60):
         self._r = redis
+        self._default_ttl = default_ttl
 
     @tracer.start_as_current_span("SM: Get State")
     async def get_state(
@@ -195,7 +191,7 @@ class RedisStateManager(StateManager):
 
         except (aioredis.ConnectionError, aioredis.TimeoutError) as e:
             logger.error(f"Redis недоступен! Ошибка: {e}")
-            return None
+            return 0
 
     @tracer.start_as_current_span("SM: Get All State")
     async def get_all_from_channel(
@@ -222,17 +218,14 @@ class RedisStateManager(StateManager):
     @asynccontextmanager
     async def lifespan(self):
         listener_task = asyncio.create_task(self.redis_event_listener(self._r))
-        print("Успешно: Подключение к Redis установлено, фоновый очиститель запущен.")
+        logger.info("Фоновый очиститель Redis запущен.")
         yield
-        print("Остановка приложения: завершаем фоновые задачи...")
+        logger.info("Остановка: завершаем фоновый очиститель Redis...")
         listener_task.cancel()  # Сигнализируем воркеру завершить работу
         try:
             await listener_task  # Ожидаем завершения таски
         except asyncio.CancelledError:
             pass
-
-        await self._r.close()  # Закрываем пул соединений с Redis
-        print("Успешно: Соединения с Redis закрыты.")
 
     # --- ФОНОВЫЙ ВОРКЕР ДЛЯ СЛУШАНИЯ СОБЫТИЙ ОЧИСТКИ ---
     @staticmethod
@@ -277,13 +270,14 @@ class RedisStateManager(StateManager):
                     break
 
 
-async def init_redis(redis_url: str, binary: bool = False) -> AsyncGenerator[Redis, Any]:
-    client = aioredis.from_url(redis_url, decode_responses=not binary)
-    # Важно: Включаем режим 'Ev' (gEneric + eXpired), чтобы ловить и DEL, и TTL
-    await client.config_set("notify-keyspace-events", "Egx")
-    await client.ping()
-    yield client
-    await client.close()
+def init_redis(redis_url: str, binary: bool = False) -> Redis:
+    """Синхронная фабрика Redis-клиента (from_url ленивый, соединение не ставит).
+
+    Синхронность принципиальна: async Resource в DI-контейнере делает async-вызываемыми
+    все зависимые Singleton'ы. Fail-fast ping и keyspace-events настраиваются в lifespan
+    (dependencies.py).
+    """
+    return aioredis.from_url(redis_url, decode_responses=not binary)
 
 
 #

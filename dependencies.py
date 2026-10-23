@@ -25,10 +25,15 @@ async def lifespan(app: "FastAPI | None" = None):
     container = Container()
     set_container(container)
     container.wire()
-    await container.init_resources()
 
-    redis = await container.redis()
-    binary_redis = await container.binary_redis()
+    # Fail-fast: пингуем оба Redis-клиента и включаем keyspace-events
+    # ('Egx' — ловим и DEL, и TTL-истечения; настройка серверная, применяется один раз).
+    redis = container.redis()
+    binary_redis = container.binary_redis()
+    await redis.config_set("notify-keyspace-events", "Egx")
+    await redis.ping()
+    await binary_redis.ping()
+
     twitch = container.twitch()
     chat_bot = container.chat_bot()
     ai = container.ai()
@@ -46,14 +51,6 @@ async def lifespan(app: "FastAPI | None" = None):
     stickers_processor = container.stickers_processor()
     tts_service = container.tts_service()
 
-    await state_manager.startup(redis)
-    await cache.startup(redis, binary_redis)
-    await statistics.startup(redis)
-    await server_metrics.startup(redis)
-    await sse_manager.startup(redis)
-    await memealerts_auth.startup(redis, statistics)
-    twitch_token_service.startup(redis)
-    twitch.startup_redis(redis)
     await twitch.startup()
     await chat_bot.startup(twitch)
     await ai.startup()
@@ -245,5 +242,7 @@ async def lifespan(app: "FastAPI | None" = None):
     await tts_service.shutdown()
     await stickers_processor.stop()
     await async_engine.dispose()
+    await redis.aclose()
+    await binary_redis.aclose()
     container.unwire()
     set_container(None)
