@@ -55,7 +55,7 @@ tracer = trace.get_tracer(__name__)
 # TODO: убрать после полного перехода пользователей на v2.
 # Порог user_id для поэтапного уведомления v1-пользователей о миграции на v2.
 # Постепенно увеличиваем, пока не покроем всех.
-MEMEALERTS_V1_MIGRATION_USER_ID_THRESHOLD = 2
+MEMEALERTS_V1_MIGRATION_USER_ID_THRESHOLD = 100
 MEMEALERTS_V1_MIGRATION_MESSAGE = (
     "Добрый день, многоувлажняемый стримлер. Текущая интеграция с мемкоинами по токену более неактуальна, "
     "т.к. мы с коллегами из Memealerts договорились и сделали нативную интеграцию. "
@@ -611,7 +611,7 @@ class TwitchEventSubService:
                 if (
                     user.memealerts.access_token is None
                     and user.memealerts.memealerts_token
-                    and user.id < MEMEALERTS_V1_MIGRATION_USER_ID_THRESHOLD
+                    and user.id <= MEMEALERTS_V1_MIGRATION_USER_ID_THRESHOLD
                 ):
                     await self._chatbot.send_message(user, MEMEALERTS_V1_MIGRATION_MESSAGE)
 
