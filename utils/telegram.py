@@ -8,6 +8,19 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from database.models import TelegramSettings, User
 
+# Поэтапный rollout Telegram-интеграции: уведомления о стриме и AI-стикеры
+# доступны всем, автозагрузка клипов — пока только бета-тестерам.
+TG_CLIPS_BETA_USERS: frozenset[str] = frozenset(
+    {
+        "quantum075",
+        "d_e_l_y",
+        "kadzichan",
+        "fra3a",
+        "pepelitsa_",
+        "rinamarain",
+    }
+)
+
 # Дефолтные значения (когда строки TelegramSettings ещё нет).
 DEFAULT_TELEGRAM = {
     "stream_chat_id": None,

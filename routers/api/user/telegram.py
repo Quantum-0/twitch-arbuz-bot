@@ -21,7 +21,7 @@ from schemas.telegram import (
 )
 from services.mqtt import MQTTClient
 from twitch.client.twitch import Twitch
-from utils.telegram import ensure_telegram_settings, get_telegram_settings
+from utils.telegram import TG_CLIPS_BETA_USERS, ensure_telegram_settings, get_telegram_settings
 
 logger = logging.getLogger(__name__)
 
@@ -83,6 +83,12 @@ async def update_telegram_settings(
     При выключении — отписывается от EventSub.
     """
     tg = await ensure_telegram_settings(db, user)
+    # Автозагрузка клипов — поэтапный rollout, пока только бета-тестерам.
+    if data.clips_enabled is True and user.login_name not in TG_CLIPS_BETA_USERS:
+        return JSONResponse(
+            {"title": "Недоступно", "message": "Автозагрузка клипов пока доступна не всем. Следите за новостями!"},
+            403,
+        )
     old_stream_enabled = tg.stream_notification_enabled
     for field in data.model_fields_set:
         value = getattr(data, field)
@@ -138,6 +144,12 @@ async def generate_connect_link(
     и получения ``short_id``. Возвращает URL ``https://t.me/<bot>?start=<short_id>``.
     ``short_id`` (8 hex chars) укладывается в лимит Telegram 64 байта для ``?start=``.
     """
+    # Автозагрузка клипов — поэтапный rollout, пока только бета-тестерам.
+    if data.scope == "clips" and user.login_name not in TG_CLIPS_BETA_USERS:
+        return JSONResponse(
+            {"title": "Недоступно", "message": "Автозагрузка клипов пока доступна не всем. Следите за новостями!"},
+            403,
+        )
     try:
         async with httpx.AsyncClient() as client:
             response = await client.post(

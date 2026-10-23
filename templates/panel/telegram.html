@@ -1,8 +1,6 @@
-{% set tg_beta_users = ["quantum075", "d_e_l_y", "kadzichan", "fra3a", "pepelitsa_", "rinamarain"] %}
-{% if user.login_name in tg_beta_users %}
 <h3>Telegram-интеграция</h3>
 <small class="overlay-copy-hint">
-    <p>Подключите Telegram-канал, группу или личный чат, чтобы получать уведомления о начале стрима, автоматически заливать клипы и AI-стикеры.</p>
+    <p>Подключите Telegram-канал, группу или личный чат, чтобы получать уведомления о начале стрима и автоматически заливать AI-стикеры.</p>
     <p>Для каждого типа контента можно подключить отдельный чат или использовать один общий.</p>
 </small>
 
@@ -128,6 +126,7 @@
         <hr class="tg-divider">
 
         <!-- ── Раздел: Клипы ── -->
+        {% if tg_clips_beta %}
         <h4>Клипы</h4>
         <div class="tg-section-block">
             <div class="toggle-label">
@@ -177,8 +176,8 @@
                 </div>
             </div>
         </div>
-
         <hr class="tg-divider">
+        {% endif %}
 
         <!-- ── Раздел: Стикеры ── -->
         <h4>Стикеры</h4>
@@ -380,4 +379,3 @@
 
     document.addEventListener('DOMContentLoaded', telegramLoadSettings);
 </script>
-{% endif %}

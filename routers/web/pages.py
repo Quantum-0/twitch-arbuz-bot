@@ -27,6 +27,7 @@ from twitch.client.twitch import Twitch
 from twitch.state_manager import StateManager
 from utils.overlay_secret import ensure_overlay_secret
 from utils.reference_moderation import MIN_REFERENCE_FOLLOWERS, ensure_reference_moderator, is_reference_admin
+from utils.telegram import TG_CLIPS_BETA_USERS
 from utils.template_globals import register_template_globals
 from utils.tts import get_tts_settings
 
@@ -106,6 +107,8 @@ async def control_panel(
                 "enabled_v2": user.memealerts.access_token is not None,
             },
             "slovotron_secret": overlay_secret,
+            # Поэтапный rollout Telegram-интеграции: клипы пока только бета-тестерам.
+            "tg_clips_beta": user.login_name in TG_CLIPS_BETA_USERS,
             # Кнопка «Привязать Telegram» (OIDC) видна только при настроенном client_id/secret.
             "telegram_login_enabled": settings.telegram.login_client_id is not None
             and bool(settings.telegram.login_client_secret.get_secret_value()),
@@ -676,6 +679,13 @@ async def roadmap_page(
                 {
                     "date": "Октябрь 2026",
                     "text": "Добавлена система банов.",
+                },
+                {
+                    "date": "Октябрь 2026",
+                    "text": "Всем пользователям открыт доступ к Telegram-интеграции: уведомления о начале стрима "
+                    "и автозагрузка AI-стикеров (автозагрузка клипов — пока только бета-тестерам). "
+                    "Запущен принудительный перенос пользователей на Memealerts API v2 "
+                    "(уведомление о миграции получают первые 100 пользователей).",
                 },
             ],
             "todos": [
