@@ -7,8 +7,10 @@
    ``steamcommunity.com/openid/login`` и проверяет ответ ``is_valid:true``.
    При успехе извлекает steamID64 из ``openid.claimed_id``.
 4. ``fetch_profile_url`` — дёргает ``ISteamUser/GetPlayerSummaries`` и возвращает
-   ``profileurl`` (например, ``https://steamcommunity.com/profiles/<id>/`` или
-   ``https://steamcommunity.com/id/<custom>/``).
+    ``profileurl`` (например, ``https://steamcommunity.com/profiles/<id>/`` или
+    ``https://steamcommunity.com/id/<custom>/``).
+5. ``get_player_summaries`` — то же API, но для списка steamID64 (до 100 за запрос,
+    список автоматом бьётся на чанки) с парсингом в Pydantic-схемы.
 """
 
 import logging
@@ -17,6 +19,7 @@ from urllib.parse import urlencode, urlparse
 import httpx
 
 from config import settings
+from schemas.steam import SteamPlayerSummariesResponse, SteamPlayerSummary
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +27,8 @@ STEAM_OPENID_ENDPOINT = "https://steamcommunity.com/openid/login"
 STEAM_API_BASE = "https://api.steampowered.com"
 # Префикс claimed_id у Steam: https://steamcommunity.com/openid/id/<steamID64>
 STEAM_OPENID_ID_PREFIX = "https://steamcommunity.com/openid/id/"
+# Лимит Steam Web API: до 100 steamids за один запрос GetPlayerSummaries.
+STEAM_SUMMARIES_CHUNK_SIZE = 100
 
 
 class SteamService:
@@ -123,3 +128,46 @@ class SteamService:
             logger.warning("Steam GetPlayerSummaries: profileurl missing for %s", steam_id)
             return None
         return profile_url
+
+    async def get_player_summaries(self, steam_ids: list[str]) -> list[SteamPlayerSummary]:
+        """Получить профили игроков через ISteamUser/GetPlayerSummaries/v0002.
+
+        Список автоматически бьётся на чанки по 100 steamID64 (лимит Steam API),
+        результаты склеиваются в исходном порядке запроса.
+
+        :param steam_ids: список steamID64 (например, ``76561198073593788``).
+        :return: список профилей; для неизвестных/приватных ID Steam просто
+            не возвращает запись. При сетевой ошибке конкретного чанка он
+            пропускается (warning в лог), остальные чанки отдаются.
+        """
+        result: list[SteamPlayerSummary] = []
+        for offset in range(0, len(steam_ids), STEAM_SUMMARIES_CHUNK_SIZE):
+            chunk = steam_ids[offset : offset + STEAM_SUMMARIES_CHUNK_SIZE]
+            try:
+                async with httpx.AsyncClient() as client:
+                    response = await client.get(
+                        f"{STEAM_API_BASE}/ISteamUser/GetPlayerSummaries/v0002/",
+                        params={
+                            "key": settings.steam.api_key.get_secret_value(),
+                            "steamids": ",".join(chunk),
+                        },
+                        timeout=10.0,
+                    )
+                    response.raise_for_status()
+            except (httpx.HTTPError, httpx.TimeoutException) as exc:
+                logger.warning(
+                    "Steam GetPlayerSummaries request failed (chunk %s..%s): %s",
+                    offset,
+                    offset + len(chunk),
+                    exc,
+                    exc_info=True,
+                )
+                continue
+
+            try:
+                parsed = SteamPlayerSummariesResponse.model_validate_json(response.text)
+            except ValueError:
+                logger.warning("Steam GetPlayerSummaries returned non-JSON: %s", response.text[:200])
+                continue
+            result.extend(parsed.response.players)
+        return result
