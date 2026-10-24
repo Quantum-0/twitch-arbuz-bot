@@ -77,8 +77,10 @@ twitch-bot (vds-msk)  ⇄  MQTT/EMQX (префикс топиков: twibot/)  �
 форматирования шаблона — fallback на дефолт (с warning в лог).
 
 Прочие группы той же таблицы (вне рамок этого документа): чаты и настройки
-клипов (`clips_*`, `last_clip_date`), AI-стикеров (`stickers_*`), заготовки
-моста чатов (`twitch_to_tg_enabled`, `tg_to_twitch_enabled`).
+клипов (`clips_*`, `last_clip_date`) и ярких моментов (`last_highlight_date`,
+дедуп send-only-ссылками в clips-чат, см. `services/clips_poller.py`),
+AI-стикеров (`stickers_*`), заготовки моста чатов (`twitch_to_tg_enabled`,
+`tg_to_twitch_enabled`).
 
 ## Привязка личного Telegram-аккаунта (`telegram_user_id`)
 

@@ -744,6 +744,10 @@ class TelegramSettings(Base):
     clips_delivery: Mapped[str] = mapped_column(String, default="link", server_default="link", nullable=False)
     last_clip_date: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, default=None)
 
+    # ── Яркие моменты (highlights) ──
+    # Курсор дедупликации ярких моментов (аналог last_clip_date для клипов).
+    last_highlight_date: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, default=None)
+
     # ── AI Stickers ──
     stickers_enabled: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false(), nullable=False)
     stickers_mode: Mapped[str] = mapped_column(String, default="photo", server_default="photo", nullable=False)

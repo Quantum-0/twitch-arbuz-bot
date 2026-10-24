@@ -15,6 +15,10 @@ APScheduler-джоба: раз в 5 минут проверяет новых к�
      Fallback: ссылка на клип.
 6. Обновить last_clip_date = max(clip.created_at) или NOW() если клипов не было.
 
+Яркие моменты (highlights) — тем же джобом, в тот же чат (см. ``_poll_user_highlights``):
+GET /helix/videos?type=highlight (без серверного фильтра по дате, дедуп по
+``last_highlight_date``), отправка всегда ссылкой.
+
 thumbnail_url workaround — 0 доп. API-вызовов (URL уже в ответе Get Clips).
 """
 
@@ -39,6 +43,7 @@ logger = logging.getLogger(__name__)
 
 _CLIPS_URL = "https://api.twitch.tv/helix/clips"
 _CLIPS_DOWNLOAD_URL = "https://api.twitch.tv/helix/clips/downloads"
+_VIDEOS_URL = "https://api.twitch.tv/helix/videos"
 _CLIPS_PAGE_SIZE = 100
 _CLIPS_LOOKBACK_DAYS = 7
 
@@ -47,9 +52,13 @@ _CLIPS_LOOKBACK_DAYS = 7
 # MP4 URL:       https://clips-media-assets2.twitch.tv/<ID>-offset-NNN.mp4
 _THUMBNAIL_PREVIEW_RE = re.compile(r"-preview-(?:%\{width\}x%\{height\}|\d+x\d+)\.jpg$")
 
+# Get Videos отдаёт created_at с наносекундной точностью (9 цифр дробной части),
+# datetime.fromisoformat понимает максимум 6 — усекаем до микросекунд.
+_VIDEO_TS_FRACTION_RE = re.compile(r"(\.\d{6})\d+")
+
 
 class ClipsPollerService:
-    """Периодически проверяет новые клипы Twitch и отправляет их в Telegram через MQTT."""
+    """Периодически проверяет новые клипы и яркие моменты Twitch и отправляет их в Telegram через MQTT."""
 
     def __init__(
         self,
@@ -85,7 +94,7 @@ class ClipsPollerService:
 
         for user in users:
             try:
-                await self._poll_user_clips(user)
+                await self._poll_user(user)
             except TwitchTokenExpiredError:
                 logger.warning(
                     "Пуллинг клипов: токен истёк для user_id=%s (%s), пропускаем",
@@ -100,13 +109,40 @@ class ClipsPollerService:
                     exc_info=True,
                 )
 
-    async def _poll_user_clips(self, user: User) -> None:
-        """Опросить клипы одного пользователя."""
+    async def _poll_user(self, user: User) -> None:
+        """Опросить клипы и яркие моменты одного пользователя (общий токен).
+
+        Клипы и яркие моменты опрашиваются независимо: ошибка одного
+        не блокирует отправку другого.
+        """
         tg = user.telegram
         if tg is None or not tg.clips_chat_id:
             return
 
         access_token = await self._token_service.get_valid_access_token(user)
+        try:
+            await self._poll_user_clips(access_token, user, tg)
+        except Exception:
+            logger.error(
+                "Пуллинг клипов: ошибка для user_id=%s (%s)",
+                user.id,
+                user.login_name,
+                exc_info=True,
+            )
+        try:
+            await self._poll_user_highlights(access_token, user, tg)
+        except Exception:
+            logger.error(
+                "Пуллинг ярких моментов: ошибка для user_id=%s (%s)",
+                user.id,
+                user.login_name,
+                exc_info=True,
+            )
+
+    async def _poll_user_clips(self, access_token: str, user: User, tg: TelegramSettings) -> None:
+        """Опросить клипы одного пользователя."""
+        if not tg.clips_chat_id:
+            return
 
         if tg.last_clip_date is not None:
             started_at = tg.last_clip_date
@@ -139,7 +175,7 @@ class ClipsPollerService:
 
         for clip in clips:
             await self._send_clip(access_token, user.twitch_id, tg.clips_chat_id, clip, delivery)
-            clip_dt = self._parse_clip_created_at(clip.get("created_at", ""))
+            clip_dt = self._parse_created_at(clip.get("created_at", ""))
             if clip_dt > new_last_clip_date:
                 new_last_clip_date = clip_dt
 
@@ -148,6 +184,63 @@ class ClipsPollerService:
         logger.info(
             "Пуллинг клипов: отправлено %d клипов для user_id=%s (%s)",
             len(clips),
+            user.id,
+            user.login_name,
+        )
+
+    async def _poll_user_highlights(self, access_token: str, user: User, tg: TelegramSettings) -> None:
+        """Опросить яркие моменты (highlights) канала и отправить ссылками.
+
+        Get Videos API не имеет серверного фильтра по дате — дедуп клиентский,
+        по ``last_highlight_date`` (свежие моменты отдаются первыми). Отправка
+        всегда ссылкой независимо от clips_delivery: яркие моменты длятся
+        минутами и не проходят в лимит Telegram sendVideo (~20 МБ).
+        """
+        chat_id = tg.clips_chat_id
+        if not chat_id:
+            return
+
+        now = datetime.now(UTC).replace(tzinfo=None)
+        if tg.last_highlight_date is not None:
+            last_highlight_date = tg.last_highlight_date
+            threshold = tg.last_highlight_date
+        else:
+            last_highlight_date = None
+            threshold = now - timedelta(seconds=1)
+            logger.info(
+                "Пуллинг ярких моментов: первый запуск для user_id=%s (%s), started_at=NOW",
+                user.id,
+                user.login_name,
+            )
+
+        # Окно lookback — как у клипов: не заваливаем чат старым после долгого простоя.
+        min_threshold = now - timedelta(days=_CLIPS_LOOKBACK_DAYS)
+        if threshold < min_threshold:
+            threshold = min_threshold
+
+        highlights = await self._fetch_highlights(
+            access_token=access_token,
+            user_id=user.twitch_id,
+            threshold=threshold,
+        )
+        if not highlights:
+            return
+
+        # Отдаём хронологически (от старых к новым) — как и клипы.
+        highlights.sort(key=lambda v: self._parse_created_at(v.get("created_at", "")))
+
+        new_last_highlight_date = last_highlight_date or threshold
+        for video in highlights:
+            await self._send_highlight(chat_id, video)
+            video_dt = self._parse_created_at(video.get("created_at", ""))
+            if video_dt > new_last_highlight_date:
+                new_last_highlight_date = video_dt
+
+        await self._update_last_highlight_date(user.id, new_last_highlight_date)
+
+        logger.info(
+            "Пуллинг ярких моментов: отправлено %d для user_id=%s (%s)",
+            len(highlights),
             user.id,
             user.login_name,
         )
@@ -197,6 +290,14 @@ class ClipsPollerService:
         caption_link = f"🎬 {clip_title}\n👤 {creator}\n🔗 {clip_url}"
         await self._mqtt_publish_send_message(chat_id, caption_link)
 
+    async def _send_highlight(self, chat_id: str, video: dict[str, Any]) -> None:
+        """Отправить яркий момент в Telegram ссылкой."""
+        video_id = video.get("id", "")
+        url = video.get("url") or self._build_highlight_url(video_id)
+        title = video.get("title", "")
+        text = f"⭐ {title}\n🔗 {url}"
+        await self._mqtt_publish_send_message(chat_id, text)
+
     def _filter_clips(
         self,
         clips: list[dict[str, Any]],
@@ -205,7 +306,7 @@ class ClipsPollerService:
     ) -> list[dict[str, Any]]:
         """Отфильтровать дубликаты (created_at <= last_clip_date) и применить clips_mode."""
         if last_clip_date is not None:
-            clips = [c for c in clips if self._parse_clip_created_at(c.get("created_at", "")) > last_clip_date]
+            clips = [c for c in clips if self._parse_created_at(c.get("created_at", "")) > last_clip_date]
         if clips_mode == "featured":
             clips = [c for c in clips if c.get("is_featured", False)]
         clips.sort(key=lambda c: c.get("created_at", ""))
@@ -263,6 +364,66 @@ class ClipsPollerService:
                 pages += 1
 
         return all_clips
+
+    async def _fetch_highlights(
+        self,
+        access_token: str,
+        user_id: str,
+        threshold: datetime,
+    ) -> list[dict[str, Any]]:
+        """Получить яркие моменты канала через Twitch Get Videos API (type=highlight).
+
+        Дедуп клиентский: моменты отдаются свежими первыми, пагинация
+        прекращается на первом элементе старее threshold (или при исчерпании
+        cursor / лимита страниц, как у клипов — 10 × 100).
+        """
+        all_highlights: list[dict[str, Any]] = []
+        cursor: str | None = None
+        pages = 0
+
+        async with httpx.AsyncClient() as client:
+            while pages < 10:
+                params: dict[str, str] = {
+                    "user_id": user_id,
+                    "type": "highlight",
+                    "first": str(_CLIPS_PAGE_SIZE),
+                }
+                if cursor:
+                    params["after"] = cursor
+
+                response = await client.get(
+                    _VIDEOS_URL,
+                    params=params,
+                    headers={
+                        "Authorization": f"Bearer {access_token}",
+                        "Client-Id": settings.twitch.client_id,
+                    },
+                    timeout=15,
+                )
+
+                if not response.is_success:
+                    logger.warning(
+                        "Twitch Get Videos (highlights) error: status=%s, body=%s",
+                        response.status_code,
+                        response.text[:300],
+                    )
+                    return all_highlights
+
+                data = response.json()
+                videos_data = data.get("data", [])
+
+                for video in videos_data:
+                    if self._parse_created_at(video.get("created_at", "")) <= threshold:
+                        return all_highlights
+                    all_highlights.append(video)
+
+                cursor = data.get("pagination", {}).get("cursor")
+                if not cursor or len(videos_data) < _CLIPS_PAGE_SIZE:
+                    break
+
+                pages += 1
+
+        return all_highlights
 
     async def _fetch_clip_download_url(self, access_token: str, broadcaster_id: str, clip_id: str) -> str | None:
         """Получить прямой URL для скачивания видео клипа через Twitch Get Clips Download API.
@@ -366,15 +527,36 @@ class ClipsPollerService:
             )
             await db.commit()
 
+    async def _update_last_highlight_date(self, user_id: int, last_highlight_date: datetime) -> None:
+        """Обновить last_highlight_date в БД."""
+        async with self._db_session_factory() as db:
+            await db.execute(
+                sa.update(TelegramSettings)
+                .where(TelegramSettings.user_id == user_id)
+                .values(last_highlight_date=last_highlight_date)
+            )
+            await db.commit()
+
     @staticmethod
     def _build_clip_url(clip_id: str) -> str:
         """Построить URL клипа из ID (fallback если url не пришёл)."""
         return f"https://clips.twitch.tv/{clip_id}"
 
     @staticmethod
-    def _parse_clip_created_at(created_at_str: str) -> datetime:
-        """Парсинг ISO 8601 из Twitch API (напр. '2026-09-16T02:45:30Z') → naive UTC datetime."""
+    def _build_highlight_url(video_id: str) -> str:
+        """Построить URL яркого момента из ID (fallback если url не пришёл)."""
+        return f"https://www.twitch.tv/videos/{video_id}"
+
+    @staticmethod
+    def _parse_created_at(created_at_str: str) -> datetime:
+        """Парсинг ISO 8601 из Twitch API → naive UTC datetime.
+
+        Клипы: '2026-09-16T02:45:30Z'. Видео (highlights): наносекундная точность
+        '2018-01-25T04:00:12.254375332+00:00' — дробная часть усекается до 6 цифр
+        (максимум datetime.fromisoformat).
+        """
         try:
-            return datetime.fromisoformat(created_at_str.replace("Z", "+00:00")).replace(tzinfo=None)
+            normalized = _VIDEO_TS_FRACTION_RE.sub(r"\1", created_at_str.replace("Z", "+00:00"))
+            return datetime.fromisoformat(normalized).replace(tzinfo=None)
         except (ValueError, AttributeError):
             return datetime.now(UTC).replace(tzinfo=None)
