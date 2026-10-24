@@ -1,3 +1,5 @@
+# ruff: noqa: S101, ARG001, ARG002
+
 from base64 import b64encode
 
 import pytest
@@ -15,9 +17,10 @@ async def test_openapi(client):
 
 @pytest.mark.asyncio
 async def test_unauthorized_index_page(client):
+    """Неавторизованный `/` — лендинг с согласиями (ФЗ-152), без редиректа."""
     resp = await client.get("/")
-    assert resp.status_code == 307
-    assert resp.next_request.url.path == "/login"
+    assert resp.status_code == 200
+    assert 'id="twitchLoginBtn"' in resp.text
 
 
 @pytest.mark.asyncio
@@ -76,25 +79,57 @@ async def test_admin_api_valid_creds_and_cookie(client, test_user_cookie):
 
 @pytest.mark.asyncio(loop_scope="session")
 async def test_get_streamers(client, test_user):
+    """/streamers — заглушка: список грузится через /api/user/streamers (streamers.js)."""
     resp = await client.get("/streamers")
     assert resp.status_code == 200
-    assert (
-        """<a href="https://twitch.tv/test_user" target="_blank">
-                <img src="https://example.com/avatar.png" alt="test_user" class="streamer-avatar">
-            </a>"""
-        in resp.text
-    )
+    assert "/static/js/streamers.js" in resp.text
+
+
+@pytest.mark.asyncio
+async def test_debug_forbidden_for_regular_user(client, user_auth_mock):
+    resp = await client.get("/debug")
+    assert resp.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_debug_ok_for_beta_tester(client, user_auth_mock, test_user):
+    """/debug для бета-тестера: Provide-зависимости подменяем через override,
+    ключ берём из сигнатуры роута (каждый Provide[...] — уникальный объект)."""
+    import inspect
+
+    from main import app
+    from routers.web.pages import debug_page
+
+    test_user.in_beta_test = True
+
+    class _FakeStateManager:
+        async def get_all_from_channel(self, *, channel=None):
+            return
+            yield  # noqa — маркер асинхронного генератора без значений
+
+    class _FakeChatBot:
+        async def get_last_active_users(self, user):
+            return []
+
+    sig = inspect.signature(debug_page)
+    fakes = {"chat_bot": _FakeChatBot(), "state_manager": _FakeStateManager()}
+    override_keys = []
+    for param_name, fake in fakes.items():
+        dep = sig.parameters[param_name].annotation.__metadata__[0].dependency
+        app.dependency_overrides[dep] = lambda f=fake: f
+        override_keys.append(dep)
+    try:
+        resp = await client.get("/debug")
+    finally:
+        for dep in override_keys:
+            app.dependency_overrides.pop(dep, None)
+
+    assert resp.status_code == 200
 
 
 @pytest.mark.asyncio
 async def test_panel(client, user_auth_mock):
     resp = await client.get("/panel")
-    assert resp.status_code == 200
-
-
-@pytest.mark.asyncio
-async def test_debug(client, user_auth_mock):
-    resp = await client.get("/debug")
     assert resp.status_code == 200
 
 

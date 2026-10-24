@@ -49,10 +49,11 @@ def test_reference_upload_allows_streamer_and_admin():
     assert is_reference_admin("QUANTUM075")
 
 
-def test_character_info_defaults_keep_existing_rows_approved():
+def test_character_info_approved_defaults_to_null():
+    """Новые загрузки требуют модерации: default NULL (миграция dd44d43d91ea)."""
     approved = CharacterInfo.__table__.c.approved
-    assert approved.default.arg is True
-    assert str(approved.server_default.arg) == "true"
+    assert approved.default is None or approved.default.arg is None
+    assert approved.server_default is None
 
 
 def test_approved_filter_compiles_to_true():
@@ -61,14 +62,15 @@ def test_approved_filter_compiles_to_true():
     assert sql == "character_info.approved IS true"
 
 
-def test_character_default_trusts_legacy_insert():
+def test_character_legacy_insert_stays_unapproved():
+    """Строка без явного approved остаётся NULL — пока модерация не подтвердит."""
     engine = create_engine("sqlite://")
     CharacterInfo.__table__.create(engine)
     with Session(engine) as session:
         reference = CharacterInfo(name="streamer", file_id=uuid4())
         session.add(reference)
         session.flush()
-        assert session.scalar(select(CharacterInfo.approved)) is True
+        assert session.scalar(select(CharacterInfo.approved)) is None
 
 
 def test_explicit_sql_null_overrides_legacy_default_for_new_upload():

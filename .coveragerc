@@ -1,5 +1,27 @@
+[run]
+include =
+    */services/*
+    */routers/*
+    */twitch/*
+    */utils/*
+    */database/*
+    */schemas/*
+    */main.py
+    */container.py
+    */dependencies.py
+omit =
+    */tests/*
+    */alembic/*
+    */site-packages/*
+
 [report]
 exclude_lines =
     raise NotImplementedError
     if TYPE_CHECKING:
     # pragma: no cover
+# dependency_injector (C-extension) пишет в данные .pyx без исходников — игнорируем
+ignore_errors = True
+sort = cover
+
+[html]
+directory = htmlcov

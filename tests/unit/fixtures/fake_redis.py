@@ -86,6 +86,13 @@ class FakeRedis:
     async def set(self, name: str, value: str, ex: int | None = None) -> None:  # noqa: ARG002
         self.values[name] = value
 
+    async def setex(self, name: str, seconds: int, value: str) -> None:
+        self.values[name] = value
+        self.ttls[name] = seconds
+
+    async def exists(self, *names: str) -> int:
+        return sum(1 for n in names if n in self.values or n in self.lists or n in self.hashes)
+
     async def incr(self, name: str) -> int:
         value = int(self.values.get(name, "0")) + 1
         self.values[name] = str(value)

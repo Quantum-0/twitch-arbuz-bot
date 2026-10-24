@@ -38,6 +38,23 @@ poetry run uvicorn main:app --reload   # запустить дев-сервер
 
 **Перед завершением задачи обязательно:** `poetry run ruff check <файлы>` + `poetry run mypy <файлы>`.
 
+## Тесты
+
+- **Прогон:** `poetry run pytest` (unit-тесты; e2e исключены маркером `e2e`, ручной запуск:
+  `pytest tests/e2e -m e2e` — нужны прод-окружение и секреты `TEST_*`).
+- **Таймаут:** pytest-timeout, 15с на тест (`pyproject.toml`) — зависший тест проваливается,
+  suite не вешается.
+- **Coverage:** `poetry run coverage run -m pytest tests/unit && poetry run coverage html`
+  (отчёт в `htmlcov/`). Конфиг в `.coveragerc`.
+  **ВАЖНО:** в `[run]` используется `include`, не `source` — module-записи в `source`
+  (main.py и т.п.) заставляют coverage импортировать их под `sys_modules_saved`, который
+  восстанавливает `sys.modules` — numpy 2.4 вылетает из кэша при загруженном C-расширении,
+  и все последующие импорты падают с `ImportError: cannot load module more than once per process`.
+- **Session-loop:** все async-тесты едут на одном event-loop (`tests/unit/conftest.py`,
+  `loop_scope="session"`). Не оставляйте в тестах бесконечные фоновые задачи (реальные
+  websocket/upstream-циклы) — они утекают в общий loop; ждите только собственные задачи
+  (см. `fire_and_forget_scope` в `test_stream_notifications.py`).
+
 ## Соглашения по коду
 
 - Длина строки: 120 символов.
