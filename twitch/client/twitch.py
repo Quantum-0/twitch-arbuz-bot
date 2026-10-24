@@ -90,7 +90,7 @@ async def _user_twitch_client(user: User, scope: list[AuthScope] | None = None) 
         raise TwitchTokenExpiredError("no_token", "У пользователя нет токенов Twitch")
     token_service = get_container().twitch_token_service()
     access_token = await token_service.get_valid_access_token(user)
-    twitch_user = await TwitchClient(settings.twitch.client_id, settings.twitch.client_secret)
+    twitch_user = await TwitchClient(settings.twitch.client_id, settings.twitch.client_secret.get_secret_value())
     await twitch_user.set_user_authentication(
         access_token,
         user_scope if scope is None else scope,
@@ -145,7 +145,7 @@ class Twitch:
                 "https://id.twitch.tv/oauth2/token",
                 params={
                     "client_id": settings.twitch.client_id,
-                    "client_secret": settings.twitch.client_secret,
+                    "client_secret": settings.twitch.client_secret.get_secret_value(),
                     "grant_type": "client_credentials",
                 },
                 timeout=10,
@@ -157,9 +157,11 @@ class Twitch:
         return token
 
     async def startup(self):
-        twitch = await TwitchClient(settings.twitch.client_id, settings.twitch.client_secret)
+        twitch = await TwitchClient(settings.twitch.client_id, settings.twitch.client_secret.get_secret_value())
         await twitch.set_user_authentication(
-            settings.twitch.bot_access_token, bot_scope, settings.twitch.bot_refresh_token
+            settings.twitch.bot_access_token.get_secret_value(),
+            bot_scope,
+            settings.twitch.bot_refresh_token.get_secret_value(),
         )
         self._twitch = twitch
 
@@ -456,7 +458,7 @@ class Twitch:
                 message=message,
                 reply_parent_message_id=reply_parent_message_id,
             )
-        except:
+        except Exception:
             return await self._twitch.send_chat_message(
                 broadcaster_id=stream_channel_id,
                 sender_id="957818216",
@@ -474,9 +476,11 @@ class Twitch:
             return res
         except UnauthorizedException:
             # await self._twitch.refresh_used_token() ???
-            twitch = await TwitchClient(settings.twitch.client_id, settings.twitch.client_secret)
+            twitch = await TwitchClient(settings.twitch.client_id, settings.twitch.client_secret.get_secret_value())
             await twitch.set_user_authentication(
-                settings.twitch.bot_access_token, bot_scope, settings.twitch.bot_refresh_token
+                settings.twitch.bot_access_token.get_secret_value(),
+                bot_scope,
+                settings.twitch.bot_refresh_token.get_secret_value(),
             )
             self._twitch = twitch
             result = await self._twitch.get_eventsub_subscriptions()
@@ -493,7 +497,7 @@ class Twitch:
                 "https://id.twitch.tv/oauth2/token",
                 params={
                     "client_id": settings.twitch.client_id,
-                    "client_secret": settings.twitch.client_secret,
+                    "client_secret": settings.twitch.client_secret.get_secret_value(),
                     "grant_type": "client_credentials",
                 },
             )
@@ -535,7 +539,7 @@ class Twitch:
                 "https://id.twitch.tv/oauth2/token",
                 params={
                     "client_id": settings.twitch.client_id,
-                    "client_secret": settings.twitch.client_secret,
+                    "client_secret": settings.twitch.client_secret.get_secret_value(),
                     "grant_type": "client_credentials",
                 },
             )
@@ -782,7 +786,7 @@ class Twitch:
                 "https://id.twitch.tv/oauth2/token",
                 data={
                     "client_id": settings.twitch.client_id,
-                    "client_secret": settings.twitch.client_secret,
+                    "client_secret": settings.twitch.client_secret.get_secret_value(),
                     "code": authorization_code,
                     "grant_type": "authorization_code",
                     "redirect_uri": settings.twitch.login_redirect_url,
@@ -800,7 +804,7 @@ class Twitch:
 
     @staticmethod
     async def get_self(access_token, refresh_token) -> TwitchUser:
-        twitch_user = await TwitchClient(settings.twitch.client_id, settings.twitch.client_secret)
+        twitch_user = await TwitchClient(settings.twitch.client_id, settings.twitch.client_secret.get_secret_value())
         await twitch_user.set_user_authentication(access_token, [], refresh_token)
         return await anext(twitch_user.get_users())
 

@@ -255,7 +255,7 @@ async def check_telegram(
             async with httpx.AsyncClient(timeout=10.0) as client:
                 status_resp = await client.post(
                     f"{settings.telegram.service_url}/api/chat_status",
-                    headers={"X-Api-Key": settings.telegram.service_api_key},
+                    headers={"X-Api-Key": settings.telegram.service_api_key.get_secret_value()},
                     json={"chat_id": chat_id},
                 )
         except httpx.HTTPError:

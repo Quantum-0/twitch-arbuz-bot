@@ -78,10 +78,6 @@ class StateManager(ABC):
     ) -> AsyncIterator[tuple[USER_TYPE, COMMAND_TYPE, PARAM_TYPE, VALUE_TYPE]]:
         raise NotImplementedError
 
-    @abstractmethod
-    async def cleanup(self):
-        raise NotImplementedError
-
 
 class InMemoryStateManager(StateManager):
     async def get_all_from_channel(
@@ -172,11 +168,3 @@ class InMemoryStateManager(StateManager):
             del self._storage[channel][user][command][param]
         else:
             self._storage[channel][user][command][param] = value
-        await self.cleanup()
-
-    async def cleanup(self):
-        for channel, users_dict in self._storage.items():
-            for user, commands_dict in users_dict.items():
-                for command, param_dict in commands_dict.items():
-                    for param, value in param_dict.items():
-                        pass  # TODO: придумать чота

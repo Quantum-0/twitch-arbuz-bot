@@ -212,9 +212,6 @@ class RedisStateManager(StateManager):
                 user = int(user)
             yield user, command, SMParam(param), value
 
-    async def cleanup(self):
-        pass
-
     @asynccontextmanager
     async def lifespan(self):
         listener_task = asyncio.create_task(self.redis_event_listener(self._r))

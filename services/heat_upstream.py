@@ -1,5 +1,8 @@
 import asyncio
 import logging
+import random
+
+import websockets
 
 from schemas.api import StatsType
 from services.statistics import StatisticsService
@@ -36,11 +39,6 @@ class HeatUpstreamConnection:
         self._task = None
 
     async def _run(self):
-        import random
-
-        import websockets
-        # FIXME: А почему оно тут? о.о
-
         backoff = 1
 
         logger.info("Started new Heat upstream, id=%s", self.user_id)

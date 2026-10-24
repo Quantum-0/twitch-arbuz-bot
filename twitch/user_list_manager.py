@@ -1,5 +1,5 @@
 import logging
-from collections import defaultdict
+from collections import defaultdict, deque
 from time import time
 
 from opentelemetry import trace
@@ -12,20 +12,18 @@ tracer = trace.get_tracer(__name__)
 
 class UserListManager:
     def __init__(self, max_users_per_channel: int = 300, forget_timeout: float = 3600):
-        self._last_messages: dict[str, list[tuple[str, float]]] = defaultdict(
-            list
-        )  # TODO: replace with Queue or Deque?
+        self._last_messages: dict[str, deque[tuple[str, float]]] = defaultdict(deque)
         self._last_cleanup: float = time()
         self._forget_timeout: float = forget_timeout
         self._max_users_per_channel: int = max_users_per_channel
 
     def cleanup(self) -> None:
-        q: list[tuple[str, float]]
+        q: deque[tuple[str, float]]
         dt = time()
         for q in self._last_messages.values():
-            while len(q):
+            while q:
                 if dt - q[0][1] > self._forget_timeout:
-                    del q[0]
+                    q.popleft()
                 else:
                     break
         self._last_cleanup = dt
@@ -53,7 +51,7 @@ class UserListManager:
 
         # Если вышли за максимальный размер - удаляем первый элемент
         if len(q) > self._max_users_per_channel:
-            del q[0]
+            q.popleft()
 
         self._last_messages[channel.lower()] = q
 
@@ -73,7 +71,7 @@ class UserListManager:
 
     def get_active_users(self, channel: str, timeout: float | None = None) -> list[tuple[str, float]]:
         result = []
-        for item in self._last_messages[channel.lower()][::-1]:
+        for item in reversed(self._last_messages[channel.lower()]):
             if timeout is not None and time() - item[1] > timeout:
                 break
             result.append((item[0], item[1]))

@@ -202,7 +202,7 @@ class TwitchTokenService:
                 "https://id.twitch.tv/oauth2/token",
                 data={
                     "client_id": settings.twitch.client_id,
-                    "client_secret": settings.twitch.client_secret,
+                    "client_secret": settings.twitch.client_secret.get_secret_value(),
                     "grant_type": "refresh_token",
                     "refresh_token": refresh_token,
                 },

@@ -7,6 +7,7 @@ from config import settings
 from container_runtime import get_container, set_container
 from database.database import async_engine
 from schemas.api import StatsType
+from utils.enums import MQTTTopic
 
 if TYPE_CHECKING:
     from fastapi import FastAPI
@@ -63,17 +64,16 @@ async def lifespan(app: "FastAPI | None" = None):
     eventsub_service = container.twitch_eventsub_service()
 
     if not settings.app.direct_handle_messages:
-        mqtt.subscribe("twitch/+/message", chat_bot.on_message)
+        mqtt.subscribe(MQTTTopic.CHAT_MESSAGES, chat_bot.on_message)
 
     if not settings.app.direct_sending_messages:
-        # mqtt.subscribe("/twitch/outgoing/chat/+", chat_bot.send_message_from_broker)
+        # Режим отправки сообщений через брокер не реализован.
         raise NotImplementedError
-        # TODO: перенести топики в константы
 
     if not settings.app.direct_handle_rewards:
-        mqtt.subscribe("twitch/+/reward-redemption", eventsub_service.handle_reward_redemption)
+        mqtt.subscribe(MQTTTopic.REWARD_REDEMPTIONS, eventsub_service.handle_reward_redemption)
 
-    mqtt.subscribe("slovotron/+/+", slovotron.handle_webhook)
+    mqtt.subscribe(MQTTTopic.SLOVOTRON, slovotron.handle_webhook)
 
     # Telegram chat_connected — от TG-микросервиса при добавлении бота в чат.
     from services.telegram_integration import (
@@ -86,17 +86,17 @@ async def lifespan(app: "FastAPI | None" = None):
     async def _on_chat_connected(payload: dict) -> None:
         await handle_chat_connected(payload, container.db_session_factory())
 
-    mqtt.subscribe("telegram/chat_connected", _on_chat_connected)
+    mqtt.subscribe(MQTTTopic.TELEGRAM_CHAT_CONNECTED, _on_chat_connected)
 
     async def _on_chat_disconnected(payload: dict) -> None:
         await handle_chat_disconnected(payload, container.db_session_factory())
 
-    mqtt.subscribe("telegram/chat_disconnected", _on_chat_disconnected)
+    mqtt.subscribe(MQTTTopic.TELEGRAM_CHAT_DISCONNECTED, _on_chat_disconnected)
 
     async def _on_telegram_result(payload: dict) -> None:
         await handle_telegram_result(payload, container.db_session_factory())
 
-    mqtt.subscribe("telegram/result/+", _on_telegram_result)
+    mqtt.subscribe(MQTTTopic.TELEGRAM_RESULT, _on_telegram_result)
 
     if app is not None:
         app.container = container

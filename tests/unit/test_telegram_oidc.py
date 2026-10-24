@@ -255,7 +255,7 @@ async def test_exchange_code_goes_through_relay(monkeypatch) -> None:
     assert claims["id"] == 987654321
     sent = FakeAsyncClient.captured
     assert sent["url"] == f"{settings.telegram.service_url}/api/oauth/token"
-    assert sent["headers"] == {"X-Api-Key": settings.telegram.service_api_key}
+    assert sent["headers"] == {"X-Api-Key": settings.telegram.service_api_key.get_secret_value()}
     # Basic auth (client_id:client_secret) идёт транзитом через релей.
     assert sent["auth"] == (str(CLIENT_ID), CLIENT_SECRET)
     assert sent["json"]["grant_type"] == "authorization_code"
@@ -329,4 +329,4 @@ def test_proxied_jwk_client_fetches_via_relay(monkeypatch) -> None:
 
     assert data == {"keys": []}
     assert captured["url"] == f"{settings.telegram.service_url}/api/oauth/jwks"
-    assert captured["headers"] == {"X-Api-Key": settings.telegram.service_api_key}
+    assert captured["headers"] == {"X-Api-Key": settings.telegram.service_api_key.get_secret_value()}

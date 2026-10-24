@@ -99,7 +99,7 @@ PrometheusInstrumentator().instrument(app).expose(app)
 #     allow_headers=["Content-Type", "Authorization"],
 # )
 
-app.add_middleware(SessionMiddleware, secret_key=settings.app.middleware_secret_key)
+app.add_middleware(SessionMiddleware, secret_key=settings.app.middleware_secret_key.get_secret_value())
 app.include_router(router=api_router)
 app.include_router(router=user_router)
 app.include_router(router=router_for_robots)

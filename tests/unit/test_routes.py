@@ -54,7 +54,7 @@ async def test_admin_api_invalid_creds(client):
 @pytest.mark.asyncio
 async def test_admin_api_valid_creds(client):
     encoded_credentials = b64encode(
-        f"{settings.app.admin_api_login}:{settings.app.admin_api_password}".encode()
+        f"{settings.app.admin_api_login}:{settings.app.admin_api_password.get_secret_value()}".encode()
     ).decode("utf-8")
     authorization_header = f"Basic {encoded_credentials}"
     headers = {"Authorization": authorization_header}
@@ -65,7 +65,7 @@ async def test_admin_api_valid_creds(client):
 @pytest.mark.asyncio
 async def test_admin_api_valid_creds_and_cookie(client, test_user_cookie):
     encoded_credentials = b64encode(
-        f"{settings.app.admin_api_login}:{settings.app.admin_api_password}".encode()
+        f"{settings.app.admin_api_login}:{settings.app.admin_api_password.get_secret_value()}".encode()
     ).decode("utf-8")
     authorization_header = f"Basic {encoded_credentials}"
     headers = {"Authorization": authorization_header}
@@ -160,7 +160,7 @@ async def test_admin_frontend_no_auth(client, user_auth_mock):
 @pytest.mark.asyncio
 async def test_admin_frontend_invalid_user(client, user_auth_mock):
     encoded_credentials = b64encode(
-        f"{settings.app.admin_api_login}:{settings.app.admin_api_password}".encode()
+        f"{settings.app.admin_api_login}:{settings.app.admin_api_password.get_secret_value()}".encode()
     ).decode("utf-8")
     authorization_header = f"Basic {encoded_credentials}"
     headers = {"Authorization": authorization_header}
@@ -172,7 +172,7 @@ async def test_admin_frontend_invalid_user(client, user_auth_mock):
 async def test_admin_frontend_valid_user(client, user_auth_mock, test_user):
     test_user.login_name = "quantum075"
     encoded_credentials = b64encode(
-        f"{settings.app.admin_api_login}:{settings.app.admin_api_password}".encode()
+        f"{settings.app.admin_api_login}:{settings.app.admin_api_password.get_secret_value()}".encode()
     ).decode("utf-8")
     authorization_header = f"Basic {encoded_credentials}"
     headers = {"Authorization": authorization_header}

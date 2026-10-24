@@ -73,7 +73,7 @@ class _ProxiedJWKClient(PyJWKClient):
             with httpx.Client(timeout=10.0) as client:
                 response = client.get(
                     f"{settings.telegram.service_url}{TG_RELAY_JWKS_PATH}",
-                    headers={"X-Api-Key": settings.telegram.service_api_key},
+                    headers={"X-Api-Key": settings.telegram.service_api_key.get_secret_value()},
                 )
                 response.raise_for_status()
                 return response.json()
@@ -146,7 +146,7 @@ class TelegramLoginService:
                         "client_id": str(settings.telegram.login_client_id),
                         "code_verifier": code_verifier,
                     },
-                    headers={"X-Api-Key": settings.telegram.service_api_key},
+                    headers={"X-Api-Key": settings.telegram.service_api_key.get_secret_value()},
                     auth=(
                         str(settings.telegram.login_client_id),
                         settings.telegram.login_client_secret.get_secret_value(),

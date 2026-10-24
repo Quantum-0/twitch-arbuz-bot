@@ -87,7 +87,7 @@ async def callback(
         db.add(user)
 
     await db.commit()
-    asyncio.create_task(login_callback_task(user))
+    asyncio.create_task(_run_login_callback_task(user), name="login_callback_task")
 
     request.session["user_id"] = user_id
     return RedirectResponse(url="/panel")
@@ -96,7 +96,6 @@ async def callback(
 logger = logging.getLogger(__name__)
 
 
-# TODO: сделать бэкграунд таской штоле о_О
 @inject
 async def login_callback_task(
     user: User,
@@ -227,3 +226,11 @@ async def login_callback_task(
         await twitch.subscribe_reward(user, ai_stickers_reward)
 
     logger.info(f"Post-login validation for user {user} is done!")
+
+
+async def _run_login_callback_task(user: User) -> None:
+    """Обёртка фоновой пост-логин задачи: ошибки логируем, а не умираем молча."""
+    try:
+        await login_callback_task(user)
+    except Exception:
+        logger.exception("login_callback_task failed for user_id=%s", user.twitch_id)

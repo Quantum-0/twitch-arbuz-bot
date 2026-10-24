@@ -603,7 +603,7 @@ class TwitchEventSubService:
 
                     msg += f" {user.memealerts.coins_for_reward} {coins_name} для {payload.event.user_input} :з"
                     await self._chatbot.send_message(user, msg)
-                except:
+                except Exception:
                     await self._chatbot.send_message(user, f"Мемкоины для {payload.event.user_name} начислены :з")
 
                 # Deprecated v1: уведомляем стримера о необходимости миграции на v2.

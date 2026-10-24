@@ -47,18 +47,17 @@ memealerts_scope = [
 ]
 
 
-# TODO: use SecretStr
 class TwitchSettings(BaseSettings):
     """Twitch: OAuth-приложение, бот, EventSub и Extension."""
 
     client_id: str
-    client_secret: str
+    client_secret: SecretStr
     webhook_secret: SecretStr
     # Алиасы — исторические имена энвов без префикса TWITCH_ (файлы .env не меняем).
     login_redirect_url: AnyHttpUrl = Field(validation_alias="LOGIN_REDIRECT_URL")
     reward_redemption_webhook: AnyHttpUrl = Field(validation_alias="REWARD_REDEMPTION_WEBHOOK")
-    bot_access_token: str = Field(validation_alias="BOT_ACCESS_TOKEN")
-    bot_refresh_token: str = Field(validation_alias="BOT_REFRESH_TOKEN")
+    bot_access_token: SecretStr = Field(validation_alias="BOT_ACCESS_TOKEN")
+    bot_refresh_token: SecretStr = Field(validation_alias="BOT_REFRESH_TOKEN")
     extension_id: str = Field(default="ipeaqzfjtnio3taywpj3ktbink8fy4", validation_alias="EXTENSION_ID")
     extension_secret: SecretStr = Field(validation_alias="EXTENSION_SECRET")
     extension_version: str = Field(default="0.0.1", validation_alias="EXTENSION_VERSION")
@@ -83,13 +82,13 @@ class AppSettings(BaseSettings):
     exception_to_many_unsubscribes: int | None = 20
     # Basic-auth админ-панели GlitchTip/панели модерации.
     admin_api_login: str
-    admin_api_password: str
+    admin_api_password: SecretStr
     # Публичный адрес сайта (ссылки в уведомлениях/шаблонах).
     base_url: str = "https://bot.quantum0.ru"
     # Ключ шифрования OAuth-токенов пользователей (utils/cryptography.py).
     fernet_key: SecretStr
     # Секрет сессий Starlette SessionMiddleware.
-    middleware_secret_key: str
+    middleware_secret_key: SecretStr
     # Трейсинг ошибок и производительности.
     sentry_dsn: AnyHttpUrl | None = None
     otel_endpoint: AnyHttpUrl | None = "http://localhost:4317"
@@ -183,7 +182,7 @@ class TelegramSettings(BaseSettings):
     bot_username: str = "quantum0s_twitch_bot"
     # Релей twibot-tg (серверные OAuth-запросы идут только через него).
     service_url: str = "http://localhost:8001"
-    service_api_key: str = "changeme"
+    service_api_key: SecretStr = SecretStr("changeme")
     # Telegram Login (OpenID Connect, core.telegram.org/bots/telegram-login):
     # Client ID/Secret выдаёт @BotFather (Login Widget → Allowed URLs).
     # client_id — числовой id бота. Если не задан — кнопка «Привязать Telegram»

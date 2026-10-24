@@ -7,7 +7,7 @@ from config import bot_scope, settings
 
 
 async def generate_bot_tokens():
-    twitch = await Twitch(settings.twitch.client_id, settings.twitch.client_secret)
+    twitch = await Twitch(settings.twitch.client_id, settings.twitch.client_secret.get_secret_value())
 
     # Создаем UserAuthenticator с нужными scope
     # target_scope = [s.value for s in bot_scope]  # список строк для scope

@@ -154,7 +154,7 @@ async def generate_connect_link(
         async with httpx.AsyncClient() as client:
             response = await client.post(
                 f"{settings.telegram.service_url}/api/connect",
-                headers={"X-Api-Key": settings.telegram.service_api_key},
+                headers={"X-Api-Key": settings.telegram.service_api_key.get_secret_value()},
                 json={
                     "user_id": user.id,
                     "scope": data.scope,
