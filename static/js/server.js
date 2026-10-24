@@ -1,11 +1,21 @@
-/* Страница «Сервер»: графики нагрузки хоста (диск/CPU/RAM/сеть/load) + алерт-баннер.
- * Данные: GET /api/user/server-metrics (только модераторы). */
+/* Страница «Сервер»: графики нагрузки хоста (диск/CPU/RAM/сеть/load) + алерт-баннер
+ * + статусные карточки сервисов.
+ * Данные: GET /api/user/server-metrics, GET /api/admin/healthcheck (только модераторы). */
 (function () {
     "use strict";
 
     var API_URL = "/api/user/server-metrics";
+    var HEALTH_URL = "/api/admin/healthcheck";
     var RANGE_HOURS = { "1d": 24, "3d": 72, "7d": 168, "30d": 720 };
     var METRIC_LABELS = { disk: "Диск", cpu: "CPU", mem: "RAM", load5: "Load avg (5 мин)" };
+    var SERVICE_LABELS = {
+        db: "PostgreSQL",
+        redis: "Redis",
+        mqtt: "MQTT (EMQX)",
+        tts: "TTS-сервер",
+        telegram: "Telegram-микросервис",
+        twitch: "Twitch API"
+    };
 
     var els = {
         range: document.getElementById("server-range"),
@@ -15,7 +25,9 @@
         refresh: document.getElementById("server-refresh"),
         empty: document.getElementById("serverEmpty"),
         charts: document.getElementById("serverCharts"),
-        banner: document.getElementById("serverAlertBanner")
+        banner: document.getElementById("serverAlertBanner"),
+        servicesGrid: document.getElementById("serverServicesGrid"),
+        servicesUpdated: document.getElementById("servicesUpdated")
     };
 
     var charts = {};
@@ -218,7 +230,73 @@
         destroyCharts();
     }
 
+    function renderServices(data) {
+        var grid = els.servicesGrid;
+        if (!grid) return;
+        grid.innerHTML = "";
+        Object.keys(data.services || {}).forEach(function (key) {
+            var svc = data.services[key];
+            var card = document.createElement("div");
+            card.className = "svc-card " + (svc.status === "ok" ? "ok" : "error");
+
+            var head = document.createElement("div");
+            head.className = "svc-card-head";
+
+            var dot = document.createElement("span");
+            dot.className = "svc-dot";
+            head.appendChild(dot);
+
+            var name = document.createElement("span");
+            name.textContent = SERVICE_LABELS[key] || key;
+            head.appendChild(name);
+
+            if (svc.latency_ms !== null && svc.latency_ms !== undefined) {
+                var lat = document.createElement("span");
+                lat.className = "svc-latency";
+                lat.textContent = svc.latency_ms + " мс";
+                head.appendChild(lat);
+            }
+            card.appendChild(head);
+
+            if (svc.error) {
+                var err = document.createElement("div");
+                err.className = "svc-error";
+                err.textContent = svc.error;
+                card.appendChild(err);
+            } else if (svc.detail) {
+                var det = document.createElement("div");
+                det.className = "svc-detail";
+                det.textContent = svc.detail;
+                card.appendChild(det);
+            }
+            grid.appendChild(card);
+        });
+        if (els.servicesUpdated) {
+            els.servicesUpdated.textContent = "обновлено " + new Date().toLocaleTimeString();
+        }
+    }
+
+    function loadServices() {
+        fetch(HEALTH_URL, { credentials: "same-origin" })
+            .then(function (resp) {
+                if (resp.status === 401) throw new Error("Нужна авторизация.");
+                if (!resp.ok) throw new Error("Ошибка загрузки статусов (" + resp.status + ").");
+                return resp.json();
+            })
+            .then(renderServices)
+            .catch(function (err) {
+                if (!els.servicesGrid) return;
+                els.servicesGrid.innerHTML = "";
+                var card = document.createElement("div");
+                card.className = "svc-card error";
+                card.textContent = String(err.message || err);
+                els.servicesGrid.appendChild(card);
+                if (els.servicesUpdated) els.servicesUpdated.textContent = "";
+            });
+    }
+
     function refresh() {
+        loadServices();
         var btn = els.refresh;
         btn.disabled = true;
         btn.textContent = "Загрузка…";

@@ -1,16 +1,25 @@
+from collections.abc import Callable
 from decimal import Decimal
 from typing import Annotated
 
 import sqlalchemy as sa
 from dependency_injector.wiring import Provide, inject
 from fastapi import APIRouter, Depends, HTTPException, Query, Security
+from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from container import Container
 from database.models import User
 from dependencies import get_db
-from routers.security_helpers import admin_auth, user_auth
-from schemas.api import AdminBalanceResponseSchema, AdminDepositRequestSchema, AdminDepositResponseSchema
+from routers.security_helpers import admin_auth, staff_auth, user_auth
+from schemas.api import (
+    AdminBalanceResponseSchema,
+    AdminDepositRequestSchema,
+    AdminDepositResponseSchema,
+    HealthcheckResponseSchema,
+)
+from services.healthcheck import run_healthchecks
+from services.mqtt import MQTTClient
 from twitch.chat.bot import ChatBot
 from twitch.client.twitch import Twitch
 
@@ -85,6 +94,23 @@ async def send_message(
         raise HTTPException(status_code=404, detail="User not found")
 
     await chat_bot.send_message(res, message)
+
+
+@router.get("/healthcheck")
+@inject
+async def healthcheck(
+    db_session_factory: Annotated[Callable[[], AsyncSession], Depends(Provide[Container.db_session_factory])],
+    redis: Annotated[Redis, Depends(Provide[Container.redis])],
+    mqtt: Annotated[MQTTClient, Depends(Provide[Container.mqtt])],
+    _: Annotated[User, Security(staff_auth)],
+) -> HealthcheckResponseSchema:
+    """Статус связанных сервисов (DB / Redis / MQTT / TTS / Telegram / Twitch).
+
+    Для status card на странице /server. Доступ — модераторам/админам (staff_auth,
+    сессионная авторизация, как у самой страницы; остальные ручки /api/admin
+    используют HTTP Basic и остаются для внешних скриптов).
+    """
+    return await run_healthchecks(db_session_factory=db_session_factory, redis=redis, mqtt=mqtt)
 
 
 @router.get("/eventsub/subscriptions")

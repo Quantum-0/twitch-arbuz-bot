@@ -23,6 +23,7 @@ tracer = trace.get_tracer(__name__)
 class MQTTClient:
     def __init__(self):
         self._client: Client | None = None
+        self._listen_task: asyncio.Task | None = None
         self._client_id = settings.mqtt.client_id
         self._host = settings.mqtt.host
         self._username = settings.mqtt.username.get_secret_value()
@@ -30,6 +31,11 @@ class MQTTClient:
         self._prefix = "twibot"
 
         self._handlers: list[tuple[str, Callable[..., Awaitable[None]]]] = []
+
+    @property
+    def is_alive(self) -> bool:
+        """Подключение к брокеру установлено и цикл обработки сообщений жив."""
+        return self._client is not None and self._listen_task is not None and not self._listen_task.done()
 
     @asynccontextmanager
     async def lifespan(self):
@@ -44,6 +50,7 @@ class MQTTClient:
                 await cli.subscribe(self._prefix + "/#")
                 loop = asyncio.get_event_loop()
                 task = loop.create_task(self.__listen(cli))
+                self._listen_task = task
                 self._client = cli
                 await self.publish("system", "Bot started")
                 yield
@@ -53,6 +60,9 @@ class MQTTClient:
                     await task
                 except asyncio.CancelledError:
                     pass
+                finally:
+                    self._client = None
+                    self._listen_task = None
         except MqttError:
             logger.error("Couldn't connect MQTT", exc_info=True)
             yield

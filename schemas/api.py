@@ -309,3 +309,19 @@ class AdminDepositResponseSchema(BaseModel):
     twitch_login: str
     deposited: Decimal
     balance: Decimal
+
+
+class HealthcheckServiceSchema(BaseModel):
+    """Статус одного сервиса в ответе /api/admin/healthcheck."""
+
+    status: Literal["ok", "error"]
+    latency_ms: float | None = None
+    error: str | None = None
+    detail: str | None = None
+
+
+class HealthcheckResponseSchema(BaseModel):
+    """Ответ ручки /api/admin/healthcheck: статусы связанных сервисов (панель /server)."""
+
+    overall: Literal["ok", "error"]
+    services: dict[str, HealthcheckServiceSchema]
