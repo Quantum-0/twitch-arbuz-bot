@@ -2,7 +2,6 @@ import asyncio
 import logging
 from collections.abc import Callable
 from typing import Annotated
-from uuid import UUID
 
 import sqlalchemy as sa
 from dependency_injector.wiring import Provide, inject
@@ -134,14 +133,15 @@ async def login_callback_task(
             and user.telegram.stream_chat_id is not None
         )
 
-    if (
-        shoutout_to_raid_is_enabled is False
-        and memealerts_reward is None
-        and ai_stickers_reward is None
-        and not telegram_stream_enabled
-    ):
-        return
-
+    # Ранний выход при полностью выключенных фичах делать нельзя: иначе
+    # устаревшие подписки Twitch у такого пользователя никогда не отписываются.
+    # if (
+    #     shoutout_to_raid_is_enabled is False
+    #     and memealerts_reward is None
+    #     and ai_stickers_reward is None
+    #     and not telegram_stream_enabled
+    # ):
+    #     return
     subs = await twitch.get_subscriptions()
 
     subs_for_rewards = [
@@ -169,13 +169,13 @@ async def login_callback_task(
         if sub.type == "stream.offline" and sub.condition.get("broadcaster_user_id") == user.twitch_id
     ]
 
-    # TODO: unsubscribe from unused subs
-
     if shoutout_to_raid_is_enabled and not subs_for_raid:
         logger.warning(f"Found missing raid eventsub for user `{user}`. Re-subscribed!")
         await twitch.subscribe_raid(user)
     elif not shoutout_to_raid_is_enabled and subs_for_raid:
-        await twitch.unsubscribe_raid(subscription_id=UUID(subs_for_raid[0].id))
+        logger.warning(f"Found unused raid eventsubs for user `{user}`. Unsubscribing..")
+        for sub in subs_for_raid:
+            await twitch.unsubscribe_event_sub(sub.id)
 
     # ── Reconcile stream.online / stream.offline ──
     # Если тогл включён, но подписок нет — пытаемся пересоздать. При неудаче
@@ -200,10 +200,9 @@ async def login_callback_task(
                 )
                 await session.commit()
     elif not telegram_stream_enabled and (subs_for_stream_online or subs_for_stream_offline):
-        if subs_for_stream_online:
-            await twitch.unsubscribe_stream_online(user)
-        if subs_for_stream_offline:
-            await twitch.unsubscribe_stream_offline(user)
+        logger.warning(f"Found unused stream eventsubs for user `{user}`. Unsubscribing..")
+        for sub in [*subs_for_stream_online, *subs_for_stream_offline]:
+            await twitch.unsubscribe_event_sub(sub.id)
 
     for sub in subs_for_rewards:
         if sub.condition.get("reward_id") not in {str(ai_stickers_reward), str(memealerts_reward)}:

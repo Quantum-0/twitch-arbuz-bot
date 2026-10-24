@@ -47,29 +47,16 @@ T = TypeVar("T", bound=str)
 class Tokens(BaseModel, Generic[T]):
     access_token: T
     refresh_token: T
-    # _access_token: T = Field(alias="access_token", repr=False)
-    # _refresh_token: T = Field(alias="access_token", repr=False)
     _expires_in: float = PrivateAttr(default=60 * 60 - 1)
     _expires_at: datetime
     _refresh_expires_at: datetime
     _refresh_expires_in: float = PrivateAttr(default=30 * 24 * 60 * 60 - 1)
-    # _raw_access_token: T = PrivateAttr()
-    # _raw_refresh_token: T = PrivateAttr()
-    # TODO: Error when try to call token.access_token when expired
 
-    # @computed_field
-    # @property
-    # def access_token(self) -> T:
-    #     if self.is_expired:
-    #         raise MATokenExpiredError()
-    #     return self._raw_access_token
-    #
-    # @computed_field
-    # @property
-    # def refresh_token(self) -> T:
-    #     if self.is_refresh_expired:
-    #         raise MATokenExpiredError()
-    #     return self._raw_refresh_token
+    def require_access_token(self) -> T:
+        """Токен для Authorization-заголовков: истёкший access — явная MATokenExpiredError, а не тихая 401 от MA."""
+        if self.is_expired:
+            raise MATokenExpiredError("Access token expired")
+        return self.access_token
 
     @model_validator(mode="after")
     def calc_expiration(self):
@@ -88,8 +75,6 @@ class Tokens(BaseModel, Generic[T]):
             self._expires_at = expires_at
             self._refresh_expires_at = expires_at + timedelta(days=30, hours=-1)
 
-        # self._raw_access_token = self.access_token
-        # self._raw_refresh_token = self.refresh_token
         return self
 
     @computed_field
@@ -580,7 +565,7 @@ class MemealertsV2Service:
             response = await client.get(
                 "https://memealerts.com/api/v1/user/oauth",
                 timeout=10,
-                headers={"Authorization": f"Bearer {ma_token.access_token}"},
+                headers={"Authorization": f"Bearer {ma_token.require_access_token()}"},
             )
             if response.status_code in {500, 502}:
                 raise MAUnavailableError
@@ -685,7 +670,7 @@ class MemealertsV2Service:
             response = await client.post(
                 "https://memealerts.com/api/v1/user/give-bonus",
                 timeout=10,
-                headers={"Authorization": f"Bearer {ma_token.access_token}"},
+                headers={"Authorization": f"Bearer {ma_token.require_access_token()}"},
                 json={
                     "userId": str(user_id),
                     "value": value,
@@ -731,7 +716,7 @@ class MemealertsV2Service:
             response = await client.get(
                 "https://memealerts.com/api/v1/user/supporters",
                 timeout=10,
-                headers={"Authorization": f"Bearer {ma_token.access_token}"},
+                headers={"Authorization": f"Bearer {ma_token.require_access_token()}"},
                 params=params,
             )
             if response.status_code in {500, 502}:

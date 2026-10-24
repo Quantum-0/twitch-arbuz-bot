@@ -2,7 +2,7 @@ import asyncio
 import json
 import logging
 from collections.abc import AsyncIterator
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 
 import redis.asyncio as aioredis
 from opentelemetry import trace
@@ -83,7 +83,7 @@ class RedisStateManager(StateManager):
                 for key, val in zip(target_keys, values)
                 if val is not None
             }
-        except (aioredis.ConnectionError, aioredis.TimeoutError) as e:
+        except aioredis.RedisError as e:
             logger.error(f"Redis недоступен! Ошибка: {e}")
             return {}
 
@@ -151,7 +151,7 @@ class RedisStateManager(StateManager):
                 await self._r.sadd(f"idx:command:{command}", main_key)
                 await self._r.sadd(f"idx:user:{user}", main_key)
                 await self._r.sadd(f"idx:param:{param}", main_key)
-        except (aioredis.ConnectionError, aioredis.TimeoutError) as e:
+        except aioredis.RedisError as e:
             logger.error(f"Redis недоступен! Ошибка: {e}")
             return
 
@@ -189,7 +189,7 @@ class RedisStateManager(StateManager):
 
             return await self._r.delete(*target_keys)
 
-        except (aioredis.ConnectionError, aioredis.TimeoutError) as e:
+        except aioredis.RedisError as e:
             logger.error(f"Redis недоступен! Ошибка: {e}")
             return 0
 
@@ -229,6 +229,7 @@ class RedisStateManager(StateManager):
     async def redis_event_listener(client: aioredis.Redis):
         async with client.client() as pubsub_client:
             while True:
+                pubsub = None
                 try:
                     pubsub = pubsub_client.pubsub()
                     await pubsub.subscribe("__keyevent@0__:expired", "__keyevent@0__:del")
@@ -254,16 +255,18 @@ class RedisStateManager(StateManager):
                                     pipe.srem(f"idx:user:{user}", expired_key)
                                     pipe.srem(f"idx:param:{param}", expired_key)
                                     await pipe.execute()
-                except (aioredis.ConnectionError, aioredis.TimeoutError) as e:
+                except aioredis.RedisError as e:
                     logger.warning(f"Ошибка соединения: {e}. Ожидание 5 секунд...")
                     await asyncio.sleep(5)
                     if pubsub:
-                        await pubsub.aclose()
+                        with suppress(aioredis.RedisError):
+                            await pubsub.aclose()
                 except asyncio.CancelledError:
                     if pubsub:
-                        await pubsub.unsubscribe("__keyevent@0__:expired", "__keyevent@0__:del")
-                    if pubsub:
-                        await pubsub.aclose()
+                        with suppress(aioredis.RedisError):
+                            await pubsub.unsubscribe("__keyevent@0__:expired", "__keyevent@0__:del")
+                        with suppress(aioredis.RedisError):
+                            await pubsub.aclose()
                     break
 
 
@@ -360,7 +363,3 @@ def init_redis(redis_url: str, binary: bool = False) -> Redis:
 #
 # if __name__ == "__main__":
 #     asyncio.run(main())
-
-
-# TODO:
-#   Как сделать так, чтобы сервис не умирал при падении Redis?
