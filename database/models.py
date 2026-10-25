@@ -85,8 +85,8 @@ class User(Base):
     # Вычисляемый баланс
     balance: Mapped[Decimal] = mapped_column(Numeric(12, 2), Computed(total_deposited - total_spent))
 
-    _access_token: Mapped[str] = mapped_column("access_token", String)
-    _refresh_token: Mapped[str] = mapped_column("refresh_token", String)
+    _access_token: Mapped[str | None] = mapped_column("access_token", String, nullable=True)
+    _refresh_token: Mapped[str | None] = mapped_column("refresh_token", String, nullable=True)
     # Срок действия Twitch access token (UTC, без timezone). None — старые токены до миграции.
     twitch_token_expires_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, default=None)
 

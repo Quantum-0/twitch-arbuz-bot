@@ -99,6 +99,8 @@ class RedisStateManager(StateManager):
 
     @staticmethod
     async def _encode_value(value: VALUE_TYPE) -> str | None:
+        if isinstance(value, bool):
+            return f"b{int(value)}"
         if isinstance(value, float):
             return f"f{value}"
         if isinstance(value, int):
@@ -143,9 +145,10 @@ class RedisStateManager(StateManager):
         main_key = f"sm:{channel}:{command}:{user}:{param}"
         redis_value: str | None = await self._encode_value(value)
         try:
-            if redis_value is None:
+            if value is None:
                 await self.del_state(channel=channel, user=user, command=command, param=param)
             else:
+                assert redis_value is not None  # noqa: S101 -- encode не-None значения всегда возвращает str
                 await self._r.set(main_key, redis_value, ex=self._default_ttl)
                 await self._r.sadd(f"idx:channel:{channel}", main_key)
                 await self._r.sadd(f"idx:command:{command}", main_key)

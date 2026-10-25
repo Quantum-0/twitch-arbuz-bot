@@ -54,6 +54,16 @@ poetry run uvicorn main:app --reload   # запустить дев-сервер
   `loop_scope="session"`). Не оставляйте в тестах бесконечные фоновые задачи (реальные
   websocket/upstream-циклы) — они утекают в общий loop; ждите только собственные задачи
   (см. `fire_and_forget_scope` в `test_stream_notifications.py`).
+- **Готча dependency_overrides:** `lambda f=fake: f` как override НЕЛЬЗЯ — FastAPI/Pydantic
+  трактует callable-default как factory и вызывает `fake()`, подменяя объект. Только замыкание
+  без параметров: `def override(): return fake` (см. `_make_override` в `test_user_api.py`).
+- **Готча ORM-фабрик в тестах:** db_session-фикстура живёт внутри savepoint-транзакции:
+  - `session.begin()` кидает InvalidRequestError — для сервисов с `async with session.begin()`
+    оборачивайте сессию прокси с пустым `begin()` (`SessionCtxNoBegin` в `test_stickers_service.py`);
+  - `after_insert`-ивент User создаёт TwitchUserSettings/MemealertsSettings/Links автоматически —
+    не добавляйте эти строки вручную (JOIN'ы дают fanout-дубли), меняйте флаги в существующих.
+- **User.access_token/refresh_token:** property-сеттеры шифруют и `assert`-ят не-None —
+  сценарий «токенов нет» эмулируйте SimpleNamespace, а не `User(access_token=None)`.
 
 ## Соглашения по коду
 
