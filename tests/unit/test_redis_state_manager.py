@@ -75,10 +75,10 @@ class TestSetGetState:
         assert await sm.get_state(channel="chan", user=5, command="cmd", param=SMParam.USER) == "target_name"
         assert fake.values[KEY] == "starget_name"
         # Ключ проиндексирован во всех четырёх idx-множествах
-        assert fake.smembers("idx:channel:chan") == {KEY}
-        assert fake.smembers("idx:command:cmd") == {KEY}
-        assert fake.smembers("idx:user:5") == {KEY}
-        assert fake.smembers("idx:param:user") == {KEY}
+        assert await fake.smembers("idx:channel:chan") == {KEY}
+        assert await fake.smembers("idx:command:cmd") == {KEY}
+        assert await fake.smembers("idx:user:5") == {KEY}
+        assert await fake.smembers("idx:param:user") == {KEY}
 
     async def test_default_ttl_applied(self, fake, sm):
         await sm.set_state("v", channel="chan", user=5, command="cmd")
@@ -272,17 +272,17 @@ class TestKeyListener:
 
     async def test_expired_key_cleans_index_sets(self, fake, sm, monkeypatch):
         await sm.set_state("v", channel="chan", user=5, command="cmd")
-        assert DEFAULT_KEY in fake.smembers("idx:channel:chan")
+        assert DEFAULT_KEY in await fake.smembers("idx:channel:chan")
         ps = FakePubSub()
         ps.queue = [self._expired_event(DEFAULT_KEY), asyncio.CancelledError()]
         monkeypatch.setattr(fake, "pubsub", lambda: ps)
 
         await RedisStateManager.redis_event_listener(fake)
 
-        assert DEFAULT_KEY not in fake.smembers("idx:channel:chan")
-        assert DEFAULT_KEY not in fake.smembers("idx:command:cmd")
-        assert DEFAULT_KEY not in fake.smembers("idx:user:5")
-        assert DEFAULT_KEY not in fake.smembers("idx:param:default")
+        assert DEFAULT_KEY not in await fake.smembers("idx:channel:chan")
+        assert DEFAULT_KEY not in await fake.smembers("idx:command:cmd")
+        assert DEFAULT_KEY not in await fake.smembers("idx:user:5")
+        assert DEFAULT_KEY not in await fake.smembers("idx:param:default")
         assert ps.closed
 
     async def test_non_sm_key_ignored(self, fake, sm, monkeypatch):
@@ -293,7 +293,7 @@ class TestKeyListener:
 
         await RedisStateManager.redis_event_listener(fake)
 
-        assert DEFAULT_KEY in fake.smembers("idx:channel:chan")  # не тронут
+        assert DEFAULT_KEY in await fake.smembers("idx:channel:chan")  # не тронут
         assert ps.closed
 
     async def test_malformed_sm_key_ignored(self, fake, sm, monkeypatch):
@@ -304,7 +304,7 @@ class TestKeyListener:
 
         await RedisStateManager.redis_event_listener(fake)
 
-        assert fake.smembers("idx:channel:chan") == {DEFAULT_KEY}
+        assert await fake.smembers("idx:channel:chan") == {DEFAULT_KEY}
 
     async def test_redis_error_reconnects(self, fake, monkeypatch):
         async def fast_sleep(delay: float) -> None:  # noqa: ARG001

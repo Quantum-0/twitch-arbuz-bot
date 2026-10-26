@@ -42,6 +42,28 @@ class FakePipeline:
         self._redis._srem(name, *values)
         return self
 
+    def sadd(self, name: str, *values: str) -> FakePipeline:
+        self._redis.sets.setdefault(name, set()).update(values)
+        return self
+
+    def delete(self, *names: str) -> FakePipeline:
+        for name in names:
+            self._redis.values.pop(name, None)
+            self._redis.lists.pop(name, None)
+            self._redis.hashes.pop(name, None)
+            self._redis.sets.pop(name, None)
+            self._redis.ttls.pop(name, None)
+        return self
+
+    def hincrby(self, name: str, key: str, amount: int = 1) -> FakePipeline:
+        self._redis._hincrby(name, key, amount)
+        return self
+
+    def hdel(self, name: str, *keys: str) -> FakePipeline:
+        for k in keys:
+            self._redis.hashes.get(name, {}).pop(k, None)
+        return self
+
     async def execute(self) -> list[Any]:
         return []
 
@@ -104,6 +126,8 @@ class FakeRedis:
         self.sets: dict[str, set[str]] = {}
         self.ttls: dict[str, int] = {}
         self.pubsubs: list[FakePubSub] = []
+        self.config_sets: dict[str, str] = {}
+        self.closed = False
 
     def _rpush(self, name: str, *values: str) -> int:
         self.lists.setdefault(name, []).extend(values)
@@ -113,6 +137,11 @@ class FakeRedis:
         target = self.hashes.setdefault(name, {})
         target.update({k: str(v) for k, v in mapping.items()})
         return len(target)
+
+    def _hincrby(self, name: str, key: str, amount: int = 1) -> int:
+        target = self.hashes.setdefault(name, {})
+        target[key] = str(int(target.get(key, "0")) + amount)
+        return int(target[key])
 
     def _srem(self, name: str, *values: str) -> int:
         members = self.sets.get(name)
@@ -127,6 +156,19 @@ class FakeRedis:
 
     async def hset(self, name: str, mapping: dict[str, Any] | None = None) -> int:
         return self._hset(name, mapping or {})
+
+    async def hincrby(self, name: str, key: str, amount: int = 1) -> int:
+        return self._hincrby(name, key, amount)
+
+    async def hdel(self, name: str, *keys: str) -> int:
+        target = self.hashes.get(name, {})
+        removed = sum(1 for k in keys if k in target)
+        for k in keys:
+            target.pop(k, None)
+        return removed
+
+    async def scard(self, name: str) -> int:
+        return len(self.sets.get(name, ()))
 
     async def rpush(self, name: str, *values: str) -> int:
         return self._rpush(name, *values)
@@ -159,10 +201,13 @@ class FakeRedis:
     async def get(self, name: str) -> str | None:
         return self.values.get(name)
 
-    async def set(self, name: str, value: str, ex: int | None = None) -> None:
+    async def set(self, name: str, value: str, ex: int | None = None, nx: bool = False) -> bool | None:
+        if nx and name in self.values:
+            return None  # SET NX: ключ занят
         self.values[name] = value
         if ex is not None:
             self.ttls[name] = ex
+        return True
 
     async def setex(self, name: str, seconds: int, value: str) -> None:
         self.values[name] = value
@@ -207,7 +252,7 @@ class FakeRedis:
                 return set()
         return result or set()
 
-    def smembers(self, name: str) -> set[str]:
+    async def smembers(self, name: str) -> set[str]:
         return set(self.sets.get(name, set()))
 
     async def srem(self, name: str, *values: str) -> int:
@@ -233,6 +278,17 @@ class FakeRedis:
 
     def client(self) -> _SelfCtx:
         return _SelfCtx(self)
+
+    # --- Серверные команды (lifespan fail-fast) ---
+
+    async def config_set(self, name: str, value: str) -> None:
+        self.config_sets[name] = value
+
+    async def ping(self) -> bool:
+        return True
+
+    async def aclose(self) -> None:
+        self.closed = True
 
 
 class SessionCtx:
