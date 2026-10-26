@@ -50,10 +50,8 @@ class Cache:
         # Если данных нет, выполняем исходную функцию
         result = await func(*args, **kwargs)
 
-        # Сохраняем результат в Redis (например, с TTL в 3600 секунд)
-        await self._rb.setex(cache_key, 3600, pickle.dumps(result))
-        # serialized_result = pickle.dumps(result)
-        # await self._rb.execute_command("SETEX", cache_key, 3600, serialized_result)
+        # Сохраняем результат в Redis с переданным TTL (дефолт 120с)
+        await self._rb.setex(cache_key, cache_ttl, pickle.dumps(result))
         return result
 
     async def set_set(self, name: str, values: set[str], ttl: int = 3600, no_error: bool = True) -> None:
