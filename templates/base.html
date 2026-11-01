@@ -48,6 +48,7 @@
 
 </head>
 <body>
+    <canvas id="stars-bg" aria-hidden="true"></canvas>
     <svg style="display: none">
         <filter id="displacementFilter">
             <feImage
@@ -408,6 +409,8 @@
     })();
     </script>
     {% endif %}
+
+    <script defer src="{{ static_url('js/stars-bg.js') }}"></script>
 
     {% include "jumping_chibi.html" %}
 </body>
