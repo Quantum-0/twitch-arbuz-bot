@@ -25,6 +25,7 @@ from services.cache import Cache
 from twitch.chat.bot import ChatBot
 from twitch.client.twitch import Twitch
 from twitch.state_manager import StateManager
+from utils.misc import get_users_count
 from utils.overlay_secret import ensure_overlay_secret
 from utils.reference_moderation import MIN_REFERENCE_FOLLOWERS, ensure_reference_moderator, is_reference_admin
 from utils.telegram import TG_CLIPS_BETA_USERS
@@ -65,13 +66,19 @@ logger = logging.getLogger(__name__)
         307: {"description": "Переход в панель управления ботом"},
     },
 )
-async def index_page(request: Request):
+@inject
+async def index_page(
+    request: Request,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    cache: Annotated[Cache, Depends(Provide[Container.cache])],
+):
     if request.session.get("user_id"):
         return RedirectResponse(url="/panel")
     return templates.TemplateResponse(
         "main.html",
         {
             "request": request,
+            "users_count": await get_users_count(db, cache),
         },
     )
 
