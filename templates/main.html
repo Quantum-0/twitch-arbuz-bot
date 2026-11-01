@@ -1,10 +1,37 @@
 {% extends "base.html" %}
 
 {% block title %}Quantum0's Bot — Twitch-бот с чат-командами и интеграцией MemeAlerts{% endblock %}
-{% block description %}Главная страница Quantum0's Bot с авторизацией через Twitch{% endblock %}
+{% block description %}Twitch-бот Quantum075Bot: мемкоины за баллы канала (MemeAlerts), автоматические shoutout'ы на рейды, интерактивные чат-команды, словотрон, AI-стикеры и оверлеи для OBS. Настройка через Twitch за пару минут.{% endblock %}
 
 {% block head_scripts %}
 <meta name="yandex-verification" content="9a603b030c3c567a"/>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "WebApplication",
+  "name": "Quantum0's Bot",
+  "alternateName": "Quantum075Bot",
+  "url": "{{ site_url }}/",
+  "description": "Твич-бот Quantum075Bot: мемкоины за баллы канала, авто-shoutout на рейды, словотрон, оверлеи и интерактивные команды.",
+  "applicationCategory": "UtilitiesApplication",
+  "operatingSystem": "Any",
+  "browserRequirements": "Требуется современный браузер с поддержкой JavaScript и HTML5",
+  "inLanguage": "ru",
+  "isAccessibleForFree": true,
+  "featureList": [
+    "Мемкоины за баллы канала (интеграция MemeAlerts)",
+    "Автоматический shoutout при рейдах",
+    "Интерактивные чат-команды (!трусы, !кусь, !лизь, !обнять и другие)",
+    "Словотрон",
+    "AI-стикеры",
+    "Оверлеи для OBS"
+  ],
+  "screenshot": "{{ site_url }}/static/images/og-image.jpg",
+  "offers": {"@type": "Offer", "price": "0", "priceCurrency": "RUB"},
+  "author": {"@type": "Person", "name": "Quantum0", "url": "{{ site_url }}/about"}{% if users_count is defined and users_count %},
+  "interactionStatistic": {"@type": "InteractionCounter", "interactionType": "https://schema.org/RegisterAction", "userInteractionCount": {{ users_count }}}{% endif %}
+}
+</script>
 {% endblock %}
 
 {% block content %}
