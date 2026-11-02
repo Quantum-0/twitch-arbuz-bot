@@ -26,29 +26,49 @@ class FakeMessage:
 
 
 class FakeMessages:
-    """Конечная очередь сообщений, после исчерпания — блокировка (upstream жив)."""
+    """Очередь сообщений, как у aiomqtt: после исчерпания — ожидание новых.
+
+    ``add`` будит уже висящий итератор (важно для тестов, где сообщения
+    добавляются после входа в lifespan).
+    """
 
     def __init__(self, items: list[FakeMessage], hang: bool = True) -> None:
         self._items = list(items)
         self._hang = hang
+        self._wake = asyncio.Event()
+
+    def add(self, item: FakeMessage) -> None:
+        self._items.append(item)
+        self._wake.set()
 
     def __aiter__(self) -> "FakeMessages":
         return self
 
     async def __anext__(self) -> FakeMessage:
-        if self._items:
-            return self._items.pop(0)
-        if self._hang:
-            await asyncio.Event().wait()
-        raise StopAsyncIteration
+        while True:
+            if self._items:
+                return self._items.pop(0)
+            if not self._hang:
+                raise StopAsyncIteration
+            self._wake.clear()
+            await self._wake.wait()
 
 
 class FakeAiomqttClient:
     last: "FakeAiomqttClient | None" = None
 
-    def __init__(self, host: str, connect_error: Exception | None = None, **kwargs: Any) -> None:  # noqa: ARG002
+    def __init__(
+        self,
+        host: str,
+        connect_error: Exception | None = None,
+        listen_error: Exception | None = None,
+        **kwargs: Any,  # noqa: ARG002
+    ) -> None:
         self.host = host
         self.connect_error = connect_error
+        # Ошибка при первом обращении к messages — эмулирует обрыв связи
+        # (итератор raises → слушатель умирает с MqttError).
+        self.listen_error = listen_error
         self.subscribed: list[str] = []
         self.published: list[dict[str, Any]] = []
         self.closed = False
@@ -56,11 +76,19 @@ class FakeAiomqttClient:
         FakeAiomqttClient.last = self
 
     def set_messages(self, items: list[FakeMessage], hang: bool = True) -> None:
-        self._messages = FakeMessages(items, hang=hang)
+        if self._messages is None:
+            self._messages = FakeMessages(items, hang=hang)
+        else:
+            # Итератор уже захвачен слушателем — досыпаем в живую очередь
+            for item in items:
+                self._messages.add(item)
+            self._messages._hang = hang
 
     @property
     def messages(self) -> FakeMessages:
         if self._messages is None:
+            if self.listen_error is not None:
+                raise self.listen_error
             self._messages = FakeMessages([])
         return self._messages
 
@@ -322,3 +350,29 @@ class TestLifespan:
             assert not client.is_alive
 
         assert not client.is_alive
+
+    async def test_reconnects_after_connection_loss(self, client, monkeypatch):
+        """Обрыв связи (слушатель умер с MqttError) → супервизор переподключается."""
+        created: list[FakeAiomqttClient] = []
+
+        def factory(host: str, **kwargs: Any) -> FakeAiomqttClient:
+            cli = FakeAiomqttClient(host, listen_error=MqttError("connection lost") if not created else None)
+            created.append(cli)
+            return cli
+
+        monkeypatch.setattr(mqtt_module, "Client", factory)
+
+        async with client.lifespan():
+            # Первое подключение умерло → ждём реконнекта (backoff ~1с)
+            for _ in range(150):
+                if len(created) >= 2 and client.is_alive:
+                    break
+                await asyncio.sleep(0.02)
+            assert len(created) == 2, "супервизор не переподключился"
+            assert created[0].closed
+            assert created[1].subscribed == ["twibot/#"]
+            assert client.is_alive
+
+        assert not client.is_alive
+        assert client._client is None
+        assert client._listen_task is None

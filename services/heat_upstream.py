@@ -1,12 +1,16 @@
 import asyncio
 import logging
 import random
+from typing import TYPE_CHECKING
 
 import websockets
 
 from schemas.api import StatsType
 from services.statistics import StatisticsService
 from utils.enums import SSEChannel
+
+if TYPE_CHECKING:
+    from services.sse_manager import SSEManager
 
 logger = logging.getLogger(__name__)
 
@@ -73,6 +77,14 @@ class HeatUpstreamConnection:
             except asyncio.CancelledError:
                 break
             except Exception:
+                # Реконнект с backoff; логируем — иначе мёртвый upstream не оставляет
+                # телеметрии вообще (раньше здесь была полностью тихая retry-петля).
+                logger.error(
+                    "Heat upstream id=%s: connection error, retry in ~%.0fs",
+                    self.user_id,
+                    backoff,
+                    exc_info=True,
+                )
                 await asyncio.sleep(backoff + random.uniform(0, 0.5))
                 backoff = min(backoff * 2, 30)
         logger.info("Closing Heat upstream, id=%s", self.user_id)

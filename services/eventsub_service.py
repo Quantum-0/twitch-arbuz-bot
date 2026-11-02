@@ -47,6 +47,7 @@ from services.tts import TTSService
 from twitch.chat.bot import ChatBot
 from twitch.client.twitch import Twitch
 from utils.enums import SSEChannel
+from utils.observability import spawn_logged_task
 from utils.tts import clean_tts_text, clean_tts_username, truncate_tts
 
 logger = logging.getLogger(__name__)
@@ -111,7 +112,7 @@ class TwitchEventSubService:
     @staticmethod
     def task_wrapper(func):
         async def wrapped(*args, **kwargs):
-            asyncio.create_task(func(*args, **kwargs))
+            spawn_logged_task(func(*args, **kwargs))
 
         return wrapped
 

@@ -8,6 +8,7 @@ from container_runtime import get_container, set_container
 from database.database import async_engine
 from schemas.api import StatsType
 from utils.enums import MQTTTopic
+from utils.observability import setup_asyncio_exception_handler
 
 if TYPE_CHECKING:
     from fastapi import FastAPI
@@ -21,6 +22,10 @@ async def get_db() -> AsyncGenerator:
 
 @asynccontextmanager
 async def lifespan(app: "FastAPI | None" = None):
+    # Ошибки необработанных фоновых задач — сразу в лог/GlitchTip,
+    # а не безликим «Task exception was never retrieved» на GC.
+    setup_asyncio_exception_handler()
+
     from container import Container
 
     container = Container()

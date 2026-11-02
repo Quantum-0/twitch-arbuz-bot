@@ -1,4 +1,3 @@
-import asyncio
 import logging.config
 from collections import deque
 from typing import Annotated
@@ -28,6 +27,7 @@ from services.eventsub_service import TwitchEventSubService
 from services.mqtt import MQTTClient
 from services.stream_notifications import StreamNotificationsService
 from twitch.chat.bot import ChatBot
+from utils.observability import spawn_logged_task
 
 router = APIRouter(prefix="/twitch")
 
@@ -98,7 +98,10 @@ async def eventsub_handler(
     elif isinstance(payload, ChatMessageSchema):
         logger.info("Handling message webhook")
         if settings.app.direct_handle_messages:
-            asyncio.create_task(chat_bot.on_message(payload.event))
+            spawn_logged_task(
+                chat_bot.on_message(payload.event),
+                name=f"chat_on_message:{payload.subscription.condition.broadcaster_user_id}",
+            )
         await mqtt.publish(f"twitch/{payload.subscription.condition.broadcaster_user_id}/message", payload.event)
     elif isinstance(payload, StreamOnlineSchema):
         logger.info("Handling stream.online")

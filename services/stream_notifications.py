@@ -17,7 +17,6 @@
   ``delete``/``message``/``keep`` по ``stream_offline_behavior``.
 """
 
-import asyncio
 import logging
 import uuid
 from collections.abc import Callable
@@ -36,6 +35,7 @@ from schemas.twitch import StreamOfflineSchema, StreamOnlineSchema
 from services.cache import Cache
 from services.mqtt import MQTTClient
 from twitch.client.twitch import Twitch
+from utils.observability import spawn_logged_task
 
 logger = logging.getLogger(__name__)
 tracer = trace.get_tracer(__name__)
@@ -60,7 +60,7 @@ _DEFERRED_OFFLINE_RETRY_MINUTES = 2
 
 def _task_wrapper(func):
     async def wrapped(*args, **kwargs):
-        asyncio.create_task(func(*args, **kwargs))
+        spawn_logged_task(func(*args, **kwargs))
 
     return wrapped
 
