@@ -13,6 +13,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 import pytest
+from twitchAPI.type import TwitchAPIException
 
 from services.eventsub_service import TwitchEventSubService
 from services.stickers import ModerationBlockedException, RewardRedemptionProcessingError
@@ -193,6 +194,91 @@ async def test_raid_with_shoutout_disabled_unsubscribes():
 
     service._twitch.unsubscribe_raid.assert_awaited_once_with(subscription_id="sub-raid")
     service._twitch.shoutout.assert_not_awaited()
+
+
+async def test_raid_shoutout_not_moderator_disables_feature():
+    service = build_service()
+    user = build_user(settings=SimpleNamespace(enable_shoutout_on_raid=True))
+    service._get_user_by_id_or_login = AsyncMock(return_value=user)
+    service._twitch.shoutout = AsyncMock(
+        side_effect=TwitchAPIException("Bad Request - The requesting user must be a channel moderator.")
+    )
+    service._disable_shoutout_on_raid = AsyncMock()
+
+    await service.handle_raid(raid_payload())
+    await settle(service._disable_shoutout_on_raid)
+
+    service._disable_shoutout_on_raid.assert_awaited_once_with(BROADCASTER_ID)
+    service._twitch.unsubscribe_raid.assert_awaited_once_with(subscription_id="sub-raid")
+
+
+async def test_raid_shoutout_not_streaming_live_warns_without_side_effects():
+    service = build_service()
+    user = build_user(settings=SimpleNamespace(enable_shoutout_on_raid=True))
+    service._get_user_by_id_or_login = AsyncMock(return_value=user)
+    service._twitch.shoutout = AsyncMock(
+        side_effect=TwitchAPIException("Bad Request - The broadcaster is not streaming live or does not have viewers.")
+    )
+    service._disable_shoutout_on_raid = AsyncMock()
+
+    await service.handle_raid(raid_payload())
+    await settle(service._twitch.shoutout)
+
+    service._disable_shoutout_on_raid.assert_not_awaited()
+    service._twitch.unsubscribe_raid.assert_not_awaited()
+
+
+async def test_raid_shoutout_unexpected_error_reraises():
+    service = build_service()
+    service._disable_shoutout_on_raid = AsyncMock()
+
+    with pytest.raises(TwitchAPIException, match="Too Many Requests"):
+        await service._process_shoutout_error(
+            TwitchAPIException("429 Too Many Requests"), user=build_user(), payload=raid_payload()
+        )
+
+    service._disable_shoutout_on_raid.assert_not_awaited()
+    service._twitch.unsubscribe_raid.assert_not_awaited()
+
+
+class _FakeResult:
+    def __init__(self, rows):
+        self._rows = rows
+
+    def scalars(self):
+        return SimpleNamespace(all=lambda: self._rows)
+
+
+class _FakeSession:
+    def __init__(self, result):
+        self._result = result
+        self.executed = []
+        self.committed = False
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *exc):
+        return False
+
+    async def execute(self, stmt):
+        self.executed.append(stmt)
+        return self._result
+
+    async def commit(self):
+        self.committed = True
+
+
+async def test_disable_shoutout_on_raid_updates_db():
+    session = _FakeSession(_FakeResult([7]))
+    service = build_service()
+    service._db_session_factory = lambda: session
+
+    await service._disable_shoutout_on_raid(BROADCASTER_ID)
+
+    assert session.committed
+    assert "twitch_user_settings" in str(session.executed[0])
+    assert "enable_shoutout_on_raid" in str(session.executed[0])
 
 
 async def test_raid_broadcasts_event_to_overlay():

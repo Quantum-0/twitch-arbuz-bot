@@ -10,7 +10,7 @@ import sqlalchemy as sa
 from opentelemetry import trace
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
-from twitchAPI.type import TwitchResourceNotFound
+from twitchAPI.type import TwitchAPIException, TwitchResourceNotFound
 
 from config import settings
 from database.models import Base, TelegramSettings, TTSSettings, TwitchUserSettings, User
@@ -166,7 +166,55 @@ class TwitchEventSubService:
         # Overlay не управляет channel.raid самостоятельно в этом случае — после первого же рейда
         # подписка остаётся активной только пока включён enable_shoutout_on_raid.
 
-        await self._twitch.shoutout(user=user, shoutout_to=payload.event.from_broadcaster_user_id)
+        try:
+            await self._twitch.shoutout(user=user, shoutout_to=payload.event.from_broadcaster_user_id)
+        except TwitchAPIException as exc:
+            await self._process_shoutout_error(exc, user=user, payload=payload)
+
+    _SHOUTOUT_NOT_MODERATOR_MARKERS = (
+        "must be a channel moderator",
+        "not one of the broadcaster's moderators",
+    )
+
+    async def _process_shoutout_error(self, exc: TwitchAPIException, user: User, payload: RaidWebhookSchema) -> None:
+        """Реакция на отказ Twitch API в send_a_shoutout.
+
+        - Бот не модератор в канале стримера (сняли мода) — фича мертва до возврата мода:
+          отключаем флаг и отписываем raid-sub, симметрично ручному выключению в панели.
+        - Стример не в эфире / нет зрителей (рейд обычно завершает его стрим) —
+          ожидаемый шум, warning без реакции.
+        - Остальное (в т.ч. 429 rate limit при очереди рейдов) — пробрасываем как раньше.
+        """
+        message = str(exc)
+        if any(marker in message for marker in self._SHOUTOUT_NOT_MODERATOR_MARKERS):
+            logger.warning(
+                "Shoutout failed: бот не модератор в канале стримера, отключаем авто-shoutout (twitch_id=%s)",
+                user.twitch_id,
+            )
+            await self._disable_shoutout_on_raid(str(user.twitch_id))
+            await self._twitch.unsubscribe_raid(subscription_id=payload.subscription.subscription_id)
+        elif "not streaming live" in message:
+            logger.warning(
+                "Shoutout skipped: стример не в эфире или нет зрителей (twitch_id=%s, raider=%s)",
+                user.twitch_id,
+                payload.event.from_broadcaster_user_id,
+            )
+        else:
+            raise exc
+
+    async def _disable_shoutout_on_raid(self, broadcaster_id: str) -> None:
+        """Отключить авто-shoutout на рейды (бот лишился модератора в канале)."""
+        async with self._db_session_factory() as db:
+            result = await db.execute(
+                sa.update(TwitchUserSettings)
+                .values(enable_shoutout_on_raid=False)
+                .where(TwitchUserSettings.user_id.in_(sa.select(User.id).where(User.twitch_id == broadcaster_id)))
+                .returning(TwitchUserSettings.user_id)
+            )
+            disabled = result.scalars().all()
+            await db.commit()
+        if disabled:
+            logger.warning("Авто-shoutout отключён (бот не модератор): twitch_id=%s", broadcaster_id)
 
     @task_wrapper
     @tracer.start_as_current_span("Twitch Eventsub: Follow")
