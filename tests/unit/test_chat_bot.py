@@ -15,6 +15,7 @@ from uuid import uuid4
 import pytest
 
 import twitch.chat.bot as bot_module
+from database.models import User
 from exceptions import ToManyChatUnsubscribesStartupException, UserNotFoundInDatabase
 from schemas.api import StatsType
 from schemas.twitch import ChatMessageWebhookEventSchema
@@ -121,6 +122,63 @@ class FakeUserListManager:
 
     def get_last_active(self, channel: str, user: str, timeout: float | None = None) -> float | None:  # noqa: ARG002
         return 123.5
+
+
+class _ScalarResult:
+    def __init__(self, values: list[Any]) -> None:
+        self._values = values
+
+    def all(self) -> list[Any]:
+        return self._values
+
+
+class _ExecuteResult:
+    def __init__(self, values: list[Any]) -> None:
+        self._values = values
+
+    def scalars(self) -> _ScalarResult:
+        return _ScalarResult(self._values)
+
+
+class _TrackingSession:
+    """Фейковая AsyncSession: доступ после выхода из контекст-менеджера — ошибка.
+
+    Ловит реюз закрытой сессии (баг update_bot_channels, PR #12): при ошибке
+    execute/commit соединение оставалось checked-out до GC.
+    """
+
+    def __init__(self, result_values: list[Any]) -> None:
+        self._result_values = result_values
+        self.closed = False
+        self.committed = False
+
+    async def __aenter__(self) -> "_TrackingSession":
+        return self
+
+    async def __aexit__(self, *args: Any) -> bool:
+        self.closed = True
+        return False
+
+    async def execute(self, _query: Any) -> _ExecuteResult:
+        assert not self.closed, "DB session reused after leaving its context manager"
+        return _ExecuteResult(self._result_values)
+
+    async def commit(self) -> None:
+        assert not self.closed, "DB session committed after leaving its context manager"
+        self.committed = True
+
+
+class _TrackingSessionFactory:
+    """Каждый вызов фабрики — независимая сессия; результаты выдаются по очереди."""
+
+    def __init__(self, results: list[list[Any]]) -> None:
+        self._results = results
+        self.sessions: list[_TrackingSession] = []
+
+    def __call__(self) -> _TrackingSession:
+        session = _TrackingSession(self._results[len(self.sessions)])
+        self.sessions.append(session)
+        return session
 
 
 def make_bot(db_session, statistics=None, sse=None, bans=None) -> ChatBot:
@@ -495,6 +553,26 @@ class TestUpdateBotChannels:
 
         await db_session.refresh(test_user.settings)
         assert test_user.settings.enable_chat_bot is False
+
+    async def test_cleanup_update_uses_fresh_session(self):
+        """UPDATE отключения ботов идёт в новой сессии, а не в переиспользованной закрытой."""
+        user = User(id=42, twitch_id="123", login_name="streamer")
+        factory = _TrackingSessionFactory([[user], [42]])
+        bot = ChatBot(
+            db_session_factory=factory,
+            state_manager=InMemoryStateManager(),
+            mqtt=SimpleNamespace(),
+        )
+        bot._twitch = self.make_twitch(
+            subs=[],
+            subscribe_results=[(user, False, {"message": "subscription missing proper authorization"})],
+        )
+
+        await bot.update_bot_channels()
+
+        assert len(factory.sessions) == 2  # чтение каналов и UPDATE — в разных сессиях
+        assert all(s.closed for s in factory.sessions)
+        assert factory.sessions[1].committed
 
     async def test_too_many_unsubscribes_guard(self, bot, test_user, monkeypatch):  # noqa: ARG001
         from config import settings

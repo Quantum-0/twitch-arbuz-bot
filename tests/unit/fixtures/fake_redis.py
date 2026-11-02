@@ -291,16 +291,41 @@ class FakeRedis:
         self.closed = True
 
 
-class SessionCtx:
-    """Обёртка, чтобы ``async with factory() as session:`` работал на фикстуре db_session."""
+class _ClosedGuardProxy:
+    """Прозрачный прокси над сессией: любой доступ после выхода из контекст-менеджера
+    фабрики — ошибка. Ловит реюз закрытой сессии вне её ``async with``-блока
+    (баг update_bot_channels, PR #12: при ошибке execute/commit соединение
+    оставалось checked-out до GC).
+    """
 
     def __init__(self, session: Any) -> None:
         self._session = session
+        self.closed = False
+
+    def __getattr__(self, name: str) -> Any:
+        if self.__dict__["closed"]:
+            raise AssertionError(f"DB session used after leaving its context manager (accessed .{name})")
+        return getattr(self.__dict__["_session"], name)
+
+
+class SessionCtx:
+    """Обёртка, чтобы ``async with factory() as session:`` работал на фикстуре db_session.
+
+    ``__aenter__`` возвращает guard-прокси: доступ к сессии после выхода из блока
+    падает — все тесты на базе этой фабрики ловят реюз закрытой сессии.
+    """
+
+    def __init__(self, session: Any) -> None:
+        self._session = session
+        self._proxy: _ClosedGuardProxy | None = None
 
     async def __aenter__(self) -> Any:
-        return self._session
+        self._proxy = _ClosedGuardProxy(self._session)
+        return self._proxy
 
     async def __aexit__(self, *args: Any) -> bool:
+        if self._proxy is not None:
+            self._proxy.closed = True
         return False
 
 
