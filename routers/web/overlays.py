@@ -11,7 +11,7 @@ from pydantic.color import Color
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 from starlette.requests import Request
-from starlette.responses import RedirectResponse, Response
+from starlette.responses import JSONResponse, RedirectResponse, Response
 from starlette.templating import Jinja2Templates
 
 from config import settings
@@ -87,8 +87,9 @@ async def overlay_tts_speech(
     try:
         audio, content_type = await tts_service.synthesize(text, model=payload.model)
     except TTSServiceError as exc:
+        # Отдаём ответ без выброса исключения, иначе sentry-starlette захватывает HTTPException 5xx как error.
         status_code = 503 if "not configured" in str(exc) else 502
-        raise HTTPException(status_code=status_code, detail=str(exc)) from exc
+        return JSONResponse(status_code=status_code, content={"detail": str(exc)})
     return Response(content=audio, media_type=content_type)
 
 
