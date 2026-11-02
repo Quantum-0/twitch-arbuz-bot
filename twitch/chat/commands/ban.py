@@ -20,7 +20,7 @@ from services.bans import MAX_BAN_DURATION, BanService, looks_like_duration, par
 from twitch.chat.base.base_command import Command
 from twitch.client.twitch import Twitch
 from twitch.state_manager import SMParam, StateManager
-from utils.chat_roles import KNOWN_BOTS, classify_chatter
+from utils.chat_roles import classify_chatter
 
 logger = logging.getLogger(__name__)
 tracer = trace.get_tracer(__name__)

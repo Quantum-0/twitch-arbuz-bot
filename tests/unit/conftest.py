@@ -1,5 +1,4 @@
 import pytest
-from pytest import fixture
 from pytest_asyncio import is_async_test
 
 from database.models import User
@@ -20,12 +19,12 @@ from tests.unit.fixtures.twitch_message import twitch_message_event_model, twitc
 from twitch.state_manager import InMemoryStateManager
 
 
-@fixture
+@pytest.fixture
 def state_manager():
     return InMemoryStateManager()
 
 
-@fixture
+@pytest.fixture
 def send_message_mock():
     class SendMessageMock:
         def __init__(self):

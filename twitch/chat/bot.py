@@ -368,10 +368,10 @@ class ChatBot:
         logger.info("Updating bot channels")
         async with self._db_session_factory() as session:
             users_result = await session.execute(
-                sa.select(User).join(TwitchUserSettings).filter(TwitchUserSettings.enable_chat_bot == True)
+                sa.select(User).join(TwitchUserSettings).filter(TwitchUserSettings.enable_chat_bot.is_(True))
             )
             users = users_result.scalars().all()
-        desired_channels: set[User] = {user for user in users}
+        desired_channels: set[User] = set(users)
         remove_channels: set[int] = set()
 
         # Получаем текущие подписки

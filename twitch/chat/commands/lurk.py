@@ -86,3 +86,5 @@ class LurkCommand(SimpleCDCommand):
                 f"@{user} внезапно сваливается с люстры, прямо на стол перед стримером!",
             ]
             return random.choice(unlurk_variants)
+
+        return None

@@ -16,7 +16,8 @@ class TailCommand(SavingResultCommand):
 
     async def result_generator(self, old_value: str | None, **kwargs: Any) -> str:
         # WFA: y = x * 775 + x*x * 65 ** 2 chart x from 0 to 1
-        formula = lambda x: int(x * 775 + (x * 65) ** 2)
+        def formula(x: float) -> int:
+            return int(x * 775 + (x * 65) ** 2)
 
         if old_value is None:
             return str(formula(random.random()))

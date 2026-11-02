@@ -3,7 +3,7 @@ from github import Auth, Github
 # PyGithub-2.7.0
 
 # Replace with your actual token and repository details
-GITHUB_TOKEN = "<token here>"
+GITHUB_TOKEN = "<token here>"  # noqa: S105
 REPO_OWNER = "Quantum-0"  # Or organization name
 REPO_NAME = "twitch-arbuz-bot"
 

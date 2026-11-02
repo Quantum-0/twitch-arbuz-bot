@@ -16,7 +16,7 @@ router = APIRouter(prefix="/files", tags=["File Storage"])
 @router.get("/{dir}/{file_id}")
 @inject
 async def get_file(
-    dir: Annotated[FileStorageDir, Path(description="Целевая директория (раздел)")],
+    dir: Annotated[FileStorageDir, Path(description="Целевая директория (раздел)")],  # noqa: A002
     file_id: Annotated[UUID, Path(description="Уникальный идентификатор сущности в формате UUID")],
     stickers: Annotated[StickersService, Depends(Provide[Container.stickers_service])],
     s3: Annotated[FileStorage, Depends(Provide[Container.s3])],

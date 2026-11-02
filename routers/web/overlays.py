@@ -220,7 +220,7 @@ async def overlay_start_wait(
 
 
 @router.get("/ai-sticker")
-async def overlay_img_gen(
+async def overlay_ai_sticker(
     request: Request,
     channel_id: Annotated[int, Query()],
     sticker_lifetime: Annotated[int, Query()] = 30,
@@ -239,7 +239,7 @@ async def overlay_img_gen(
 
 
 @router.get("/ya-music-widget")
-async def overlay_img_gen(
+async def overlay_ya_music_widget(
     request: Request,
     channel_id: Annotated[int, Query()],
     widget_type: Annotated[Literal["pulsma", "battlebeats"], Query(alias="widget-type")] = "pulsma",
@@ -297,7 +297,7 @@ async def overlay_pair(
                 ("Хвостб", "/static/images/stickers/10.webp"),
             ]
         else:
-            items: list[tuple[str, str]] = [
+            items = [
                 ("CorgiDerp", "https://static-cdn.jtvnw.net/emoticons/v2/49106/default/dark/4.0"),
                 ("Kappa", "https://static-cdn.jtvnw.net/emoticons/v2/25/default/dark/4.0"),
                 ("KomodoHype", "https://static-cdn.jtvnw.net/emoticons/v2/81273/default/dark/4.0"),

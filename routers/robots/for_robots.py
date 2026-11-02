@@ -1,5 +1,6 @@
 import fnmatch
 import re
+from pathlib import Path
 from xml.etree import ElementTree as ET
 
 from fastapi import APIRouter, Request, Response
@@ -14,7 +15,7 @@ def get_disallowed_patterns_from_robots():
     disallowed = []
     try:
         # Читаем локальный файл robots.txt
-        with open("static/robots.txt", encoding="utf-8") as f:
+        with Path("static/robots.txt").open(encoding="utf-8") as f:
             for line in f:
                 line = line.strip()
                 if line.lower().startswith("disallow:"):

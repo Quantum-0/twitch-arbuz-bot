@@ -80,7 +80,7 @@ class RedisStateManager(StateManager):
             values = await self._r.mget(target_keys)
             return {
                 self._ensure_str(key): await self._decode_value(val)
-                for key, val in zip(target_keys, values)
+                for key, val in zip(target_keys, values, strict=False)
                 if val is not None
             }
         except aioredis.RedisError as e:

@@ -29,7 +29,7 @@ class Cache:
         func_name = func.__name__
         # Сериализуем аргументы в байты для создания хеша
         data_to_hash = pickle.dumps((args, kwargs))
-        args_hash = hashlib.md5(data_to_hash).hexdigest()
+        args_hash = hashlib.md5(data_to_hash).hexdigest()  # noqa: S324
         return f"cache:as_cached:{func_name}:{args_hash}"
 
     async def as_cached(self, func: Callable[..., Awaitable[T]], *args, cache_ttl: int = 120, **kwargs) -> T:
@@ -45,7 +45,7 @@ class Cache:
         if cached_data:
             # Если данные есть, десериализуем и возвращаем
             logger.info(f"Data for {func.__name__} loaded from cache")
-            return pickle.loads(cached_data)
+            return pickle.loads(cached_data)  # noqa: S301
 
         # Если данных нет, выполняем исходную функцию
         result = await func(*args, **kwargs)

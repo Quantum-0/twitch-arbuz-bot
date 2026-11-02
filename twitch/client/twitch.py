@@ -620,6 +620,8 @@ class Twitch:
             await self._twitch.delete_eventsub_subscription(subscription_id=str(subscription_id))
             return True
 
+        return None
+
     async def _subscribe_eventsub(
         self,
         user: User,

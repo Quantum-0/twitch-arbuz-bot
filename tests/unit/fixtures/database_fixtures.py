@@ -31,7 +31,7 @@ def postgres_container():
             os.environ["DB_SYNC_URL"] = old_sync_url
             os.environ["DB_URL"] = old_async_url
     except DockerException:
-        assert False, "Docker is not started"
+        pytest.fail("Docker is not started")
 
 
 @pytest.fixture(scope="session")
