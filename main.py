@@ -36,7 +36,7 @@ if settings.app.sentry_dsn:
         integrations=[StarletteIntegration(), FastApiIntegration()],
     )
 else:
-    print("Sentry DSN is not defined!")
+    logging.getLogger(__name__).warning("Sentry DSN is not defined!")
 
 
 @asynccontextmanager
@@ -130,7 +130,7 @@ logger = logging.getLogger(__name__)
 
 
 @app.exception_handler(UserBannedError)
-async def user_banned_handler(request: Request, exc: UserBannedError):
+async def user_banned_handler(request: Request, exc: UserBannedError):  # noqa: ARG001
     """Забаненный стример (global-бан с фичей site): любой HTML-URL → /banned, API → 403."""
     if request.url.path.startswith("/api"):
         return JSONResponse(content={"detail": "Access denied: user is banned"}, status_code=403)

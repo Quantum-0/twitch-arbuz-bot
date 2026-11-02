@@ -141,7 +141,8 @@ class User(Base):
     @access_token.setter
     def access_token(self, value: str) -> None:
         encrypted_value = encrypt_value(value)
-        assert encrypted_value
+        if not encrypted_value:
+            raise ValueError("encrypt_value returned empty result")
         self._access_token = encrypted_value
 
     @property
@@ -151,7 +152,8 @@ class User(Base):
     @refresh_token.setter
     def refresh_token(self, value: str) -> None:
         encrypted_value = encrypt_value(value)
-        assert encrypted_value
+        if not encrypted_value:
+            raise ValueError("encrypt_value returned empty result")
         self._refresh_token = encrypted_value
 
     def __str__(self):
@@ -767,7 +769,7 @@ class TelegramSettings(Base):
 
 
 @event.listens_for(User, "after_insert")
-def create_settings(mapper, connection, target):
+def create_settings(mapper, connection, target):  # noqa: ARG001
     connection.execute(TwitchUserSettings.__table__.insert().values(user_id=target.id))  # noqa
     connection.execute(MemealertsSettings.__table__.insert().values(user_id=target.id))  # noqa
     connection.execute(Links.__table__.insert().values(user_id=target.id))  # noqa
