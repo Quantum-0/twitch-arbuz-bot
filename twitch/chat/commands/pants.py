@@ -159,7 +159,7 @@ class PantsCommand(SimpleCDCommand):
 
     async def finish_raffle(self, channel: User, target: str):
         logger.info(f"Finishing raffle for channel {channel.login_name}")
-        with tracer.start_as_current_span("Pants Raffle: Processing Result") as span:
+        with tracer.start_as_current_span("Pants Raffle: Processing Result"):
             target_from_sm = await self._state_manager.get_state(
                 channel=channel.login_name, command=self.command_name, param=SMParam.USER
             )

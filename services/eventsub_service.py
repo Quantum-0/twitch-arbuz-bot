@@ -600,7 +600,7 @@ class TwitchEventSubService:
                 exc_info=True,
             )
 
-    async def reward_buy_memealerts(
+    async def reward_buy_memealerts(  # noqa: C901
         self,
         payload: PointRewardRedemptionWebhookSchema,
         user: User,

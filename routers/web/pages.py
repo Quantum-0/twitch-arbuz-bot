@@ -338,8 +338,8 @@ async def profile_page(
             ) as http_resp:
                 rank_data = await http_resp.json()
                 profile_user_dict["tt_rank"] = rank_data.get("rank")
-    except:
-        pass
+    except Exception:
+        logger.debug("TwitchTracker summary fetch failed", exc_info=True)
     return templates.TemplateResponse(
         "profile.html",
         {

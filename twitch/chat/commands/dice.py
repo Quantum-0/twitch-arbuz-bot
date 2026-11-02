@@ -64,13 +64,13 @@ class DiceCommand(SimpleTargetCommand):
         return ""
 
     async def _no_target_reply(self, user: str) -> str | None:
-        return await self._handle(None, user, "", [])
+        return None
 
     async def _cooldown_reply(self, user: str, delay: int) -> str | None:
         return None
 
     async def _self_call_reply(self, user: str) -> str | None:
-        return await self._handle(None, user, "", [])
+        return None
 
     async def _bot_call_reply(self, user: str, target: str) -> str | None:
         return None

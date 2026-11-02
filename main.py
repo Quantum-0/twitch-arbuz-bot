@@ -81,7 +81,7 @@ async def sentry_request_validation_handler(request: Request, exc: RequestValida
             body = await request.body()
             scope.set_extra("raw_body", body.decode("utf-8", errors="replace"))
         except Exception:
-            pass
+            logger.debug("Failed to read request body for Sentry scope", exc_info=True)
         sentry_sdk.capture_exception(exc)
     return await request_validation_exception_handler(request, exc)
 

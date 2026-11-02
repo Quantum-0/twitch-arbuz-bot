@@ -96,7 +96,7 @@ logger = logging.getLogger(__name__)
 
 
 @inject
-async def login_callback_task(
+async def login_callback_task(  # noqa: C901
     user: User,
     twitch: Annotated[Twitch, Provide[Container.twitch]],
     db_session_factory: Annotated[Callable[[], AsyncSession], Provide[Container.db_session_factory]],

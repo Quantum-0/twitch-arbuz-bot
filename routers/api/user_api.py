@@ -232,7 +232,7 @@ async def _authorize_memealerts(
         )
     try:
         return token, await memealerts.get_current(token)
-    except:
+    except Exception:
         logger.warning("Error authorization on MA", exc_info=True)
         return JSONResponse(
             {
@@ -264,13 +264,13 @@ async def _sync_memealerts_channel_settings(
     if channel.disable_stickers is True:
         try:
             await memealerts.enable_stickers(memealerts_token)
-        except:
-            pass
+        except Exception:
+            logger.warning("Failed to enable stickers on Memealerts", exc_info=True)
     if channel.welcome_bonus_enabled is False:
         try:
             await memealerts.enable_welcome_bonus(memealerts_token)
-        except:
-            pass
+        except Exception:
+            logger.warning("Failed to enable welcome bonus on Memealerts", exc_info=True)
 
 
 @router.post("/memealerts", deprecated=True)

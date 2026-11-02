@@ -33,7 +33,7 @@ class SimpleTargetCommand(Command, ABC):
         return 1
 
     @tracer.start_as_current_span("ChatBot: SimpleTarget Command: Handle")
-    async def handle(self, streamer: User, message: ChatMessageWebhookEventSchema):
+    async def handle(self, streamer: User, message: ChatMessageWebhookEventSchema):  # noqa: C901
         await super().handle(streamer, message)
         targets = [f"@{message.reply.parent_user_name}"] if message.reply and message.reply.parent_user_name else []
         user: str = message.chatter_user_name

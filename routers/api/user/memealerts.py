@@ -129,7 +129,7 @@ async def update_reward(
     if not user.memealerts.memealerts_reward:
         return JSONResponse({"title": "Ошибка", "message": "Награда не существует."}, 400)
     try:
-        reward = await twitch.update_reward(
+        await twitch.update_reward(
             user,
             user.memealerts.memealerts_reward,
             is_enabled=True,

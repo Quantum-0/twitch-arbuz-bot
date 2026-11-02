@@ -57,7 +57,7 @@ class Cache:
     async def set_set(self, name: str, values: set[str], ttl: int = 3600, no_error: bool = True) -> None:
         try:
             return await self.__set_set(name, values, ttl)
-        except:
+        except Exception:
             logger.error("Error writing to redis", exc_info=True)
             if not no_error:
                 raise
@@ -74,7 +74,7 @@ class Cache:
     async def get_set(self, name: str, no_error: bool = True) -> set[str]:
         try:
             return await self.__get_set(name)
-        except:
+        except Exception:
             logger.error("Error reading from redis", exc_info=True)
             if not no_error:
                 raise
