@@ -35,6 +35,6 @@ async def get_file(
         try:
             data = await s3.get_object(f"{FileStorageDir.REFS}/{file_id}.png")
         except FileNotExistError:
-            raise HTTPException(404, "Object not found")
+            raise HTTPException(404, "Object not found") from None
         return Response(content=data, media_type="image/png")
     raise NotImplementedError

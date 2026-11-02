@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/telegram", tags=["Telegram"])
 
 
-@router.get("/settings", response_model=TelegramSettingsSchema)
+@router.get("/settings")
 async def get_telegram_settings_endpoint(
     user: User = Security(user_auth),
 ) -> TelegramSettingsSchema:

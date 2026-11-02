@@ -35,7 +35,7 @@ async def get_profile_ai_stickers(
         try:
             before_dt = datetime.fromisoformat(before)
         except ValueError:
-            raise HTTPException(400, "Неверный формат даты для параметра 'before'. Ожидается ISO формат.")
+            raise HTTPException(400, "Неверный формат даты для параметра 'before'. Ожидается ISO формат.") from None
 
     q = build_stickers_query(mode, int(profile_user.twitch_id), profile_user.login_name, before=before_dt, limit=limit)
     rows = (await db.execute(q)).all()

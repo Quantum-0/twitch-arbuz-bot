@@ -55,7 +55,7 @@ async def parse_eventsub_payload(
     try:
         body = await request.json()
     except Exception:
-        raise HTTPException(status_code=400, detail="Invalid JSON body")
+        raise HTTPException(status_code=400, detail="Invalid JSON body") from None
 
     # Сначала диспетчеризуем по message type: revocation и verification приходят
     # с типом подписки обычного события, но без поля event.

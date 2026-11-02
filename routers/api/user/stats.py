@@ -23,7 +23,6 @@ router = APIRouter(prefix="/stats", tags=["Monitoring stats"])
 
 @router.get(
     "",
-    response_model=StatsResponseSchema,
     responses={401: {"description": "Unauthorized"}},
 )
 @inject
@@ -75,7 +74,6 @@ async def get_stats(
 
 @router.get(
     "/series",
-    response_model=StatsSeriesResponseSchema,
     responses={401: {"description": "Unauthorized"}},
 )
 @inject
@@ -129,7 +127,6 @@ async def get_stats_series(
 
 @router.get(
     "/users-count",
-    response_model=StatsResponseSchema,
     responses={401: {"description": "Unauthorized"}},
 )
 @inject

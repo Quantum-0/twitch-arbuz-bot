@@ -93,6 +93,10 @@ line-length = 120
 exclude = ["alembic"]
 
 [tool.ruff.lint]
+ignore = [
+    "E501", # line-too-long: длинные строковые литералы, ruff format уже применён
+    "N818", # error-suffix-on-exception-name: стилевое, переименование заденет все импорты
+]
 select = [
     "A", # flake8-builtins
     # "ANN", # flake8-annotations # TODO enable later
@@ -116,3 +120,19 @@ select = [
     "UP", # pyupgrade
     "W", # pycodestyle
 ]
+
+[tool.ruff.lint.per-file-ignores]
+# Тесты: assert — норма; «пароли» — фейковые токены фикстур
+"tests/**" = ["S101", "S105", "S106", "S107"]
+# Чат-бот: random для игровых команд (не криптография) и хуки template-method
+# с сигнатурой, продиктованной базовым классом
+"twitch/chat/**" = ["S311", "ARG002"]
+# Джиттер/рандом вне криптографии
+"routers/api/extension.py" = ["S311"]
+"services/heat_upstream.py" = ["S311"]
+"utils/streamers_sort.py" = ["S311"]
+# Методы протокола SQLAlchemy TypeDecorator: аргументы продиктованы интерфейсом
+"database/encrypted_string.py" = ["ARG002"]
+# CLI-скрипты: print уместен
+"regenerate_bot_token.py" = ["T201"]
+"issues/**" = ["T201"]

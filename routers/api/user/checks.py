@@ -47,7 +47,6 @@ def _reward_check_response(problems: list[str]) -> CheckMemealertsRewardStatusRe
 
 @router.get(
     "/sse",
-    response_model=CheckStatusResponseSchema,
     responses={401: {"description": "Unauthorized", "model": BaseErrorSchema}},
 )
 @inject
@@ -62,7 +61,7 @@ async def check_user_sse_connected(
     )
 
 
-@router.get("/heat-installed", response_model=CheckStatusResponseSchema)
+@router.get("/heat-installed")
 @inject
 async def check_heat_installed(
     twitch: Annotated[Twitch, Depends(Provide[Container.twitch])],
@@ -82,7 +81,7 @@ async def check_heat_installed(
     return CheckStatusResponseSchema(result=True, problems=[])
 
 
-@router.get("/memealerts-token", response_model=CheckStatusResponseSchema)
+@router.get("/memealerts-token")
 @inject
 async def check_memealerts_token(
     memealerts_auth: Annotated[MemealertsOAuthService, Depends(Provide[Container.memealerts_auth])],
@@ -129,7 +128,7 @@ def _ma_channel_warnings(channel: MAChannel | None) -> list[str]:
     return warnings
 
 
-@router.get("/memealerts-reward", response_model=CheckMemealertsRewardStatusResponseSchema)
+@router.get("/memealerts-reward")
 @inject
 async def check_memealerts_reward(
     twitch: Annotated[Twitch, Depends(Provide[Container.twitch])],
@@ -145,7 +144,7 @@ async def check_memealerts_reward(
     return _reward_check_response(problems)
 
 
-@router.get("/ai-stickers-reward", response_model=CheckMemealertsRewardStatusResponseSchema)
+@router.get("/ai-stickers-reward")
 @inject
 async def check_ai_stickers_reward(
     twitch: Annotated[Twitch, Depends(Provide[Container.twitch])],
@@ -162,7 +161,7 @@ async def check_ai_stickers_reward(
     return _reward_check_response(problems)
 
 
-@router.get("/tts-reward", response_model=CheckMemealertsRewardStatusResponseSchema)
+@router.get("/tts-reward")
 @inject
 async def check_tts_reward(
     twitch: Annotated[Twitch, Depends(Provide[Container.twitch])],
@@ -178,7 +177,7 @@ async def check_tts_reward(
     return _reward_check_response(problems)
 
 
-@router.get("/tts-overlay", response_model=CheckStatusResponseSchema)
+@router.get("/tts-overlay")
 @inject
 async def check_tts_overlay(
     ssem: Annotated[SSEManager, Depends(Provide[Container.sse_manager])],
@@ -188,7 +187,7 @@ async def check_tts_overlay(
     return CheckStatusResponseSchema(result=result, problems=["TTS-оверлей не подключён к OBS"] if not result else [])
 
 
-@router.get("/tts-server", response_model=CheckStatusResponseSchema)
+@router.get("/tts-server")
 async def check_tts_server() -> CheckStatusResponseSchema:
     """Проверить доступность внешнего TTS-сервера через /health."""
     parts = urlsplit(settings.tts.api_url)
@@ -211,7 +210,7 @@ async def check_tts_server() -> CheckStatusResponseSchema:
     return CheckStatusResponseSchema(result=True, problems=[])
 
 
-@router.get("/telegram", response_model=CheckStatusResponseSchema)
+@router.get("/telegram")
 @inject
 async def check_telegram(
     db: Annotated[AsyncSession, Depends(get_db)],

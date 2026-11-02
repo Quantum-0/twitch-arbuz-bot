@@ -116,7 +116,7 @@ async def slovotron_restart(
     await chat_bot.send_message(res, "!словотрон-рестарт")
 
 
-@router.get("/install-heat", response_model=BoolResponseSchema)
+@router.get("/install-heat")
 @inject
 async def install_heat(
     twitch: Annotated[Twitch, Depends(Provide[Container.twitch])],
@@ -403,7 +403,7 @@ async def get_recent_ai_stickers(
         try:
             before_dt = datetime.fromisoformat(before)
         except ValueError:
-            raise HTTPException(400, "Неверный формат даты для параметра 'before'. Ожидается ISO формат.")
+            raise HTTPException(400, "Неверный формат даты для параметра 'before'. Ожидается ISO формат.") from None
     q = build_stickers_query(mode, int(user.twitch_id), user.login_name, before=before_dt, limit=limit)
     rows = (await db.execute(q)).all()
     return serialize_sticker_rows(rows, limit)
@@ -475,18 +475,18 @@ async def upload_reference(
                 )
                 session.add(new_info)
             await session.commit()
-        except Exception:
+        except Exception as err:
             await session.rollback()
-            raise HTTPException(status_code=500, detail="Database error occurred.")
+            raise HTTPException(status_code=500, detail="Database error occurred.") from err
     logger.info(f"Character info from {user.login_name} saved to db")
 
     if has_file and new_image_id:
         try:
             await s3.put_object(f"{FileStorageDir.REFS}/{new_image_id}.png", file_bytes)
             logger.info(f"Reference image from {user.login_name} uploaded to s3 successfully")
-        except Exception:
+        except Exception as err:
             logger.critical("Failed to upload S3 reference")
-            raise HTTPException(status_code=500, detail="File saved to DB, but failed to upload to storage.")
+            raise HTTPException(status_code=500, detail="File saved to DB, but failed to upload to storage.") from err
 
     if old_file_id_to_delete:
         try:

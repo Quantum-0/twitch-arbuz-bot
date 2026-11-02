@@ -74,7 +74,7 @@ class MemealertsService:
                     raise
                 except MAError as exc:
                     logger.warning(f"Token is invalid, user should update token! Error {exc}")
-                    raise MATokenInvalidError
+                    raise MATokenInvalidError from exc
             elapsed = time.perf_counter() - start_time
             logger.info(f"Method give_bonus finished in {elapsed:.4f}s with result={result}")
             if current_span.is_recording():
