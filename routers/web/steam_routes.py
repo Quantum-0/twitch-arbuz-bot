@@ -10,7 +10,7 @@
 """
 
 import logging
-from typing import Annotated, Any
+from typing import Annotated
 
 from dependency_injector.wiring import Provide, inject
 from fastapi import APIRouter, Depends, Security
@@ -19,6 +19,7 @@ from starlette.requests import Request
 from starlette.responses import RedirectResponse
 
 from container import Container
+from database.models import User
 from dependencies import get_db
 from routers.security_helpers import user_auth
 from services.steam import SteamService
@@ -32,7 +33,7 @@ router = APIRouter(prefix="", tags=["Service"])
 @inject
 async def steam_auth(
     steam: Annotated[SteamService, Depends(Provide[Container.steam_service])],
-    user: Annotated[Any, Security(user_auth)],
+    _: Annotated[User, Security(user_auth)],
 ):
     """Инициировать OpenID-логин через Steam — редирект на steamcommunity.com."""
     return RedirectResponse(steam.build_auth_url())
@@ -44,7 +45,7 @@ async def steam_callback(
     request: Request,
     db: Annotated[AsyncSession, Depends(get_db)],
     steam: Annotated[SteamService, Depends(Provide[Container.steam_service])],
-    user: Annotated[Any, Security(user_auth)],
+    user: Annotated[User, Security(user_auth)],
 ):
     """Приём OpenID-ответа от Steam: верификация, подтягивание profileurl, сохранение."""
     # Собираем все openid.* параметры из query string в плоский dict.

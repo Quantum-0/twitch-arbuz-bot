@@ -14,7 +14,7 @@
 
 import logging
 import secrets
-from typing import Annotated, Any
+from typing import Annotated
 
 from dependency_injector.wiring import Provide, inject
 from fastapi import APIRouter, Depends, Security
@@ -23,6 +23,7 @@ from starlette.requests import Request
 from starlette.responses import RedirectResponse
 
 from container import Container
+from database.models import User
 from dependencies import get_db
 from routers.security_helpers import user_auth
 from services.telegram_oidc import TelegramLoginService
@@ -42,7 +43,7 @@ _SESSION_VERIFIER_KEY = "tg_oidc_verifier"
 async def telegram_auth(
     request: Request,
     login: Annotated[TelegramLoginService, Depends(Provide[Container.telegram_login_service])],
-    _: Annotated[Any, Security(user_auth)],
+    _: Annotated[User, Security(user_auth)],
 ):
     """Инициировать привязку Telegram — редирект на oauth.telegram.org."""
     if not login.is_configured:
@@ -62,7 +63,7 @@ async def telegram_callback(
     request: Request,
     db: Annotated[AsyncSession, Depends(get_db)],
     login: Annotated[TelegramLoginService, Depends(Provide[Container.telegram_login_service])],
-    user: Annotated[Any, Security(user_auth)],
+    user: Annotated[User, Security(user_auth)],
     code: str | None = None,
     state: str | None = None,
 ):
