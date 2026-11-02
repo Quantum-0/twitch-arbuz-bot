@@ -52,7 +52,7 @@ def _reward_check_response(problems: list[str]) -> CheckMemealertsRewardStatusRe
 @inject
 async def check_user_sse_connected(
     ssem: Annotated[SSEManager, Depends(Provide[Container.sse_manager])],
-    user: User = Security(user_auth),
+    user: Annotated[User, Security(user_auth)],
     channel: SSEChannel | None = None,
 ) -> CheckStatusResponseSchema:
     result = await ssem.has_clients(int(user.twitch_id), channel)
@@ -65,7 +65,7 @@ async def check_user_sse_connected(
 @inject
 async def check_heat_installed(
     twitch: Annotated[Twitch, Depends(Provide[Container.twitch])],
-    user: User = Security(user_auth),
+    user: Annotated[User, Security(user_auth)],
 ) -> CheckStatusResponseSchema:
     try:
         exts = await twitch.get_user_active_ext(user)
@@ -86,7 +86,7 @@ async def check_heat_installed(
 async def check_memealerts_token(
     memealerts_auth: Annotated[MemealertsOAuthService, Depends(Provide[Container.memealerts_auth])],
     memealerts_api: Annotated[MemealertsV2Service, Depends(Provide[Container.memealerts_v2])],
-    user: User = Security(user_auth),
+    user: Annotated[User, Security(user_auth)],
 ) -> CheckStatusResponseSchema:
     try:
         ma_token = await memealerts_auth.get_token_of_user(user)
@@ -132,7 +132,7 @@ def _ma_channel_warnings(channel: MAChannel | None) -> list[str]:
 @inject
 async def check_memealerts_reward(
     twitch: Annotated[Twitch, Depends(Provide[Container.twitch])],
-    user: User = Security(user_auth),
+    user: Annotated[User, Security(user_auth)],
 ) -> CheckMemealertsRewardStatusResponseSchema:
     try:
         problems = await twitch.validate_reward_subscription(
@@ -148,7 +148,7 @@ async def check_memealerts_reward(
 @inject
 async def check_ai_stickers_reward(
     twitch: Annotated[Twitch, Depends(Provide[Container.twitch])],
-    user: User = Security(user_auth),
+    user: Annotated[User, Security(user_auth)],
 ) -> CheckMemealertsRewardStatusResponseSchema:
     if not user.settings.ai_sticker_reward_id:
         return _reward_check_response(["Награда не создана"])
@@ -165,7 +165,7 @@ async def check_ai_stickers_reward(
 @inject
 async def check_tts_reward(
     twitch: Annotated[Twitch, Depends(Provide[Container.twitch])],
-    user: User = Security(user_auth),
+    user: Annotated[User, Security(user_auth)],
 ) -> CheckMemealertsRewardStatusResponseSchema:
     tts = get_tts_settings(user)
     if not tts.tts_reward_id:
@@ -181,7 +181,7 @@ async def check_tts_reward(
 @inject
 async def check_tts_overlay(
     ssem: Annotated[SSEManager, Depends(Provide[Container.sse_manager])],
-    user: User = Security(user_auth),
+    user: Annotated[User, Security(user_auth)],
 ) -> CheckStatusResponseSchema:
     result = await ssem.has_clients(int(user.twitch_id), SSEChannel.TTS)
     return CheckStatusResponseSchema(result=result, problems=["TTS-оверлей не подключён к OBS"] if not result else [])
@@ -215,7 +215,7 @@ async def check_tts_server() -> CheckStatusResponseSchema:
 async def check_telegram(
     db: Annotated[AsyncSession, Depends(get_db)],
     twitch: Annotated[Twitch, Depends(Provide[Container.twitch])],
-    user: User = Security(user_auth),
+    user: Annotated[User, Security(user_auth)],
 ) -> CheckStatusResponseSchema:
     """Проверить доступность TG-сервиса и статус подключения бота к чатам.
 

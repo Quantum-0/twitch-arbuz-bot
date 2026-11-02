@@ -17,7 +17,7 @@ router = APIRouter(prefix="/consent", tags=["Consent & Boosty"])
 @router.post("/cookie-consent")
 async def accept_cookie_consent(
     db: Annotated[AsyncSession, Depends(get_db)],
-    user: User = Security(user_auth),
+    user: Annotated[User, Security(user_auth)],
 ):
     """Зафиксировать факт согласия пользователя с использованием cookies."""
     user.cookie_consent_at = datetime.utcnow()
@@ -28,7 +28,7 @@ async def accept_cookie_consent(
 @router.post("/boosty/dismiss")
 async def dismiss_boosty(
     db: Annotated[AsyncSession, Depends(get_db)],
-    user: User = Security(user_auth),
+    user: Annotated[User, Security(user_auth)],
 ):
     """Пользователь закрыл boosty-предложение — не показывать его минимум месяц."""
     user.boosty_dismissed_at = datetime.utcnow()
@@ -39,7 +39,7 @@ async def dismiss_boosty(
 @router.post("/boosty/click")
 async def click_boosty(
     db: Annotated[AsyncSession, Depends(get_db)],
-    user: User = Security(user_auth),
+    user: Annotated[User, Security(user_auth)],
 ):
     """Пользователь перешёл на boosty со страницы Сервиса. Грубая оценка факта подписки.
 

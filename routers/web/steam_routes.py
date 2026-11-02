@@ -32,7 +32,7 @@ router = APIRouter(prefix="", tags=["Service"])
 @inject
 async def steam_auth(
     steam: Annotated[SteamService, Depends(Provide[Container.steam_service])],
-    user: Any = Security(user_auth),
+    user: Annotated[Any, Security(user_auth)],
 ):
     """Инициировать OpenID-логин через Steam — редирект на steamcommunity.com."""
     return RedirectResponse(steam.build_auth_url())
@@ -44,7 +44,7 @@ async def steam_callback(
     request: Request,
     db: Annotated[AsyncSession, Depends(get_db)],
     steam: Annotated[SteamService, Depends(Provide[Container.steam_service])],
-    user: Any = Security(user_auth),
+    user: Annotated[Any, Security(user_auth)],
 ):
     """Приём OpenID-ответа от Steam: верификация, подтягивание profileurl, сохранение."""
     # Собираем все openid.* параметры из query string в плоский dict.

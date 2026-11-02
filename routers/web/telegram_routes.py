@@ -42,7 +42,7 @@ _SESSION_VERIFIER_KEY = "tg_oidc_verifier"
 async def telegram_auth(
     request: Request,
     login: Annotated[TelegramLoginService, Depends(Provide[Container.telegram_login_service])],
-    _: Any = Security(user_auth),
+    _: Annotated[Any, Security(user_auth)],
 ):
     """Инициировать привязку Telegram — редирект на oauth.telegram.org."""
     if not login.is_configured:
@@ -62,7 +62,7 @@ async def telegram_callback(
     request: Request,
     db: Annotated[AsyncSession, Depends(get_db)],
     login: Annotated[TelegramLoginService, Depends(Provide[Container.telegram_login_service])],
-    user: Any = Security(user_auth),
+    user: Annotated[Any, Security(user_auth)],
     code: str | None = None,
     state: str | None = None,
 ):

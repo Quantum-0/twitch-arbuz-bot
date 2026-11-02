@@ -33,8 +33,8 @@ async def sse(
     request: Request,
     ssem: Annotated[SSEManager, Depends(Provide[Container.sse_manager])],
     db: Annotated[AsyncSession, Depends(get_db)],
-    secret: UUID | None = Query(default=None),
-    filter_pattern: str | None = Query(default=None, max_length=500, alias="filter"),
+    secret: Annotated[UUID | None, Query()] = None,
+    filter_pattern: Annotated[str | None, Query(max_length=500, alias="filter")] = None,
 ):
     if channel == SSEChannel.SLOVOTRON:
         if secret is None:

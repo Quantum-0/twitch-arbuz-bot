@@ -120,7 +120,7 @@ async def slovotron_restart(
 @inject
 async def install_heat(
     twitch: Annotated[Twitch, Depends(Provide[Container.twitch])],
-    user: User = Security(user_auth),
+    user: Annotated[User, Security(user_auth)],
 ) -> BoolResponseSchema:
     try:
         await twitch.install_heat_ext(user)
@@ -136,7 +136,7 @@ async def update_settings(
     chat_bot: Annotated[ChatBot, Depends(Provide[Container.chat_bot])],
     db: Annotated[AsyncSession, Depends(get_db)],
     twitch: Annotated[Twitch, Depends(Provide[Container.twitch])],
-    user: Any = Security(user_auth),
+    user: Annotated[Any, Security(user_auth)],
 ):
     for field in data.model_fields_set:
         value = getattr(data, field)
@@ -172,7 +172,7 @@ async def update_settings(
 async def update_memealert_coins(
     db: Annotated[AsyncSession, Depends(get_db)],
     data: UpdateMemealertsCoinsSchema,
-    user: Any = Security(user_auth),
+    user: Annotated[Any, Security(user_auth)],
 ):
     user.memealerts.coins_for_reward = data.count
     await db.commit()
@@ -191,10 +191,10 @@ async def setup_memealert(
     db: Annotated[AsyncSession, Depends(get_db)],
     twitch: Annotated[Twitch, Depends(Provide[Container.twitch])],
     memealerts: Annotated[MemealertsService, Depends(Provide[Container.memealerts])],
-    user: User = Security(user_auth),
-    enable: bool = Query(...),
-    memealerts_token: str | None = Form(None, alias="key"),
-    refresh: bool = Query(False),
+    user: Annotated[User, Security(user_auth)],
+    enable: Annotated[bool, Query()],
+    memealerts_token: Annotated[str | None, Form(alias="key")] = None,
+    refresh: Annotated[bool, Query()] = False,
 ):
     reward_id = user.memealerts.memealerts_reward
 
@@ -319,8 +319,8 @@ async def setup_memealert(
 async def setup_ai_stickers(
     db: Annotated[AsyncSession, Depends(get_db)],
     twitch: Annotated[Twitch, Depends(Provide[Container.twitch])],
-    user: Any = Security(user_auth),
-    enable: bool = Query(default=True),
+    user: Annotated[Any, Security(user_auth)],
+    enable: Annotated[bool, Query()] = True,
 ):
     reward_id = user.settings.ai_sticker_reward_id
 
@@ -393,10 +393,10 @@ async def setup_ai_stickers(
 @router.get("/ai-stickers/recent")
 async def get_recent_ai_stickers(
     db: Annotated[AsyncSession, Depends(get_db)],
-    user: User = Security(user_auth),
-    mode: Literal["mine", "with_me", "from_me"] = Query(default="mine"),
-    before: str | None = Query(default=None),
-    limit: int = Query(default=10, ge=1, le=30),
+    user: Annotated[User, Security(user_auth)],
+    mode: Annotated[Literal["mine", "with_me", "from_me"], Query()] = "mine",
+    before: Annotated[str | None, Query()] = None,
+    limit: Annotated[int, Query(ge=1, le=30)] = 10,
 ):
     before_dt: datetime | None = None
     if before:
@@ -414,9 +414,9 @@ async def get_recent_ai_stickers(
 async def upload_reference(
     db_session_factory: Annotated[Callable[[], AsyncSession], Depends(Provide[Container.db_session_factory])],
     s3: Annotated[FileStorage, Depends(Provide[Container.s3])],
-    user: User = Security(user_auth),
-    file: UploadFile | None = File(default=None),
-    description: str | None = Form(default=None),
+    user: Annotated[User, Security(user_auth)],
+    file: Annotated[UploadFile | None, File()] = None,
+    description: Annotated[str | None, Form()] = None,
     name: str | None = None,
 ) -> BoolResponseSchema:
     ensure_reference_upload_allowed(user)
@@ -506,8 +506,8 @@ async def upload_reference(
 async def setup_tts(
     db: Annotated[AsyncSession, Depends(get_db)],
     twitch: Annotated[Twitch, Depends(Provide[Container.twitch])],
-    user: Any = Security(user_auth),
-    enable: bool = Query(default=True),
+    user: Annotated[Any, Security(user_auth)],
+    enable: Annotated[bool, Query()] = True,
 ):
     """Создать/удалить награду TTS за баллы канала."""
     tts = await ensure_tts_settings(db, user)
@@ -589,7 +589,7 @@ async def setup_tts(
 async def update_tts_settings(
     db: Annotated[AsyncSession, Depends(get_db)],
     data: TTSSettingsUpdateSchema,
-    user: Any = Security(user_auth),
+    user: Annotated[Any, Security(user_auth)],
 ):
     """Обновить скалярные настройки TTS (enabled, model, cooldowns, max_length, read_username)."""
     tts = await ensure_tts_settings(db, user)
@@ -605,7 +605,7 @@ async def update_tts_settings(
 async def update_tts_permissions(
     db: Annotated[AsyncSession, Depends(get_db)],
     data: TTSPermissionsSchema,
-    user: Any = Security(user_auth),
+    user: Annotated[Any, Security(user_auth)],
 ):
     """Обновить матрицу разрешений TTS (roles × triggers). Награда доступна всем, если включена."""
     tts = await ensure_tts_settings(db, user)
@@ -617,7 +617,7 @@ async def update_tts_permissions(
 @router.post("/tts/reset-key")
 async def reset_tts_external_key(
     db: Annotated[AsyncSession, Depends(get_db)],
-    user: Any = Security(user_auth),
+    user: Annotated[Any, Security(user_auth)],
 ):
     """Сгенерировать новый внешний ключ для TTS."""
     tts = await ensure_tts_settings(db, user)
@@ -630,7 +630,7 @@ async def reset_tts_external_key(
 @router.post("/tts/delete-key")
 async def delete_tts_external_key(
     db: Annotated[AsyncSession, Depends(get_db)],
-    user: Any = Security(user_auth),
+    user: Annotated[Any, Security(user_auth)],
 ):
     """Удалить внешний ключ для TTS (отозвать доступ внешних интеграций)."""
     tts = await ensure_tts_settings(db, user)
@@ -647,7 +647,7 @@ async def tts_external_speech(
     moderation: Annotated[ModerationService, Depends(Provide[Container.moderation_service])],
     key: str,
     payload: TTSExternalSpeechSchema,
-    moderate: bool = Query(default=True),
+    moderate: Annotated[bool, Query()] = True,
 ):
     """Озвучить текст через внешний ключ (без авторизации Twitch, без проверки ролей).
 

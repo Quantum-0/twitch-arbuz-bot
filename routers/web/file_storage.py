@@ -20,7 +20,7 @@ async def get_file(
     file_id: Annotated[UUID, Path(description="Уникальный идентификатор сущности в формате UUID")],
     stickers: Annotated[StickersService, Depends(Provide[Container.stickers_service])],
     s3: Annotated[FileStorage, Depends(Provide[Container.s3])],
-    mark_viewed: bool = Query(False),
+    mark_viewed: Annotated[bool, Query()] = False,
 ):
     if dir == FileStorageDir.AI_GENERATED_STICKER:
         if file := await stickers.get_sticker(file_id, mark_viewed):

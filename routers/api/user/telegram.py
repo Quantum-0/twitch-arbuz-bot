@@ -30,7 +30,7 @@ router = APIRouter(prefix="/telegram", tags=["Telegram"])
 
 @router.get("/settings")
 async def get_telegram_settings_endpoint(
-    user: User = Security(user_auth),
+    user: Annotated[User, Security(user_auth)],
 ) -> TelegramSettingsSchema:
     """Получить текущие настройки Telegram-интеграции.
 
@@ -69,7 +69,7 @@ async def update_telegram_settings(
     db: Annotated[AsyncSession, Depends(get_db)],
     twitch: Annotated[Twitch, Depends(Provide[Container.twitch])],
     data: TelegramSettingsUpdateSchema,
-    user: User = Security(user_auth),
+    user: Annotated[User, Security(user_auth)],
 ) -> JSONResponse:
     """Обновить настройки Telegram-интеграции (частично).
 
@@ -136,7 +136,7 @@ async def update_telegram_settings(
 @router.post("/connect")
 async def generate_connect_link(
     data: TelegramConnectSchema,
-    user: User = Security(user_auth),  # noqa: B008
+    user: Annotated[User, Security(user_auth)],  # noqa: B008
 ) -> JSONResponse:
     """Сгенерировать deep-link для подключения Telegram-чата.
 
@@ -181,7 +181,7 @@ async def generate_connect_link(
 @router.post("/unlink-account", response_class=JSONResponse)
 async def unlink_telegram_account(
     db: Annotated[AsyncSession, Depends(get_db)],
-    user: User = Security(user_auth),  # noqa: B008
+    user: Annotated[User, Security(user_auth)],  # noqa: B008
 ):
     """Отвязать личный Telegram-аккаунт (``telegram_user_id``).
 
@@ -204,7 +204,7 @@ async def disconnect_telegram_scope(
     db: Annotated[AsyncSession, Depends(get_db)],
     twitch: Annotated[Twitch, Depends(Provide[Container.twitch])],
     mqtt: Annotated[MQTTClient, Depends(Provide[Container.mqtt])],
-    user: User = Security(user_auth),  # noqa: B008
+    user: Annotated[User, Security(user_auth)],  # noqa: B008
 ) -> JSONResponse:
     """Отключить конкретный scope Telegram-интеграции.
 

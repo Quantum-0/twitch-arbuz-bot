@@ -77,7 +77,7 @@ async def register_custom_command(
 @router.post("/reset-secret")
 async def reset_overlay_secret_endpoint(
     db: Annotated[AsyncSession, Depends(get_db)],
-    user: User = Security(user_auth),
+    user: Annotated[User, Security(user_auth)],
 ):
     """Сгенерировать новый случайный overlay_secret.
 

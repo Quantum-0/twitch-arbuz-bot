@@ -28,7 +28,7 @@ router = APIRouter(prefix="/stats", tags=["Monitoring stats"])
 @inject
 async def get_stats(
     statistics: Annotated[StatisticsService, Depends(Provide[Container.statistics])],
-    user: User = Security(user_auth),
+    user: Annotated[User, Security(user_auth)],
     type_: Annotated[StatsType, Query(alias="type", description="Тип метрики")] = StatsType.MESSAGE_INCOMING,
     subtype: Annotated[
         str | None,
@@ -79,7 +79,7 @@ async def get_stats(
 @inject
 async def get_stats_series(
     statistics: Annotated[StatisticsService, Depends(Provide[Container.statistics])],
-    user: User = Security(user_auth),
+    user: Annotated[User, Security(user_auth)],
     type_: Annotated[
         StatsType,
         Query(alias="type", description="Тип метрики (обычно command_handled)"),
@@ -132,7 +132,7 @@ async def get_stats_series(
 @inject
 async def get_users_count(
     statistics: Annotated[StatisticsService, Depends(Provide[Container.statistics])],
-    user: User = Security(user_auth),
+    user: Annotated[User, Security(user_auth)],
     period: Annotated[
         StatsPeriod,
         Query(description="Период агрегации (для users-count разрешены длинные диапазоны)"),

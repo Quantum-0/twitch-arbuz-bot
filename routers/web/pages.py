@@ -95,7 +95,7 @@ async def index_page(
 async def control_panel(
     request: Request,
     db: Annotated[AsyncSession, Depends(get_db)],
-    user: User | None = Security(user_auth_optional),
+    user: Annotated[User | None, Security(user_auth_optional)],
 ):
     # if not user.in_beta_test:
     #     return templates.TemplateResponse("beta-test.html", {"request": request})
@@ -127,7 +127,7 @@ async def control_panel(
 async def ai_stickers_page(
     request: Request,
     db: Annotated[AsyncSession, Depends(get_db)],
-    user: User | None = Security(user_auth_optional),
+    user: Annotated[User | None, Security(user_auth_optional)],
 ):
     if not user:
         return RedirectResponse("/")
@@ -167,7 +167,7 @@ async def ai_stickers_page(
 @router.get("/tts", response_class=HTMLResponse)
 async def tts_settings_page(
     request: Request,
-    user: User | None = Security(user_auth_optional),
+    user: Annotated[User | None, Security(user_auth_optional)],
 ):
     if not user:
         return RedirectResponse("/")
@@ -187,7 +187,7 @@ async def tts_settings_page(
 @router.get("/agreement", response_class=HTMLResponse)
 async def user_agreement(
     request: Request,
-    user: User | None = Security(user_auth_optional),
+    user: Annotated[User | None, Security(user_auth_optional)],
 ):
     return templates.TemplateResponse("legal/agreement.html", {"request": request, "user": user})
 
@@ -195,7 +195,7 @@ async def user_agreement(
 @router.get("/privacy", response_class=HTMLResponse)
 async def privacy(
     request: Request,
-    user: User | None = Security(user_auth_optional),
+    user: Annotated[User | None, Security(user_auth_optional)],
 ):
     return templates.TemplateResponse("legal/privacy.html", {"request": request, "user": user})
 
@@ -269,7 +269,7 @@ async def profile_page(
     db: Annotated[AsyncSession, Depends(get_db)],
     cache: Annotated[Cache, Depends(Provide[Container.cache])],
     twitch: Annotated[Twitch, Depends(Provide[Container.twitch])],
-    user: User | None = Security(user_auth_optional),
+    user: Annotated[User | None, Security(user_auth_optional)],
 ):
     likes_count = (
         sa.select(sa.func.count(UserLike.from_user_id))
@@ -379,7 +379,7 @@ async def reference_moderation_page(
 )
 async def about_page(
     request: Request,
-    user: User | None = Security(user_auth_optional),
+    user: Annotated[User | None, Security(user_auth_optional)],
 ):
     return templates.TemplateResponse(
         "about.html",
@@ -397,7 +397,7 @@ async def about_page(
 )
 async def meme_tutorial_page(
     request: Request,
-    user: User | None = Security(user_auth_optional),
+    user: Annotated[User | None, Security(user_auth_optional)],
 ):
     return templates.TemplateResponse(
         "memealerts-tutorial.html",
@@ -417,7 +417,7 @@ async def debug_page(
     request: Request,
     chat_bot: Annotated[ChatBot, Depends(Provide[Container.chat_bot])],
     state_manager: Annotated[StateManager, Depends(Provide[Container.state_manager])],
-    user: Any = Security(user_auth),
+    user: Annotated[Any, Security(user_auth)],
 ):
     if not user.in_beta_test:
         raise HTTPException(status_code=403, detail="No access to debug")
@@ -443,8 +443,8 @@ async def debug_page(
 )
 async def admin_page(
     request: Request,
-    user: Any = Security(user_auth),
-    _: None = Security(admin_auth),
+    user: Annotated[Any, Security(user_auth)],
+    _: Annotated[None, Security(admin_auth)],
 ):
     if not user.login_name == "quantum075":
         raise HTTPException(status_code=403, detail="No access to admin panel")
@@ -463,7 +463,7 @@ async def admin_page(
 )
 async def stats_page(
     request: Request,
-    user: User | None = Security(user_auth_optional),
+    user: Annotated[User | None, Security(user_auth_optional)],
 ):
     if not user:
         return RedirectResponse("/")
@@ -503,7 +503,7 @@ async def command_list_page(
     chat_bot: Annotated[ChatBot, Depends(Provide[Container.chat_bot])],
     cache: Annotated[Cache, Depends(Provide[Container.cache])],
     # streamer_id: int = Query(...),
-    user: User | None = Security(user_auth_optional),
+    user: Annotated[User | None, Security(user_auth_optional)],
 ):
     result = await db.execute(
         # sa.select(User).options(selectinload(User.settings)).filter_by(twitch_id=str(streamer_id))
@@ -535,7 +535,7 @@ async def command_list_page(
 )
 async def get_streamers(
     request: Request,
-    user: User | None = Security(user_auth_optional),
+    user: Annotated[User | None, Security(user_auth_optional)],
 ):
     return templates.TemplateResponse("streamers.html", {"request": request, "streamers": [], "user": user})
 
@@ -546,7 +546,7 @@ async def get_streamers(
 )
 async def roadmap_page(
     request: Request,
-    user: User | None = Security(user_auth_optional),
+    user: Annotated[User | None, Security(user_auth_optional)],
 ):
     return templates.TemplateResponse(
         "roadmap.html",

@@ -22,8 +22,8 @@ router = APIRouter(prefix="/dock", tags=["OBS dock panels"])
 async def slovotron_dock(
     request: Request,
     db: Annotated[AsyncSession, Depends(get_db)],
-    secret: UUID = Query(),
-    channel_name: str = Path(),
+    secret: Annotated[UUID, Query()],
+    channel_name: Annotated[str, Path()],
 ):
     user: User = (
         await db.execute(  # type: ignore

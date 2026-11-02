@@ -17,9 +17,9 @@ router = APIRouter(prefix="/profile", tags=["Profile"])
 async def get_profile_ai_stickers(
     login: str,
     db: Annotated[AsyncSession, Depends(get_db)],
-    mode: Literal["mine", "with_me", "from_me"] = Query(default="mine"),
-    before: str | None = Query(default=None),
-    limit: int = Query(default=10, ge=1, le=30),
+    mode: Annotated[Literal["mine", "with_me", "from_me"], Query()] = "mine",
+    before: Annotated[str | None, Query()] = None,
+    limit: Annotated[int, Query(ge=1, le=30)] = 10,
 ):
     profile_user = (
         await db.execute(sa.select(User).options(joinedload(User.settings)).filter_by(login_name=login))

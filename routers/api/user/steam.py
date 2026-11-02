@@ -21,7 +21,7 @@ router = APIRouter(prefix="/steam", tags=["Steam"])
 @router.post("/unlink", response_class=JSONResponse)
 async def steam_unlink(
     db: Annotated[AsyncSession, Depends(get_db)],
-    user: User = Security(user_auth),
+    user: Annotated[User, Security(user_auth)],
 ):
     """Отвязать Steam-аккаунт от пользователя — обнулить steam_id и steam в links."""
     user.links.steam_id = None  # type: ignore[assignment]

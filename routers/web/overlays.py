@@ -36,7 +36,7 @@ router = APIRouter(prefix="/overlay", tags=["OBS overlays and widgets"])
 @router.get("/jumping-chibi")
 async def overlay_jumping_chibi(
     request: Request,
-    timer: int = Query(default=3 * 60),
+    timer: Annotated[int, Query()] = 3 * 60,
 ):
     return templates.TemplateResponse(
         "overlays/jumping-chibi.html",
@@ -51,7 +51,7 @@ async def overlay_jumping_chibi(
 async def overlay_tts(
     request: Request,
     db: Annotated[AsyncSession, Depends(get_db)],
-    channel_id: int = Query(),
+    channel_id: Annotated[int, Query()],
 ):
     await touch_overlay_usage(channel_id=channel_id)
     user = (
@@ -97,9 +97,9 @@ async def overlay_tts_speech(
 async def overlay_slovotron(
     request: Request,
     db: Annotated[AsyncSession, Depends(get_db)],
-    channel_name: str = Query(),
-    inactive_timeout: int = Query(default=20),
-    inactive_opacity: float = Query(default=0.4),
+    channel_name: Annotated[str, Query()],
+    inactive_timeout: Annotated[int, Query()] = 20,
+    inactive_opacity: Annotated[float, Query()] = 0.4,
 ):
     await touch_overlay_usage(channel_name=channel_name)
     user = (await db.execute(sa.select(User).where(User.login_name == channel_name))).scalar_one_or_none()
@@ -116,17 +116,20 @@ async def overlay_slovotron(
     )
 
 
+_DEFAULT_STAR_COLOR = Color("#ffd45a")
+
+
 @router.get("/star")
 async def overlay_star(
     request: Request,
-    channel_id: int = Query(),
-    pos: float = Query(default=0.5),
-    size: int = Query(default=16),
-    color: Color = Query(default="#ffd45a"),
-    length: float = Query(default=0.39),
-    break_chance: float = Query(default=0.015),
-    chat_control: bool = Query(default=False),
-    channel_name: str = Query(default=""),
+    channel_id: Annotated[int, Query()],
+    pos: Annotated[float, Query()] = 0.5,
+    size: Annotated[int, Query()] = 16,
+    color: Annotated[Color, Query()] = _DEFAULT_STAR_COLOR,
+    length: Annotated[float, Query()] = 0.39,
+    break_chance: Annotated[float, Query()] = 0.015,
+    chat_control: Annotated[bool, Query()] = False,
+    channel_name: Annotated[str, Query()] = "",
     # 0.05 == 100+1385 interactions to 50% chance to break
     # 0.03 == 100+2310 to 50%
     # 0.015 == 100+4620
@@ -152,13 +155,13 @@ async def overlay_star(
 @router.get("/xp-error")
 async def overlay_xp_error(
     request: Request,
-    channel_id: int = Query(),
-    cooldown_min: float = Query(default=5, ge=0),
-    scale: float = Query(default=1.5, ge=0.3),
-    max_windows: int = Query(default=5, ge=1),
-    sound: bool = Query(default=False),
-    debug: bool = Query(default=False),
-    channel_name: str = Query(default=""),
+    channel_id: Annotated[int, Query()],
+    cooldown_min: Annotated[float, Query(ge=0)] = 5,
+    scale: Annotated[float, Query(ge=0.3)] = 1.5,
+    max_windows: Annotated[int, Query(ge=1)] = 5,
+    sound: Annotated[bool, Query()] = False,
+    debug: Annotated[bool, Query()] = False,
+    channel_name: Annotated[str, Query()] = "",
 ):
     await touch_overlay_usage(channel_id=channel_id)
     return templates.TemplateResponse(
@@ -179,12 +182,12 @@ async def overlay_xp_error(
 @router.get("/fireworks")
 async def overlay_fireworks(
     request: Request,
-    channel_id: int = Query(),
-    particle_count: int = Query(default=80, ge=10, le=300),
-    decay: float = Query(default=0.015, ge=0.005, le=0.05),
-    gravity: float = Query(default=0.08, ge=0.0, le=0.3),
-    chat_control: bool = Query(default=False),
-    channel_name: str = Query(default=""),
+    channel_id: Annotated[int, Query()],
+    particle_count: Annotated[int, Query(ge=10, le=300)] = 80,
+    decay: Annotated[float, Query(ge=0.005, le=0.05)] = 0.015,
+    gravity: Annotated[float, Query(ge=0.0, le=0.3)] = 0.08,
+    chat_control: Annotated[bool, Query()] = False,
+    channel_name: Annotated[str, Query()] = "",
 ):
     await touch_overlay_usage(channel_id=channel_id)
     return templates.TemplateResponse(
@@ -204,7 +207,7 @@ async def overlay_fireworks(
 @router.get("/start-wait")
 async def overlay_start_wait(
     request: Request,
-    channel_id: int = Query(),
+    channel_id: Annotated[int, Query()],
 ):
     await touch_overlay_usage(channel_id=channel_id)
     return templates.TemplateResponse(
@@ -219,9 +222,9 @@ async def overlay_start_wait(
 @router.get("/ai-sticker")
 async def overlay_img_gen(
     request: Request,
-    channel_id: int = Query(),
-    sticker_lifetime: int = Query(default=30),
-    sticker_size: int = Query(default=192),
+    channel_id: Annotated[int, Query()],
+    sticker_lifetime: Annotated[int, Query()] = 30,
+    sticker_size: Annotated[int, Query()] = 192,
 ):
     await touch_overlay_usage(channel_id=channel_id)
     return templates.TemplateResponse(
@@ -238,8 +241,8 @@ async def overlay_img_gen(
 @router.get("/ya-music-widget")
 async def overlay_img_gen(
     request: Request,
-    channel_id: int = Query(),
-    widget_type: Literal["pulsma", "battlebeats"] = Query(default="pulsma", alias="widget-type"),
+    channel_id: Annotated[int, Query()],
+    widget_type: Annotated[Literal["pulsma", "battlebeats"], Query(alias="widget-type")] = "pulsma",
 ):
     await touch_overlay_usage(channel_id=channel_id)
     return templates.TemplateResponse(
@@ -255,14 +258,14 @@ async def overlay_img_gen(
 async def overlay_pair(
     request: Request,
     db: Annotated[AsyncSession, Depends(get_db)],
-    channel_id: int = Query(),
-    use_twitch_emoji: bool = Query(default=False),
-    arbuz: bool = Query(default=False),
-    offset_left: float = Query(0),
-    offset_right: float = Query(0),
-    offset_top: float = Query(0),
-    offset_bottom: float = Query(0),
-    card_scale: float = Query(0.7),
+    channel_id: Annotated[int, Query()],
+    use_twitch_emoji: Annotated[bool, Query()] = False,
+    arbuz: Annotated[bool, Query()] = False,
+    offset_left: Annotated[float, Query()] = 0,
+    offset_right: Annotated[float, Query()] = 0,
+    offset_top: Annotated[float, Query()] = 0,
+    offset_bottom: Annotated[float, Query()] = 0,
+    card_scale: Annotated[float, Query()] = 0.7,
 ):
     await touch_overlay_usage(channel_id=channel_id)
     if not use_twitch_emoji and not arbuz:
@@ -357,8 +360,8 @@ async def get_temp_commands(cache: Cache, twitch_id: str) -> list[dict[str, str]
 @router.get("/halloween")
 async def overlay_halloween(
     request: Request,
-    channel_id: int = Query(),
-    channel_name: str = Query(default=""),
+    channel_id: Annotated[int, Query()],
+    channel_name: Annotated[str, Query()] = "",
 ):
     await touch_overlay_usage(channel_id=channel_id)
     return templates.TemplateResponse(

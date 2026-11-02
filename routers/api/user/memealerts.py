@@ -26,7 +26,7 @@ router = APIRouter(prefix="/memealerts", tags=["Memealerts"])
 async def delete_ma_tokens(
     memealerts: Annotated[MemealertsOAuthService, Depends(Provide[Container.memealerts_auth])],
     twitch: Annotated[Twitch, Depends(Provide[Container.twitch])],
-    user: User = Security(user_auth),
+    user: Annotated[User, Security(user_auth)],
 ):
     await memealerts.delete_token(user)
     # Отключаем награду на Twitch, чтобы зрители не могли её использовать,
@@ -50,7 +50,7 @@ async def delete_ma_tokens(
 @inject
 async def disable_reward(
     twitch: Annotated[Twitch, Depends(Provide[Container.twitch])],
-    user: User = Security(user_auth),
+    user: Annotated[User, Security(user_auth)],
 ):
     if not user.memealerts.memealerts_reward:
         return JSONResponse(
@@ -81,7 +81,7 @@ async def disable_reward(
 async def create_reward(
     twitch: Annotated[Twitch, Depends(Provide[Container.twitch])],
     db_session_factory: Annotated[Callable[[], AsyncSession], Depends(Provide[Container.db_session_factory])],
-    user: User = Security(user_auth),
+    user: Annotated[User, Security(user_auth)],
 ):
     try:
         reward = await twitch.create_reward(
@@ -124,7 +124,7 @@ async def create_reward(
 @inject
 async def update_reward(
     twitch: Annotated[Twitch, Depends(Provide[Container.twitch])],
-    user: User = Security(user_auth),
+    user: Annotated[User, Security(user_auth)],
 ):
     if not user.memealerts.memealerts_reward:
         return JSONResponse({"title": "Ошибка", "message": "Награда не существует."}, 400)

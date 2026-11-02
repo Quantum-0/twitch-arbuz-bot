@@ -2,7 +2,7 @@ import datetime
 import logging
 from collections.abc import Callable
 from datetime import timedelta
-from typing import Annotated, Any
+from typing import Annotated
 
 import jwt
 import sqlalchemy as sa
@@ -15,7 +15,7 @@ from starlette.responses import RedirectResponse
 
 from config import settings
 from container import Container
-from database.models import MemealertsSettings, TwitchUserSettings
+from database.models import MemealertsSettings, TwitchUserSettings, User
 from exceptions import MATokenRefreshError
 from routers.security_helpers import user_auth
 from schemas.memealerts import MAChannel
@@ -29,7 +29,7 @@ router = APIRouter(prefix="/memealerts", tags=["Service"])
 
 @router.get("/auth", response_class=RedirectResponse)
 async def memealerts_auth(
-    user: Any = Security(user_auth),
+    user: Annotated[User, Security(user_auth)],
 ):
     payload = {
         "user_id": user.id,
@@ -50,7 +50,7 @@ async def callback(
     db_session_factory: Annotated[Callable[[], AsyncSession], Depends(Provide[Container.db_session_factory])],
     code: str,
     state: str,
-    user: Any = Security(user_auth),
+    user: Annotated[User, Security(user_auth)],
 ):
     try:
         decoded = jwt.decode(state, settings.memealerts.state_secret.get_secret_value(), algorithms=["HS256"])

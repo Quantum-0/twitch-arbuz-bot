@@ -399,7 +399,7 @@ async def get_scene(
     db: Annotated[AsyncSession, Depends(get_db)],
     twitch: Annotated[Twitch, Depends(Provide[Container.twitch])],
     cache: Annotated[Cache, Depends(Provide[Container.cache])],
-    authorization: str = Header(default=None),
+    authorization: Annotated[str | None, Header()] = None,
 ):
     verify_extension_token(authorization, channel_id)
 
@@ -443,7 +443,7 @@ async def send_extension_chat(
     body: SendChatRequest,
     twitch: Annotated[Twitch, Depends(Provide[Container.twitch])],
     cache: Annotated[Cache, Depends(Provide[Container.cache])],
-    authorization: str = Header(default=None),
+    authorization: Annotated[str | None, Header()] = None,
 ):
     payload = verify_extension_token(authorization, channel_id)
 
