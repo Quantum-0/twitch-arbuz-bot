@@ -41,6 +41,14 @@ async def memealerts_auth(
     return RedirectResponse(url)
 
 
+def _ma_auth_error_detail(error: str) -> str:
+    if error == "invalid_grant":
+        return "Код авторизации истёк или уже использован. Попробуйте авторизоваться заново."
+    if error == "invalid_client":
+        return "Ошибка приложения Memealerts. Обратитесь к администратору."
+    return f"Ошибка авторизации Memealerts: {error}"
+
+
 @router.get("/callback", response_class=RedirectResponse)
 @inject
 async def callback(
@@ -65,13 +73,7 @@ async def callback(
         tokens = await memealerts.auth_user(authorization_code=code, user=user)
     except MATokenRefreshError as exc:
         logger.warning("Memealerts auth code exchange failed: error=%s desc=%s", exc.error, exc.description)
-        if exc.error == "invalid_grant":
-            detail = "Код авторизации истёк или уже использован. Попробуйте авторизоваться заново."
-        elif exc.error == "invalid_client":
-            detail = "Ошибка приложения Memealerts. Обратитесь к администратору."
-        else:
-            detail = f"Ошибка авторизации Memealerts: {exc.error}"
-        raise HTTPException(400, detail=detail) from exc
+        raise HTTPException(400, detail=_ma_auth_error_detail(exc.error)) from exc
     if not tokens:
         raise HTTPException(400, detail="Memealerts не вернул токен пользователя. Попробуйте ещё раз.")
 

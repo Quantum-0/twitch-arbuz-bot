@@ -210,6 +210,43 @@ async def check_tts_server() -> CheckStatusResponseSchema:
     return CheckStatusResponseSchema(result=True, problems=[])
 
 
+async def _check_telegram_scope(
+    tg: TelegramSettings, scope: Literal["stream", "clips", "stickers"], chat_id: str, label: str
+) -> tuple[str | None, bool]:
+    """Проверить один scope: (проблема | None, является ли этот scope сброшенным stream)."""
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            status_resp = await client.post(
+                f"{settings.telegram.service_url}/api/chat_status",
+                headers={"X-Api-Key": settings.telegram.service_api_key.get_secret_value()},
+                json={"chat_id": chat_id},
+            )
+    except httpx.HTTPError:
+        return f"Не удалось проверить чат «{label}» (TG-сервис недоступен)", False
+    if status_resp.status_code != 200:
+        return f"Не удалось проверить чат «{label}» (код {status_resp.status_code})", False
+    status_data = status_resp.json()
+    if not status_data.get("member", False):
+        # Бота кикнули — сбрасываем привязку прямо в текущей сессии.
+        _reset_scope_binding(tg, scope)
+        return f"Бот удалён из чата «{label}» — привязка очищена", scope == "stream"
+    if not status_data.get("can_post", False):
+        return f"Бот в чате «{label}», но не может отправлять сообщения", False
+    return None, False
+
+
+async def _telegram_service_problem() -> str | None:
+    """Healthcheck TG-микросервиса: None = доступен, иначе текст проблемы."""
+    try:
+        async with httpx.AsyncClient(timeout=2.0) as client:
+            resp = await client.get(f"{settings.telegram.service_url}/api/healthcheck")
+    except httpx.HTTPError:
+        return "TG-сервис недоступен"
+    if resp.status_code != 200:
+        return f"TG-сервис вернул {resp.status_code}"
+    return None
+
+
 @router.get("/telegram")
 @inject
 async def check_telegram(
@@ -227,13 +264,9 @@ async def check_telegram(
     tg = user.telegram
 
     # 1. Проверка доступности TG-сервиса.
-    try:
-        async with httpx.AsyncClient(timeout=2.0) as client:
-            resp = await client.get(f"{settings.telegram.service_url}/api/healthcheck")
-    except httpx.HTTPError:
-        return CheckStatusResponseSchema(result=False, problems=["TG-сервис недоступен"])
-    if resp.status_code != 200:
-        return CheckStatusResponseSchema(result=False, problems=[f"TG-сервис вернул {resp.status_code}"])
+    service_problem = await _telegram_service_problem()
+    if service_problem is not None:
+        return CheckStatusResponseSchema(result=False, problems=[service_problem])
 
     if tg is None or not (tg.stream_chat_id or tg.clips_chat_id or tg.stickers_chat_id):
         return CheckStatusResponseSchema(result=True, problems=[])
@@ -250,29 +283,11 @@ async def check_telegram(
     for scope, chat_id, label in scope_chats:
         if not chat_id:
             continue
-        try:
-            async with httpx.AsyncClient(timeout=10.0) as client:
-                status_resp = await client.post(
-                    f"{settings.telegram.service_url}/api/chat_status",
-                    headers={"X-Api-Key": settings.telegram.service_api_key.get_secret_value()},
-                    json={"chat_id": chat_id},
-                )
-        except httpx.HTTPError:
-            problems.append(f"Не удалось проверить чат «{label}» (TG-сервис недоступен)")
-            continue
-        if status_resp.status_code != 200:
-            problems.append(f"Не удалось проверить чат «{label}» (код {status_resp.status_code})")
-            continue
-        status_data = status_resp.json()
-        if not status_data.get("member", False):
-            # Бота кикнули — сбрасываем привязку прямо в текущей сессии.
-            _reset_scope_binding(tg, scope)
-            problems.append(f"Бот удалён из чата «{label}» — привязка очищена")
-            if scope == "stream":
-                stream_kicked = True
-            continue
-        if not status_data.get("can_post", False):
-            problems.append(f"Бот в чате «{label}», но не может отправлять сообщения")
+        problem, kicked_stream = await _check_telegram_scope(tg, scope, chat_id, label)
+        if kicked_stream:
+            stream_kicked = True
+        if problem:
+            problems.append(problem)
 
     if problems:
         await db.commit()

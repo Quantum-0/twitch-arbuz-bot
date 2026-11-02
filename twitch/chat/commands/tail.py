@@ -4,6 +4,16 @@ from typing import Any
 from database.models import TwitchUserSettings, User
 from twitch.chat.base.saving_result_command import SavingResultCommand
 
+_TAIL_SIZE_COMMENTS: tuple[tuple[int, str], ...] = (
+    (100, " Коротенький :3"),
+    (200, " Маленький =w="),
+    (500, " Нормальный такой OwO"),
+    (1000, " Хороооший, большооой!"),
+    (2500, " Нифига себе хвостище!"),
+)
+_TAIL_GIANT_COMMENT = " Вот это гигант *О*"
+_TAIL_CHANGE_SUFFIXES = {"+": " Подрос :з", "-": " Укоротился >.<"}
+
 
 class TailCommand(SavingResultCommand):
     command_name = "tail"
@@ -22,16 +32,12 @@ class TailCommand(SavingResultCommand):
         if old_value is None:
             return str(formula(random.random()))
 
-        if old_value[0] in ["+", "-"]:
-            old_value = int(old_value[1:])
-        else:
-            old_value = int(old_value)
-
+        _, old = self._parse_delta_value(old_value)
         new_value = formula(random.random())
 
-        if new_value == old_value:
+        if new_value == old:
             return f"{new_value}"
-        if new_value > old_value:
+        if new_value > old:
             return f"+{new_value}"
         return f"-{new_value}"
 
@@ -53,62 +59,23 @@ class TailCommand(SavingResultCommand):
         return None
 
     async def _handle_new(self, streamer: User, user: str, text: str, new_value: str):
-        change = new_value[0] if new_value[0] in ["+", "-"] else None
-        value = int(new_value[1:]) if new_value[0] in ["+", "-"] else int(new_value)
+        change, value = self._parse_delta_value(new_value)
 
         if value < 2:
-            result = f"@{user}, у тебя НЕТ ХВОСТА О__О"
+            return f"@{user}, у тебя НЕТ ХВОСТА О__О"
         if value < 10:
-            result = f"@{user} твой хвост.. стоп.. а где он? А, вот же! Коротенький, всего-лишь {self.convert_tail(int(value))}"
-        elif value < 100:
-            result = f"@{user}, длина твоего хвоста - {self.convert_tail(int(value))}."
-            if random.random() < 0.5:
-                result += " Коротенький :3"
-            elif change == "+":
-                result += " Подрос :з"
-            elif change == "-":
-                result += " Укоротился >.<"
-        elif value < 200:
-            result = f"@{user}, длина твоего хвоста - {self.convert_tail(int(value))}."
-            if random.random() < 0.5:
-                result += " Маленький =w="
-            elif change == "+":
-                result += " Подрос :з"
-            elif change == "-":
-                result += " Укоротился >.<"
-        elif value < 500:
-            result = f"@{user}, длина твоего хвоста - {self.convert_tail(int(value))}."
-            if random.random() < 0.5:
-                result += " Нормальный такой OwO"
-            elif change == "+":
-                result += " Подрос :з"
-            elif change == "-":
-                result += " Укоротился >.<"
-        elif value < 1000:
-            result = f"@{user}, длина твоего хвоста - {self.convert_tail(int(value))}."
-            if random.random() < 0.5:
-                result += " Хороооший, большооой!"
-            elif change == "+":
-                result += " Подрос :з"
-            elif change == "-":
-                result += " Укоротился >.<"
-        elif value < 2500:
-            result = f"@{user}, длина твоего хвоста - {self.convert_tail(int(value))}."
-            if random.random() < 0.5:
-                result += " Нифига себе хвостище!"
-            elif change == "+":
-                result += " Подрос :з"
-            elif change == "-":
-                result += " Укоротился >.<"
-        elif value <= 5000:
-            result = f"@{user}, длина твоего хвоста - {self.convert_tail(int(value))}."
-            if random.random() < 0.5:
-                result += " Вот это гигант *О*"
-            elif change == "+":
-                result += " Подрос :з"
-            elif change == "-":
-                result += " Укоротился >.<"
-        return result
+            return (
+                f"@{user} твой хвост.. стоп.. а где он? А, вот же! Коротенький, всего-лишь {self.convert_tail(value)}"
+            )
+
+        result = f"@{user}, длина твоего хвоста - {self.convert_tail(value)}."
+        comment = next(
+            (text for threshold, text in _TAIL_SIZE_COMMENTS if value < threshold),
+            _TAIL_GIANT_COMMENT,
+        )
+        if random.random() < 0.5:
+            return result + comment
+        return result + _TAIL_CHANGE_SUFFIXES.get(change or "", "")
 
     async def _handle_old(self, streamer: User, user: str, text: str, old_value: str, seconds_spend: str):
         variants = [

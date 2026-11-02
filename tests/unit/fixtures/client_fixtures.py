@@ -25,7 +25,7 @@ def session_override(db_session):
 
 
 @pytest.fixture(scope="function")
-def user_auth_mock(db_session, test_user):
+def user_auth_mock(db_session, test_user):  # noqa: ARG001
     app.dependency_overrides[user_auth] = lambda: test_user
     app.dependency_overrides[user_auth_optional] = lambda: test_user
     yield test_user
@@ -43,7 +43,7 @@ def test_user_cookie(test_user) -> dict[str, str]:
 
 
 @pytest_asyncio.fixture(loop_scope="session")
-async def client(session_override) -> AsyncGenerator[AsyncClient, None]:
+async def client(session_override) -> AsyncGenerator[AsyncClient, None]:  # noqa: ARG001
     """HTTPX клиент для тестов."""
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:

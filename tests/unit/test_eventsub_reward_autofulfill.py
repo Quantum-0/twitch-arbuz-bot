@@ -43,9 +43,7 @@ async def test_autofulfill_fixes_and_notifies() -> None:
     assert payload["request_id"] == "reward_autofulfill:654179372"
     assert payload["chat_id"] == "42"
     assert "автоматически выполнять" in payload["message_text"]
-    cache.set_str_nx.assert_awaited_once_with(
-        f"reward_autofulfill_notified:654179372:{REWARD_ID}", "1", ttl=86400
-    )
+    cache.set_str_nx.assert_awaited_once_with(f"reward_autofulfill_notified:654179372:{REWARD_ID}", "1", ttl=86400)
 
 
 @pytest.mark.asyncio

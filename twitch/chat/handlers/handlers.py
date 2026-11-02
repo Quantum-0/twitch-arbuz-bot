@@ -62,26 +62,25 @@ class PyramidHandler(CommonMessagesHandler):
     def is_enabled(self, streamer_settings: TwitchUserSettings) -> bool:
         return False  # streamer_settings.enable_pyramid or streamer_settings.enable_pyramid_breaker
 
+    def _single_emote(self, message: ChatMessageWebhookEventSchema) -> tuple[str | None, int]:
+        """Единственный эмод в сообщении → (emote, количество); текст сообщения очищается от эмода."""
+        if not (isinstance(message.emotes, dict) and len(message.emotes.keys()) == 1):
+            return None, 0
+        emote = list(message.emotes.keys())[0]
+        emote_count = len(list(message.emotes.items())[0][1])
+        ranges = [(int(x["start_position"]), int(x["end_position"])) for x in list(message.emotes.items())[0][1]]
+        cutted = 0
+        for rng in ranges:
+            message.message.text = message.message.text[: rng[0] - cutted] + message.message.text[1 + rng[1] - cutted :]
+            cutted += 1 + rng[1] - rng[0]
+        message.message.text = message.message.text.strip()
+        if message.message.text != "":
+            return None, 0
+        return emote, emote_count
+
     async def handle(self, streamer: User, message: ChatMessageWebhookEventSchema) -> HandlerResult:
-        # Check if pyramid part
         user = message.chatter_user_name
-        if isinstance(message.emotes, dict) and len(message.emotes.keys()) == 1:
-            emote = list(message.emotes.keys())[0]
-            emote_count = len(list(message.emotes.items())[0][1])
-            ranges = [(int(x["start_position"]), int(x["end_position"])) for x in list(message.emotes.items())[0][1]]
-            cutted = 0
-            for rng in ranges:
-                message.message.text = (
-                    message.message.text[: rng[0] - cutted] + message.message.text[1 + rng[1] - cutted :]
-                )
-                cutted += 1 + rng[1] - rng[0]
-            message.message.text = message.message.text.strip()
-            if message.message.text != "":
-                emote = None
-                emote_count = 0
-        else:
-            emote = None
-            emote_count = 0
+        emote, emote_count = self._single_emote(message)
 
         # Load previous state
         channel = streamer.login_name

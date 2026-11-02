@@ -20,54 +20,17 @@ async def get_db() -> AsyncGenerator:
         yield session
 
 
-@asynccontextmanager
-async def lifespan(app: "FastAPI | None" = None):
-    # Ошибки необработанных фоновых задач — сразу в лог/GlitchTip,
-    # а не безликим «Task exception was never retrieved» на GC.
-    setup_asyncio_exception_handler()
-
-    from container import Container
-
-    container = Container()
-    set_container(container)
-    container.wire()
-
-    # Fail-fast: пингуем оба Redis-клиента и включаем keyspace-events
-    # ('Egx' — ловим и DEL, и TTL-истечения; настройка серверная, применяется один раз).
-    redis = container.redis()
-    binary_redis = container.binary_redis()
-    await redis.config_set("notify-keyspace-events", "Egx")
-    await redis.ping()
-    await binary_redis.ping()
-
-    twitch = container.twitch()
-    chat_bot = container.chat_bot()
-    ai = container.ai()
-    mqtt = container.mqtt()
-    slovotron = container.slovotron()
-    state_manager = container.state_manager()
-    cache = container.cache()
-    statistics = container.statistics()
-    server_metrics = container.server_metrics()
-    sse_manager = container.sse_manager()
-    scheduler = container.scheduler()
-    memealerts_auth = container.memealerts_auth()
-    twitch_token_service = container.twitch_token_service()
-    clips_poller = container.clips_poller()
-    stickers_processor = container.stickers_processor()
-    tts_service = container.tts_service()
-
+async def _startup_services(twitch, chat_bot, ai, tts_service, stickers_processor) -> None:
     await twitch.startup()
     await chat_bot.startup(twitch)
     await ai.startup()
     await tts_service.startup()
     await stickers_processor.start()
-
     if settings.app.update_bot_channels_on_startup:
         await chat_bot.update_bot_channels()
 
-    eventsub_service = container.twitch_eventsub_service()
 
+def _subscribe_mqtt_routes(mqtt, chat_bot, eventsub_service, slovotron) -> None:
     if not settings.app.direct_handle_messages:
         mqtt.subscribe(MQTTTopic.CHAT_MESSAGES, chat_bot.on_message)
 
@@ -80,31 +43,45 @@ async def lifespan(app: "FastAPI | None" = None):
 
     mqtt.subscribe(MQTTTopic.SLOVOTRON, slovotron.handle_webhook)
 
+
+def _subscribe_telegram_mqtt(mqtt, db_session_factory) -> None:
     # Telegram chat_connected — от TG-микросервиса при добавлении бота в чат.
     from services.telegram_integration import (
         handle_chat_connected,
         handle_chat_disconnected,
         handle_telegram_result,
-        reconcile_stream_subscriptions,
     )
 
     async def _on_chat_connected(payload: dict) -> None:
-        await handle_chat_connected(payload, container.db_session_factory())
+        await handle_chat_connected(payload, db_session_factory())
 
     mqtt.subscribe(MQTTTopic.TELEGRAM_CHAT_CONNECTED, _on_chat_connected)
 
     async def _on_chat_disconnected(payload: dict) -> None:
-        await handle_chat_disconnected(payload, container.db_session_factory())
+        await handle_chat_disconnected(payload, db_session_factory())
 
     mqtt.subscribe(MQTTTopic.TELEGRAM_CHAT_DISCONNECTED, _on_chat_disconnected)
 
     async def _on_telegram_result(payload: dict) -> None:
-        await handle_telegram_result(payload, container.db_session_factory())
+        await handle_telegram_result(payload, db_session_factory())
 
     mqtt.subscribe(MQTTTopic.TELEGRAM_RESULT, _on_telegram_result)
 
-    if app is not None:
-        app.container = container
+
+def _register_scheduler_jobs(
+    scheduler,
+    *,
+    container,
+    twitch,
+    memealerts_auth,
+    twitch_token_service,
+    clips_poller,
+    statistics,
+    server_metrics,
+    sse_manager,
+    cache,
+) -> None:
+    from services.telegram_integration import reconcile_stream_subscriptions
 
     scheduler.add_job(
         memealerts_auth.run_periodic_update,
@@ -235,14 +212,75 @@ async def lifespan(app: "FastAPI | None" = None):
         id="cleanup_overlay_eventsub",
         replace_existing=True,
     )
+
+
+@asynccontextmanager
+async def lifespan(app: "FastAPI | None" = None):
+    # Ошибки необработанных фоновых задач — сразу в лог/GlitchTip,
+    # а не безликим «Task exception was never retrieved» на GC.
+    setup_asyncio_exception_handler()
+
+    from container import Container
+
+    container = Container()
+    set_container(container)
+    container.wire()
+
+    # Fail-fast: пингуем оба Redis-клиента и включаем keyspace-events
+    # ('Egx' — ловим и DEL, и TTL-истечения; настройка серверная, применяется один раз).
+    redis = container.redis()
+    binary_redis = container.binary_redis()
+    await redis.config_set("notify-keyspace-events", "Egx")
+    await redis.ping()
+    await binary_redis.ping()
+
+    twitch = container.twitch()
+    chat_bot = container.chat_bot()
+    ai = container.ai()
+    mqtt = container.mqtt()
+    slovotron = container.slovotron()
+    state_manager = container.state_manager()
+    cache = container.cache()
+    statistics = container.statistics()
+    server_metrics = container.server_metrics()
+    sse_manager = container.sse_manager()
+    scheduler = container.scheduler()
+    memealerts_auth = container.memealerts_auth()
+    twitch_token_service = container.twitch_token_service()
+    clips_poller = container.clips_poller()
+    stickers_processor = container.stickers_processor()
+    tts_service = container.tts_service()
+
+    await _startup_services(twitch, chat_bot, ai, tts_service, stickers_processor)
+
+    eventsub_service = container.twitch_eventsub_service()
+
+    _subscribe_mqtt_routes(mqtt, chat_bot, eventsub_service, slovotron)
+    _subscribe_telegram_mqtt(mqtt, container.db_session_factory)
+
+    if app is not None:
+        app.container = container
+
+    _register_scheduler_jobs(
+        scheduler,
+        container=container,
+        twitch=twitch,
+        memealerts_auth=memealerts_auth,
+        twitch_token_service=twitch_token_service,
+        clips_poller=clips_poller,
+        statistics=statistics,
+        server_metrics=server_metrics,
+        sse_manager=sse_manager,
+        cache=cache,
+    )
     scheduler.start()
-    print("Планировщик запущен")
+    logging.getLogger(__name__).info("Планировщик запущен")
 
     async with mqtt.lifespan(), state_manager.lifespan():
         yield
 
     scheduler.shutdown()
-    print("Планировщик остановлен")
+    logging.getLogger(__name__).info("Планировщик остановлен")
 
     await tts_service.shutdown()
     await stickers_processor.stop()

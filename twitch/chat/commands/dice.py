@@ -4,6 +4,9 @@ from database.models import TwitchUserSettings, User
 from twitch.chat.base.target_command import SimpleTargetCommand
 from twitch.state_manager import SMParam
 
+# Порядок важен: "d20"/"d100" содержат "d2", поэтому d2 проверяется последним
+_DICE_SIDES = {"d6": 6, "d8": 8, "d12": 12, "d20": 20, "d100": 100, "d2": 2, "монетка": 2}
+
 
 class DiceCommand(SimpleTargetCommand):
     command_name = "dice"
@@ -18,24 +21,10 @@ class DiceCommand(SimpleTargetCommand):
         return streamer_settings.enable_dice
 
     async def _handle(self, streamer: User, user: str, message: str, targets: list[str]) -> str:
-        max_value = 0
-        to_grab = False
         if "dice" in message:
             return "Нужно указать, какой именно кубик кидаешь :з Варианты: !d2 !d6 !d8 !d12 !d20 и !d100"
-        if "d6" in message:
-            max_value = 6
-        elif "d8" in message:
-            max_value = 8
-        elif "d12" in message:
-            max_value = 12
-        elif "d20" in message:
-            max_value = 20
-        elif "d100" in message:
-            max_value = 100
-        elif "d2" in message or "монетка" in message:
-            max_value = 2
-        elif "!поднять" in message:
-            to_grab = True
+        max_value = next((sides for dice, sides in _DICE_SIDES.items() if dice in message), 0)
+        to_grab = not max_value and "!поднять" in message
 
         is_fallen = bool(
             await self._state_manager.get_state(

@@ -22,7 +22,8 @@ class HugCommand(SimpleTargetCommand):
         target = join_targets(targets)
         join_to_hugs_str = ""
         if len(targets) == 1:
-            assert isinstance(target, str)
+            if not isinstance(target, str):
+                raise TypeError("target must be str for single target")
             last_hug_target = await self._state_manager.get_state(
                 channel=streamer.login_name,
                 user=target[1:].lower(),

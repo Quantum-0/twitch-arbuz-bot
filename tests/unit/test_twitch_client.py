@@ -368,9 +368,9 @@ class TestUnsubscribes:
         delete.assert_awaited_once_with(subscription_id="sub-x")
 
     async def test_unsubscribe_raid_requires_exactly_one_arg(self, client):
-        with pytest.raises(AssertionError):
+        with pytest.raises(ValueError):
             await client.unsubscribe_raid()
-        with pytest.raises(AssertionError):
+        with pytest.raises(ValueError):
             await client.unsubscribe_raid(user=user_stub("1"), subscription_id="s")
 
 

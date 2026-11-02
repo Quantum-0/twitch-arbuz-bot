@@ -33,6 +33,39 @@ _SCOPE_COLUMNS = {
     "stickers": ("stickers_chat_id", "stickers_chat_type", "stickers_chat_title", "stickers_connected_at"),
 }
 
+_SCOPE_RESET_FIELDS: dict[str, list[tuple[str, object]]] = {
+    "stream": [
+        ("stream_notification_enabled", False),
+        ("last_stream_message_id", None),
+        ("last_stream_offline_message_id", None),
+        ("twitch_to_tg_enabled", False),
+        ("tg_to_twitch_enabled", False),
+    ],
+    "clips": [("clips_enabled", False)],
+    "stickers": [("stickers_enabled", False)],
+}
+
+
+def reset_scope_fields(tg, scope: str) -> None:
+    """Обнулить привязку чата (id/type/title/connected_at) и связанные флаги scope."""
+    col_id, col_type, col_title, col_at = _SCOPE_COLUMNS[scope]
+    setattr(tg, col_id, None)
+    setattr(tg, col_type, None)
+    setattr(tg, col_title, None)
+    setattr(tg, col_at, None)
+    for field, value in _SCOPE_RESET_FIELDS[scope]:
+        setattr(tg, field, value)
+
+
+def _match_scope_by_chat(tg, chat_id: str) -> str | None:
+    if tg.stream_chat_id == chat_id:
+        return "stream"
+    if tg.clips_chat_id == chat_id:
+        return "clips"
+    if tg.stickers_chat_id == chat_id:
+        return "stickers"
+    return None
+
 
 async def handle_chat_connected(payload: dict[str, Any], db_session_factory) -> None:
     """Сохранить привязку Telegram-чата к пользователю.
@@ -379,32 +412,12 @@ async def clear_telegram_chat_binding(
             cleared_scope = scope
         else:
             # Сопоставляем по chat_id среди всех scope.
-            if tg.stream_chat_id == chat_id:
-                cleared_scope = "stream"
-            elif tg.clips_chat_id == chat_id:
-                cleared_scope = "clips"
-            elif tg.stickers_chat_id == chat_id:
-                cleared_scope = "stickers"
+            cleared_scope = _match_scope_by_chat(tg, chat_id)
 
         if cleared_scope is None:
             return None
 
-        col_id, col_type, col_title, col_at = _SCOPE_COLUMNS[cleared_scope]
-        setattr(tg, col_id, None)
-        setattr(tg, col_type, None)
-        setattr(tg, col_title, None)
-        setattr(tg, col_at, None)
-
-        if cleared_scope == "stream":
-            tg.stream_notification_enabled = False
-            tg.last_stream_message_id = None
-            tg.last_stream_offline_message_id = None
-            tg.twitch_to_tg_enabled = False
-            tg.tg_to_twitch_enabled = False
-        elif cleared_scope == "clips":
-            tg.clips_enabled = False
-        elif cleared_scope == "stickers":
-            tg.stickers_enabled = False
+        reset_scope_fields(tg, cleared_scope)
 
         tg_user_id = tg.user_id
         await db.commit()

@@ -3,7 +3,7 @@ import logging
 from collections.abc import Callable
 from datetime import datetime
 from typing import Annotated, Any, Literal
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import sqlalchemy as sa
 from dependency_injector.wiring import Provide, inject
@@ -11,13 +11,15 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Securi
 from httpx import HTTPStatusError
 from jwt import DecodeError
 from memealerts.types.exceptions import MATokenExpiredError
+from memealerts.types.models import Current
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 from starlette.responses import JSONResponse
+from twitchAPI.object.api import CustomReward
 from twitchAPI.type import TwitchAPIException, TwitchResourceNotFound
 
 from container import Container
-from database.models import CharacterInfo, User
+from database.models import CharacterInfo, TTSSettings, User
 from dependencies import get_db
 from routers.api.user.checks import router as checks_router
 from routers.api.user.consent import router as consent_router
@@ -59,6 +61,33 @@ logger = logging.getLogger(__name__)
 
 # Ответ для случаев, когда user-токен Twitch безвозвратно невалиден (refresh отозван).
 _REAUTH_ERROR = {"title": "Ошибка", "message": "Токен Twitch недействителен. Выйдите из аккаунта и войдите снова."}
+
+
+async def _create_reward_or_response(
+    twitch: Twitch, user: User, title: str, cost: int, prompt: str
+) -> CustomReward | JSONResponse:
+    try:
+        return await twitch.create_reward(user, title, cost, prompt, is_user_input_required=True)
+    except TwitchTokenExpiredError:
+        return JSONResponse(_REAUTH_ERROR, 400)
+    except TwitchAPIException as exc:
+        if "CREATE_CUSTOM_REWARD_DUPLICATE_REWARD" in str(exc):
+            return JSONResponse({"title": "Ошибка", "message": "Награда уже существует."}, 400)
+        if "CREATE_CUSTOM_REWARD_TOO_MANY_REWARDS" in str(exc):
+            return JSONResponse({"title": "Ошибка", "message": "Слишком много наград на канале."}, 400)
+        return JSONResponse({"title": "Ошибка", "message": str(exc)}, 400)
+
+
+async def _delete_reward_or_response(twitch: Twitch, user: User, reward_id: UUID | str | None) -> JSONResponse | None:
+    try:
+        if reward_id is not None:
+            await twitch.delete_reward(user, reward_id)
+    except TwitchResourceNotFound:
+        pass
+    except TwitchTokenExpiredError:
+        return JSONResponse(_REAUTH_ERROR, 400)
+    return None
+
 
 router = APIRouter(prefix="/user", tags=["User API"])
 
@@ -185,6 +214,65 @@ async def update_memealert_coins(
     )
 
 
+async def _authorize_memealerts(
+    raw_token: str | None, memealerts: MemealertsService
+) -> tuple[str, Current] | JSONResponse:
+    if not raw_token:
+        return JSONResponse({"title": "Ошибка", "message": "Ключ не передан."}, 422)
+    token = raw_token.strip().replace("Bearer", "").strip()
+    try:
+        await token_expires_in_days(token)
+    except (MATokenExpiredError, DecodeError):
+        return JSONResponse(
+            {
+                "title": "Невалидный токен",
+                "message": "Токен, который вы используете - не является валидным. Попробуйте скопировать токен заново.",
+            },
+            400,
+        )
+    try:
+        return token, await memealerts.get_current(token)
+    except:
+        logger.warning("Error authorization on MA", exc_info=True)
+        return JSONResponse(
+            {
+                "title": "Ошибка",
+                "message": "Ошибка авторизации пользователя через токен.\nПроверьте корректность скопированного токена.\nЕсли не помогает - попробуйте переавторизоваться на мемалёртсе.",
+            },
+            400,
+        )
+
+
+async def _sync_memealerts_channel_settings(
+    user: User, memealerts_user: Current, memealerts_token: str, memealerts: MemealertsService
+) -> None:
+    channel = memealerts_user.channel
+    if not channel:
+        return
+    user.settings.memealerts_link = channel.unique_link  # type: ignore[assignment]
+    if channel.currency_name_declensions:
+        user.memealerts.memecoin_name_genitive = channel.currency_name_declensions.genitive  # 2 мемкоина
+        user.memealerts.memecoin_name_accusative = channel.currency_name_declensions.accusative  # 1 мемкоин
+        if channel.currency_name_declensions.multiple:
+            user.memealerts.memecoin_name_genitive_multiple = (
+                channel.currency_name_declensions.multiple.genitive
+            )  # 5 мемкоинов
+            user.memealerts.memecoin_name_accusative_multiple = (
+                channel.currency_name_declensions.multiple.accusative
+            )  # Получить мемкоины
+
+    if channel.disable_stickers is True:
+        try:
+            await memealerts.enable_stickers(memealerts_token)
+        except:
+            pass
+    if channel.welcome_bonus_enabled is False:
+        try:
+            await memealerts.enable_welcome_bonus(memealerts_token)
+        except:
+            pass
+
+
 @router.post("/memealerts", deprecated=True)
 @inject
 async def setup_memealert(
@@ -208,64 +296,11 @@ async def setup_memealert(
         )
 
     if enable:
-        if not memealerts_token:
-            return JSONResponse({"title": "Ошибка", "message": "Ключ не передан."}, 422)
-        memealerts_token = memealerts_token.strip().replace("Bearer", "").strip()
-        try:
-            await token_expires_in_days(memealerts_token)
-        except (MATokenExpiredError, DecodeError):
-            return JSONResponse(
-                {
-                    "title": "Невалидный токен",
-                    "message": "Токен, который вы используете - не является валидным. Попробуйте скопировать токен заново.",
-                },
-                400,
-            )
-
-        # TODO: валидируем токен, получаем ссылку, достаём из мемалёртса названия коинов
-        #  записываем их в бд чтоб при выдаче награды говорить что начислины не коины а {название}
-        #  включаем мемы и приветственный бонус, если они выключены (обязательно подписать это в окне в панели управления)
-        #  ссылку сохраняем в пользователя, чтоб можно было потом ему ссылку указать в профиле
-        #  а как обновлять старые? можно при получении коинов делать в фоне о.о
-        try:
-            memealerts_user = await memealerts.get_current(memealerts_token)
-        except:
-            logger.warning("Error authorization on MA", exc_info=True)
-            return JSONResponse(
-                {
-                    "title": "Ошибка",
-                    "message": "Ошибка авторизации пользователя через токен.\nПроверьте корректность скопированного токена.\nЕсли не помогает - попробуйте переавторизоваться на мемалёртсе.",
-                },
-                400,
-            )
-
-        if memealerts_user.channel:
-            user.settings.memealerts_link = memealerts_user.channel.unique_link
-            if memealerts_user.channel.currency_name_declensions:
-                user.memealerts.memecoin_name_genitive = (
-                    memealerts_user.channel.currency_name_declensions.genitive
-                )  # 2 мемкоина
-                user.memealerts.memecoin_name_accusative = (
-                    memealerts_user.channel.currency_name_declensions.accusative
-                )  # 1 мемкоин
-                if memealerts_user.channel.currency_name_declensions.multiple:
-                    user.memealerts.memecoin_name_genitive_multiple = (
-                        memealerts_user.channel.currency_name_declensions.multiple.genitive
-                    )  # 5 мемкоинов
-                    user.memealerts.memecoin_name_accusative_multiple = (
-                        memealerts_user.channel.currency_name_declensions.multiple.accusative
-                    )  # Получить мемкоины
-
-            if memealerts_user.channel.disable_stickers is True:
-                try:
-                    await memealerts.enable_stickers(memealerts_token)
-                except:
-                    pass
-            if memealerts_user.channel.welcome_bonus_enabled is False:
-                try:
-                    await memealerts.enable_welcome_bonus(memealerts_token)
-                except:
-                    pass
+        authorized = await _authorize_memealerts(memealerts_token, memealerts)
+        if isinstance(authorized, JSONResponse):
+            return authorized
+        memealerts_token, memealerts_user = authorized
+        await _sync_memealerts_channel_settings(user, memealerts_user, memealerts_token, memealerts)
 
         if refresh:
             user.memealerts.memealerts_token = memealerts_token
@@ -273,45 +308,58 @@ async def setup_memealert(
             await db.refresh(user.memealerts)
             return JSONResponse({"title": "Успешно", "message": "Токен обновлён."}, 200)
 
-        try:
-            reward = await twitch.create_reward(
-                user,
-                f"Получить {user.memealerts.memecoin_name_accusative_multiple or 'Мемкоины'}",
-                1000,
-                "Награда начисляется автомагически. В комментарии к награде обязательно укажи свой полный ник или ID на Memealerts. ОБЯЗАТЕЛЬНО заберите приветственный бонус.",
-                is_user_input_required=True,
-            )
-        except TwitchTokenExpiredError:
-            return JSONResponse(_REAUTH_ERROR, 400)
-        except TwitchAPIException as exc:
-            if "CREATE_CUSTOM_REWARD_DUPLICATE_REWARD" in str(exc):
-                return JSONResponse({"title": "Ошибка", "message": "Награда уже существует."}, 400)
-            if "CREATE_CUSTOM_REWARD_TOO_MANY_REWARDS" in str(exc):
-                return JSONResponse(
-                    {"title": "Ошибка", "message": "Слишком много наград на канале."},
-                    400,
-                )
-            return JSONResponse(
-                {"title": "Ошибка", "message": str(exc)},
-                400,
-            )
+        # TODO: валидируем токен, получаем ссылку, достаём из мемалёртса названия коинов
+        #  записываем их в бд чтоб при выдаче награды говорить что начислины не коины а {название}
+        #  включаем мемы и приветственный бонус, если они выключены (обязательно подписать это в окне в панели управления)
+        #  ссылку сохраняем в пользователя, чтоб можно было потом ему ссылку указать в профиле
+        #  а как обновлять старые? можно при получении коинов делать в фоне о.о
+        reward = await _create_reward_or_response(
+            twitch,
+            user,
+            f"Получить {user.memealerts.memecoin_name_accusative_multiple or 'Мемкоины'}",
+            1000,
+            "Награда начисляется автомагически. В комментарии к награде обязательно укажи свой полный ник или ID на Memealerts. ОБЯЗАТЕЛЬНО заберите приветственный бонус.",
+        )
+        if isinstance(reward, JSONResponse):
+            return reward
 
         user.memealerts.memealerts_reward = reward.id
         user.memealerts.memealerts_token = memealerts_token
         await db.commit()
         await db.refresh(user.memealerts)
-        await twitch.subscribe_reward(user, reward.id)
+        await twitch.subscribe_reward(user, reward.id)  # type: ignore[arg-type]
         return JSONResponse({"title": "Успешно", "message": "Награда создана."}, 201)
-    try:
-        await twitch.delete_reward(user, reward_id)
-    except TwitchResourceNotFound:
-        pass
-    except TwitchTokenExpiredError:
-        return JSONResponse(_REAUTH_ERROR, 400)
+
+    error = await _delete_reward_or_response(twitch, user, reward_id)
+    if error is not None:
+        return error
     user.memealerts.memealerts_reward = None
     await db.commit()
     await db.refresh(user.memealerts)
     return JSONResponse({"title": "Успешно", "message": "Награда удалена."}, 200)
+
+
+async def _check_existing_ai_sticker_reward(db: AsyncSession, twitch: Twitch, user: User) -> JSONResponse | None:
+    """Проверить существующую награду AI-стикеров: восстановить подписку или сбросить пропавшую."""
+    reward_id = user.settings.ai_sticker_reward_id
+    try:
+        problems = await twitch.validate_reward_subscription(user=user, reward_id=str(reward_id))
+    except TwitchTokenExpiredError:
+        return JSONResponse(_REAUTH_ERROR, 400)
+    if not problems:
+        return JSONResponse({"title": "Без изменений", "message": "Уже включено."}, 208)
+    if "Награда не найдена" in problems:
+        user.settings.ai_sticker_reward_id = None
+        await db.commit()
+        await db.refresh(user.settings)
+        return None
+    try:
+        await twitch.subscribe_reward(user, reward_id)  # type: ignore[arg-type]
+    except TwitchTokenExpiredError:
+        return JSONResponse(_REAUTH_ERROR, 400)
+    except TwitchAPIException as exc:
+        return JSONResponse({"title": "Ошибка", "message": str(exc)}, 400)
+    return JSONResponse({"title": "Успешно", "message": "Подписка на награду восстановлена."}, 200)
 
 
 @router.post("/setup-ai-stickers")
@@ -326,64 +374,32 @@ async def setup_ai_stickers(
 
     if enable:
         if reward_id:
-            try:
-                problems = await twitch.validate_reward_subscription(user=user, reward_id=str(reward_id))
-            except TwitchTokenExpiredError:
-                return JSONResponse(_REAUTH_ERROR, 400)
-            if not problems:
-                return JSONResponse({"title": "Без изменений", "message": "Уже включено."}, 208)
-            if "Награда не найдена" in problems:
-                user.settings.ai_sticker_reward_id = None
-                await db.commit()
-                await db.refresh(user.settings)
-                reward_id = None
-            else:
-                try:
-                    await twitch.subscribe_reward(user, reward_id)
-                except TwitchTokenExpiredError:
-                    return JSONResponse(_REAUTH_ERROR, 400)
-                except TwitchAPIException as exc:
-                    return JSONResponse({"title": "Ошибка", "message": str(exc)}, 400)
-                return JSONResponse({"title": "Успешно", "message": "Подписка на награду восстановлена."}, 200)
-    else:
-        if not reward_id:
-            return JSONResponse({"title": "Без изменений", "message": "Уже выключено."}, 208)
+            checked = await _check_existing_ai_sticker_reward(db, twitch, user)
+            if checked is not None:
+                return checked
+    elif not reward_id:
+        return JSONResponse({"title": "Без изменений", "message": "Уже выключено."}, 208)
 
     if enable:
-        try:
-            reward = await twitch.create_reward(
-                user,
-                "AI Sticker",
-                5000,
-                "Введи описание, по которому будет сгенерирован стикер и налеплен стримеру на экран :з",
-                is_user_input_required=True,
-            )
-        except TwitchTokenExpiredError:
-            return JSONResponse(_REAUTH_ERROR, 400)
-        except TwitchAPIException as exc:
-            if "CREATE_CUSTOM_REWARD_DUPLICATE_REWARD" in str(exc):
-                return JSONResponse({"title": "Ошибка", "message": "Награда уже существует."}, 400)
-            if "CREATE_CUSTOM_REWARD_TOO_MANY_REWARDS" in str(exc):
-                return JSONResponse(
-                    {"title": "Ошибка", "message": "Слишком много наград на канале."},
-                    400,
-                )
-            return JSONResponse(
-                {"title": "Ошибка", "message": str(exc)},
-                400,
-            )
+        reward = await _create_reward_or_response(
+            twitch,
+            user,
+            "AI Sticker",
+            5000,
+            "Введи описание, по которому будет сгенерирован стикер и налеплен стримеру на экран :з",
+        )
+        if isinstance(reward, JSONResponse):
+            return reward
 
         user.settings.ai_sticker_reward_id = reward.id
         await db.commit()
         await db.refresh(user.settings)
-        await twitch.subscribe_reward(user, reward.id)
+        await twitch.subscribe_reward(user, reward.id)  # type: ignore[arg-type]
         return JSONResponse({"title": "Успешно", "message": "Награда создана."}, 201)
-    try:
-        await twitch.delete_reward(user, reward_id)
-    except TwitchResourceNotFound:
-        pass
-    except TwitchTokenExpiredError:
-        return JSONResponse(_REAUTH_ERROR, 400)
+
+    error = await _delete_reward_or_response(twitch, user, reward_id)
+    if error is not None:
+        return error
     user.settings.ai_sticker_reward_id = None
     await db.commit()
     await db.refresh(user.settings)
@@ -409,6 +425,65 @@ async def get_recent_ai_stickers(
     return serialize_sticker_rows(rows, limit)
 
 
+async def _read_reference_file(file: UploadFile | None, login: str) -> bytes:
+    if file is None or not file.filename:
+        return b""
+    if file.size is not None and file.size > 10_000_000:
+        raise HTTPException(
+            status_code=413,
+            detail="File is too large. Maximum size is 10 MB.",
+        )
+    if file.content_type != "image/png":
+        raise HTTPException(status_code=415, detail="Invalid file type. Only PNG images are allowed.")
+
+    file_bytes = await file.read()
+    if len(file_bytes) < 8 or file_bytes[:8] != b"\x89PNG\r\n\x1a\n":
+        raise HTTPException(415, detail="Invalid file type. Only PNG images are allowed.")
+    logger.info(f"Reference image from {login} was loaded to server")
+    return file_bytes
+
+
+async def _upsert_character_info(
+    session: AsyncSession,
+    *,
+    target_username: str,
+    new_image_id: UUID | None,
+    description: str | None,
+    has_file: bool,
+    admin_upload: bool,
+    login: str,
+) -> UUID | None:
+    """Создать/обновить CharacterInfo; возвращает id старого файла для удаления из S3."""
+    result = await session.execute(sa.select(CharacterInfo).where(CharacterInfo.name == target_username))
+    existing_info = result.scalar_one_or_none()
+
+    if existing_info:
+        logger.info(f"Found already existing character info from {login}")
+        session.add(existing_info)
+        old_file_id: UUID | None = None
+        if has_file:
+            if existing_info.file_id:
+                old_file_id = existing_info.file_id
+            existing_info.file_id = new_image_id
+        if description:
+            existing_info.description = description
+        existing_info.approved = True if admin_upload else None
+        existing_info.updated_at = sa.func.now()
+        return old_file_id
+
+    session.add(
+        CharacterInfo(
+            name=target_username,
+            description=description,
+            file_id=new_image_id,
+            # SQL NULL is explicit: plain None would cause SQLAlchemy's
+            # Python default (used to trust legacy rows) to insert True.
+            approved=True if admin_upload else sa.null(),  # type: ignore[arg-type]
+        )
+    )
+    return None
+
+
 @router.post("/reference")
 @inject
 async def upload_reference(
@@ -428,21 +503,7 @@ async def upload_reference(
     if name is not None and not admin_upload:
         raise HTTPException(status_code=403, detail="You have no access to upload reference by custom name")
 
-    file_bytes = b""
-    if file is not None and file.filename:
-        if file.size is not None and file.size > 10_000_000:
-            raise HTTPException(
-                status_code=413,
-                detail="File is too large. Maximum size is 10 MB.",
-            )
-        if file.content_type != "image/png":
-            raise HTTPException(status_code=415, detail="Invalid file type. Only PNG images are allowed.")
-
-        file_bytes = await file.read()
-
-        if len(file_bytes) < 8 or file_bytes[:8] != b"\x89PNG\r\n\x1a\n":
-            raise HTTPException(415, detail="Invalid file type. Only PNG images are allowed.")
-        logger.info(f"Reference image from {user.login_name} was loaded to server")
+    file_bytes = await _read_reference_file(file, user.login_name)
 
     target_username = (name or user.login_name).lower()
     new_image_id = uuid4() if has_file else None
@@ -450,30 +511,15 @@ async def upload_reference(
 
     async with db_session_factory() as session:
         try:
-            result = await session.execute(sa.select(CharacterInfo).where(CharacterInfo.name == target_username))
-            existing_info = result.scalar_one_or_none()
-
-            if existing_info:
-                logger.info(f"Found already existing character info from {user.login_name}")
-                session.add(existing_info)
-                if has_file:
-                    if existing_info.file_id:
-                        old_file_id_to_delete = existing_info.file_id
-                    existing_info.file_id = new_image_id
-                if description:
-                    existing_info.description = description
-                existing_info.approved = True if admin_upload else None
-                existing_info.updated_at = sa.func.now()
-            else:
-                new_info = CharacterInfo(
-                    name=target_username,
-                    description=description,
-                    file_id=new_image_id,
-                    # SQL NULL is explicit: plain None would cause SQLAlchemy's
-                    # Python default (used to trust legacy rows) to insert True.
-                    approved=True if admin_upload else sa.null(),  # type: ignore[arg-type]
-                )
-                session.add(new_info)
+            old_file_id_to_delete = await _upsert_character_info(
+                session,
+                target_username=target_username,
+                new_image_id=new_image_id,
+                description=description,
+                has_file=has_file,
+                admin_upload=admin_upload,
+                login=user.login_name,
+            )
             await session.commit()
         except Exception as err:
             await session.rollback()
@@ -501,6 +547,42 @@ async def upload_reference(
 # ── TTS ──────────────────────────────────────────────────────────────────────
 
 
+async def _check_existing_tts_reward(
+    db: AsyncSession, twitch: Twitch, user: User, tts: TTSSettings
+) -> JSONResponse | None:
+    """Проверить существующую TTS-награду: восстановить или сбросить пропавшую."""
+    reward_id = tts.tts_reward_id
+    try:
+        problems = await twitch.validate_reward_subscription(user=user, reward_id=str(reward_id))
+    except TwitchTokenExpiredError:
+        return JSONResponse(_REAUTH_ERROR, 400)
+    if not problems:
+        return JSONResponse({"title": "Без изменений", "message": "Награда уже включена."}, 208)
+    if "Награда не найдена" in problems:
+        tts.tts_reward_id = None
+        await db.commit()
+        await db.refresh(tts)
+        return None
+    try:
+        await twitch.update_reward(
+            user,
+            reward_id,
+            is_enabled=True,
+            is_user_input_required=True,
+            should_redemptions_skip_request_queue=False,
+        )
+    except TwitchResourceNotFound:
+        tts.tts_reward_id = None
+        await db.commit()
+        await db.refresh(tts)
+        return None
+    except TwitchTokenExpiredError:
+        return JSONResponse(_REAUTH_ERROR, 400)
+    except TwitchAPIException as exc:
+        return JSONResponse({"title": "Ошибка", "message": str(exc)}, 400)
+    return JSONResponse({"title": "Успешно", "message": "Подписка на награду восстановлена."}, 200)
+
+
 @router.post("/setup-tts")
 @inject
 async def setup_tts(
@@ -515,70 +597,32 @@ async def setup_tts(
 
     if enable:
         if reward_id:
-            try:
-                problems = await twitch.validate_reward_subscription(user=user, reward_id=str(reward_id))
-            except TwitchTokenExpiredError:
-                return JSONResponse(_REAUTH_ERROR, 400)
-            if not problems:
-                return JSONResponse({"title": "Без изменений", "message": "Награда уже включена."}, 208)
-            if "Награда не найдена" in problems:
-                tts.tts_reward_id = None
-                await db.commit()
-                await db.refresh(tts)
-                reward_id = None
-            else:
-                try:
-                    await twitch.update_reward(
-                        user,
-                        reward_id,
-                        is_enabled=True,
-                        is_user_input_required=True,
-                        should_redemptions_skip_request_queue=False,
-                    )
-                except TwitchResourceNotFound:
-                    tts.tts_reward_id = None
-                    await db.commit()
-                    await db.refresh(tts)
-                    reward_id = None
-                except TwitchTokenExpiredError:
-                    return JSONResponse(_REAUTH_ERROR, 400)
-                except TwitchAPIException as exc:
-                    return JSONResponse({"title": "Ошибка", "message": str(exc)}, 400)
-                else:
-                    return JSONResponse({"title": "Успешно", "message": "Подписка на награду восстановлена."}, 200)
-    else:
-        if not reward_id:
-            return JSONResponse({"title": "Без изменений", "message": "Награда уже выключена."}, 208)
+            checked = await _check_existing_tts_reward(db, twitch, user, tts)
+            if checked is not None:
+                return checked
+    elif not reward_id:
+        return JSONResponse({"title": "Без изменений", "message": "Награда уже выключена."}, 208)
 
     if enable:
-        try:
-            reward = await twitch.create_reward(
-                user,
-                "TTS — озвучить сообщение",
-                50,
-                "Введи текст, который будет озвучен на стриме через TTS.",
-                is_user_input_required=True,
-            )
-        except TwitchTokenExpiredError:
-            return JSONResponse(_REAUTH_ERROR, 400)
-        except TwitchAPIException as exc:
-            if "CREATE_CUSTOM_REWARD_DUPLICATE_REWARD" in str(exc):
-                return JSONResponse({"title": "Ошибка", "message": "Награда уже существует."}, 400)
-            if "CREATE_CUSTOM_REWARD_TOO_MANY_REWARDS" in str(exc):
-                return JSONResponse({"title": "Ошибка", "message": "Слишком много наград на канале."}, 400)
-            return JSONResponse({"title": "Ошибка", "message": str(exc)}, 400)
+        reward = await _create_reward_or_response(
+            twitch,
+            user,
+            "TTS — озвучить сообщение",
+            50,
+            "Введи текст, который будет озвучен на стриме через TTS.",
+        )
+        if isinstance(reward, JSONResponse):
+            return reward
 
         tts.tts_reward_id = reward.id
         await db.commit()
         await db.refresh(tts)
-        await twitch.subscribe_reward(user, reward.id)
+        await twitch.subscribe_reward(user, reward.id)  # type: ignore[arg-type]
         return JSONResponse({"title": "Успешно", "message": "Награда TTS создана."}, 201)
-    try:
-        await twitch.delete_reward(user, reward_id)
-    except TwitchResourceNotFound:
-        pass
-    except TwitchTokenExpiredError:
-        return JSONResponse(_REAUTH_ERROR, 400)
+
+    error = await _delete_reward_or_response(twitch, user, reward_id)
+    if error is not None:
+        return error
     tts.tts_reward_id = None
     await db.commit()
     await db.refresh(tts)

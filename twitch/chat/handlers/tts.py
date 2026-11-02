@@ -16,9 +16,9 @@ from typing import TYPE_CHECKING
 
 from opentelemetry import trace
 
-from database.models import TwitchUserSettings, User
+from database.models import TTSSettings, TwitchUserSettings, User
 from schemas.api import StatsType
-from schemas.enums import BanFeature, TTSTrigger
+from schemas.enums import BanFeature, ChatterRole, TTSTrigger
 from schemas.twitch import ChatMessageWebhookEventSchema
 from services.bans import BanService
 from services.moderation import ModerationService
@@ -92,10 +92,7 @@ class TTSHandler(CommonMessagesHandler):
             return HandlerResult.SKIPED
 
         # 4. Матрица разрешений.
-        perms: dict = tts.permissions or {}
-        roles = perms.get("roles", {}) if isinstance(perms, dict) else {}
-        role_perms = roles.get(role.value, {}) if isinstance(roles, dict) else {}
-        if not role_perms.get(trigger.value, False):
+        if not self._role_trigger_allowed(tts, role, trigger):
             return HandlerResult.SKIPED
 
         # 4.5 Бан по фиче TTS (канальный/global): не озвучиваем. Проверка после
@@ -106,9 +103,7 @@ class TTSHandler(CommonMessagesHandler):
         # 5. Cooldown (per-user / per-channel) — in-memory через StateManager.
         cd_msg = await self._check_and_set_cooldown(streamer, message, tts)
         if cd_msg is not None:
-            # per-user КД: отвечаем в чат. per-channel КД: cd_msg == "" (молча).
-            if cd_msg:
-                await self.send_response(chat=streamer, message=cd_msg)
+            await self._send_cooldown_reply(streamer, cd_msg)
             return HandlerResult.SKIPED
 
         # 6-8. Очистка текста, модерация финального текста, обрезка.
@@ -116,11 +111,33 @@ class TTSHandler(CommonMessagesHandler):
         if text is None:
             return HandlerResult.SKIPED
 
-        # 9. Озвучивать ник.
+        await self._speak(streamer, message, tts, ssem, text)
+
+        # Не блокируем команды/другие handlers.
+        return HandlerResult.HANDLED_AND_CONTINUE
+
+    async def _send_cooldown_reply(self, streamer: User, cd_msg: str) -> None:
+        # per-user КД: отвечаем в чат. per-channel КД: cd_msg == "" (молча).
+        if cd_msg:
+            await self.send_response(chat=streamer, message=cd_msg)
+
+    @staticmethod
+    def _role_trigger_allowed(tts: TTSSettings, role: ChatterRole, trigger: TTSTrigger) -> bool:
+        perms: dict = tts.permissions or {}
+        if not isinstance(perms, dict):
+            return False
+        roles = perms.get("roles", {})
+        if not isinstance(roles, dict):
+            return False
+        role_perms = roles.get(role.value, {})
+        return bool(role_perms.get(trigger.value, False))
+
+    async def _speak(
+        self, streamer: User, message: ChatMessageWebhookEventSchema, tts: TTSSettings, ssem: SSEManager, text: str
+    ) -> None:
+        """Озвучить текст: префикс ника (если включён) → broadcast в SSE TTS → метрика."""
         if tts.read_username:
             text = f"{clean_tts_username(message.chatter_user_name)} говорит {text}"
-
-        # 10. Broadcast в SSE TTS.
         await ssem.broadcast(
             int(streamer.twitch_id),
             SSEChannel.TTS,
@@ -128,9 +145,6 @@ class TTSHandler(CommonMessagesHandler):
         )
         if self._statistics is not None:
             self._statistics.inc(StatsType.TTS_MESSAGES)
-
-        # Не блокируем команды/другие handlers.
-        return HandlerResult.HANDLED_AND_CONTINUE
 
     async def _skip_if_tts_banned(self, streamer: User, message: ChatMessageWebhookEventSchema) -> bool:
         """Забанен ли чаттер по фиче TTS на этом канале → лог + метрика. Fail-open при сбое Redis/БД."""
@@ -227,8 +241,7 @@ class TTSHandler(CommonMessagesHandler):
             await self.send_response(chat=streamer, message="⚠️ TTS: сообщение заблокировано модерацией.")
             return None
 
-        text = truncate_tts(text, tts.max_length)
-        return text
+        return truncate_tts(text, tts.max_length)
 
     @staticmethod
     def _detect_trigger(message: ChatMessageWebhookEventSchema, text: str) -> TTSTrigger | None:

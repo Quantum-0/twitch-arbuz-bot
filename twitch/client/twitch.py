@@ -246,14 +246,13 @@ class Twitch:
         is_user_input_required: bool,
     ) -> CustomReward:
         twitch_user = await _user_twitch_client(user)
-        reward = await twitch_user.create_custom_reward(
+        return await twitch_user.create_custom_reward(
             user.twitch_id,
             reward_title,
             reward_cost,
             reward_description,
             is_user_input_required=is_user_input_required,
         )
-        return reward
 
     @classmethod
     @_reauth_on_auth_error
@@ -608,7 +607,8 @@ class Twitch:
             return response.json()
 
     async def unsubscribe_raid(self, *, user: User = None, subscription_id: UUID = None):
-        assert bool(user) != bool(subscription_id)
+        if bool(user) == bool(subscription_id):
+            raise ValueError("Required exactly one of user or subscription_id")
         if user:
             subscriptions = await self.get_subscriptions()
             for sub in subscriptions:

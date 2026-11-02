@@ -20,6 +20,7 @@ from schemas.telegram import (
     TelegramSettingsUpdateSchema,
 )
 from services.mqtt import MQTTClient
+from services.telegram_integration import reset_scope_fields
 from twitch.client.twitch import Twitch
 from utils.telegram import TG_CLIPS_BETA_USERS, ensure_telegram_settings, get_telegram_settings
 
@@ -225,13 +226,7 @@ async def disconnect_telegram_scope(
     label = scope_labels[scope]
 
     if tg is not None:
-        chat_id = None
-        if scope == "stream":
-            chat_id = tg.stream_chat_id
-        elif scope == "clips":
-            chat_id = tg.clips_chat_id
-        elif scope == "stickers":
-            chat_id = tg.stickers_chat_id
+        chat_id = {"stream": tg.stream_chat_id, "clips": tg.clips_chat_id, "stickers": tg.stickers_chat_id}.get(scope)
 
         if not chat_id:
             return JSONResponse(
@@ -239,28 +234,7 @@ async def disconnect_telegram_scope(
                 200,
             )
 
-        if scope == "stream":
-            tg.stream_chat_id = None
-            tg.stream_chat_type = None
-            tg.stream_chat_title = None
-            tg.stream_connected_at = None
-            tg.stream_notification_enabled = False
-            tg.last_stream_message_id = None
-            tg.last_stream_offline_message_id = None
-            tg.twitch_to_tg_enabled = False
-            tg.tg_to_twitch_enabled = False
-        elif scope == "clips":
-            tg.clips_chat_id = None
-            tg.clips_chat_type = None
-            tg.clips_chat_title = None
-            tg.clips_connected_at = None
-            tg.clips_enabled = False
-        elif scope == "stickers":
-            tg.stickers_chat_id = None
-            tg.stickers_chat_type = None
-            tg.stickers_chat_title = None
-            tg.stickers_connected_at = None
-            tg.stickers_enabled = False
+        reset_scope_fields(tg, scope)
         await db.commit()
 
         try:

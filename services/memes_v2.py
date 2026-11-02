@@ -783,8 +783,7 @@ class MemealertsV2Service:
         logger.warning(f"Targeted search failed for `{username}`. Falling back to full scan.")
         with tracer.start_as_current_span("Full list search"):
             all_users = await self.load_supporters(ma_token, query=None)
-            target_user = self._pick_user_from_list(all_users, username)
-        return target_user
+            return self._pick_user_from_list(all_users, username)
 
     def _pick_user_from_list(self, users: list[MASupporter], username: str) -> MASupporter | None:
         """Поиск совпадения в списке с защитой от дубликатов.

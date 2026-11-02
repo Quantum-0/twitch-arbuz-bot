@@ -31,6 +31,12 @@ class SavingResultCommand(Command):
     async def result_generator(self, old_value: str | None, **kwargs: Any) -> str:
         raise NotImplementedError
 
+    @staticmethod
+    def _parse_delta_value(raw: str) -> tuple[str | None, int]:
+        if raw[0] in "+-":
+            return raw[0], int(raw[1:])
+        return None, int(raw)
+
     @tracer.start_as_current_span("ChatBot: SavingResult Command: Handle")
     async def handle(self, streamer: User, message: ChatMessageWebhookEventSchema):
         await super().handle(streamer, message)

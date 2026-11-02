@@ -27,7 +27,7 @@ from services.mqtt import MQTTClient
 from services.sse_manager import SSEManager
 from services.statistics import StatisticsService
 from twitch.chat.command_manager import CommandsManager
-from twitch.chat.commands import *
+from twitch.chat.commands import *  # noqa: F403
 from twitch.chat.handlers import PantsRaffleHandler, ThanksHandler
 from twitch.chat.handlers.handlers import (
     HelloHandler,
@@ -106,35 +106,35 @@ class ChatBot:
         self._handler_manager.register(IAmBotHandler)
         self._handler_manager.register(ThanksHandler)
         self._handler_manager.register(TTSHandler)
-        self._command_manager.register(CmdlistCommand)
-        self._command_manager.register(DiceCommand)
-        self._command_manager.register(BiteCommand)
-        self._command_manager.register(BonkCommand)
-        self._command_manager.register(BushCommand)
-        self._command_manager.register(LickCommand)
-        self._command_manager.register(FeedCommand)
-        self._command_manager.register(BananaCommand)
-        self._command_manager.register(TailCommand)
-        self._command_manager.register(TreatCommand)
-        self._command_manager.register(HornyGoodCommand)
-        self._command_manager.register(BoopCommand)
-        self._command_manager.register(PatCommand)
-        self._command_manager.register(ScratchCommand)
-        self._command_manager.register(PastaCommand)
-        self._command_manager.register(HugCommand)
-        self._command_manager.register(LurkCommand)
-        self._command_manager.register(PantsCommand)
-        self._command_manager.register(PantsDenyCommand)
-        self._command_manager.register(WhoAmICommand)
-        self._command_manager.register(LinkDisCommand)
-        self._command_manager.register(LinkTgCommand)
-        self._command_manager.register(LinkTiktokCommand)
-        self._command_manager.register(LinkYoutubeCommand)
-        self._command_manager.register(LinksCommand)
-        self._command_manager.register(MemealertsLinkCommand)
-        self._command_manager.register(SteamCommand)
-        self._command_manager.register(BanCommand)
-        self._command_manager.register(UnbanCommand)
+        self._command_manager.register(CmdlistCommand)  # noqa: F405
+        self._command_manager.register(DiceCommand)  # noqa: F405
+        self._command_manager.register(BiteCommand)  # noqa: F405
+        self._command_manager.register(BonkCommand)  # noqa: F405
+        self._command_manager.register(BushCommand)  # noqa: F405
+        self._command_manager.register(LickCommand)  # noqa: F405
+        self._command_manager.register(FeedCommand)  # noqa: F405
+        self._command_manager.register(BananaCommand)  # noqa: F405
+        self._command_manager.register(TailCommand)  # noqa: F405
+        self._command_manager.register(TreatCommand)  # noqa: F405
+        self._command_manager.register(HornyGoodCommand)  # noqa: F405
+        self._command_manager.register(BoopCommand)  # noqa: F405
+        self._command_manager.register(PatCommand)  # noqa: F405
+        self._command_manager.register(ScratchCommand)  # noqa: F405
+        self._command_manager.register(PastaCommand)  # noqa: F405
+        self._command_manager.register(HugCommand)  # noqa: F405
+        self._command_manager.register(LurkCommand)  # noqa: F405
+        self._command_manager.register(PantsCommand)  # noqa: F405
+        self._command_manager.register(PantsDenyCommand)  # noqa: F405
+        self._command_manager.register(WhoAmICommand)  # noqa: F405
+        self._command_manager.register(LinkDisCommand)  # noqa: F405
+        self._command_manager.register(LinkTgCommand)  # noqa: F405
+        self._command_manager.register(LinkTiktokCommand)  # noqa: F405
+        self._command_manager.register(LinkYoutubeCommand)  # noqa: F405
+        self._command_manager.register(LinksCommand)  # noqa: F405
+        self._command_manager.register(MemealertsLinkCommand)  # noqa: F405
+        self._command_manager.register(SteamCommand)  # noqa: F405
+        self._command_manager.register(BanCommand)  # noqa: F405
+        self._command_manager.register(UnbanCommand)  # noqa: F405
 
         # chat.register_event(ChatEvent.MESSAGE, on_message)
         logger.debug("On_message handler registered")

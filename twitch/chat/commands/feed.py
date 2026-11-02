@@ -34,8 +34,7 @@ class FeedCommand(SimpleTargetCommand):
             "чипсеками",
             "яблочком",
         ]
-        result = f"@{user} {random.choice(random_action)} {target} {random.choice(random_food)}"
-        return result
+        return f"@{user} {random.choice(random_action)} {target} {random.choice(random_food)}"
 
     async def _no_target_reply(self, user: str) -> str | None:
         return f'Чтобы покормить кого-нибудь, нужно указать, кого ты хочешь кормить! Например "!угостить @{user}"'

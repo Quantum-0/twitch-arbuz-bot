@@ -42,7 +42,7 @@ def migrations(postgres_container):
 
 
 @pytest_asyncio.fixture(scope="function", loop_scope="session")
-async def test_engine(postgres_container, migrations) -> AsyncGenerator:
+async def test_engine(postgres_container, migrations) -> AsyncGenerator:  # noqa: ARG001
     """Создаём движок к тестовой БД и накатываем миграции через Alembic."""
     url = postgres_container.get_connection_url().replace("postgresql+psycopg2://", "postgresql+asyncpg://")
     engine = create_async_engine(url, future=True, echo=False)

@@ -21,6 +21,26 @@ from twitch.state_manager import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+async def _cleanup_expired_sm_key(client: aioredis.Redis, expired_key: str) -> None:
+    """Удалить истёкший sm:*-ключ из индексных множеств Redis."""
+    parts = expired_key.split(":")
+    if len(parts) != 5:
+        return
+    sm, channel, command, user, param = parts
+    if sm != "sm":
+        return
+
+    async with client.pipeline(transaction=True) as pipe:
+        logger.info("Got removed key: %s", expired_key)
+        pipe.srem(f"idx:channel:{channel}", expired_key)
+        pipe.srem(f"idx:command:{command}", expired_key)
+        pipe.srem(f"idx:user:{user}", expired_key)
+        pipe.srem(f"idx:param:{param}", expired_key)
+        await pipe.execute()
+
+
 tracer = trace.get_tracer(__name__)
 
 
@@ -245,19 +265,7 @@ class RedisStateManager(StateManager):
                             continue
                         expired_key = message["data"]
                         if expired_key.startswith("sm:"):
-                            parts = expired_key.split(":")
-                            if len(parts) == 5:
-                                sm, channel, command, user, param = parts
-                                if sm != "sm":
-                                    continue
-
-                                async with client.pipeline(transaction=True) as pipe:
-                                    logger.info("Got removed key: %s", expired_key)
-                                    pipe.srem(f"idx:channel:{channel}", expired_key)
-                                    pipe.srem(f"idx:command:{command}", expired_key)
-                                    pipe.srem(f"idx:user:{user}", expired_key)
-                                    pipe.srem(f"idx:param:{param}", expired_key)
-                                    await pipe.execute()
+                            await _cleanup_expired_sm_key(client, expired_key)
                 except aioredis.RedisError as e:
                     logger.warning(f"Ошибка соединения: {e}. Ожидание 5 секунд...")
                     await asyncio.sleep(5)
