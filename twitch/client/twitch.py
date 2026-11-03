@@ -3,7 +3,7 @@ import logging
 import time
 from collections.abc import AsyncGenerator, Awaitable, Callable
 from functools import wraps
-from typing import Any, TypeVar
+from typing import Any, TypeVar, overload
 from uuid import UUID
 
 import httpx
@@ -606,8 +606,14 @@ class Twitch:
             response.raise_for_status()
             return response.json()
 
-    async def unsubscribe_raid(self, *, user: User = None, subscription_id: UUID = None):
-        if bool(user) == bool(subscription_id):
+    @overload
+    async def unsubscribe_raid(self, *, user: User) -> bool | None: ...
+
+    @overload
+    async def unsubscribe_raid(self, *, subscription_id: UUID) -> bool | None: ...
+
+    async def unsubscribe_raid(self, *, user: User | None = None, subscription_id: UUID | None = None) -> bool | None:
+        if (user is None) == (subscription_id is None):
             raise ValueError("Required exactly one of user or subscription_id")
         if user:
             subscriptions = await self.get_subscriptions()

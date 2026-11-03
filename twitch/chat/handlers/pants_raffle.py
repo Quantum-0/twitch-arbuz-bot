@@ -1,4 +1,5 @@
 import logging
+from collections.abc import Sequence
 
 import sqlalchemy as sa
 
@@ -15,7 +16,7 @@ class PantsRaffleHandler(CommonMessagesHandler):
     def is_enabled(self, streamer_settings: TwitchUserSettings) -> bool:
         return streamer_settings.enable_pants
 
-    async def check_denied(self, *names: str) -> list[str]:
+    async def check_denied(self, *names: str) -> Sequence[PantsDeny]:
         async with self.db_session() as session:
             result = await session.execute(sa.select(PantsDeny).where(PantsDeny.name.in_([n.lower() for n in names])))
             return result.scalars().all()

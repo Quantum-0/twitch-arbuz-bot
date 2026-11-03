@@ -86,7 +86,7 @@ async def create_reward(
     try:
         reward = await twitch.create_reward(
             user,
-            f"Получить {user.memealerts.memecoin_name_accusative_multiple.lower() or 'мемкоины'}",
+            f"Получить {(user.memealerts.memecoin_name_accusative_multiple or 'мемкоины').lower()}",
             1000,
             "Награда начисляется автомагически. В комментарии к награде обязательно укажи свой полный ник или ID на Memealerts. ОБЯЗАТЕЛЬНО заберите приветственный бонус.",
             is_user_input_required=True,

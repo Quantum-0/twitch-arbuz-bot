@@ -26,6 +26,8 @@ class LinkTgCommand(SimpleCDCommand):
                 r"(@(?P<username1>\w*)|(https?:\/\/)?t\.me\/(?P<username2>\w*)(\/(?P<post>\d+))?|(https?:\/\/)?(?P<username3>\w*)\.t\.me\/?)",
                 link,
             )
+            if not parsed:
+                return "Кажется это некорректная ссылка :с"
             clean_link = (
                 parsed.groupdict().get("username1")
                 or parsed.groupdict().get("username2")

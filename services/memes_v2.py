@@ -231,7 +231,7 @@ class MemealertsOAuthService:
         """
         if user.memealerts.access_token is None:
             raise MANoToken
-        if any(item not in user.memealerts.token_scopes for item in memealerts_scope):
+        if any(item not in user.memealerts.token_scopes for item in memealerts_scope):  # type: ignore[operator] - scope есть всегда, если есть токен
             raise MAInvalidScopeError
         if isinstance(user, User):
             current_token = self._tokens_from_settings(user.memealerts)
@@ -701,7 +701,7 @@ class MemealertsV2Service:
     async def _get_supporters(
         self, ma_token: Tokens[str], skip: int | None = None, limit: int | None = None, query: str | None = None
     ) -> MASupportersList:
-        params = {}
+        params: dict[str, int | str] = {}
         if skip is not None:
             if skip < 0:
                 raise ValueError("Value should be more than 0")

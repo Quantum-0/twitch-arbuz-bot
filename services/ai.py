@@ -62,7 +62,7 @@ class OpenAIClient:
             )
         finally:
             self._record_gen_timing(model, start)
-        return base64.b64decode(result.data[0].b64_json), result.usage.cost_rub
+        return base64.b64decode(result.data[0].b64_json), result.usage.cost_rub  # type: ignore[index, union-attr, arg-type]
 
     async def generate_sticker(
         self, prompt: str, model: str = "gpt-image-2.5-flare", background: ImageBackground | None = None
@@ -81,7 +81,7 @@ class OpenAIClient:
             )
         finally:
             self._record_gen_timing(model, start)
-        return base64.b64decode(result.data[0].b64_json), result.usage.cost_rub
+        return base64.b64decode(result.data[0].b64_json), result.usage.cost_rub  # type: ignore[index, union-attr, arg-type]
 
     def _record_gen_timing(self, model: str, start: float) -> None:
         """Записывает timing замер HTTP-вызова к OpenAI Image API.

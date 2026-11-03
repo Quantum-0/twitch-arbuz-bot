@@ -23,6 +23,8 @@ class LinkTiktokCommand(SimpleCDCommand):
         if streamer.login_name == user.lower():
             link = message.strip().split(maxsplit=1)[1]
             parsed = re.match(r"(https?:\/\/)?(www\.)?tiktok\.com\/@(?P<username>\w*)", link)
+            if not parsed:
+                return "Кажется это некорректная ссылка :с"
             clean_link = parsed.groupdict().get("username") or None
             if not clean_link:
                 return "Кажется это некорректная ссылка :с"

@@ -32,9 +32,7 @@ class PastaCommand(SimpleCDCommand):
 
     async def _handle_random(self, streamer: User) -> str | None:
         async with self.db_session() as session:
-            result = (
-                await session.execute(sa.select(RaidPasta).order_by(sa.func.random()).limit(1))
-            ).scalar_one_or_none()
+            result = (await session.execute(sa.select(RaidPasta).order_by(sa.func.random()).limit(1))).scalar_one()
             return result.text
 
     async def _get_pasta(self, streamer: User) -> str | None:

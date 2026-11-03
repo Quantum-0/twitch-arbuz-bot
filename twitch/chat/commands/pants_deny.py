@@ -1,5 +1,5 @@
 import logging
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Sequence
 
 import sqlalchemy as sa
 from opentelemetry import trace
@@ -31,7 +31,7 @@ class PantsDenyCommand(SimpleCDCommand):
     ) -> None:
         super().__init__(sm, send_message, db_session_factory)
 
-    async def check_denied(self, *names: str) -> list[str]:
+    async def check_denied(self, *names: str) -> Sequence[PantsDeny]:
         async with self.db_session() as session:
             result = await session.execute(sa.select(PantsDeny).where(PantsDeny.name.in_([n.lower() for n in names])))
             return result.scalars().all()

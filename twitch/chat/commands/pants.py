@@ -1,7 +1,7 @@
 import asyncio
 import logging
 import random
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Sequence
 from functools import partial
 from operator import itemgetter
 from time import time
@@ -37,7 +37,7 @@ class PantsCommand(SimpleCDCommand):
     ) -> None:
         super().__init__(sm, send_message, db_session_factory)
 
-    async def check_denied(self, *names: str) -> list[str]:
+    async def check_denied(self, *names: str) -> Sequence[PantsDeny]:
         async with self.db_session() as session:
             result = await session.execute(sa.select(PantsDeny).where(PantsDeny.name.in_([n.lower() for n in names])))
             return result.scalars().all()
@@ -98,7 +98,8 @@ class PantsCommand(SimpleCDCommand):
             targets = [
                 usr
                 for usr in active_users
-                if (users_last_ts[usr] is None) or (time() - users_last_ts[usr] > self.cooldown_timer_per_target)
+                if (users_last_ts[usr] is None)
+                or (time() - (users_last_ts[usr] or 0.0) > self.cooldown_timer_per_target)
             ]
             # Фильтруем запрещённые
             targets = [usr for usr in targets if not (await self.check_denied(usr))]

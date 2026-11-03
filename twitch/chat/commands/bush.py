@@ -42,13 +42,13 @@ class BushCommand(SimpleTargetCommand):
         return f"Опечатавшись в команде !кусь, @{user} внезапно {random.choice(variants)}"
 
     async def _no_target_reply(self, user: str) -> str | None:
-        return await self._handle(None, user, "", [])
+        return await self._handle(None, user, "", [])  # type: ignore[arg-type]
 
     async def _cooldown_reply(self, user: str, delay: int) -> str | None:
         return None
 
     async def _self_call_reply(self, user: str) -> str | None:
-        return await self._handle(None, user, "", [])
+        return await self._handle(None, user, "", [])  # type: ignore[arg-type]
 
     async def _bot_call_reply(self, user: str, target: str) -> str | None:
         return None

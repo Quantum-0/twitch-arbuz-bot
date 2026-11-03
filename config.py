@@ -91,7 +91,7 @@ class AppSettings(BaseSettings):
     middleware_secret_key: SecretStr
     # Трейсинг ошибок и производительности.
     sentry_dsn: AnyHttpUrl | None = None
-    otel_endpoint: AnyHttpUrl | None = "http://localhost:4317"
+    otel_endpoint: AnyHttpUrl | None = "http://localhost:4317"  # type: ignore[assignment]
     otel_service_name: str = "twitch-bot"
     # Upstream Heat API (клики по экрану, wss) — канал SSE `heat`.
     heat_url: str = "wss://heat-api.j38.net/channel/"
@@ -131,7 +131,7 @@ class MQTTSettings(BaseSettings):
 class S3Settings(BaseSettings):
     """S3-хранилище (стикеры, файлы оверлеев)."""
 
-    url: AnyHttpUrl = "http://localhost:9000"
+    url: AnyHttpUrl = "http://localhost:9000"  # type: ignore[assignment]
     access_key: SecretStr
     secret_key: SecretStr
     bucket: str = "twibot"
@@ -160,7 +160,7 @@ class AISettings(BaseSettings):
 class MemealertsSettings(BaseSettings):
     """Интеграция Memealerts (OAuth)."""
 
-    redirect_url: AnyHttpUrl = "https://bot.quantum0.ru/memealerts/callback"
+    redirect_url: AnyHttpUrl = "https://bot.quantum0.ru/memealerts/callback"  # type: ignore[assignment]
     client_id: SecretStr
     client_secret: SecretStr
     state_secret: SecretStr
@@ -189,7 +189,7 @@ class TelegramSettings(BaseSettings):
     # в панели скрыта, /auth/telegram редиректит обратно на /panel.
     login_client_id: int | None = None
     login_client_secret: SecretStr = SecretStr("")
-    login_redirect_url: AnyHttpUrl = "https://bot.quantum0.ru/auth/telegram/callback"
+    login_redirect_url: AnyHttpUrl = "https://bot.quantum0.ru/auth/telegram/callback"  # type: ignore[assignment]
     model_config = SettingsConfigDict(env_prefix="TELEGRAM_", env_file=".env", extra="ignore")
 
 
@@ -207,7 +207,7 @@ class SteamSettings(BaseSettings):
 
     # Steam Web API key (https://steamcommunity.com/dev/apikey)
     api_key: SecretStr = SecretStr("")
-    return_to_url: AnyHttpUrl = "https://bot.quantum0.ru/auth/steam/callback"
+    return_to_url: AnyHttpUrl = "https://bot.quantum0.ru/auth/steam/callback"  # type: ignore[assignment]
     model_config = SettingsConfigDict(env_prefix="STEAM_", env_file=".env", extra="ignore")
 
 
