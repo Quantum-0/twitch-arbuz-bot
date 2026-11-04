@@ -323,11 +323,11 @@ async def setup_memealert(
         if isinstance(reward, JSONResponse):
             return reward
 
-        user.memealerts.memealerts_reward = reward.id
+        user.memealerts.memealerts_reward = UUID(reward.id)
         user.memealerts.memealerts_token = memealerts_token
         await db.commit()
         await db.refresh(user.memealerts)
-        await twitch.subscribe_reward(user, reward.id)  # type: ignore[arg-type]
+        await twitch.subscribe_reward(user, reward.id)
         return JSONResponse({"title": "Успешно", "message": "Награда создана."}, 201)
 
     error = await _delete_reward_or_response(twitch, user, reward_id)
@@ -354,7 +354,7 @@ async def _check_existing_ai_sticker_reward(db: AsyncSession, twitch: Twitch, us
         await db.refresh(user.settings)
         return None
     try:
-        await twitch.subscribe_reward(user, reward_id)  # type: ignore[arg-type]
+        await twitch.subscribe_reward(user, reward_id)  # type: ignore[arg-type]  # reward_id: UUID | None проверен выше
     except TwitchTokenExpiredError:
         return JSONResponse(_REAUTH_ERROR, 400)
     except TwitchAPIException as exc:
@@ -391,10 +391,10 @@ async def setup_ai_stickers(
         if isinstance(reward, JSONResponse):
             return reward
 
-        user.settings.ai_sticker_reward_id = reward.id
+        user.settings.ai_sticker_reward_id = UUID(reward.id)
         await db.commit()
         await db.refresh(user.settings)
-        await twitch.subscribe_reward(user, reward.id)  # type: ignore[arg-type]
+        await twitch.subscribe_reward(user, reward.id)
         return JSONResponse({"title": "Успешно", "message": "Награда создана."}, 201)
 
     error = await _delete_reward_or_response(twitch, user, reward_id)
@@ -614,10 +614,10 @@ async def setup_tts(
         if isinstance(reward, JSONResponse):
             return reward
 
-        tts.tts_reward_id = reward.id
+        tts.tts_reward_id = UUID(reward.id)
         await db.commit()
         await db.refresh(tts)
-        await twitch.subscribe_reward(user, reward.id)  # type: ignore[arg-type]
+        await twitch.subscribe_reward(user, reward.id)
         return JSONResponse({"title": "Успешно", "message": "Награда TTS создана."}, 201)
 
     error = await _delete_reward_or_response(twitch, user, reward_id)

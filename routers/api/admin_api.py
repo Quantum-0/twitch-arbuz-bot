@@ -76,7 +76,7 @@ async def update_settings(
     q = sa.update(User).values(in_beta_test=True).where(User.login_name == twitch_login)
     res = await db.execute(q)
     await db.commit()
-    return {"success": res.rowcount}
+    return {"success": res.rowcount}  # type: ignore[attr-defined]
 
 
 @router.post("/send_message")

@@ -175,7 +175,7 @@ class MemealertsOAuthService:
         success_updates: list[tuple[int, Tokens]] = []
 
         for user, old_tokens, new_tokens_result in zip(users_list, tokens_list, new_tokens_list, strict=True):
-            if isinstance(new_tokens_result, Exception):
+            if isinstance(new_tokens_result, BaseException):
                 await self._handle_refresh_error(user, new_tokens_result)
             elif old_tokens == new_tokens_result:
                 logger.debug(f"Токен для {user} не обновлён, т.к. не был изменён")
@@ -231,7 +231,8 @@ class MemealertsOAuthService:
         """
         if user.memealerts.access_token is None:
             raise MANoToken
-        if any(item not in user.memealerts.token_scopes for item in memealerts_scope):  # type: ignore[operator] - scope есть всегда, если есть токен
+        # scope есть всегда, если есть токен
+        if any(item not in user.memealerts.token_scopes for item in memealerts_scope):  # type: ignore[operator]
             raise MAInvalidScopeError
         if isinstance(user, User):
             current_token = self._tokens_from_settings(user.memealerts)

@@ -276,7 +276,7 @@ class UnlurkHandler(CommonMessagesHandler):
                 value=None,
             )
             last_active = await self.chat_bot.get_user_last_active(streamer.login_name, user)
-            if time() - last_active > self.UNLURK_AFTER:
+            if last_active is not None and time() - last_active > self.UNLURK_AFTER:
                 await self.send_response(chat=streamer, message=f"@{user}, с возвращением из лурка!")
             return HandlerResult.HANDLED_AND_CONTINUE
         return HandlerResult.SKIPED

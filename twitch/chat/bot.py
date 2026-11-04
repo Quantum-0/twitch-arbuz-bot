@@ -434,7 +434,7 @@ class ChatBot:
             result.append((name, delay_to_seconds(dt - last_active) + " назад"))
         return result
 
-    async def get_user_last_active(self, channel: str, user: str) -> float:
+    async def get_user_last_active(self, channel: str, user: str) -> float | None:
         return self._user_list_manager.get_last_active(channel, user)
 
     async def get_random_active_user(self, channel: User | str, max_period_sec: float = 30 * 60) -> str:

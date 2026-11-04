@@ -45,7 +45,7 @@ class Cache:
         if cached_data:
             # Если данные есть, десериализуем и возвращаем
             logger.info(f"Data for {func.__name__} loaded from cache")
-            return pickle.loads(cached_data)  # noqa: S301
+            return pickle.loads(cached_data)  # type: ignore[arg-type]  # noqa: S301
 
         # Если данных нет, выполняем исходную функцию
         result = await func(*args, **kwargs)
@@ -81,11 +81,11 @@ class Cache:
         return set()
 
     async def __get_set(self, name: str) -> set[str]:
-        return await self._r.smembers(f"cache:{name}")
+        return await self._r.smembers(f"cache:{name}")  # type: ignore[return-value]
 
     async def get_str(self, name: str, no_error: bool = True) -> str | None:
         try:
-            return await self._r.get(f"cache:{name}")
+            return await self._r.get(f"cache:{name}")  # type: ignore[return-value]
         except Exception:
             logger.error("Error reading str from redis", exc_info=True)
             if not no_error:

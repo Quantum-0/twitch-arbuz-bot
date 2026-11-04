@@ -259,7 +259,7 @@ async def lifespan(app: "FastAPI | None" = None):
     _subscribe_telegram_mqtt(mqtt, container.db_session_factory)
 
     if app is not None:
-        app.container = container
+        app.container = container  # type: ignore[attr-defined]
 
     _register_scheduler_jobs(
         scheduler,

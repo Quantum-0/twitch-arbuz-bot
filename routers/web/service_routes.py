@@ -230,6 +230,6 @@ async def login_callback_task(  # noqa: C901
 async def _run_login_callback_task(user: User) -> None:
     """Обёртка фоновой пост-логин задачи: ошибки логируем, а не умираем молча."""
     try:
-        await login_callback_task(user)
+        await login_callback_task(user)  # type: ignore[call-arg]
     except Exception:
         logger.exception("login_callback_task failed for user_id=%s", user.twitch_id)

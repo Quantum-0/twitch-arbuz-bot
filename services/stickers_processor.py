@@ -92,7 +92,7 @@ class StickerProcessor:
         green_pixels = np.sum(green_mask)
 
         # Если зеленых пикселей больше, чем threshold_pct от всей картинки
-        return (green_pixels / 10000.0) >= threshold_pct
+        return bool((green_pixels / 10000.0) >= threshold_pct)
 
     def _process_image_sync(self, image_bytes: bytes) -> bytes:
         """

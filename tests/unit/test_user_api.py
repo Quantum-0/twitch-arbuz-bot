@@ -72,7 +72,7 @@ def fake_twitch(**methods) -> Mock:
     twitch.install_heat_ext = AsyncMock()
     twitch.subscribe_raid = AsyncMock()
     twitch.unsubscribe_raid = AsyncMock()
-    twitch.create_reward = AsyncMock(return_value=Mock(id=uuid.uuid4()))
+    twitch.create_reward = AsyncMock(return_value=Mock(id=str(uuid.uuid4())))
     twitch.delete_reward = AsyncMock()
     twitch.subscribe_reward = AsyncMock()
     twitch.validate_reward_subscription = AsyncMock(return_value=None)
@@ -276,7 +276,7 @@ async def test_setup_memealert_enable_creates_reward(client, user_auth_mock, tes
 
     assert resp.status_code == 201
     await db_session.refresh(test_user.memealerts)
-    assert test_user.memealerts.memealerts_reward == twitch.create_reward.return_value.id
+    assert test_user.memealerts.memealerts_reward == uuid.UUID(twitch.create_reward.return_value.id)
     twitch.subscribe_reward.assert_awaited_once()
 
 
@@ -343,7 +343,7 @@ async def test_setup_ai_stickers_reward_lost_recreates(client, user_auth_mock, t
 
     assert resp.status_code == 201
     await db_session.refresh(test_user.settings)
-    assert test_user.settings.ai_sticker_reward_id == twitch.create_reward.return_value.id
+    assert test_user.settings.ai_sticker_reward_id == uuid.UUID(twitch.create_reward.return_value.id)
     twitch.subscribe_reward.assert_awaited_once()
 
 
@@ -368,7 +368,7 @@ async def test_setup_ai_stickers_creates_when_off(client, user_auth_mock, test_u
 
     assert resp.status_code == 201
     await db_session.refresh(test_user.settings)
-    assert test_user.settings.ai_sticker_reward_id == twitch.create_reward.return_value.id
+    assert test_user.settings.ai_sticker_reward_id == uuid.UUID(twitch.create_reward.return_value.id)
 
 
 async def test_setup_ai_stickers_already_off(client, user_auth_mock, test_user):
@@ -508,7 +508,7 @@ async def test_setup_tts_creates_reward(client, user_auth_mock, test_user, db_se
     assert resp.status_code == 201
     await reload_tts(db_session, test_user)
     assert test_user.tts is not None
-    assert test_user.tts.tts_reward_id == twitch.create_reward.return_value.id
+    assert test_user.tts.tts_reward_id == uuid.UUID(twitch.create_reward.return_value.id)
 
 
 async def test_setup_tts_already_enabled(client, user_auth_mock, test_user, db_session):
