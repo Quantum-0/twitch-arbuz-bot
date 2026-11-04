@@ -2,7 +2,7 @@ import hashlib
 import logging
 import pickle
 from collections.abc import Awaitable, Callable
-from typing import TypeVar
+from typing import Any, TypeVar
 
 import redis.asyncio as aioredis
 from opentelemetry import trace
@@ -24,7 +24,8 @@ class Cache:
         self._rb = binary_redis
         self._default_ttl = default_ttl
 
-    def _generate_key(self, func: Callable[..., Awaitable[None]], args: tuple, kwargs: dict) -> str:
+    @staticmethod
+    def _generate_key(func: Callable[..., Any], args: tuple, kwargs: dict) -> str:
         """Генерация уникального ключа на основе имени функции и её аргументов."""
         func_name = func.__name__
         # Сериализуем аргументы в байты для создания хеша

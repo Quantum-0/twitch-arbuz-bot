@@ -92,7 +92,7 @@ class RedisStateManager(StateManager):
             if not sets_to_intersect:
                 target_keys = [key async for key in self._r.scan_iter(match="sm:*:*:*:*")]
             else:
-                target_keys = await self._r.sinter(sets_to_intersect)
+                target_keys = await self._r.sinter(sets_to_intersect)  # type: ignore[assignment]
 
             if not target_keys:
                 return {}
@@ -205,7 +205,7 @@ class RedisStateManager(StateManager):
             if not sets_to_intersect:
                 target_keys = [key async for key in self._r.scan_iter(match="sm:*:*:*:*")]
             else:
-                target_keys = await self._r.sinter(sets_to_intersect)
+                target_keys = await self._r.sinter(sets_to_intersect)  # type: ignore[assignment]
 
             if not target_keys:
                 return 0

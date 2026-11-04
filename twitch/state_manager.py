@@ -71,7 +71,7 @@ class StateManager(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    async def get_all_from_channel(
+    def get_all_from_channel(
         self,
         *,
         channel: str = COMMON_CHANNEL,
@@ -134,7 +134,7 @@ class InMemoryStateManager(StateManager):
     ) -> VALUE_TYPE:
         channel = channel.lower()
         command = command.lower()
-        param = param.lower()
+        param = PARAM_TYPE(param.lower())
         if isinstance(user, str):
             user = user.lower()
         if channel in self._storage:
@@ -155,7 +155,7 @@ class InMemoryStateManager(StateManager):
     ):
         channel = channel.lower()
         command = command.lower()
-        param = param.lower()
+        param = PARAM_TYPE(param.lower())
         if isinstance(user, str):
             user = user.lower()
         if channel not in self._storage:

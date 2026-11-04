@@ -117,10 +117,9 @@ class TwitchEventSubService:
         return wrapped
 
     async def _get_user_by_id_or_login(self, id_or_login: str | int, selectin: list[Base] | None = None) -> User:
-        if selectin is None:
-            selectins = [User.settings, User.memealerts, User.links, User.tts, User.telegram]
-        else:
-            selectins = selectin
+        selectins: list[Any] = (
+            [User.settings, User.memealerts, User.links, User.tts, User.telegram] if selectin is None else selectin
+        )
 
         if not isinstance(id_or_login, int | str) or id_or_login == "":
             raise ValueError
@@ -128,9 +127,9 @@ class TwitchEventSubService:
         if isinstance(id_or_login, str) and id_or_login.isdigit():
             id_or_login = int(id_or_login)
 
-        query = sa.Select(User)
-        for selectin in selectins:
-            query = query.options(selectinload(selectin))
+        query: sa.Select[Any] = sa.Select(User)
+        for rel in selectins:
+            query = query.options(selectinload(rel))
         if isinstance(id_or_login, str):
             query = query.where(User.login_name == id_or_login.lower())
         else:

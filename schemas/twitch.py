@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Generic, Literal, TypeVar
+from typing import Any, Generic, Literal, TypeVar
 from uuid import UUID
 
 from pydantic import AnyHttpUrl, BaseModel, Field
@@ -175,6 +175,11 @@ class ChatMessageWebhookEventSchema(BaseModel):
     source_message_id: UUID | None = Field(None)
     source_badges: list[ChatMessageBadge] | None = Field(None)
     is_source_only: bool | None = Field(None)
+    # Twitch НЕ присылает emotes в channel.chat.message v1 (эмуты — в message.fragments
+    # с type="emote"). Поле — ожидание отключённого pyramid-хендлера; специально Any:
+    # если Twitch когда-нибудь добавит emotes (в других событиях формат — список
+    # {id, begin, end}), валидация не должна отвергнуть payload и потерять сообщение.
+    emotes: Any | None = Field(None)
 
 
 class WebhookSubscriptionChatMessageConditionSchema(BaseModel):

@@ -28,7 +28,7 @@ class SavingResultCommand(Command):
         return None
 
     @abstractmethod
-    async def result_generator(self, old_value: str | None, **kwargs: Any) -> str:
+    async def result_generator(self, old_value: str | None, *, user_id: int, **kwargs: Any) -> str:
         raise NotImplementedError
 
     @staticmethod

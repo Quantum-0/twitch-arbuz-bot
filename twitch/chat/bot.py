@@ -227,7 +227,7 @@ class ChatBot:
 
     @asynccontextmanager
     @tracer.start_as_current_span("ChatBot: Get User")
-    async def _get_user_with_settings_by_twitch_id(self, channel_id: str) -> AsyncIterator[User]:
+    async def _get_user_with_settings_by_twitch_id(self, channel_id: str | int) -> AsyncIterator[User]:
         async with self._db_session_factory() as session:
             result = await session.execute(
                 sa.select(User)

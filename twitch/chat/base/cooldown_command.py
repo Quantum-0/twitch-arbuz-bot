@@ -86,7 +86,7 @@ class SimpleCDCommand(Command):
         return
 
     @abstractmethod
-    async def _handle(self, streamer: User, user: str, message: str) -> str:
+    async def _handle(self, streamer: User, user: str, message: str) -> str | None:
         raise NotImplementedError
 
     @abstractmethod

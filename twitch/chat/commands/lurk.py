@@ -19,7 +19,7 @@ class LurkCommand(SimpleCDCommand):
     def is_enabled(self, streamer_settings: TwitchUserSettings) -> bool:
         return streamer_settings.enable_lurk
 
-    async def _handle(self, streamer: User, user: str, message: str) -> str:
+    async def _handle(self, streamer: User, user: str, message: str) -> str | None:
         state: bool = not ("unlurk" in message or "анлурк" in message)
         previous_state: bool = (
             await self._state_manager.get_state(

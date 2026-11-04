@@ -154,7 +154,7 @@ async def install_heat(
     try:
         await twitch.install_heat_ext(user)
     except TwitchTokenExpiredError:
-        return JSONResponse(_REAUTH_ERROR, 400)
+        return JSONResponse(_REAUTH_ERROR, 400)  # type: ignore[return-value]
     return BoolResponseSchema(result=True)
 
 

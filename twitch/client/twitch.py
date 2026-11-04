@@ -1,7 +1,7 @@
 import base64
 import logging
 import time
-from collections.abc import AsyncGenerator, Awaitable, Callable
+from collections.abc import AsyncGenerator, Awaitable, Callable, Sequence
 from functools import wraps
 from typing import Any, TypeVar, overload
 from uuid import UUID
@@ -352,8 +352,10 @@ class Twitch:
             return ["Подписка на награду не активна"]
         return ["Подписка на награду не найдена"]
 
-    async def get_streams(self, users: list[User] | list[str]) -> dict[User, Stream | None]:
-        streams = {}
+    async def get_streams(
+        self, users: Sequence[User] | Sequence[str]
+    ) -> dict[User, Stream | None] | dict[str, Stream | None]:
+        streams: dict[str, Stream] = {}
         for batch in batched(users, 100):
             streams.update(
                 {
@@ -488,9 +490,7 @@ class Twitch:
             res.append(item)
         return res
 
-    async def subscribe_chat_messages(
-        self, *users: tuple[User, ...]
-    ) -> AsyncGenerator[tuple[User, bool, dict[str, Any]]]:
+    async def subscribe_chat_messages(self, *users: User) -> AsyncGenerator[tuple[User, bool, dict[str, Any]]]:
         async with httpx.AsyncClient() as client:
             response = await client.post(
                 "https://id.twitch.tv/oauth2/token",

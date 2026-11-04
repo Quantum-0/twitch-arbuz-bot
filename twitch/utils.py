@@ -53,7 +53,7 @@ async def extract_targets(
         ]
     ]
 
-    result = []
+    result: list[str] = []
     for o in other:
         logger.info(f"Handle target `{o}`")
         if o in streamer_alias:
@@ -66,7 +66,7 @@ async def extract_targets(
             o = "@" + await func_get_random_user()
             logger.debug(f"`o` replaces to `{o}`")
         if o in all_users:
-            all_users = func_get_active_users(timeout=30 * 60)  # берём последних за пол часа
+            all_users = func_get_active_users(timeout=30 * 60)  # type: ignore[assignment]  # берём последних за пол часа
             if len(all_users) < 7:
                 result.extend("@" + usr[0] for usr in all_users)
                 continue

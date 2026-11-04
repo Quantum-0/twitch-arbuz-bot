@@ -27,7 +27,7 @@ class SlovotronService:
     ):
         self._client = None
         self._db_session_factory = db_session_factory
-        self._webhook_type_adapter = TypeAdapter(SlovotronWebhookSchema)
+        self._webhook_type_adapter: TypeAdapter[SlovotronWebhookSchema] = TypeAdapter(SlovotronWebhookSchema)
         self._chat_bot = chat_bot
         self._ssem = ssem
 
