@@ -156,8 +156,10 @@ class User(Base):
             raise ValueError("encrypt_value returned empty result")
         self._refresh_token = encrypted_value
 
-    def __str__(self):
-        return f"<User:{self.twitch_id} db object '{self.login_name}'>"
+    def __repr__(self):
+        # sentry/GlitchTip сериализует неизвестные объекты через repr — без него в
+        # ивентах видно только <database.models.User object at 0x...>.
+        return f"<User id={self.id} twitch_id='{self.twitch_id}' login='{self.login_name}'>"
 
     @property
     def boosty_offer_eligible(self) -> bool:
