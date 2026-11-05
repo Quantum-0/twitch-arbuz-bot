@@ -1,7 +1,9 @@
 import base64
+import enum
 import logging
 import time
 from collections.abc import AsyncGenerator, Awaitable, Callable, Sequence
+from dataclasses import dataclass
 from functools import wraps
 from typing import Any, TypeVar, overload
 from uuid import UUID
@@ -105,6 +107,46 @@ async def _user_twitch_client(user: User, scope: list[AuthScope] | None = None) 
 # автоматической инвалидации при перезапуске/смене client_secret.
 _APP_TOKEN_REDIS_KEY = "twitch:app_access_token"  # noqa: S105
 _APP_TOKEN_TTL = 300
+
+# ── Авто-shoutout: POST /helix/chat/shoutouts напрямую, в обход twitchAPI ────
+# twitchAPI на 429 молча засыпает до Ratelimit-Reset и возвращает None, не повторив
+# запрос; статус и заголовок Ratelimit-Reset доступны только при прямом вызове.
+_SHOUTOUT_URL = "https://api.twitch.tv/helix/chat/shoutouts"
+_SHOUTOUT_MODERATOR_ID = "957818216"
+_SHOUTOUT_NOT_MODERATOR_MARKERS = (
+    "must be a channel moderator",
+    "not one of the broadcaster's moderators",
+)
+_SHOUTOUT_NOT_LIVE_MARKER = "not streaming live"
+# 429-сообщение о 60-минутном лимите на ту же цель: "The broadcaster exceeded the
+# number of Shoutouts they may send the same broadcaster within a given window."
+_SHOUTOUT_SAME_TARGET_MARKER = "the same broadcaster"
+
+
+def _shoutout_error_message(resp: httpx.Response) -> str:
+    """Текст ошибки Twitch из тела ответа (защищён от не-JSON и не-dict JSON)."""
+    try:
+        data = resp.json()
+    except ValueError:
+        return resp.text[:200]
+    return str(data.get("message", "")) if isinstance(data, dict) else resp.text[:200]
+
+
+class ShoutoutStatus(enum.Enum):
+    SUCCESS = "success"
+    RATE_LIMITED = "rate_limited"  # глобальный кулдаун Twitch (2 мин), reset известен
+    SAME_TARGET = "same_target"  # 429 same-broadcaster: цель уже получала shoutout в течение 60 мин
+    NOT_MODERATOR = "not_moderator"
+    NOT_LIVE = "not_live"
+    ERROR = "error"
+
+
+@dataclass
+class ShoutoutResult:
+    status: ShoutoutStatus
+    retry_at: float | None = None  # RATE_LIMITED: unix-ts сброса кулдауна из Ratelimit-Reset
+    message: str = ""  # текст ошибки Twitch (для ERROR и логов)
+    http_status: int | None = None
 
 
 def make_ebs_jwt(channel_id: str, user_id: str = "") -> str:
@@ -229,12 +271,60 @@ class Twitch:
     async def build_chat_client(self) -> Chat:
         return await Chat(self._twitch)
 
-    async def shoutout(self, user: User, shoutout_to: int) -> None:
-        await self._twitch.send_a_shoutout(
-            from_broadcaster_id=user.twitch_id,
-            to_broadcaster_id=str(shoutout_to),
-            moderator_id="957818216",
-        )
+    @tracer.start_as_current_span("Twitch: Shoutout")
+    async def shoutout(self, user: User, shoutout_to: int | str) -> ShoutoutResult:
+        """Отправить shoutout от имени стримера (bot-аккаунт как модератор).
+
+        Идёт напрямую через httpx, а не twitchAPI.send_a_shoutout: библиотека на
+        429 молча засыпает до Ratelimit-Reset и теряет отправку. Статус ответа и
+        заголовок Ratelimit-Reset нужны cooldown-очереди в TwitchEventSubService.
+        На 401 twitchAPI обновлял бы токен сам — raw-путь делает refresh_used_token
+        и один повторный запрос.
+        """
+        resp: httpx.Response
+        for attempt in (0, 1):
+            async with httpx.AsyncClient(timeout=10) as client:
+                resp = await client.post(
+                    _SHOUTOUT_URL,
+                    params={
+                        "from_broadcaster_id": user.twitch_id,
+                        "to_broadcaster_id": str(shoutout_to),
+                        "moderator_id": _SHOUTOUT_MODERATOR_ID,
+                    },
+                    headers={
+                        "Authorization": f"Bearer {self._twitch.get_user_auth_token()}",
+                        "Client-Id": settings.twitch.client_id,
+                    },
+                )
+            if resp.status_code != 401 or attempt:
+                break
+            try:
+                await self._twitch.refresh_used_token()
+            except Exception:
+                logger.warning("Shoutout: не удалось обновить bot-токен после 401", exc_info=True)
+                break
+        return self._parse_shoutout_response(resp)
+
+    @staticmethod
+    def _parse_shoutout_response(resp: httpx.Response) -> ShoutoutResult:
+        if resp.status_code == 204:
+            return ShoutoutResult(status=ShoutoutStatus.SUCCESS, http_status=204)
+        message = _shoutout_error_message(resp)
+        if resp.status_code == 429:
+            # По докам Twitch 429 покрывает оба лимита: глобальный (2 мин, известен
+            # Ratelimit-Reset) и на ту же цель (60 мин, тело "... the same broadcaster ...").
+            if _SHOUTOUT_SAME_TARGET_MARKER in message:
+                return ShoutoutResult(status=ShoutoutStatus.SAME_TARGET, message=message, http_status=429)
+            reset = resp.headers.get("Ratelimit-Reset", "")
+            retry_at = float(reset) if reset.isdigit() else None
+            return ShoutoutResult(status=ShoutoutStatus.RATE_LIMITED, retry_at=retry_at, http_status=429)
+        if any(marker in message for marker in _SHOUTOUT_NOT_MODERATOR_MARKERS):
+            status = ShoutoutStatus.NOT_MODERATOR
+        elif _SHOUTOUT_NOT_LIVE_MARKER in message:
+            status = ShoutoutStatus.NOT_LIVE
+        else:
+            status = ShoutoutStatus.ERROR
+        return ShoutoutResult(status=status, message=message, http_status=resp.status_code)
 
     @staticmethod
     @_reauth_on_auth_error

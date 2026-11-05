@@ -8,12 +8,13 @@ from typing import Any
 from unittest.mock import AsyncMock
 from uuid import uuid4
 
+import httpx
 import pytest
 from twitchAPI.type import TwitchResourceNotFound, UnauthorizedException
 
 import twitch.client.twitch as tw
 from tests.unit.fixtures.fake_redis import FakeRedis
-from twitch.client.twitch import Twitch
+from twitch.client.twitch import ShoutoutStatus, Twitch
 
 
 class FakeResponse:
@@ -545,12 +546,163 @@ class TestFixRewardAutofulfill:
 
 
 class TestModerationAndHelpers:
-    async def test_shoutout(self, client):
-        client._twitch = SimpleNamespace(send_a_shoutout=AsyncMock())
-        await client.shoutout(user_stub("111"), 222)
-        client._twitch.send_a_shoutout.assert_awaited_once_with(
-            from_broadcaster_id="111", to_broadcaster_id="222", moderator_id="957818216"
+    async def test_shoutout(self, client, monkeypatch):
+        client._twitch = SimpleNamespace(get_user_auth_token=lambda: "bot-token")
+        calls = []
+
+        class FakeAsyncClient:
+            def __init__(self, **kwargs):
+                pass
+
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *exc):
+                return False
+
+            async def post(self, url, **kwargs):
+                calls.append((url, kwargs))
+                return httpx.Response(204)
+
+        monkeypatch.setattr(tw.httpx, "AsyncClient", FakeAsyncClient)
+
+        result = await client.shoutout(user_stub("111"), 222)
+
+        assert result.status is ShoutoutStatus.SUCCESS
+        url, kwargs = calls[0]
+        assert url == "https://api.twitch.tv/helix/chat/shoutouts"
+        assert kwargs["params"] == {
+            "from_broadcaster_id": "111",
+            "to_broadcaster_id": "222",
+            "moderator_id": "957818216",
+        }
+        assert kwargs["headers"]["Authorization"] == "Bearer bot-token"
+
+    def test_shoutout_parses_rate_limited(self):
+        result = Twitch._parse_shoutout_response(httpx.Response(429, headers={"Ratelimit-Reset": "1893456000"}))
+        assert result.status is ShoutoutStatus.RATE_LIMITED
+        assert result.retry_at == 1893456000.0
+        assert result.http_status == 429
+
+    def test_shoutout_parses_error_statuses(self):
+        cases = [
+            (httpx.Response(204), ShoutoutStatus.SUCCESS),
+            (httpx.Response(429), ShoutoutStatus.RATE_LIMITED),  # без заголовка reset
+            (
+                httpx.Response(429, headers={"Ratelimit-Reset": "1893456000"}, json={"message": "Too Many Requests"}),
+                ShoutoutStatus.RATE_LIMITED,
+            ),
+            (
+                httpx.Response(
+                    429,
+                    json={
+                        "message": "The broadcaster exceeded the number of Shoutouts "
+                        "they may send the same broadcaster within a given window."
+                    },
+                ),
+                ShoutoutStatus.SAME_TARGET,
+            ),
+            (
+                httpx.Response(
+                    400, json={"message": "The broadcaster is not streaming live or does not have one or more viewers."}
+                ),
+                ShoutoutStatus.NOT_LIVE,
+            ),
+            (
+                httpx.Response(400, json={"message": "The requesting user must be a channel moderator."}),
+                ShoutoutStatus.NOT_MODERATOR,
+            ),
+            (
+                httpx.Response(
+                    403, json={"message": "The user in moderator_id is not one of the broadcaster's moderators."}
+                ),
+                ShoutoutStatus.NOT_MODERATOR,
+            ),
+            # 403 "may not send the specified broadcaster" — не кулдаун цели, ошибка как есть
+            (
+                httpx.Response(
+                    403, json={"message": "The broadcaster may not send the specified broadcaster a Shoutout."}
+                ),
+                ShoutoutStatus.ERROR,
+            ),
+            (httpx.Response(401, json={"message": "Unauthorized"}), ShoutoutStatus.ERROR),
+            (httpx.Response(500, json={"message": "Internal Server Error"}), ShoutoutStatus.ERROR),
+            (httpx.Response(400, text="not-json"), ShoutoutStatus.ERROR),  # не-JSON тело
+            (httpx.Response(400, json=["not", "dict"]), ShoutoutStatus.ERROR),  # JSON-массив
+        ]
+        for resp, expected in cases:
+            result = Twitch._parse_shoutout_response(resp)
+            assert result.status is expected, f"{resp.status_code}: {result.message}"
+
+    async def test_shoutout_401_refreshes_token_and_retries(self, client, monkeypatch):
+        holder = {"token": "stale"}
+        responses = [
+            httpx.Response(401, json={"message": "Unauthorized"}),
+            httpx.Response(204),
+        ]
+        calls = []
+
+        class FakeAsyncClient:
+            def __init__(self, **kwargs):
+                pass
+
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *exc):
+                return False
+
+            async def post(self, url, **kwargs):
+                calls.append(kwargs)
+                return responses.pop(0)
+
+        async def fake_refresh():
+            holder["token"] = "fresh"
+
+        client._twitch = SimpleNamespace(
+            get_user_auth_token=lambda: holder["token"],
+            refresh_used_token=fake_refresh,
         )
+        monkeypatch.setattr(tw.httpx, "AsyncClient", FakeAsyncClient)
+
+        result = await client.shoutout(user_stub("111"), 222)
+
+        assert result.status is ShoutoutStatus.SUCCESS
+        assert len(calls) == 2
+        assert calls[0]["headers"]["Authorization"] == "Bearer stale"
+        assert calls[1]["headers"]["Authorization"] == "Bearer fresh"
+
+    async def test_shoutout_401_refresh_failed_no_retry(self, client, monkeypatch):
+        calls = []
+
+        class FakeAsyncClient:
+            def __init__(self, **kwargs):
+                pass
+
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *exc):
+                return False
+
+            async def post(self, url, **kwargs):
+                calls.append(kwargs)
+                return httpx.Response(401, json={"message": "Unauthorized"})
+
+        async def broken_refresh():
+            raise RuntimeError("oauth down")
+
+        client._twitch = SimpleNamespace(
+            get_user_auth_token=lambda: "stale",
+            refresh_used_token=broken_refresh,
+        )
+        monkeypatch.setattr(tw.httpx, "AsyncClient", FakeAsyncClient)
+
+        result = await client.shoutout(user_stub("111"), 222)
+
+        assert result.status is ShoutoutStatus.ERROR
+        assert result.http_status == 401
+        assert len(calls) == 1
 
     async def test_send_warning(self, client):
         client._twitch = SimpleNamespace(warn_chat_user=AsyncMock())

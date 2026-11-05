@@ -27,7 +27,7 @@ _SHUTDOWN_TIMEOUT = 15.0
 
 
 class MQTTClient:
-    def __init__(self):
+    def __init__(self) -> None:
         self._client: Client | None = None
         self._listen_task: asyncio.Task | None = None
         self._client_id = settings.mqtt.client_id

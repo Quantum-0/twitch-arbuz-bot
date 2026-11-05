@@ -9,6 +9,7 @@ test_eventsub_memealerts_fallback.py, авто-фикс наград — test_ev
 
 import asyncio
 import json
+import time
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
@@ -17,18 +18,50 @@ from twitchAPI.type import TwitchAPIException
 
 from services.eventsub_service import TwitchEventSubService
 from services.stickers import ModerationBlockedException, RewardRedemptionProcessingError
+from twitch.client.twitch import ShoutoutResult, ShoutoutStatus
 from utils.enums import SSEChannel
 
 BROADCASTER_ID = "123456"
 
+CD_KEY = "shoutout:cd:123456"
+TARGET_KEY = "shoutout:target:123456"
 
-async def settle(coro_mock, ticks: int = 25):
-    """Ждём, пока fire-and-forget задача (task_wrapper) доведёт мок до вызова."""
+
+def shoutout_result(status: ShoutoutStatus, **kwargs) -> ShoutoutResult:
+    return ShoutoutResult(status=status, **kwargs)
+
+
+class FakeCache:
+    """Минимальный Cache для cooldown-ключей: get_str/set_str по полным именам ключей."""
+
+    def __init__(self, values: dict[str, str] | None = None):
+        self.values = dict(values or {})
+        self.set_calls: list[tuple[str, str, int]] = []
+
+    async def get_str(self, name: str, no_error: bool = True) -> str | None:
+        return self.values.get(name)
+
+    async def set_str(self, name: str, value: str, ttl: int = 3600, no_error: bool = True) -> None:
+        self.values[name] = value
+        self.set_calls.append((name, value, ttl))
+
+
+async def settle(coro_mock, ticks: int = 100):
+    """Ждём, пока fire-and-forget задача (task_wrapper) доведёт мок до вызова.
+
+    Тик — 10мс реального времени: часть задач сначала спит собственный кулдаун.
+    """
     for _ in range(ticks):
         if coro_mock.await_count > 0:
             return
-        await asyncio.sleep(0)
+        await asyncio.sleep(0.01)
     raise AssertionError(f"Мок не был вызван: {coro_mock}")
+
+
+async def drain(ticks: int = 30):
+    """Даём fire-and-forget задаче докрутиться до конца после settle()."""
+    for _ in range(ticks):
+        await asyncio.sleep(0)
 
 
 def build_service(**deps) -> TwitchEventSubService:
@@ -37,7 +70,7 @@ def build_service(**deps) -> TwitchEventSubService:
     service._ssem = SimpleNamespace(has_clients=AsyncMock(return_value=False), broadcast=AsyncMock())
     service._chatbot = SimpleNamespace(send_message=AsyncMock())
     service._twitch = SimpleNamespace(
-        shoutout=AsyncMock(),
+        shoutout=AsyncMock(return_value=shoutout_result(ShoutoutStatus.SUCCESS, http_status=204)),
         unsubscribe_raid=AsyncMock(),
         cancel_redemption=AsyncMock(),
         fulfill_redemption=AsyncMock(),
@@ -47,10 +80,12 @@ def build_service(**deps) -> TwitchEventSubService:
     service._moderation = SimpleNamespace(validate=lambda text: SimpleNamespace(is_banned=False, found_word=None))
     service._mqtt = SimpleNamespace(publish=AsyncMock())
     service._bans = deps.get("bans")
-    service._cache = None
+    service._cache = deps.get("cache")
     service._db_session_factory = None
+    service._shoutout_locks = {}
+    service._shoutout_pending = {}
     for name, dep in deps.items():
-        if name != "statistics" and name != "bans":
+        if name not in ("statistics", "bans", "cache"):
             setattr(service, f"_{name}", dep)
     return service
 
@@ -200,9 +235,7 @@ async def test_raid_shoutout_not_moderator_disables_feature():
     service = build_service()
     user = build_user(settings=SimpleNamespace(enable_shoutout_on_raid=True))
     service._get_user_by_id_or_login = AsyncMock(return_value=user)
-    service._twitch.shoutout = AsyncMock(
-        side_effect=TwitchAPIException("Bad Request - The requesting user must be a channel moderator.")
-    )
+    service._twitch.shoutout = AsyncMock(return_value=shoutout_result(ShoutoutStatus.NOT_MODERATOR, http_status=400))
     service._disable_shoutout_on_raid = AsyncMock()
 
     await service.handle_raid(raid_payload())
@@ -216,29 +249,175 @@ async def test_raid_shoutout_not_streaming_live_warns_without_side_effects():
     service = build_service()
     user = build_user(settings=SimpleNamespace(enable_shoutout_on_raid=True))
     service._get_user_by_id_or_login = AsyncMock(return_value=user)
-    service._twitch.shoutout = AsyncMock(
-        side_effect=TwitchAPIException("Bad Request - The broadcaster is not streaming live or does not have viewers.")
-    )
+    service._twitch.shoutout = AsyncMock(return_value=shoutout_result(ShoutoutStatus.NOT_LIVE, http_status=400))
     service._disable_shoutout_on_raid = AsyncMock()
 
     await service.handle_raid(raid_payload())
     await settle(service._twitch.shoutout)
+    await drain()
 
     service._disable_shoutout_on_raid.assert_not_awaited()
     service._twitch.unsubscribe_raid.assert_not_awaited()
 
 
-async def test_raid_shoutout_unexpected_error_reraises():
+async def test_raid_shoutout_error_reraises():
     service = build_service()
     service._disable_shoutout_on_raid = AsyncMock()
 
-    with pytest.raises(TwitchAPIException, match="Too Many Requests"):
-        await service._process_shoutout_error(
-            TwitchAPIException("429 Too Many Requests"), user=build_user(), payload=raid_payload()
+    with pytest.raises(TwitchAPIException, match="500"):
+        await service._finish_shoutout(
+            shoutout_result(ShoutoutStatus.ERROR, http_status=500, message="boom"),
+            user=build_user(),
+            payload=raid_payload(),
         )
 
     service._disable_shoutout_on_raid.assert_not_awaited()
     service._twitch.unsubscribe_raid.assert_not_awaited()
+
+
+async def test_raid_shoutout_success_writes_cooldown_keys():
+    cache = FakeCache()
+    service = build_service(cache=cache)
+    user = build_user(settings=SimpleNamespace(enable_shoutout_on_raid=True))
+    service._get_user_by_id_or_login = AsyncMock(return_value=user)
+
+    await service.handle_raid(raid_payload())
+    await settle(service._twitch.shoutout)
+    await drain()
+
+    service._twitch.shoutout.assert_awaited_once()
+    names = [call[0] for call in cache.set_calls]
+    assert CD_KEY in names
+    assert TARGET_KEY in names
+    assert (TARGET_KEY, "999", 3600) in cache.set_calls
+    assert any(name == CD_KEY and ttl == 120 for name, _, ttl in cache.set_calls)
+
+
+async def test_raid_shoutout_same_target_skipped():
+    cache = FakeCache({TARGET_KEY: "999"})
+    service = build_service(cache=cache)
+    user = build_user(settings=SimpleNamespace(enable_shoutout_on_raid=True))
+    service._get_user_by_id_or_login = AsyncMock(return_value=user)
+
+    await service.handle_raid(raid_payload(from_id="999"))
+    await asyncio.sleep(0.05)
+
+    service._twitch.shoutout.assert_not_awaited()
+
+
+async def test_raid_shoutout_same_target_status_remembered():
+    cache = FakeCache()
+    service = build_service(cache=cache)
+    user = build_user(settings=SimpleNamespace(enable_shoutout_on_raid=True))
+    service._get_user_by_id_or_login = AsyncMock(return_value=user)
+    service._twitch.shoutout = AsyncMock(return_value=shoutout_result(ShoutoutStatus.SAME_TARGET, http_status=429))
+
+    await service.handle_raid(raid_payload())
+    await settle(service._twitch.shoutout)
+    await drain()
+
+    assert (TARGET_KEY, "999", 3600) in cache.set_calls
+    service._twitch.unsubscribe_raid.assert_not_awaited()
+
+
+async def test_raid_shoutout_waits_own_cooldown_then_sends():
+    cache = FakeCache({CD_KEY: str(time.time() + 0.05)})
+    service = build_service(cache=cache)
+    user = build_user(settings=SimpleNamespace(enable_shoutout_on_raid=True))
+    service._get_user_by_id_or_login = AsyncMock(return_value=user)
+
+    await service.handle_raid(raid_payload())
+    await settle(service._twitch.shoutout, ticks=100)
+    await drain()
+
+    service._twitch.shoutout.assert_awaited_once()
+    assert service._shoutout_pending.get(BROADCASTER_ID, 0) == 0
+
+
+async def test_raid_shoutout_queue_cap_drops():
+    cache = FakeCache({CD_KEY: str(time.time() + 60)})
+    service = build_service(cache=cache)
+    user = build_user(settings=SimpleNamespace(enable_shoutout_on_raid=True))
+    service._get_user_by_id_or_login = AsyncMock(return_value=user)
+    service._shoutout_pending[BROADCASTER_ID] = TwitchEventSubService._SHOUTOUT_QUEUE_CAP
+
+    await service.handle_raid(raid_payload())
+    await asyncio.sleep(0.05)
+
+    service._twitch.shoutout.assert_not_awaited()
+    assert service._shoutout_pending[BROADCASTER_ID] == TwitchEventSubService._SHOUTOUT_QUEUE_CAP
+
+
+async def test_raid_shoutout_wait_too_long_drops():
+    cache = FakeCache({CD_KEY: str(time.time() + 400)})
+    service = build_service(cache=cache)
+    user = build_user(settings=SimpleNamespace(enable_shoutout_on_raid=True))
+    service._get_user_by_id_or_login = AsyncMock(return_value=user)
+
+    await service.handle_raid(raid_payload())
+    await asyncio.sleep(0.05)
+
+    service._twitch.shoutout.assert_not_awaited()
+
+
+async def test_raid_shoutout_garbage_cooldown_value_sends():
+    cache = FakeCache({CD_KEY: "garbage"})
+    service = build_service(cache=cache)
+    user = build_user(settings=SimpleNamespace(enable_shoutout_on_raid=True))
+    service._get_user_by_id_or_login = AsyncMock(return_value=user)
+
+    await service.handle_raid(raid_payload())
+    await settle(service._twitch.shoutout)
+
+    service._twitch.shoutout.assert_awaited_once()
+
+
+async def test_raid_shoutout_rate_limited_manual_retries_once():
+    service = build_service()
+    user = build_user(settings=SimpleNamespace(enable_shoutout_on_raid=True))
+    service._get_user_by_id_or_login = AsyncMock(return_value=user)
+    service._twitch.shoutout = AsyncMock(
+        side_effect=[
+            shoutout_result(ShoutoutStatus.RATE_LIMITED, retry_at=time.time() + 0.05, http_status=429),
+            shoutout_result(ShoutoutStatus.SUCCESS, http_status=204),
+        ]
+    )
+
+    await service.handle_raid(raid_payload())
+    await settle(service._twitch.shoutout, ticks=100)
+    await asyncio.sleep(1.3)  # ретрай-окно: wait_s + запас 1.0с
+    await drain(100)
+
+    assert service._twitch.shoutout.await_count == 2
+    service._twitch.unsubscribe_raid.assert_not_awaited()
+
+
+async def test_raid_shoutout_rate_limited_same_target_hour_drops():
+    service = build_service()
+    user = build_user(settings=SimpleNamespace(enable_shoutout_on_raid=True))
+    service._get_user_by_id_or_login = AsyncMock(return_value=user)
+    service._twitch.shoutout = AsyncMock(
+        side_effect=[shoutout_result(ShoutoutStatus.RATE_LIMITED, retry_at=time.time() + 3600, http_status=429)]
+    )
+
+    await service.handle_raid(raid_payload())
+    await settle(service._twitch.shoutout)
+    await drain()
+
+    assert service._twitch.shoutout.await_count == 1
+
+
+async def test_raid_shoutout_rate_limited_no_reset_header_drops():
+    service = build_service()
+    user = build_user(settings=SimpleNamespace(enable_shoutout_on_raid=True))
+    service._get_user_by_id_or_login = AsyncMock(return_value=user)
+    service._twitch.shoutout = AsyncMock(side_effect=[shoutout_result(ShoutoutStatus.RATE_LIMITED, http_status=429)])
+
+    await service.handle_raid(raid_payload())
+    await settle(service._twitch.shoutout)
+    await drain()
+
+    assert service._twitch.shoutout.await_count == 1
 
 
 class _FakeResult:

@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+import time
 import uuid
 from collections.abc import Callable
 from typing import Any
@@ -45,7 +46,7 @@ from services.statistics import StatisticsService
 from services.stickers import ModerationBlockedException, RewardRedemptionProcessingError, StickersService
 from services.tts import TTSService
 from twitch.chat.bot import ChatBot
-from twitch.client.twitch import Twitch
+from twitch.client.twitch import ShoutoutResult, ShoutoutStatus, Twitch
 from utils.enums import SSEChannel
 from utils.observability import spawn_logged_task
 from utils.tts import clean_tts_text, clean_tts_username, truncate_tts
@@ -103,6 +104,10 @@ class TwitchEventSubService:
         self._statistics = statistics
         self._cache = cache
         self._bans = bans
+        # Кулдаун-очередь авто-shoutout (один процесс uvicorn): сериализация
+        # отправок и счётчик отложенных попыток на канал.
+        self._shoutout_locks: dict[str, asyncio.Lock] = {}
+        self._shoutout_pending: dict[str, int] = {}
 
     def _inc_reward(self, subtype: str, type_: StatsType) -> None:
         """Fire-and-forget инкремент счётчика наград (без if-обёрток в вызывающем коде)."""
@@ -166,41 +171,136 @@ class TwitchEventSubService:
         # Overlay не управляет channel.raid самостоятельно в этом случае — после первого же рейда
         # подписка остаётся активной только пока включён enable_shoutout_on_raid.
 
-        try:
-            await self._twitch.shoutout(user=user, shoutout_to=payload.event.from_broadcaster_user_id)
-        except TwitchAPIException as exc:
-            await self._process_shoutout_error(exc, user=user, payload=payload)
+        await self._shoutout_with_cooldown(user=user, payload=payload)
 
-    _SHOUTOUT_NOT_MODERATOR_MARKERS = (
-        "must be a channel moderator",
-        "not one of the broadcaster's moderators",
-    )
+    # ── Авто-shoutout: кулдауны Twitch и очередь при серии рейдов ──────────────
+    # Лимиты Twitch: один shoutout раз в 2 минуты, той же цели — раз в 60 минут.
+    # Наши отправки трекаем в Redis; ручной shoutout стримера в Redis не виден —
+    # такой кулдаун ловим реактивно (429 + Ratelimit-Reset) и ретраим один раз
+    # в пределах окна ожидания. Молча (warning в лог), чат не спамим.
 
-    async def _process_shoutout_error(self, exc: TwitchAPIException, user: User, payload: RaidWebhookSchema) -> None:
-        """Реакция на отказ Twitch API в send_a_shoutout.
+    _SHOUTOUT_CD_KEY = "shoutout:cd:{twitch_id}"  # значение = unix-ts окончания кулдауна
+    _SHOUTOUT_TARGET_KEY = "shoutout:target:{twitch_id}"  # значение = twitch_id последней цели
+    _SHOUTOUT_CD_TTL = 120
+    _SHOUTOUT_TARGET_TTL = 3600
+    _SHOUTOUT_QUEUE_CAP = 3  # максимум отложенных шаутаутов на канал
+    _SHOUTOUT_MAX_WAIT = 150.0  # окно ожидания: чуть больше глобального кулдауна Twitch (2 мин)
+    _SHOUTOUT_DEFER_MARGIN = 0.1  # запас при ожидании собственного кулдауна (пишет этот же процесс)
 
-        - Бот не модератор в канале стримера (сняли мода) — фича мертва до возврата мода:
-          отключаем флаг и отписываем raid-sub, симметрично ручному выключению в панели.
-        - Стример не в эфире / нет зрителей (рейд обычно завершает его стрим) —
-          ожидаемый шум, warning без реакции.
-        - Остальное (в т.ч. 429 rate limit при очереди рейдов) — пробрасываем как раньше.
+    def _shoutout_lock(self, twitch_id: str) -> asyncio.Lock:
+        """Лок на отправку+запись кулдаунов, чтобы отложенные задачи не выстрелили одновременно."""
+        return self._shoutout_locks.setdefault(twitch_id, asyncio.Lock())
+
+    async def _shoutout_with_cooldown(self, user: User, payload: RaidWebhookSchema) -> None:
+        raider_id = str(payload.event.from_broadcaster_user_id)
+        cd_key = self._SHOUTOUT_CD_KEY.format(twitch_id=user.twitch_id)
+        target_key = self._SHOUTOUT_TARGET_KEY.format(twitch_id=user.twitch_id)
+
+        if self._cache is not None and await self._cache.get_str(target_key) == raider_id:
+            logger.warning(
+                "Shoutout skipped: цель уже получала shoutout в течение часа (twitch_id=%s, raider=%s)",
+                user.twitch_id,
+                raider_id,
+            )
+            return
+
+        result: ShoutoutResult | None = None
+        for attempt in (0, 1):
+            if not await self._wait_own_cooldown(user, cd_key):
+                return
+            async with self._shoutout_lock(user.twitch_id):
+                # NB: лок не перепроверяет cd после пробуждения ожидателя — коллизия
+                # стоит +1 лишнего API-вызова и лечится 429-ретраем (осознанный трейдофф:
+                # без пересна serialization заняла бы лок на весь сон).
+                result = await self._twitch.shoutout(user=user, shoutout_to=raider_id)
+                if result.status is ShoutoutStatus.SUCCESS and self._cache is not None:
+                    await self._cache.set_str(
+                        cd_key, str(time.time() + self._SHOUTOUT_CD_TTL), ttl=self._SHOUTOUT_CD_TTL
+                    )
+                    await self._cache.set_str(target_key, raider_id, ttl=self._SHOUTOUT_TARGET_TTL)
+            if result.status is not ShoutoutStatus.RATE_LIMITED:
+                break
+            # 429: кулдаун, которого нет в нашем Redis — ручной shoutout стримера.
+            wait_s = None if result.retry_at is None else result.retry_at - time.time()
+            if attempt == 0 and wait_s is not None and wait_s <= self._SHOUTOUT_MAX_WAIT:
+                logger.warning(
+                    "Shoutout отложен на ~%.0fс: кулдаун Twitch, вероятно ручной shoutout стримера (twitch_id=%s, raider=%s)",
+                    wait_s,
+                    user.twitch_id,
+                    raider_id,
+                )
+                await asyncio.sleep(wait_s + 1.0)
+                continue
+            logger.warning(
+                "Shoutout dropped: кулдаун Twitch дольше окна ожидания или неизвестен (twitch_id=%s, raider=%s, retry_at=%s)",
+                user.twitch_id,
+                raider_id,
+                result.retry_at,
+            )
+            return
+        if result is None:  # недостижимо: цикл всегда выполняет хотя бы одну итерацию
+            return
+        await self._finish_shoutout(result, user=user, payload=payload)
+
+    async def _wait_own_cooldown(self, user: User, cd_key: str) -> bool:
+        """Подождать собственный кулдаун (наша недавняя отправка).
+
+        False — попытка дропнута: очередь переполнена или ждать дольше окна.
         """
-        message = str(exc)
-        if any(marker in message for marker in self._SHOUTOUT_NOT_MODERATOR_MARKERS):
+        if self._cache is None:
+            return True
+        raw = await self._cache.get_str(cd_key)
+        if not raw:
+            return True
+        try:
+            remaining = float(raw) - time.time()
+        except ValueError:
+            return True
+        if remaining <= 0:
+            return True
+        pending = self._shoutout_pending.get(user.twitch_id, 0)
+        if remaining > self._SHOUTOUT_MAX_WAIT or pending >= self._SHOUTOUT_QUEUE_CAP:
+            logger.warning(
+                "Shoutout dropped: очередь отложенных шаутаутов переполнена (twitch_id=%s, remaining=%.0fс, pending=%s)",
+                user.twitch_id,
+                remaining,
+                pending,
+            )
+            return False
+        self._shoutout_pending[user.twitch_id] = pending + 1
+        try:
+            await asyncio.sleep(remaining + self._SHOUTOUT_DEFER_MARGIN)
+        finally:
+            self._shoutout_pending[user.twitch_id] -= 1
+        return True
+
+    async def _finish_shoutout(self, result: ShoutoutResult, user: User, payload: RaidWebhookSchema) -> None:
+        """Реакция на финальный статус отправки (SUCCESS обработан сразу в очереди)."""
+        raider_id = str(payload.event.from_broadcaster_user_id)
+        if result.status is ShoutoutStatus.NOT_MODERATOR:
             logger.warning(
                 "Shoutout failed: бот не модератор в канале стримера, отключаем авто-shoutout (twitch_id=%s)",
                 user.twitch_id,
             )
             await self._disable_shoutout_on_raid(str(user.twitch_id))
             await self._twitch.unsubscribe_raid(subscription_id=payload.subscription.subscription_id)
-        elif "not streaming live" in message:
+        elif result.status is ShoutoutStatus.NOT_LIVE:
             logger.warning(
                 "Shoutout skipped: стример не в эфире или нет зрителей (twitch_id=%s, raider=%s)",
                 user.twitch_id,
-                payload.event.from_broadcaster_user_id,
+                raider_id,
             )
-        else:
-            raise exc
+        elif result.status is ShoutoutStatus.SAME_TARGET:
+            logger.warning(
+                "Shoutout skipped: Twitch сообщил, что цель уже получала shoutout в течение часа (twitch_id=%s, raider=%s)",
+                user.twitch_id,
+                raider_id,
+            )
+            if self._cache is not None:
+                key = self._SHOUTOUT_TARGET_KEY.format(twitch_id=user.twitch_id)
+                await self._cache.set_str(key, raider_id, ttl=self._SHOUTOUT_TARGET_TTL)
+        elif result.status is ShoutoutStatus.ERROR:
+            raise TwitchAPIException(f"Shoutout API error {result.http_status}: {result.message}")
 
     async def _disable_shoutout_on_raid(self, broadcaster_id: str) -> None:
         """Отключить авто-shoutout на рейды (бот лишился модератора в канале)."""
