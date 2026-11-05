@@ -46,6 +46,25 @@ class FakeCache:
         self.set_calls.append((name, value, ttl))
 
 
+class SequencedCdCache(FakeCache):
+    """Гонка пробуждения: между чтением cd в _wait_own_cooldown и перепроверкой под
+    локом другой ожидающий успел отправить — cd-ключ становится свежим."""
+
+    def __init__(self, cd_values: list[str | None]):
+        super().__init__()
+        self._cd_values = list(cd_values)
+
+    async def get_str(self, name: str, no_error: bool = True) -> str | None:
+        if name == CD_KEY and self._cd_values:
+            value = self._cd_values.pop(0)
+            if value is None:
+                self.values.pop(name, None)
+                return None
+            self.values[name] = value
+            return value
+        return await super().get_str(name, no_error)
+
+
 async def settle(coro_mock, ticks: int = 100):
     """Ждём, пока fire-and-forget задача (task_wrapper) доведёт мок до вызова.
 
@@ -418,6 +437,64 @@ async def test_raid_shoutout_rate_limited_no_reset_header_drops():
     await drain()
 
     assert service._twitch.shoutout.await_count == 1
+
+
+async def test_raid_shoutout_collision_waits_again_without_api_call():
+    # Гонка: _wait_own_cooldown прочитал устаревший cd, но под локом cd уже свежий
+    # (отправил другой ожидающий) — уходим в повторное ожидание без API-вызова.
+    cache = SequencedCdCache([None, str(time.time() + 0.05)])
+    service = build_service(cache=cache)
+    user = build_user(settings=SimpleNamespace(enable_shoutout_on_raid=True))
+    service._get_user_by_id_or_login = AsyncMock(return_value=user)
+
+    await service.handle_raid(raid_payload())
+    await settle(service._twitch.shoutout, ticks=100)
+    await drain()
+
+    service._twitch.shoutout.assert_awaited_once()
+
+
+async def test_raid_shoutout_rate_limited_retries_twice_then_succeeds():
+    service = build_service()
+    user = build_user(settings=SimpleNamespace(enable_shoutout_on_raid=True))
+    service._get_user_by_id_or_login = AsyncMock(return_value=user)
+    service._twitch.shoutout = AsyncMock(
+        side_effect=[
+            shoutout_result(ShoutoutStatus.RATE_LIMITED, retry_at=time.time() + 0.05, http_status=429),
+            shoutout_result(ShoutoutStatus.RATE_LIMITED, retry_at=time.time() + 0.05, http_status=429),
+            shoutout_result(ShoutoutStatus.SUCCESS, http_status=204),
+        ]
+    )
+
+    await service.handle_raid(raid_payload())
+    await settle(service._twitch.shoutout, ticks=100)
+    await asyncio.sleep(2.3)  # два ретрай-окна по ~1.05с
+    await drain(100)
+
+    assert service._twitch.shoutout.await_count == 3
+    service._twitch.unsubscribe_raid.assert_not_awaited()
+
+
+async def test_raid_shoutout_rate_limited_budget_exhausted_drops():
+    service = build_service()
+    user = build_user(settings=SimpleNamespace(enable_shoutout_on_raid=True))
+    service._get_user_by_id_or_login = AsyncMock(return_value=user)
+    service._twitch.shoutout = AsyncMock(
+        side_effect=[
+            shoutout_result(ShoutoutStatus.RATE_LIMITED, retry_at=time.time() + 0.05, http_status=429),
+            shoutout_result(ShoutoutStatus.RATE_LIMITED, retry_at=time.time() + 0.05, http_status=429),
+            shoutout_result(ShoutoutStatus.RATE_LIMITED, retry_at=time.time() + 0.05, http_status=429),
+            shoutout_result(ShoutoutStatus.SUCCESS, http_status=204),
+        ]
+    )
+
+    await service.handle_raid(raid_payload())
+    await settle(service._twitch.shoutout, ticks=100)
+    await asyncio.sleep(2.3)
+    await drain(100)
+
+    # первая попытка + 2 ретрая; четвёртый вызов не выполняется — бюджет исчерпан
+    assert service._twitch.shoutout.await_count == 3
 
 
 class _FakeResult:

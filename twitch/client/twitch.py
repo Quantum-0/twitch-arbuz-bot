@@ -1,3 +1,4 @@
+import asyncio
 import base64
 import enum
 import logging
@@ -118,6 +119,9 @@ _SHOUTOUT_NOT_MODERATOR_MARKERS = (
     "not one of the broadcaster's moderators",
 )
 _SHOUTOUT_NOT_LIVE_MARKER = "not streaming live"
+_SHOUTOUT_REFRESH_TIMEOUT = (
+    15  # сек на refresh_used_token после 401 (у либы нет таймаута и есть само-отравляющийся лок)
+)
 # 429-сообщение о 60-минутном лимите на ту же цель: "The broadcaster exceeded the
 # number of Shoutouts they may send the same broadcaster within a given window."
 _SHOUTOUT_SAME_TARGET_MARKER = "the same broadcaster"
@@ -299,7 +303,16 @@ class Twitch:
             if resp.status_code != 401 or attempt:
                 break
             try:
-                await self._twitch.refresh_used_token()
+                # refresh_used_token без таймаута, а у twitchAPI его внутренний
+                # _user_token_refresh_lock не снимается при ошибке refresh'а — зависший
+                # вызов навечно занял бы лок канала в cooldown-очереди. Shield не отменяет
+                # возможную ротацию токена (отмена могла бы потерять новый refresh-токен).
+                await asyncio.wait_for(
+                    asyncio.shield(self._twitch.refresh_used_token()), timeout=_SHOUTOUT_REFRESH_TIMEOUT
+                )
+            except TimeoutError:
+                logger.warning("Shoutout: таймаут обновления bot-токена после 401")
+                break
             except Exception:
                 logger.warning("Shoutout: не удалось обновить bot-токен после 401", exc_info=True)
                 break

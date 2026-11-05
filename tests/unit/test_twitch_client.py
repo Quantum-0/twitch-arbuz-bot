@@ -3,6 +3,7 @@
 """Юнит-тесты Twitch-клиента: app-token, отправка сообщений, EventSub-подписки,
 награды (update/validate/fix_autofulfill) и модерация."""
 
+import asyncio
 from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock
@@ -703,6 +704,78 @@ class TestModerationAndHelpers:
         assert result.status is ShoutoutStatus.ERROR
         assert result.http_status == 401
         assert len(calls) == 1
+
+    async def test_shoutout_401_refresh_ok_but_still_401(self, client, monkeypatch):
+        holder = {"token": "stale"}
+        responses = [
+            httpx.Response(401, json={"message": "Unauthorized"}),
+            httpx.Response(401, json={"message": "Unauthorized"}),
+        ]
+        calls = []
+
+        class FakeAsyncClient:
+            def __init__(self, **kwargs):
+                pass
+
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *exc):
+                return False
+
+            async def post(self, url, **kwargs):
+                calls.append(kwargs)
+                return responses.pop(0)
+
+        async def fake_refresh():
+            holder["token"] = "fresh"
+
+        client._twitch = SimpleNamespace(
+            get_user_auth_token=lambda: holder["token"],
+            refresh_used_token=fake_refresh,
+        )
+        monkeypatch.setattr(tw.httpx, "AsyncClient", FakeAsyncClient)
+
+        result = await client.shoutout(user_stub("111"), 222)
+
+        assert result.status is ShoutoutStatus.ERROR
+        assert result.http_status == 401
+        assert len(calls) == 2  # ретрай был, но 401 повторился — больше не пытаемся
+
+    async def test_shoutout_401_refresh_timeout_gives_up(self, client, monkeypatch):
+        monkeypatch.setattr(tw, "_SHOUTOUT_REFRESH_TIMEOUT", 0.05)
+        calls = []
+
+        class FakeAsyncClient:
+            def __init__(self, **kwargs):
+                pass
+
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *exc):
+                return False
+
+            async def post(self, url, **kwargs):
+                calls.append(kwargs)
+                return httpx.Response(401, json={"message": "Unauthorized"})
+
+        async def slow_refresh():
+            await asyncio.sleep(0.3)  # дольше таймаута 0.05с
+
+        client._twitch = SimpleNamespace(
+            get_user_auth_token=lambda: "stale",
+            refresh_used_token=slow_refresh,
+        )
+        monkeypatch.setattr(tw.httpx, "AsyncClient", FakeAsyncClient)
+
+        result = await client.shoutout(user_stub("111"), 222)
+
+        assert result.status is ShoutoutStatus.ERROR
+        assert result.http_status == 401
+        assert len(calls) == 1
+        # shield-задача refresh'а не отменялась — даём ей докрутиться, чтобы не текла в общий loop
+        await asyncio.sleep(0.35)
 
     async def test_send_warning(self, client):
         client._twitch = SimpleNamespace(warn_chat_user=AsyncMock())
