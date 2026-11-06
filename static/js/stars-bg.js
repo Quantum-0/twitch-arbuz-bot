@@ -7,9 +7,13 @@
 
     var settings = {
         count: 85,        // Количество звёзд
-        speed: 0.35,      // Скорость движения
+        speed: 0.35,      // Скорость базового дрейфа
         link: 140,        // Расстояние соединения точек
-        mouseRadius: 190  // Радиус притяжения к мыши
+        mouseRadius: 190, // Радиус, в котором на точки действует притяжение к курсору
+        accel: 0.05,      // Максимальное ускорение к курсору (px/кадр²), ближе к нему — сильнее
+        maxSpeed: 1.8,    // Предел скорости точки (px/кадр)
+        relax: 0.02,      // Торможение к базовому дрейфу внутри зоны (куча у курсора остаётся плотной)
+        glideRelax: 0.005 // Торможение вне зоны: точки, разгоненные курсором, летят по инерции секунды
     };
 
     var width, height, points = [];
@@ -25,13 +29,7 @@
         canvas.height = Math.round(height * ratio);
         ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
         points = Array.from({ length: settings.count }, function () {
-            return {
-                x: Math.random() * width,
-                y: Math.random() * height,
-                vx: (Math.random() - 0.5) * settings.speed,
-                vy: (Math.random() - 0.5) * settings.speed,
-                radius: 1 + Math.random() * 1.4
-            };
+            return spawnPoint(Math.random() * width, Math.random() * height);
         });
     }
 
@@ -41,19 +39,36 @@
         ctx.clearRect(0, 0, width, height);
         for (var i = 0; i < points.length; i++) {
             var point = points[i];
-            point.x += point.vx * step;
-            point.y += point.vy * step;
-            // Мягкое притяжение к курсору.
+            var insideZone = false;
+            // Притяжение: в радиусе от курсора точка плавно набирает ускорение
+            // в его сторону, чем ближе — тем сильнее (скорость, а не позиция:
+            // полученный импульс точка сохраняет и летит по инерции).
             if (mouse.x !== null) {
                 var dx = mouse.x - point.x;
                 var dy = mouse.y - point.y;
                 var distance = Math.hypot(dx, dy);
-                if (distance < settings.mouseRadius) {
-                    var force = (1 - distance / settings.mouseRadius) * 0.022;
-                    point.x += dx * force * step;
-                    point.y += dy * force * step;
+                if (distance < settings.mouseRadius && distance > 0) {
+                    insideZone = true;
+                    var accel = settings.accel * (1 - distance / settings.mouseRadius) * step;
+                    point.vx += dx / distance * accel;
+                    point.vy += dy / distance * accel;
                 }
             }
+            // Торможение к базовому дрейфу: внутри зоны сильное (рой не разгоняется
+            // вечно и держится кучей у курсора), снаружи слабое — точки ещё долго
+            // летят туда, куда их разогнал курсор.
+            var relax = (insideZone ? settings.relax : settings.glideRelax) * step;
+            point.vx += (point.bvx - point.vx) * relax;
+            point.vy += (point.bvy - point.vy) * relax;
+            // Предел скорости, чтобы рой у курсора не превращался в хаос.
+            var speed = Math.hypot(point.vx, point.vy);
+            if (speed > settings.maxSpeed) {
+                var limit = settings.maxSpeed / speed;
+                point.vx *= limit;
+                point.vy *= limit;
+            }
+            point.x += point.vx * step;
+            point.y += point.vy * step;
             // Выходящие за экран точки появляются с другой стороны.
             point.x = (point.x + width) % width;
             point.y = (point.y + height) % height;
@@ -92,11 +107,15 @@
     }
 
     function spawnPoint(x, y) {
+        var bvx = (Math.random() - 0.5) * settings.speed;
+        var bvy = (Math.random() - 0.5) * settings.speed;
         return {
             x: x,
             y: y,
-            vx: (Math.random() - 0.5) * settings.speed,
-            vy: (Math.random() - 0.5) * settings.speed,
+            vx: bvx,
+            vy: bvy,
+            bvx: bvx,
+            bvy: bvy,
             radius: 1 + Math.random() * 1.4
         };
     }
@@ -112,13 +131,14 @@
             }
             return count;
         },
-        // Добавить точки: кольцом вокруг курсора, чтобы они видимым ручьём стеклись к нему.
+        // Добавить точки: кольцом вокруг курсора в радиусе притяжения,
+        // чтобы они видимым ручьём стеклись к нему.
         addPoints: function (n) {
             for (var i = 0; i < n; i++) {
                 var x, y;
                 if (mouse.x !== null) {
                     var angle = Math.random() * Math.PI * 2;
-                    var distance = 100 + Math.random() * 250;
+                    var distance = 100 + Math.random() * 150;
                     x = mouse.x + Math.cos(angle) * distance;
                     y = mouse.y + Math.sin(angle) * distance;
                 } else {

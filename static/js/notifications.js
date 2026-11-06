@@ -1,4 +1,4 @@
-function showNotification(title, message, isError = false) {
+function showNotification(title, message, isError = false, duration = 4000) {
     let container = document.querySelector(".notification-container");
     if (!container) {
         container = document.createElement("div");
@@ -18,5 +18,5 @@ function showNotification(title, message, isError = false) {
     setTimeout(() => {
         div.style.animation = "fadeOutDown var(--notif-out-duration) forwards";
         setTimeout(() => div.remove(), 250);
-    }, 4000);
+    }, duration);
 }

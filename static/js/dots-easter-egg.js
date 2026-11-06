@@ -1,45 +1,75 @@
-// Пасхалка «сборщик точек»: если пользователь больше минуты держит возле курсора
-// целую кучу точек фона и не прокручивает страницу — приглушаем интерфейс,
-// чтобы фон было видно лучше, и подкидываем ещё точек.
-// Счёт точек возле курсора берётся из API js/stars-bg.js.
+// Пасхалка «сборщик точек»: если пользователь продолжительное время активно
+// собирает возле курсора кучу точек фона, не прокручивая страницу и не кликая, —
+// приглушаем интерфейс, чтобы фон было видно лучше, и подкидываем ещё точек.
+// Куча считается через API js/stars-bg.js, активность — по пути, пройденному курсором.
 (function () {
-    var COLLECT_RADIUS = 90;      // Радиус от курсора, внутри которого точка считается «в куче»
-    var COLLECT_THRESHOLD = 15;   // Сколько точек должно собраться возле курсора
-    var SUSTAIN_MS = 60 * 1000;   // Как долго пользователь должен удерживать кучу
-    var GRACE_MS = 2 * 1000;      // Допустимый провал счёта (резкий рывок курсора) без сброса таймера
-    var CHECK_INTERVAL_MS = 500;  // Как часто пересчитывать точки возле курсора
-    var EXTRA_DOTS = 100;         // Сколько точек накинуть после второго уведомления
+    var COLLECT_RADIUS = 90;            // Радиус от курсора, внутри которого точка считается «в куче»
+    var COLLECT_THRESHOLD = 15;         // Сколько точек должно собраться возле курсора
+    var SUSTAIN_MS = 60 * 1000;         // Как долго пользователь должен удерживать кучу
+    var GRACE_MS = 2 * 1000;            // Допустимый провал условий (рывок курсора) без сброса таймера
+    var CHECK_INTERVAL_MS = 500;        // Как часто пересчитывать условия
+    var EXTRA_DOTS = 100;               // Сколько точек накинуть после второго уведомления
+    var ACTIVITY_WINDOW_MS = 10 * 1000; // Окно оценки активности курсора
+    var ACTIVITY_DISTANCE_PX = 150;     // Минимальный путь курсора за окно, чтобы считать сбор активным
 
     var triggered = false;
     var sustainStart = null;
     var belowSince = null;
 
-    function notify(title, message) {
-        if (typeof showNotification === "function") showNotification(title, message);
+    // Путь курсора за последнее окно: список отрезков [{t, d}] с инкрементальной суммой.
+    var moves = [];
+    var moveSum = 0;
+    var lastMouse = null;
+
+    window.addEventListener("pointermove", function (event) {
+        var now = Date.now();
+        if (lastMouse) {
+            var d = Math.hypot(event.clientX - lastMouse.x, event.clientY - lastMouse.y);
+            moves.push({t: now, d: d});
+            moveSum += d;
+        }
+        lastMouse = {x: event.clientX, y: event.clientY};
+        while (moves.length > 0 && now - moves[0].t > ACTIVITY_WINDOW_MS) {
+            moveSum -= moves[0].d;
+            moves.shift();
+        }
+    });
+
+    function isCollecting() {
+        var count = window.starsBg ? window.starsBg.nearMouseCount(COLLECT_RADIUS) : 0;
+        if (count < COLLECT_THRESHOLD) return false;
+        // Лежащая мышь не собирает: точки сами натекают к стоящему курсору,
+        // поэтому требуем, чтобы курсор за последнее время реально двигался.
+        return moveSum >= ACTIVITY_DISTANCE_PX;
     }
 
-    // Любой скролл (в том числе внутренних блоков) означает, что страницу листают, а не собирают точки.
-    window.addEventListener("scroll", function () {
+    function reset() {
         sustainStart = null;
         belowSince = null;
-    }, {passive: true, capture: true});
+    }
+
+    // Скролл, клики и клавиатура — обычное пользование сайтом, а не сбор точек.
+    window.addEventListener("scroll", reset, {passive: true, capture: true});
+    window.addEventListener("pointerdown", reset, {passive: true});
+    window.addEventListener("keydown", reset);
 
     function check() {
         if (triggered) return;
-        var count = window.starsBg ? window.starsBg.nearMouseCount(COLLECT_RADIUS) : 0;
         var now = Date.now();
-        if (count >= COLLECT_THRESHOLD) {
+        if (isCollecting()) {
             belowSince = null;
             if (sustainStart === null) sustainStart = now;
             if (now - sustainStart >= SUSTAIN_MS) trigger();
         } else if (sustainStart !== null) {
-            // Курсор вне кучи (или его нет): короткий провал прощаем, длинный — сбрасываем выдержку.
+            // Условие нарушено (рассыпалась куча, курсор замер или ушёл):
+            // короткий провал прощаем, длинный — сбрасываем выдержку.
             if (belowSince === null) belowSince = now;
-            if (now - belowSince > GRACE_MS) {
-                sustainStart = null;
-                belowSince = null;
-            }
+            if (now - belowSince > GRACE_MS) reset();
         }
+    }
+
+    function notify(title, message) {
+        if (typeof showNotification === "function") showNotification(title, message, false, 10000);
     }
 
     function trigger() {
@@ -47,14 +77,14 @@
         document.body.classList.add("dots-easter-egg");
         notify(
             "Тоже залипаешь на эти точки? :з",
-            "Дааа, мне тоже нравится их ловить! Сделал интерфейс прозрачным, чтоб тебе было удобнее. Развлекайся! :D"
+            "Дааа, мне тоже нравится их ловить!\nСделал интерфейс прозрачным, чтоб тебе было удобнее.\nРазвлекайся! :D"
         );
         setTimeout(function () {
-            notify("На, держи ещё точек :D", "");
+            notify("Подарок", "На, держи ещё точек :D");
             if (window.starsBg) window.starsBg.addPoints(EXTRA_DOTS);
         }, 20 * 1000);
         setTimeout(function () {
-            notify("Как надоест — просто обнови страницу, интерфейс снова станет непрозрачным", "");
+            notify("Надоело баловаться с точками?", "тогда просто обнови страницу, всё вернётся как было");
         }, 35 * 1000);
     }
 
