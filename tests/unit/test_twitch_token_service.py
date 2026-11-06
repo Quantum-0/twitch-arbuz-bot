@@ -170,6 +170,19 @@ def test_parse_token_error_non_json_body():
     assert TwitchTokenService._parse_token_error(response) == ("unknown", "Internal Server Error")
 
 
+def test_parse_token_error_helix_body_invalid_refresh_token_maps_to_invalid_grant():
+    """Twitch шлёт протухший refresh-токен Helix-телом без OAuth-полей."""
+    request = httpx.Request("POST", "https://id.twitch.tv/oauth2/token")
+    response = httpx.Response(400, request=request, json={"status": 400, "message": "Invalid refresh token"})
+    assert TwitchTokenService._parse_token_error(response) == ("invalid_grant", "Invalid refresh token")
+
+
+def test_parse_token_error_helix_body_message_as_description():
+    request = httpx.Request("POST", "https://id.twitch.tv/oauth2/token")
+    response = httpx.Response(400, request=request, json={"status": 400, "message": "missing client secret"})
+    assert TwitchTokenService._parse_token_error(response) == ("unknown", "missing client secret")
+
+
 # ── _request_refresh ──────────────────────────────────────────────────────
 
 
@@ -208,6 +221,19 @@ async def test_request_refresh_invalid_grant(fake_http):
     assert exc_info.value.status_code == 400
 
 
+async def test_request_refresh_invalid_refresh_token_helix_body(fake_http):
+    """Протухший refresh-токен: Helix-тело без OAuth-полей → invalid_grant."""
+    request = httpx.Request("POST", "https://id.twitch.tv/oauth2/token")
+    fake_http.response = httpx.Response(400, request=request, json={"status": 400, "message": "Invalid refresh token"})
+    service = make_service()
+
+    with pytest.raises(TwitchTokenRefreshError) as exc_info:
+        await service._request_refresh("dead-ref")
+    assert exc_info.value.error == "invalid_grant"
+    assert exc_info.value.description == "Invalid refresh token"
+    assert exc_info.value.status_code == 400
+
+
 async def test_request_refresh_5xx_becomes_server_error(fake_http):
     request = httpx.Request("POST", "https://id.twitch.tv/oauth2/token")
     fake_http.response = httpx.Response(503, request=request, text="upstream down")
@@ -218,6 +244,18 @@ async def test_request_refresh_5xx_becomes_server_error(fake_http):
     assert exc_info.value.error == "server_error"
     assert exc_info.value.status_code == 503
     assert exc_info.value.description == "upstream down"
+
+
+async def test_request_refresh_5xx_with_invalid_refresh_token_body_stays_server_error(fake_http):
+    """5xx с текстом «Invalid refresh token» в теле — всё равно server_error (ретраи), не invalid_grant."""
+    request = httpx.Request("POST", "https://id.twitch.tv/oauth2/token")
+    fake_http.response = httpx.Response(503, request=request, json={"status": 503, "message": "Invalid refresh token"})
+    service = make_service()
+
+    with pytest.raises(TwitchTokenRefreshError) as exc_info:
+        await service._request_refresh("ref")
+    assert exc_info.value.error == "server_error"
+    assert exc_info.value.status_code == 503
 
 
 # ── get_valid_access_token ────────────────────────────────────────────────
@@ -342,13 +380,15 @@ async def test_refresh_if_need_survives_redis_outage_and_refreshes(fake_http, no
 async def test_refresh_with_retry_invalid_grant_invalidates_tokens(monkeypatch):
     db = FakeDb()
     service = make_service(db=lambda: db)
-    request = AsyncMock(side_effect=TwitchTokenRefreshError("invalid_grant", "revoked", 400))
+    request = AsyncMock(side_effect=TwitchTokenRefreshError("invalid_grant", "Invalid refresh token", 400))
     monkeypatch.setattr(service, "_request_refresh", request)
 
-    with pytest.raises(TwitchTokenRefreshError) as exc_info:
+    # TwitchTokenExpiredError (подкласс): роуты показывают по нему UX «переавторизуйтесь»
+    with pytest.raises(TwitchTokenExpiredError) as exc_info:
         await service._refresh_with_retry(make_user(), "ref")
 
     assert exc_info.value.error == "invalid_grant"
+    assert exc_info.value.description == "Invalid refresh token"
     # Обнуление токенов выполнено ровно один раз (UPDATE с NULL-параметрами)
     invalidate_stmts = [
         q

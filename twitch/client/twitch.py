@@ -203,6 +203,13 @@ class Twitch:
         return token
 
     async def startup(self):
+        """Инициализация ботового клиента Helix.
+
+        Access-токен из env почти всегда протухший (Twitch выдаёт их на часы):
+        twitchAPI валидирует его, получает 401 и сам делает refresh по
+        ``BOT_REFRESH_TOKEN`` — старый refresh-токен остаётся действительным,
+        поэтому цепочка переживает рестарты без персистенции.
+        """
         twitch = await TwitchClient(settings.twitch.client_id, settings.twitch.client_secret.get_secret_value())
         await twitch.set_user_authentication(
             settings.twitch.bot_access_token.get_secret_value(),
@@ -210,6 +217,12 @@ class Twitch:
             settings.twitch.bot_refresh_token.get_secret_value(),
         )
         self._twitch = twitch
+
+    def get_bot_auth_token(self) -> str | None:
+        """Текущий user-токен бот-аккаунта (None — клиент ещё не стартовал)."""
+        if self._twitch is None:
+            return None
+        return self._twitch.get_user_auth_token()
 
     async def send_chat_message_raw(
         self,

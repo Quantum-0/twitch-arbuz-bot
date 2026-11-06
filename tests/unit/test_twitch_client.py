@@ -134,6 +134,15 @@ class TestAppAccessToken:
         assert token_req["params"]["grant_type"] == "client_credentials"
 
 
+class TestGetBotAuthToken:
+    def test_not_started_returns_none(self, client):
+        assert client.get_bot_auth_token() is None
+
+    def test_returns_live_client_token(self, client):
+        client._twitch = SimpleNamespace(get_user_auth_token=lambda: "live-token")
+        assert client.get_bot_auth_token() == "live-token"
+
+
 class TestSendMessages:
     async def test_raw_ok(self, client, http):
         client._twitch = SimpleNamespace(get_app_token=lambda: "bot-token")

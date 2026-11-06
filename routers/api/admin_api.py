@@ -102,6 +102,7 @@ async def healthcheck(
     db_session_factory: Annotated[Callable[[], AsyncSession], Depends(Provide[Container.db_session_factory])],
     redis: Annotated[Redis, Depends(Provide[Container.redis])],
     mqtt: Annotated[MQTTClient, Depends(Provide[Container.mqtt])],
+    twitch: Annotated[Twitch, Depends(Provide[Container.twitch])],
     _: Annotated[User, Security(staff_auth)],
 ) -> HealthcheckResponseSchema:
     """Статус связанных сервисов (DB / Redis / MQTT / TTS / Telegram / Twitch).
@@ -110,7 +111,12 @@ async def healthcheck(
     сессионная авторизация, как у самой страницы; остальные ручки /api/admin
     используют HTTP Basic и остаются для внешних скриптов).
     """
-    return await run_healthchecks(db_session_factory=db_session_factory, redis=redis, mqtt=mqtt)
+    return await run_healthchecks(
+        db_session_factory=db_session_factory,
+        redis=redis,
+        mqtt=mqtt,
+        twitch=twitch,
+    )
 
 
 @router.get("/eventsub/subscriptions")

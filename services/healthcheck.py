@@ -19,6 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from config import settings
 from schemas.api import HealthcheckResponseSchema, HealthcheckServiceSchema
 from services.mqtt import MQTTClient
+from twitch.client.twitch import Twitch
 
 logger = logging.getLogger(__name__)
 
@@ -90,9 +91,15 @@ async def check_telegram() -> str:
     return "healthcheck: 200"
 
 
-async def check_twitch() -> str:
-    """Twitch API: валидация токена бота (заодно проверяет, что id.twitch.tv доступен)."""
-    token = settings.twitch.bot_access_token.get_secret_value()
+async def check_twitch(twitch: Twitch) -> str:
+    """Twitch API: валидация живого токена бота (заодно проверяет, что id.twitch.tv доступен).
+
+    Проверяется токен twitchAPI-клиента процесса: библиотека рефрешит его в памяти,
+    а env-копия из ``.env`` протухает через несколько часов из-за ротации Twitch
+    и ничего не говорит о работоспособности бота. Env-токен — фолбэк, пока клиент
+    не стартовал.
+    """
+    token = twitch.get_bot_auth_token() or settings.twitch.bot_access_token.get_secret_value()
     async with httpx.AsyncClient(timeout=CHECK_TIMEOUT_S) as client:
         resp = await client.get(
             "https://id.twitch.tv/oauth2/validate",
@@ -110,6 +117,7 @@ async def run_healthchecks(
     db_session_factory: Callable[[], AsyncSession],
     redis: aioredis.Redis,
     mqtt: MQTTClient,
+    twitch: Twitch,
 ) -> HealthcheckResponseSchema:
     """Прогнать все проверки параллельно и собрать ответ для /api/admin/healthcheck."""
     checks: dict[str, Callable[[], Awaitable[str]]] = {
@@ -118,7 +126,7 @@ async def run_healthchecks(
         "mqtt": lambda: check_mqtt(mqtt),
         "tts": check_tts,
         "telegram": check_telegram,
-        "twitch": check_twitch,
+        "twitch": lambda: check_twitch(twitch),
     }
     results: list[HealthcheckServiceSchema] = await asyncio.gather(
         *(_run_check(name, check) for name, check in checks.items())

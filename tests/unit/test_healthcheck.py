@@ -26,6 +26,7 @@ class FakeResponse:
 class FakeAsyncClient:
     response: FakeResponse = FakeResponse()
     requested: list[str] = []
+    last_headers: dict[str, str] | None = None
 
     def __init__(self, timeout: float | None = None) -> None:  # noqa: ARG002
         pass
@@ -38,12 +39,24 @@ class FakeAsyncClient:
 
     async def get(self, url: str, headers: dict[str, str] | None = None) -> FakeResponse:  # noqa: ARG002
         FakeAsyncClient.requested.append(url)
+        FakeAsyncClient.last_headers = headers
         return FakeAsyncClient.response
+
+
+class FakeTwitch:
+    """Заглушка Twitch-синглтона для check_twitch (None — клиент ещё не стартовал)."""
+
+    def __init__(self, token: str | None = None) -> None:
+        self._token = token
+
+    def get_bot_auth_token(self) -> str | None:
+        return self._token
 
 
 @pytest.fixture
 def http_mock(monkeypatch):
     FakeAsyncClient.requested = []
+    FakeAsyncClient.last_headers = None
     monkeypatch.setattr(hc.httpx, "AsyncClient", FakeAsyncClient)
     return FakeAsyncClient
 
@@ -155,22 +168,32 @@ class TestHttpChecks:
         with pytest.raises(RuntimeError, match="вернул 500"):
             await hc.check_telegram()
 
-    async def test_check_twitch_ok(self, http_mock, monkeypatch):
+    async def test_check_twitch_env_fallback(self, http_mock, monkeypatch):
+        """Клиент ещё не стартовал (токена в памяти нет) — проверяем env-копию."""
         monkeypatch.setattr(hc.settings.twitch, "bot_access_token", SecretStr("bot-token"))
         http_mock.response = FakeResponse(200, {"login": "twibot"})
-        assert await hc.check_twitch() == "токен бота валиден (twibot)"
+        assert await hc.check_twitch(FakeTwitch()) == "токен бота валиден (twibot)"
+        assert http_mock.last_headers == {"Authorization": "Bearer bot-token"}
+
+    async def test_check_twitch_uses_live_token(self, http_mock, monkeypatch):
+        """Живой токен процесса предпочтительнее протухшей env-копии из .env."""
+        monkeypatch.setattr(hc.settings.twitch, "bot_access_token", SecretStr("stale-env-token"))
+        http_mock.response = FakeResponse(200, {"login": "twibot"})
+
+        assert await hc.check_twitch(FakeTwitch("live-token")) == "токен бота валиден (twibot)"
+        assert http_mock.last_headers == {"Authorization": "Bearer live-token"}
 
     async def test_check_twitch_invalid_token(self, http_mock, monkeypatch):
         monkeypatch.setattr(hc.settings.twitch, "bot_access_token", SecretStr("bad"))
         http_mock.response = FakeResponse(401)
         with pytest.raises(RuntimeError, match="невалиден"):
-            await hc.check_twitch()
+            await hc.check_twitch(FakeTwitch("rejected-live-token"))
 
     async def test_check_twitch_unexpected_code(self, http_mock, monkeypatch):
         monkeypatch.setattr(hc.settings.twitch, "bot_access_token", SecretStr("t"))
         http_mock.response = FakeResponse(502)
         with pytest.raises(RuntimeError, match="вернул 502"):
-            await hc.check_twitch()
+            await hc.check_twitch(FakeTwitch())
 
 
 class TestRunHealthchecks:
@@ -185,7 +208,7 @@ class TestRunHealthchecks:
         monkeypatch.setattr(hc, "check_telegram", ok)
         monkeypatch.setattr(hc, "check_twitch", ok)
 
-        result = await run_healthchecks(lambda: None, FakeRedis(), None)  # type: ignore[arg-type]
+        result = await run_healthchecks(lambda: None, FakeRedis(), None, FakeTwitch())  # type: ignore[arg-type]
 
         assert result.overall == "ok"
         assert set(result.services) == {"db", "redis", "mqtt", "tts", "telegram", "twitch"}
@@ -205,7 +228,7 @@ class TestRunHealthchecks:
         monkeypatch.setattr(hc, "check_telegram", ok)
         monkeypatch.setattr(hc, "check_twitch", ok)
 
-        result = await run_healthchecks(lambda: None, FakeRedis(), None)  # type: ignore[arg-type]
+        result = await run_healthchecks(lambda: None, FakeRedis(), None, FakeTwitch())  # type: ignore[arg-type]
 
         assert result.overall == "error"
         assert result.services["redis"].status == "error"

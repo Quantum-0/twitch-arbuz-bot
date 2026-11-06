@@ -173,6 +173,9 @@ class TwitchTokenService:
                             user.id,
                         )
                         await self._invalidate_tokens(user.id)
+                        # TwitchTokenExpiredError (а не базовый класс) — роуты показывают
+                        # по нему UX «переавторизуйтесь» вместо необработанного 500.
+                        raise TwitchTokenExpiredError(exc.error, exc.description, exc.status_code) from exc
                     raise
                 last_error = exc
                 logger.warning(
@@ -305,7 +308,14 @@ class TwitchTokenService:
 
     @staticmethod
     def _parse_token_error(response: httpx.Response) -> tuple[str, str]:
-        """Извлечь error и error_description из тела ошибки токен-эндпоинта."""
+        """Извлечь error и описание из тела ошибки токен-эндпоинта.
+
+        Twitch отвечает либо OAuth-телом (``error``/``error_description``), либо
+        Helix-подобным ``{"status": 400, "message": "..."}`` без OAuth-полей —
+        причина таких ошибок лежит в ``message``. «Invalid refresh token» Twitch
+        шлёт именно вторым способом, поэтому распознаём его по тексту и
+        приравниваем к ``invalid_grant``.
+        """
         try:
             body = response.json()
         except Exception:
@@ -313,7 +323,9 @@ class TwitchTokenService:
         if not isinstance(body, dict):
             return "unknown", str(body)
         error = str(body.get("error") or "unknown")
-        description = str(body.get("error_description") or "")
+        description = str(body.get("error_description") or body.get("message") or "")
+        if "invalid refresh token" in description.lower():
+            error = "invalid_grant"
         return error, description
 
     @staticmethod
