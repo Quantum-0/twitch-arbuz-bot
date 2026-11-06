@@ -5,9 +5,11 @@
 ## Запреты
 
 - **ЗАПРЕЩЕНО** делать git commit / push без явной просьбы пользователя.
-- **ЗАПРЕЩЕНО** подключаться к серверу (ssh `vds-msk` и др.) без явной просьбы пользователя.
-  Любые действия на сервере (git pull, docker compose, просмотр логов, миграции БД)
-  выполняются только после прямого разрешения пользователя.
+- **ЗАПРЕЩЕНО** подключаться к серверу (ssh `vds-msk` и др.) без разрешения пользователя.
+  Сервер — это прод. Агент может подключиться по ssh `vds-msk` и читать логи поды,
+  но логи с прода читаем **только спросив разрешения у пользователя**.
+  **Редактировать на сервере ничего нельзя** (правка файлов/конфигов, git pull,
+  docker compose, миграции БД на сервере и т.п.).
 
 ## Технологический стек
 
@@ -32,7 +34,7 @@ poetry run ruff check --fix .          # безопасные фиксы
 poetry run ruff format .               # форматирование
 poetry run mypy <путь_к_файлу>          # проверка типов
 poetry run alembic revision --autogenerate -m "title"  # создать миграцию
-poetry run alembic upgrade head        # применить миграции
+poetry run alembic upgrade head        # применять ЗАПРЕЩЕНО — применяется сразу на проде (см. «Миграции БД»)
 poetry run uvicorn main:app --reload   # запустить дев-сервер
 ```
 
@@ -71,6 +73,12 @@ poetry run uvicorn main:app --reload   # запустить дев-сервер
 - FastAPI-роуты с DI: `Annotated[T, Depends(Provide[Container.x])]` + `@inject`.
 - Не-endpoint функции берут зависимости через `from container_runtime import get_container`.
 - Новый модуль с роутами → добавить в `container.Container.wiring_config.modules`.
+- **Roadmap:** крупные/масштабные обновления, затрагивающие пользователей (новый функционал,
+  новые команды, системы вроде банов и т.п.), фиксируем на странице `/kinda_roadmap`.
+  Записи захардкожены в хендлере `routers/web/pages.py:roadmap_page` — список `roadmap`,
+  элементы `{"date": "<Месяц Год>", "text": "..."}`, новые пункты добавляются в конец
+  (шаблон `templates/roadmap.html` не трогаем). Подробно не расписывать — пара слов:
+  «добавлен поиск», «добавлены 3 новые команды», «введена система банов».
 
 ## Юридические документы и согласие (ФЗ-152)
 
@@ -179,16 +187,64 @@ static/                  # CSS, JS (streamers.js, stats.js, heat-ws.js)
 
 ## Миграции БД
 
-Миграции создаются ТОЛЬКО через `alembic revision --autogenerate -m "title"`.
-После генерации отредактируй файл: оставь в `upgrade()`/`downgrade()` только
-изменения, связанные с твоей задачей.
+Миграции создаём **исключительно** через `alembic revision --autogenerate -m "..."` —
+самостоятельно, вручную с нуля, миграции не пишем! Только генерируем через alembic,
+а затем редактируем файл: оставь в `upgrade()`/`downgrade()` только изменения,
+связанные с твоей задачей.
 
-## /streamers — фильтры и сортировка
+**ЗАПРЕЩЕНО применять миграции** (`alembic upgrade head` и т.п.) — применение уходит
+сразу на прод. Миграции применяет **только пользователь**; агенту разрешено лишь
+создавать их через alembic.
+
+Для создания миграции нужно, чтобы были прокинуты порты к прод-БД. Если alembic
+выдаёт ошибку, что не подключился к БД, — попроси пользователя поднять ssh-туннель.
+Ручное создание миграции — исключительный запасной вариант: всегда сначала
+предлагать/просить пользователя поднять туннель.
+
+## /streamers — фильтры, сортировка и поиск
 
 - HTML `/streamers` отдаёт заглушку; список грузится через `fetch('/api/user/streamers?...')` (`static/js/streamers.js`).
-- API: `sort` (recommended|followers|created|name), `order` (asc|desc), фильтры `f_bot`/`f_meme`/`f_ai`/`f_overlay`/`f_online`/`f_pants`.
+- API: `sort` (recommended|followers|created|interacted|likes|name), `order` (asc|desc), фильтры `f_bot`/`f_meme`/`f_ai`/`f_overlay`/`f_online`/`f_pants`.
 - Логика: `utils/streamers.py:get_streamers_list`. Скоринг: `utils/streamers_sort.py:compute_streamer_score`.
 - `User.overlays_last_usage` обновляется в `utils/overlays.py:touch_overlay_usage` (не чаще 1/час). «Использует оверлеи» = обращение не позднее 14 дней.
+- **Поиск по имени** — на клиенте (`#streamersSearch`, debounce): подстрока ИЛИ Levenshtein
+  (порог `max(1, len(q)/3)`). Запрос синхронизируется с URL (`?q=`). На бэк не ходит.
+- **Имя под аватаркой** изгибается по дуге (SVG `textPath`, концентричной кругу аватара):
+  разметка в `#streamerCardTemplate`, id пути уникализируется в JS (`setArcName`),
+  обрезка 20 символов + «…», цвет `var(--streamer-name-color)` (чёрный/ярко-зелёный по теме).
+
+## Нечёткий поиск пользователей
+
+- **Механизм:** `utils/user_search.py:search_users` — два этапа: SQL-пул кандидатов через
+  pg_trgm (`login_name % q OR ILIKE`, GIN-индекс `ix_twitch_bot_users_login_trgm`, объявлен
+  в `User.__table_args__` чтобы autogenerate его не дропал) → переранжирование `rapidfuzz`.
+- **API:** `GET /api/user/search?q&limit&context` (`routers/api/user/search.py`, `user_auth`).
+  `context=bans` — исключает стафф (`utils/reference_moderation.py`) + `KNOWN_BOTS` + самого
+  юзера и добавляет активных чаттеров его канала (`ChatBot.get_last_active_users`, группировка
+  по `name.lower()`); `deposit`/`generic` — без исключений.
+- **Виджет подсказок:** `static/js/user-suggest.js` (дропдаун под инпутом, стрелки/Esc,
+  подсказки не строгие). Используется на `/bans` (логин таргета) и в `/admin` (пополнение).
+
+## История баланса
+
+- Таблица `balance_operations` (`database/models.py:BalanceOperation`): `twitch_id`
+  (FK → `twitch_bot_users.twitch_id`, по нему джойн), `type` (`deposit`/`spend`),
+  `action` (`admin_deposit`/`ai_sticker`/`initial_balance`), `amount` (при списании —
+  с наценкой: `cost * ai.cost_multiplier + ai.cost_single_call`), `balance_after`,
+  `details` JSONB, `created_at` (naive-UTC). Енумы: `schemas/enums.py:BalanceOperation*`.
+- **Запись операций:** `services/stickers.py:_save_to_db` (в той же транзакции, что
+  `total_spent`) и `routers/api/admin_api.py:deposit_balance` (до `db.execute(update)` —
+  после него instance экспайрится и синхронный `user.*` даёт MissingGreenlet).
+- **Миграция** `8ff4753d63df`: создание таблицы + инициализация истории — одна строка
+  `initial_balance` («Инициализация истории операций с текущим балансом») каждому
+  с ненулевым балансом: deposit при положительном, spend на `|balance|` при
+  отрицательном (овердрафт возможен — иначе CHECK `amount > 0` роняет миграцию).
+  Прошлых операций нет — только итоги.
+- **API:** `GET /api/user/balance/operations?before_id&limit` — курсор по `id`
+  (`routers/api/user/balance.py`).
+- **Страница** `/balance-history` (`templates/balance_history.html` + `static/js/balance_history.js`):
+  таблица Дата | Тип | Сумма | Действие | Баланс после, «Показать ещё» по курсору.
+  Переход — ссылка «История →» с панелек «Баланс» на `/ai-stickers` и `/tts`.
 
 ## SSE — Server-Sent Events
 

@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+
+{% block title %}История баланса — Quantum0's Bot{% endblock %}
+{% block description %}История начислений и списаний баланса: генерация ИИ-стикеров и пополнения.{% endblock %}
+
+{% block styles %}
+.balance-history-page { max-width: 900px; margin: 0 auto; }
+.balance-history-intro { color: var(--color-text-muted); margin-bottom: 18px; line-height: 1.5; }
+.balance-table { width: 100%; border-collapse: collapse; background: var(--color-bg-secondary); border-radius: 10px; overflow: hidden; }
+.balance-table th, .balance-table td {
+    padding: 10px 12px; text-align: left; border-bottom: 1px solid var(--color-border);
+    font-size: 0.92em; vertical-align: top;
+}
+.balance-table th { color: var(--color-text-muted); font-weight: 600; }
+.balance-table tr:last-child td { border-bottom: none; }
+.balance-type-badge {
+    display: inline-block; padding: 2px 8px; border-radius: 6px; font-size: 0.8em; font-weight: 600; white-space: nowrap;
+}
+.balance-type-badge.deposit { background: rgba(76, 175, 80, 0.2); color: #66bb6a; }
+.balance-type-badge.spend { background: rgba(229, 57, 53, 0.2); color: #ef5350; }
+.balance-amount.deposit { color: #66bb6a; font-weight: 600; white-space: nowrap; }
+.balance-amount.spend { color: #ef5350; font-weight: 600; white-space: nowrap; }
+.balance-action-details { color: var(--color-text-muted); font-size: 0.88em; margin-top: 2px; max-width: 340px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.balance-balance-after { color: var(--color-text-muted); white-space: nowrap; }
+.balance-empty { padding: 30px; text-align: center; color: var(--color-text-muted); background: var(--color-bg-secondary); border-radius: 10px; }
+.balance-more { display: block; margin: 16px auto 0; }
+{% endblock %}
+
+{% block content %}
+<div class="balance-history-page">
+    <h1>История баланса</h1>
+    <p class="balance-history-intro">
+        Все начисления и списания вашего баланса. Списания за ИИ-стикеры включают наценку сервиса.
+    </p>
+
+    <table class="balance-table" id="balanceTable" hidden>
+        <thead>
+        <tr>
+            <th>Дата и время</th>
+            <th>Тип</th>
+            <th>Сумма</th>
+            <th>Действие</th>
+            <th>Баланс после</th>
+        </tr>
+        </thead>
+        <tbody id="balanceTableBody"></tbody>
+    </table>
+    <div class="balance-empty" id="balanceEmpty" hidden>Операций пока нет</div>
+    <div class="balance-empty" id="balanceLoading">Загрузка…</div>
+    <button type="button" class="streamers-btn balance-more" id="balanceMore" hidden>Показать ещё</button>
+</div>
+{% endblock %}
+
+{% block body_scripts %}
+<script src="/static/js/balance_history.js"></script>
+{% endblock %}

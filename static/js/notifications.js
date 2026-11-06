@@ -7,7 +7,13 @@ function showNotification(title, message, isError = false) {
     }
     const div = document.createElement("div");
     div.className = "notification" + (isError ? " error" : "");
-    div.innerHTML = `<div class="notification-header">${title}</div><div class="notification-body">${message}</div>`;
+    const header = document.createElement("div");
+    header.className = "notification-header";
+    header.textContent = title;
+    const body = document.createElement("div");
+    body.className = "notification-body";
+    body.textContent = message;
+    div.append(header, body);
     container.appendChild(div);
     setTimeout(() => {
         div.style.animation = "fadeOutDown var(--notif-out-duration) forwards";

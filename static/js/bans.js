@@ -17,7 +17,9 @@
     function esc(text) {
         const div = document.createElement("div");
         div.textContent = text == null ? "" : String(text);
-        return div.innerHTML;
+        // Кавычки экранируем отдельно: innerHTML их не сериализует,
+        // а esc() может попасть в HTML-атрибуты
+        return div.innerHTML.replace(/"/g, "&quot;").replace(/'/g, "&#39;");
     }
 
     // API отдаёт naive-UTC ISO без суффикса Z; new Date() парсит такое как
@@ -183,6 +185,9 @@
         el("banScope").addEventListener("change", updateFormTitle);
         el("bansFilterScope").addEventListener("change", render);
         el("bansFilterSearch").addEventListener("input", render);
+        // Подсказки логинов для бана: пользователи сайта + зрители канала.
+        // Не строгий выбор — руками можно ввести любой ник.
+        if (window.UserSuggest) window.UserSuggest.attach(el("banLogin"), {context: "bans"});
         load();
     });
 })();

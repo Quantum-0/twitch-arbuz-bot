@@ -45,6 +45,8 @@ class Container(containers.DeclarativeContainer):
             "routers.api.user.likes",
             "routers.api.user.overlay",
             "routers.api.user.eventsub",
+            "routers.api.user.search",
+            "routers.api.user.balance",
             "routers.api.user.streamers",
             "routers.api.user.stats",
             "routers.api.user.staff",

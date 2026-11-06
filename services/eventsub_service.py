@@ -57,7 +57,7 @@ tracer = trace.get_tracer(__name__)
 # TODO: убрать после полного перехода пользователей на v2.
 # Порог user_id для поэтапного уведомления v1-пользователей о миграции на v2.
 # Постепенно увеличиваем, пока не покроем всех.
-MEMEALERTS_V1_MIGRATION_USER_ID_THRESHOLD = 200
+MEMEALERTS_V1_MIGRATION_USER_ID_THRESHOLD = 300
 MEMEALERTS_V1_MIGRATION_MESSAGE = (
     "Добрый день, многоувлажняемый стримлер. Текущая интеграция с мемкоинами по токену более неактуальна, "
     "т.к. мы с коллегами из Memealerts договорились и сделали нативную интеграцию. "
@@ -185,6 +185,7 @@ class TwitchEventSubService:
     _SHOUTOUT_TARGET_TTL = 3600
     _SHOUTOUT_QUEUE_CAP = 3  # максимум отложенных шаутаутов на канал
     _SHOUTOUT_MAX_WAIT = 150.0  # окно ожидания: чуть больше глобального кулдауна Twitch (2 мин)
+    _SHOUTOUT_RATE_LIMIT_RETRIES = 2  # максимум повторных попыток после 429 (ручной shoutout / коллизии)
     _SHOUTOUT_DEFER_MARGIN = 0.1  # запас при ожидании собственного кулдауна (пишет этот же процесс)
 
     def _shoutout_lock(self, twitch_id: str) -> asyncio.Lock:
@@ -205,24 +206,23 @@ class TwitchEventSubService:
             return
 
         result: ShoutoutResult | None = None
-        for attempt in (0, 1):
+        rate_limit_retries = 0
+        while True:
             if not await self._wait_own_cooldown(user, cd_key):
                 return
-            async with self._shoutout_lock(user.twitch_id):
-                # NB: лок не перепроверяет cd после пробуждения ожидателя — коллизия
-                # стоит +1 лишнего API-вызова и лечится 429-ретраем (осознанный трейдофф:
-                # без пересна serialization заняла бы лок на весь сон).
-                result = await self._twitch.shoutout(user=user, shoutout_to=raider_id)
-                if result.status is ShoutoutStatus.SUCCESS and self._cache is not None:
-                    await self._cache.set_str(
-                        cd_key, str(time.time() + self._SHOUTOUT_CD_TTL), ttl=self._SHOUTOUT_CD_TTL
-                    )
-                    await self._cache.set_str(target_key, raider_id, ttl=self._SHOUTOUT_TARGET_TTL)
+            result = await self._send_shoutout_locked(user, cd_key, target_key, raider_id)
+            if result is None:
+                continue
             if result.status is not ShoutoutStatus.RATE_LIMITED:
                 break
             # 429: кулдаун, которого нет в нашем Redis — ручной shoutout стримера.
             wait_s = None if result.retry_at is None else result.retry_at - time.time()
-            if attempt == 0 and wait_s is not None and wait_s <= self._SHOUTOUT_MAX_WAIT:
+            if (
+                rate_limit_retries < self._SHOUTOUT_RATE_LIMIT_RETRIES
+                and wait_s is not None
+                and wait_s <= self._SHOUTOUT_MAX_WAIT
+            ):
+                rate_limit_retries += 1
                 logger.warning(
                     "Shoutout отложен на ~%.0fс: кулдаун Twitch, вероятно ручной shoutout стримера (twitch_id=%s, raider=%s)",
                     wait_s,
@@ -232,15 +232,44 @@ class TwitchEventSubService:
                 await asyncio.sleep(wait_s + 1.0)
                 continue
             logger.warning(
-                "Shoutout dropped: кулдаун Twitch дольше окна ожидания или неизвестен (twitch_id=%s, raider=%s, retry_at=%s)",
+                "Shoutout dropped: кулдаун Twitch дольше окна ожидания или бюджет ретраев исчерпан (twitch_id=%s, raider=%s, retry_at=%s)",
                 user.twitch_id,
                 raider_id,
                 result.retry_at,
             )
             return
-        if result is None:  # недостижимо: цикл всегда выполняет хотя бы одну итерацию
+        if result is None:  # недостижимо: выход из цикла только через break после send
             return
         await self._finish_shoutout(result, user=user, payload=payload)
+
+    async def _send_shoutout_locked(
+        self, user: User, cd_key: str, target_key: str, raider_id: str
+    ) -> ShoutoutResult | None:
+        """Отправить под локом канала с перепроверкой собственного кулдауна.
+
+        None — коллизия: другой ожидающий только что отправил (cd стал свежим),
+        вызывающий уходит в повторное ожидание без расхода API-вызова.
+        """
+        async with self._shoutout_lock(user.twitch_id):
+            if await self._own_cooldown_active(cd_key):
+                return None
+            result = await self._twitch.shoutout(user=user, shoutout_to=raider_id)
+            if result.status is ShoutoutStatus.SUCCESS and self._cache is not None:
+                await self._cache.set_str(cd_key, str(time.time() + self._SHOUTOUT_CD_TTL), ttl=self._SHOUTOUT_CD_TTL)
+                await self._cache.set_str(target_key, raider_id, ttl=self._SHOUTOUT_TARGET_TTL)
+            return result
+
+    async def _own_cooldown_active(self, cd_key: str) -> bool:
+        """Активен ли собственный кулдаун прямо сейчас (для перепроверки под локом)."""
+        if self._cache is None:
+            return False
+        raw = await self._cache.get_str(cd_key)
+        if not raw:
+            return False
+        try:
+            return float(raw) > time.time()
+        except ValueError:
+            return False
 
     async def _wait_own_cooldown(self, user: User, cd_key: str) -> bool:
         """Подождать собственный кулдаун (наша недавняя отправка).

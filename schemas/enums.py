@@ -92,3 +92,21 @@ class BanIssuerRole(StrEnum):
     MODERATOR = "moderator"
     STREAMER = "streamer"
     CHAT = "chat"
+
+
+class BalanceOperationType(StrEnum):
+    """Тип операции по балансу (balance_operations.type)."""
+
+    DEPOSIT = "deposit"
+    SPEND = "spend"
+
+
+class BalanceOperationAction(StrEnum):
+    """Повод операции по балансу (balance_operations.action)."""
+
+    # Пополнение администратором через /api/admin/balance/deposit
+    ADMIN_DEPOSIT = "admin_deposit"
+    # Генерация ИИ-стикера (списание, сумма уже с наценкой сервиса)
+    AI_STICKER = "ai_sticker"
+    # Синтетическое «историческое пополнение» на текущий баланс при внедрении истории
+    INITIAL_BALANCE = "initial_balance"

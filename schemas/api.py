@@ -1,12 +1,18 @@
 from datetime import datetime
 from decimal import Decimal
 from enum import StrEnum
-from typing import Literal
+from typing import Any, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, Field
 
-from schemas.enums import AIReferenceUsagePolicy, AIStickerModel, ChatbotDefaultTargetBehaviour
+from schemas.enums import (
+    AIReferenceUsagePolicy,
+    AIStickerModel,
+    BalanceOperationAction,
+    BalanceOperationType,
+    ChatbotDefaultTargetBehaviour,
+)
 
 
 class UpdateSettingsForm(BaseModel):
@@ -325,3 +331,45 @@ class HealthcheckResponseSchema(BaseModel):
 
     overall: Literal["ok", "error"]
     services: dict[str, HealthcheckServiceSchema]
+
+
+class UserSearchResultSchema(BaseModel):
+    """Пользователь сайта в подсказках поиска (/api/user/search)."""
+
+    login: str
+    twitch_id: str
+    avatar_url: str
+    source: Literal["user", "chatter"] = "user"
+
+
+class ChatterSuggestionSchema(BaseModel):
+    """Чаттер канала в подсказках (UserListManager чат-бота, аватара нет)."""
+
+    name: str
+    source: Literal["chatter"] = "chatter"
+
+
+class UserSearchResponseSchema(BaseModel):
+    """Ответ /api/user/search: пользователи сайта + (для context=bans) чаттеры канала."""
+
+    users: list[UserSearchResultSchema] = Field(default_factory=list)
+    chatters: list[ChatterSuggestionSchema] = Field(default_factory=list)
+
+
+class BalanceOperationSchema(BaseModel):
+    """Одна операция по балансу в истории /balance-history."""
+
+    id: int
+    created_at: str  # naive-UTC ISO без суффикса Z (конвенция API, см. bans.js)
+    type: BalanceOperationType
+    action: BalanceOperationAction
+    amount: Decimal
+    balance_after: Decimal
+    details: dict[str, Any] | None = None
+
+
+class BalanceHistoryResponseSchema(BaseModel):
+    """Ответ /api/user/balance/operations: страница истории + курсор следующей."""
+
+    items: list[BalanceOperationSchema]
+    next_cursor: int | None = None

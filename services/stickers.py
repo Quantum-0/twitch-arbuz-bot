@@ -13,9 +13,15 @@ from opentelemetry import trace
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from config import settings
-from database.models import CharacterInfo, GeneratedImage, TwitchUserSettings, User
+from database.models import BalanceOperation, CharacterInfo, GeneratedImage, TwitchUserSettings, User
 from schemas.api import StatsType
-from schemas.enums import AIReferenceUsagePolicy, AIStickerModel, FileStorageDir
+from schemas.enums import (
+    AIReferenceUsagePolicy,
+    AIStickerModel,
+    BalanceOperationAction,
+    BalanceOperationType,
+    FileStorageDir,
+)
 from services.ai import ImageBackground, OpenAIClient
 from services.image_resizer import ImageResizer
 from services.s3 import FileNotExistError, FileStorage
@@ -298,6 +304,17 @@ class StickersService:
                 )
             )
             locked.total_spent += delta
+            # История операций по балансу: delta уже включает наценку сервиса
+            session.add(
+                BalanceOperation(
+                    twitch_id=channel.twitch_id,
+                    type=BalanceOperationType.SPEND,
+                    action=BalanceOperationAction.AI_STICKER,
+                    amount=delta,
+                    balance_after=locked.total_deposited - locked.total_spent,
+                    details={"prompt": prompt, "chatter": chatter, "file_id": str(file_id)},
+                )
+            )
             await session.commit()
 
     @tracer.start_as_current_span("Stickers: Handle refs from prompt")

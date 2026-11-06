@@ -12,6 +12,7 @@ from sqlalchemy import (
     DateTime,
     Float,
     ForeignKey,
+    Identity,
     Index,
     Integer,
     Numeric,
@@ -37,6 +38,16 @@ class Base(DeclarativeBase):
 
 class User(Base):
     __tablename__ = "twitch_bot_users"
+    __table_args__ = (
+        # GIN-индекс pg_trgm для нечёткого поиска по логину (utils/user_search.py);
+        # объявлен в метаданных, чтобы alembic autogenerate не пытался его дропать.
+        Index(
+            "ix_twitch_bot_users_login_trgm",
+            "login_name",
+            postgresql_using="gin",
+            postgresql_ops={"login_name": "gin_trgm_ops"},
+        ),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     twitch_id: Mapped[str] = mapped_column(String, unique=True, index=True)
@@ -684,6 +695,44 @@ class Ban(Base):
         DateTime, server_default=text("(now() at time zone 'utc')"), nullable=False
     )
     expires_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, default=None)
+
+
+class BalanceOperation(Base):
+    """Операция по балансу стримера (начисление/списание, история для /balance-history).
+
+    ``twitch_id`` — twitch-ID пользователя (не суррогатный ``User.id``): по нему
+    джойнится выдача всех операций пользователя. ``amount`` при списании — полная
+    сумма с наценкой сервиса (``cost * ai.cost_multiplier + ai.cost_single_call``).
+    ``balance_after`` — снимок баланса сразу после операции (разбор споров).
+    ``details`` — контекст: промпт/чаттер стикера, логин админа при пополнении.
+    ``type``/``action`` — значения ``schemas.enums.BalanceOperationType`` /
+    ``BalanceOperationAction`` (строками, как ``bans.features``).
+    """
+
+    __tablename__ = "balance_operations"
+    __table_args__ = (
+        Index("ix_balance_operations_twitch_created", "twitch_id", "created_at"),
+        CheckConstraint("amount > 0", name="ck_balance_operations_amount_positive"),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, Identity(), primary_key=True)
+    twitch_id: Mapped[str] = mapped_column(
+        String, ForeignKey("twitch_bot_users.twitch_id", ondelete="CASCADE"), nullable=False
+    )
+
+    type: Mapped[str] = mapped_column(String(16), nullable=False)
+    action: Mapped[str] = mapped_column(String(32), nullable=False)
+
+    amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
+    balance_after: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
+
+    details: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True, default=None)
+
+    # naive-UTC: now() at time zone 'utc' не зависит от TimeZone сессии БД
+    # (прямой func.now() писал бы локальное время сервера).
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=text("(now() at time zone 'utc')"), nullable=False
+    )
 
 
 class TelegramSettings(Base):

@@ -62,7 +62,11 @@
         sort: "recommended",
         order: "desc",
         filters: Object.fromEntries(FILTER_KEYS.map((k) => [k, null])),
+        query: "",
     };
+
+    // Последний загруженный с сервера список; фильтрация поиска — на клиенте
+    let allRows = [];
 
     const els = {
         grid: document.getElementById("streamersGrid"),
@@ -74,6 +78,7 @@
         filtersBtn: document.getElementById("streamersFiltersBtn"),
         sortDropdown: document.getElementById("streamersSortDropdown"),
         filtersPanel: document.getElementById("streamersFilters"),
+        search: document.getElementById("streamersSearch"),
         template: document.getElementById("streamerCardTemplate"),
     };
 
@@ -83,6 +88,8 @@
         if (sort && VALID_SORTS.includes(sort)) state.sort = sort;
         const order = params.get("order");
         if (order && VALID_ORDERS.includes(order)) state.order = order;
+        const q = params.get("q");
+        if (q) state.query = q;
         for (const key of FILTER_KEYS) {
             const raw = params.get(`f_${key}`);
             if (raw === "true") state.filters[key] = true;
@@ -95,6 +102,7 @@
         const params = new URLSearchParams();
         if (state.sort !== "recommended") params.set("sort", state.sort);
         if (state.sort !== "recommended" && state.order !== "desc") params.set("order", state.order);
+        if (state.query) params.set("q", state.query);
         for (const key of FILTER_KEYS) {
             const v = state.filters[key];
             if (v !== null) params.set(`f_${key}`, v ? "true" : "false");
@@ -129,23 +137,70 @@
         els.filtersBtn.classList.toggle("active", anyFilterActive);
     }
 
+    // Нечёткий поиск на клиенте: подстрока или расстояние Левенштейна
+    // с порогом, растущим с длиной запроса (опечатки вида kwantum075 → quantum075).
+    function levenshtein(a, b) {
+        let prev = Array.from({length: b.length + 1}, (_, i) => i);
+        for (let i = 1; i <= a.length; i++) {
+            const cur = [i];
+            for (let j = 1; j <= b.length; j++) {
+                cur[j] = Math.min(
+                    prev[j] + 1,
+                    cur[j - 1] + 1,
+                    prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1),
+                );
+            }
+            prev = cur;
+        }
+        return prev[b.length];
+    }
+
+    function matchesQuery(login) {
+        const q = state.query.trim().replace(/^@/, "").toLowerCase();
+        if (!q) return true;
+        const l = login.toLowerCase();
+        if (l.includes(q)) return true;
+        const maxDistance = Math.max(1, Math.ceil(q.length / 3));
+        return levenshtein(q, l) <= maxDistance;
+    }
+
+    // Имя изгибается по дуге под аватаркой: чем длиннее, тем мельче шрифт,
+    // чтобы поместиться на дуге (~138px)
+    function setArcName(node, username) {
+        const path = node.querySelector(".streamer-name-path");
+        const textPath = node.querySelector(".streamer-name-textpath");
+        const text = node.querySelector(".streamer-name-text");
+        const arcId = `streamer-arc-${username}`;
+        path.id = arcId;
+        textPath.setAttribute("href", `#${arcId}`);
+        let name = username;
+        if (name.length > 20) name = name.slice(0, 20) + "…";
+        textPath.textContent = name;
+        const fontSize = name.length <= 14 ? 11 : name.length <= 17 ? 10 : 9;
+        text.setAttribute("font-size", String(fontSize));
+    }
+
     function renderStreamers(rows) {
         els.grid.innerHTML = "";
-        if (!rows || rows.length === 0) {
+        const filtered = (rows || []).filter((row) => matchesQuery(row.username));
+        if (filtered.length === 0) {
             const empty = document.createElement("div");
             empty.className = "streamers-empty";
-            empty.textContent = "Никого не найдено по выбранным фильтрам.";
+            empty.textContent = state.query.trim()
+                ? "Никого не найдено по текущему запросу."
+                : "Никого не найдено по выбранным фильтрам.";
             els.grid.appendChild(empty);
             return;
         }
         const fragment = document.createDocumentFragment();
-        for (const row of rows) {
+        for (const row of filtered) {
             const node = els.template.content.firstElementChild.cloneNode(true);
             const link = node.querySelector("a");
             link.href = `/profile/${row.username}`;
             const img = node.querySelector("img");
             img.src = row.avatar_url;
             img.alt = row.username;
+            setArcName(node, row.username);
             if (row.role && ROLE_BADGES[row.role]) {
                 const badge = node.querySelector(".streamer-badge");
                 badge.title = ROLE_BADGES[row.role].title;
@@ -205,7 +260,8 @@
             });
             if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
             const data = await resp.json();
-            renderStreamers(data);
+            allRows = data;
+            renderStreamers(allRows);
         } catch (e) {
             if (e.name === "AbortError") return;
             showError();
@@ -223,6 +279,15 @@
     }
 
     function initEvents() {
+        let searchTimer = null;
+        els.search.addEventListener("input", () => {
+            clearTimeout(searchTimer);
+            searchTimer = setTimeout(() => {
+                state.query = els.search.value.trim();
+                writeUrlState();
+                renderStreamers(allRows);
+            }, 150);
+        });
         els.sortBtn.addEventListener("click", (e) => {
             e.stopPropagation();
             const expanded = !els.sortDropdown.hidden;
@@ -269,6 +334,7 @@
 
     function init() {
         readUrlState();
+        els.search.value = state.query;
         renderControls();
         initEvents();
         fetchStreamers();

@@ -43,6 +43,8 @@
     <button id="streamersFiltersBtn" class="streamers-btn" type="button" aria-expanded="false">
         Фильтры
     </button>
+    <input type="search" id="streamersSearch" class="streamers-search" placeholder="Поиск по имени…"
+           autocomplete="off" maxlength="64" aria-label="Поиск стримера по имени">
     <div id="streamersSortDropdown" class="streamers-dropdown" hidden>
         <button type="button" data-sort="recommended">Рекомендуемое</button>
         <button type="button" data-sort="followers">По количеству фолловеров</button>
@@ -92,12 +94,19 @@
 
 <template id="streamerCardTemplate">
     <div class="streamer-container">
-        <a href="" target="_blank">
-            <img src="" alt="" class="streamer-avatar">
-        </a>
-        <div class="streamer-badge" hidden></div>
-        <div class="live-indicator" title="Сейчас в эфире" hidden></div>
-        <div class="streamer-likes" title="Количество лайков" hidden><span aria-hidden="true">♥</span> <span></span></div>
+        <div class="streamer-avatar-wrap">
+            <a href="" target="_blank">
+                <img src="" alt="" class="streamer-avatar">
+            </a>
+            <div class="streamer-badge" hidden></div>
+            <div class="live-indicator" title="Сейчас в эфире" hidden></div>
+            <div class="streamer-likes" title="Количество лайков" hidden><span aria-hidden="true">♥</span> <span></span></div>
+        </div>
+        <!-- Имя изгибается по дуге, огибая круглую аватарку снизу; id пути уникализируется в JS -->
+        <svg class="streamer-name-svg" viewBox="0 0 130 132" aria-hidden="true">
+            <path class="streamer-name-path" d="M 7.8 83 A 66 66 0 0 0 122.2 83" fill="none"></path>
+            <text class="streamer-name-text"><textPath class="streamer-name-textpath" href="" startOffset="50%" text-anchor="middle"></textPath></text>
+        </svg>
     </div>
 </template>
 {% endblock %}

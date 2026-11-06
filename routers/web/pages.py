@@ -476,6 +476,23 @@ async def stats_page(
     )
 
 
+@router.get("/balance-history", response_class=HTMLResponse)
+async def balance_history_page(
+    request: Request,
+    user: Annotated[User | None, Security(user_auth_optional)],
+):
+    """История начислений и списаний баланса (переход с панельки «Баланс»)."""
+    if not user:
+        return RedirectResponse("/")
+    return templates.TemplateResponse(
+        "balance_history.html",
+        {
+            "request": request,
+            "user": user,
+        },
+    )
+
+
 @router.get("/server", response_class=HTMLResponse)
 async def server_page(
     request: Request,
@@ -693,6 +710,10 @@ async def roadmap_page(
                     "и автозагрузка AI-стикеров (автозагрузка клипов — пока только бета-тестерам). "
                     "Запущен принудительный перенос пользователей на Memealerts API v2 "
                     "(уведомление о миграции получают первые 100 пользователей).",
+                },
+                {
+                    "date": "Ноябрь 2026",
+                    "text": "Добавлена поисковая система и система банов",
                 },
             ],
             "todos": [

@@ -8,8 +8,9 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Security
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from config import settings
 from container import Container
-from database.models import User
+from database.models import BalanceOperation, User
 from dependencies import get_db
 from routers.security_helpers import admin_auth, staff_auth, user_auth
 from schemas.api import (
@@ -18,6 +19,7 @@ from schemas.api import (
     AdminDepositResponseSchema,
     HealthcheckResponseSchema,
 )
+from schemas.enums import BalanceOperationAction, BalanceOperationType
 from services.healthcheck import run_healthchecks
 from services.mqtt import MQTTClient
 from twitch.chat.bot import ChatBot
@@ -60,7 +62,22 @@ async def deposit_balance(
     if deposited <= 0:
         return AdminDepositResponseSchema(twitch_login=user.login_name, deposited=Decimal("0.00"), balance=user.balance)
 
+    # Читаем атрибуты ДО update: session.execute(update) экспайрит instance в
+    # identity map, и повторное обращение к user.* стало бы синхронным
+    # lazy-load'ом (MissingGreenlet в async).
+    new_balance = user.balance + deposited
+    user_twitch_id = user.twitch_id
     await db.execute(sa.update(User).values(total_deposited=User.total_deposited + deposited).where(User.id == user.id))
+    db.add(
+        BalanceOperation(
+            twitch_id=user_twitch_id,
+            type=BalanceOperationType.DEPOSIT,
+            action=BalanceOperationAction.ADMIN_DEPOSIT,
+            amount=deposited,
+            balance_after=new_balance,
+            details={"admin": settings.app.admin_api_login},
+        )
+    )
     await db.commit()
     await db.refresh(user)
     return AdminDepositResponseSchema(twitch_login=user.login_name, deposited=deposited, balance=user.balance)

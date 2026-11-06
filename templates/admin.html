@@ -5,52 +5,28 @@
 {% block content %}
 <h2>Бета-тестирование</h2>
 
-<div style="display: flex; gap: 10px; margin-top: 20px; align-items: center;">
-    <input type="text" id="twitchLoginInput" placeholder="Введите Twitch логин"
-           style="flex: 1; padding: 10px; border: 1px solid #ccc; border-radius: 4px;">
-    <button onclick="addToBetaTest()" style="padding: 10px 20px; background-color: #4CAF50; color: white;
-            border: none; border-radius: 4px; cursor: pointer;">
-        Добавить
-    </button>
+<div class="admin-row">
+    <input type="text" id="twitchLoginInput" placeholder="Введите Twitch логин" maxlength="64" autocomplete="off">
+    <button id="betaTestBtn">Добавить</button>
 </div>
 
-<div id="statusMessage" style="margin-top: 20px; font-weight: bold;"></div>
+<div id="statusMessage" class="admin-status"></div>
+
+<h2 style="margin-top: 40px">Пополнение баланса</h2>
+
+<div class="admin-row">
+    <div class="admin-input-wrap">
+        <input type="text" id="depositLoginInput" placeholder="Логин стримера (начните вводить — подскажем)" maxlength="64" autocomplete="off">
+    </div>
+    <input type="number" id="depositAmount" min="1" max="500" step="0.01" placeholder="Сумма, 1–500">
+    <button id="depositBtn">Пополнить</button>
+</div>
+
+<div id="depositStatus" class="admin-status"></div>
 
 {% endblock %}
 
 {% block body_scripts %}
-<script>
-async function addToBetaTest() {
-    const input = document.getElementById("twitchLoginInput");
-    const status = document.getElementById("statusMessage");
-    const twitchLogin = input.value.trim();
-
-    if (!twitchLogin) {
-        status.textContent = "Пожалуйста, введите Twitch логин.";
-        status.style.color = "orange";
-        return;
-    }
-
-    try {
-        const response = await fetch(`/api/admin/add_to_beta_test?twitch_login=${encodeURIComponent(twitchLogin)}`, {
-            method: "POST"
-        });
-
-        const data = await response.json();
-
-        if (data.success === 1) {
-            status.textContent = `Пользователь "${twitchLogin}" успешно добавлен в бета-тестеры.`;
-            status.style.color = "green";
-            input.value = "";
-        } else {
-            status.textContent = `Не удалось добавить пользователя "${twitchLogin}".`;
-            status.style.color = "red";
-        }
-    } catch (error) {
-        status.textContent = "Ошибка при выполнении запроса.";
-        status.style.color = "red";
-        console.error(error);
-    }
-}
-</script>
+<script src="/static/js/user-suggest.js"></script>
+<script src="/static/js/admin.js"></script>
 {% endblock %}
