@@ -360,7 +360,7 @@ class BalanceOperationSchema(BaseModel):
     """Одна операция по балансу в истории /balance-history."""
 
     id: int
-    created_at: str  # naive-UTC ISO без суффикса Z (конвенция API, см. bans.js)
+    created_at: datetime
     type: BalanceOperationType
     action: BalanceOperationAction
     amount: Decimal

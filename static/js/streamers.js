@@ -164,8 +164,6 @@
         return levenshtein(q, l) <= maxDistance;
     }
 
-    // Имя изгибается по дуге под аватаркой: чем длиннее, тем мельче шрифт,
-    // чтобы поместиться на дуге (~138px)
     function setArcName(node, username) {
         const path = node.querySelector(".streamer-name-path");
         const textPath = node.querySelector(".streamer-name-textpath");
@@ -176,7 +174,7 @@
         let name = username;
         if (name.length > 20) name = name.slice(0, 20) + "…";
         textPath.textContent = name;
-        const fontSize = name.length <= 14 ? 11 : name.length <= 17 ? 10 : 9;
+        const fontSize = name.length <= 14 ? 12 : name.length <= 17 ? 11 : 10;
         text.setAttribute("font-size", String(fontSize));
     }
 

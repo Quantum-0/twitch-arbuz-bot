@@ -37,7 +37,7 @@ async def list_operations(
         items=[
             BalanceOperationSchema(
                 id=op.id,
-                created_at=op.created_at.isoformat(),
+                created_at=op.created_at,
                 type=op.type,
                 action=op.action,
                 amount=op.amount,
