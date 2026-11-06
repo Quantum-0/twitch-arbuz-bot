@@ -171,6 +171,13 @@ html, body {
     z-index: -1;
 }
 
+/* Пасхалка «сборщик точек» (static/js/dots-easter-egg.js): приглушаем весь интерфейс,
+   оставляя читаемыми канвас с точками и уведомления. */
+body.dots-easter-egg > *:not(#stars-bg):not(.notification-container) {
+    opacity: 0.3;
+    transition: opacity 1.5s ease;
+}
+
 header {
     background: var(--color-header);
     /* border-radius: 16px; */

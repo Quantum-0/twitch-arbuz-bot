@@ -91,6 +91,47 @@
         if (!document.hidden) frame = requestAnimationFrame(draw);
     }
 
+    function spawnPoint(x, y) {
+        return {
+            x: x,
+            y: y,
+            vx: (Math.random() - 0.5) * settings.speed,
+            vy: (Math.random() - 0.5) * settings.speed,
+            radius: 1 + Math.random() * 1.4
+        };
+    }
+
+    // Публичный API для пасхалки со сбором точек (js/dots-easter-egg.js).
+    window.starsBg = {
+        // Сколько точек сейчас в радиусе radius от курсора (0, если курсора нет).
+        nearMouseCount: function (radius) {
+            if (mouse.x === null) return 0;
+            var count = 0;
+            for (var i = 0; i < points.length; i++) {
+                if (Math.hypot(points[i].x - mouse.x, points[i].y - mouse.y) <= radius) count++;
+            }
+            return count;
+        },
+        // Добавить точки: кольцом вокруг курсора, чтобы они видимым ручьём стеклись к нему.
+        addPoints: function (n) {
+            for (var i = 0; i < n; i++) {
+                var x, y;
+                if (mouse.x !== null) {
+                    var angle = Math.random() * Math.PI * 2;
+                    var distance = 100 + Math.random() * 250;
+                    x = mouse.x + Math.cos(angle) * distance;
+                    y = mouse.y + Math.sin(angle) * distance;
+                } else {
+                    x = Math.random() * width;
+                    y = Math.random() * height;
+                }
+                points.push(spawnPoint(x, y));
+            }
+            // resize() пересоздаёт точки по settings.count — учитываем добавленные.
+            settings.count = points.length;
+        }
+    };
+
     window.addEventListener("resize", resize);
     window.addEventListener("pointermove", function (event) {
         mouse.x = event.clientX;
