@@ -147,6 +147,47 @@
         </div>
         <button class="overlay-toggle-settings">Настройки</button>
         <div class="overlay-settings">
+            <div class="overlay-control overlay-radio-panel">
+              <div class="target-behaviour-title">Размер сетки (ширина × высота)</div>
+              <fieldset class="overlay-radio-options tiles">
+                <label class="overlay-radio-option" for="pair-grid-3x4">
+                    <input type="radio" id="pair-grid-3x4" data-param="grid" name="pair-grid" value="3x4">
+                    <span>3×4</span>
+                </label>
+                <label class="overlay-radio-option" for="pair-grid-4x3">
+                    <input type="radio" id="pair-grid-4x3" data-param="grid" name="pair-grid" value="4x3">
+                    <span>4×3</span>
+                </label>
+                <label class="overlay-radio-option" for="pair-grid-5x4">
+                    <input type="radio" id="pair-grid-5x4" data-param="grid" name="pair-grid" value="5x4" checked>
+                    <span>5×4</span>
+                </label>
+                <label class="overlay-radio-option" for="pair-grid-4x5">
+                    <input type="radio" id="pair-grid-4x5" data-param="grid" name="pair-grid" value="4x5">
+                    <span>4×5</span>
+                </label>
+                <label class="overlay-radio-option" for="pair-grid-5x5">
+                    <input type="radio" id="pair-grid-5x5" data-param="grid" name="pair-grid" value="5x5">
+                    <span>5×5</span>
+                </label>
+                <label class="overlay-radio-option" for="pair-grid-4x4">
+                    <input type="radio" id="pair-grid-4x4" data-param="grid" name="pair-grid" value="4x4">
+                    <span>4×4</span>
+                </label>
+                <label class="overlay-radio-option" for="pair-grid-3x3">
+                    <input type="radio" id="pair-grid-3x3" data-param="grid" name="pair-grid" value="3x3">
+                    <span>3×3</span>
+                </label>
+                <label class="overlay-radio-option" for="pair-grid-2x5">
+                    <input type="radio" id="pair-grid-2x5" data-param="grid" name="pair-grid" value="2x5">
+                    <span>2×5</span>
+                </label>
+                <label class="overlay-radio-option" for="pair-grid-5x2">
+                    <input type="radio" id="pair-grid-5x2" data-param="grid" name="pair-grid" value="5x2">
+                    <span>5×2</span>
+                </label>
+              </fieldset>
+            </div>
             <div class="overlay-control">
               Использование стандартных смайликов твича
               <label class="switch">
@@ -160,6 +201,68 @@
                 <input type="checkbox" data-param="arbuz" />
                 <span class="slider"></span>
               </label>
+            </div>
+            <div class="overlay-control overlay-radio-panel">
+              <div class="target-behaviour-title">Цветовая тема</div>
+              <fieldset class="overlay-radio-options">
+                <label class="overlay-radio-option" for="pair-theme-sunset">
+                    <input type="radio" id="pair-theme-sunset" data-param="theme" name="pair-theme" value="sunset" checked>
+                    <span>Закат (оранжевая)</span>
+                </label>
+                <label class="overlay-radio-option" for="pair-theme-dark">
+                    <input type="radio" id="pair-theme-dark" data-param="theme" name="pair-theme" value="dark">
+                    <span>Тёмная</span>
+                </label>
+                <label class="overlay-radio-option" for="pair-theme-light">
+                    <input type="radio" id="pair-theme-light" data-param="theme" name="pair-theme" value="light">
+                    <span>Светлая (бледно-серая)</span>
+                </label>
+                <label class="overlay-radio-option" for="pair-theme-ocean">
+                    <input type="radio" id="pair-theme-ocean" data-param="theme" name="pair-theme" value="ocean">
+                    <span>Морская (синяя)</span>
+                </label>
+                <label class="overlay-radio-option" for="pair-theme-emerald">
+                    <input type="radio" id="pair-theme-emerald" data-param="theme" name="pair-theme" value="emerald">
+                    <span>Изумрудная</span>
+                </label>
+                <label class="overlay-radio-option" for="pair-theme-violet">
+                    <input type="radio" id="pair-theme-violet" data-param="theme" name="pair-theme" value="violet">
+                    <span>Фиолетовая</span>
+                </label>
+                <label class="overlay-radio-option" for="pair-theme-custom">
+                    <input type="radio" id="pair-theme-custom" data-param="theme" name="pair-theme" value="custom">
+                    <span>Своя</span>
+                </label>
+              </fieldset>
+            </div>
+            <div data-visible-when-param="theme" data-visible-when-value="custom">
+              <div class="overlay-control">
+                Цвет рубашки (начало)
+                <input type="color" value="#ff8a00" data-param="front1">
+              </div>
+              <div class="overlay-control">
+                Цвет рубашки (конец)
+                <input type="color" value="#e52e71" data-param="front2">
+              </div>
+              <div class="overlay-control">
+                Цвет открытой карточки (начало)
+                <input type="color" value="#4facfe" data-param="back1">
+              </div>
+              <div class="overlay-control">
+                Цвет открытой карточки (конец)
+                <input type="color" value="#00f2fe" data-param="back2">
+              </div>
+            </div>
+            <div class="overlay-control">
+              Показывать ники
+              <label class="switch">
+                <input type="checkbox" data-param="show_names" checked />
+                <span class="slider"></span>
+              </label>
+            </div>
+            <div class="overlay-control">
+              Пауза перед новой игрой (в секундах)
+              <input type="range" min="3" max="30" step="1" value="8" data-param="restart_delay"/>
             </div>
             <div class="overlay-control">
               Отступ слева

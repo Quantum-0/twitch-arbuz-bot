@@ -128,6 +128,21 @@ function initOverlays() {
             });
         });
 
+        // Показ/скрытие настроек по выбранному radio (data-visible-when-param / -value):
+        // например, цвета «своей» темы видны только при теме «Своя».
+        const syncConditionalControls = () => {
+            card.querySelectorAll("[data-visible-when-param]").forEach(el => {
+                const checked = card.querySelector(
+                    `input[type="radio"][data-param="${el.dataset.visibleWhenParam}"]:checked`
+                );
+                el.hidden = !checked || checked.value !== el.dataset.visibleWhenValue;
+            });
+        };
+        card.querySelectorAll("input[type='radio'][data-param]").forEach(el => {
+            el.addEventListener("change", syncConditionalControls);
+        });
+        syncConditionalControls();
+
         const toggleBtn = card.querySelector(".overlay-toggle-settings");
         if (toggleBtn) {
             toggleBtn.addEventListener("click", () => {

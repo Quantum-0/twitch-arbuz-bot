@@ -577,6 +577,16 @@ section h3 {
     margin-top: 2px;
 }
 
+/* Компактные плитки (выбор размера сетки игры «Найди пару») */
+.overlay-radio-options.tiles {
+    grid-template-columns: repeat(3, 1fr);
+}
+
+.overlay-radio-options.tiles .overlay-radio-option {
+    justify-content: center;
+    padding: 8px 4px;
+}
+
 /* Specific UI */
 
 .twitch-login-button {

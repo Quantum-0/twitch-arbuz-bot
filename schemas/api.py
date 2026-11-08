@@ -79,6 +79,18 @@ class CheckStatusResponseSchema(BoolResponseSchema):
     warnings: list[str] = Field(default_factory=list)
 
 
+class PairCardSchema(BaseModel):
+    id: str
+    img: str
+    caption: str
+
+
+class PairDeckSchema(BaseModel):
+    cards: list[PairCardSchema]
+    # В сетке нечётное число клеток — колода содержит особую «спиральную» карточку.
+    spiral: bool = False
+
+
 class CheckMemealertsRewardStatusResponseSchema(CheckStatusResponseSchema):
     state: Literal["missing"] | Literal["broken"] | Literal["ok"]
 
