@@ -395,6 +395,11 @@ button {
 button:hover { background-color: var(--color-primary-hover); }
 button[disabled] { opacity: 0.6; cursor: not-allowed; }
 
+/* Атрибут hidden обязан побеждать любые display-правила автора: глобальный
+   button { display: block } перекрывал UA-стиль [hidden] и «скрытые» кнопки
+   (hidden-атрибут) оставались видимыми. */
+[hidden] { display: none !important; }
+
 .btn-danger { background-color: var(--color-danger) !important; }
 .btn-danger:hover { background-color: var(--color-danger-hover) !important; }
 
@@ -2341,3 +2346,89 @@ section h3 {
 .boosty-promo .boosty-btn:hover { filter: brightness(1.08); }
 .boosty-promo .boosty-btn:active { transform: translateY(1px); }
 .boosty-promo .boosty-promo-note { color: var(--color-text-muted); font-size: 0.95rem; margin-bottom: 0; }
+
+/* ── Библиотека веб-компонентов q0ui (static/js/ui) ─────────────────────── */
+
+/* FOUC-защита: пока модуль библиотеки не загрузился, компоненты не мигают
+   неотстилённым содержимым и не роняют вёрстку. */
+q0ui-switch:not(:defined), q0ui-indicator:not(:defined) {
+    display: inline-block;
+    visibility: hidden;
+}
+q0ui-switch:not(:defined) { width: 50px; height: 26px; }
+q0ui-slider:not(:defined), q0ui-number:not(:defined), q0ui-status-card:not(:defined) {
+    display: block;
+    visibility: hidden;
+}
+q0ui-slider:not(:defined) { min-height: 28px; }
+
+/* Строка «настройка + тумблер/слайдер» в карточках оверлеев */
+.overlay-control.overlay-control-switch-row {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+/* ── Панель /panel: секция Telegram ───────────────────────────────────────── */
+
+.toggle-label.tg-column {
+    flex-direction: column;
+    align-items: stretch;
+}
+
+/* Текстовые шаблоны уведомлений Telegram (бывшие инлайн-стили). */
+.tg-textarea {
+    background: var(--color-bg-muted);
+    border: 1px solid var(--color-border);
+    border-radius: 10px;
+    color: var(--color-text);
+    font-family: inherit;
+    font-size: 14px;
+    max-width: 720px;
+    padding: 10px;
+    resize: vertical;
+    transition: border-color 0.2s;
+}
+.tg-textarea:focus {
+    outline: none;
+    border-color: var(--color-primary);
+}
+
+/* Кнопки в строках секции Telegram (бывшие инлайн-стили). */
+.tg-section-block .btn-danger {
+    display: inline-block;
+    margin: 0;
+}
+.tg-save-template-btn {
+    margin: 10px 0 0 0;
+    max-width: 200px;
+}
+
+/* ── Витрина компонентов /ui-demo ─────────────────────────────────────────── */
+
+.ui-demo-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 24px;
+    margin: 12px 0;
+}
+.ui-demo-cell {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+}
+.ui-demo-block {
+    margin: 12px 0;
+}
+.ui-demo-block p {
+    margin: 6px 0;
+    font-size: 14px;
+    opacity: 0.8;
+}
+.ui-demo-row button {
+    margin: 0;
+    display: inline-block;
+    padding: 8px 14px;
+}

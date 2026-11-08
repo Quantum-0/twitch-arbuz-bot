@@ -5,14 +5,14 @@
 <div class="toggles-grid active">
     <div class="toggle-label">
         <span>Включить shoutout на рейды</span>
-        <div class="toggle-switch {% if settings.enable_shoutout_on_raid %}active{% endif %}" data-name="enable_shoutout_on_raid"></div>
+        <q0ui-switch name="enable_shoutout_on_raid" {% if settings.enable_shoutout_on_raid %}checked{% endif %}></q0ui-switch>
     </div>
 </div>
 
 <div style="margin-top: 20px;">
     <h4>Ключ оверлеев</h4>
     <p><small>Секретный ключ для авторизации оверлеев (управление из чата, словотрон). Если ключ скомпрометирован, вы можете сбросить его. После сброса обновите ссылки на оверлеи в OBS.</small></p>
-    <button class="install-btn" onclick="resetOverlaySecret()">Сбросить ключ оверлеев</button>
+    <button class="install-btn" id="reset-overlay-secret-btn" type="button">Сбросить ключ оверлеев</button>
 </div>
 
 <div style="margin-top: 20px;">
@@ -20,18 +20,24 @@
     <p><small>Привязанный Telegram может использоваться для уведомлений о проблемах с вашими интеграциями — например, если Twitch отзовёт авторизацию бота.</small></p>
     {% if user.telegram and user.telegram.telegram_user_id %}
         {% if user.telegram.telegram_username %}<p id="tg-username-line"><small>Привязан Telegram: @{{ user.telegram.telegram_username }}</small></p>{% endif %}
-        <button class="btn-danger" onclick="unlinkTelegramAccount()">Отвязать Telegram</button>
-    {% elif telegram_login_enabled %}
-        <button class="install-btn" onclick="linkTelegramAccount()">Привязать Telegram</button>
     {% endif %}
+    <button class="btn-danger" id="tg-unlink-btn" type="button"
+            {% if not (user.telegram and user.telegram.telegram_user_id) %}hidden{% endif %}>
+        Отвязать Telegram
+    </button>
+    <button class="install-btn" id="tg-link-btn" type="button"
+            {% if (user.telegram and user.telegram.telegram_user_id) or not telegram_login_enabled %}hidden{% endif %}>
+        Привязать Telegram
+    </button>
 </div>
 
 <div style="margin-top: 20px;">
     <h4>Steam</h4>
     <p><small>Это позволит использовать команду !стим и добавит ссылку на ваш стим в команду !ссылки</small></p>
-    {% if user.links.steam_id %}
-        <button class="btn-danger" onclick="unlinkSteam()">Отвязать Steam</button>
-    {% else %}
-        <a href="/auth/steam"><img src="https://shared.fastly.steamstatic.com/community_assets/images/steamworks_docs/russian/sits_large_border.png"/></a>
-    {% endif %}
+    <button class="btn-danger" id="steam-unlink-btn" type="button" {% if not user.links.steam_id %}hidden{% endif %}>
+        Отвязать Steam
+    </button>
+    <a href="/auth/steam" id="steam-link" {% if user.links.steam_id %}hidden{% endif %}>
+        <img src="https://shared.fastly.steamstatic.com/community_assets/images/steamworks_docs/russian/sits_large_border.png"/>
+    </a>
 </div>

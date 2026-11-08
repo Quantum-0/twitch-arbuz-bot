@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+
+{% block title %}q0ui — витрина компонентов{% endblock %}
+{% block description %}Витрина библиотеки веб-компонентов q0ui.{% endblock %}
+
+{% block content %}
+<h2>Витрина компонентов <code>q0ui</code></h2>
+<p>Библиотека веб-компонентов проекта (Shadow DOM, ES-модули, темизация CSS-переменными).
+   Переключите тему сайта (кнопка в шапке), чтобы проверить компоненты в обеих темах.</p>
+
+<section>
+    <h3>&lt;q0ui-switch&gt;</h3>
+    <div class="ui-demo-row">
+        <div class="ui-demo-cell"><q0ui-switch id="demo-switch-1"></q0ui-switch> <span>выкл</span></div>
+        <div class="ui-demo-cell"><q0ui-switch checked></q0ui-switch> <span>вкл</span></div>
+        <div class="ui-demo-cell"><q0ui-switch checked disabled></q0ui-switch> <span>disabled</span></div>
+    </div>
+    <p>Событие change: <output id="demo-switch-log">—</output> (работает клавиатура: Tab + Space/Enter)</p>
+</section>
+
+<section>
+    <h3>&lt;q0ui-slider&gt;</h3>
+    <div class="ui-demo-block" style="max-width: 500px;">
+        <p>Нормализованный 0..1 с тиками и snap (как в исходном фидле):</p>
+        <q0ui-slider id="demo-slider-1" value="0.3" tick-step="0.1" snap></q0ui-slider>
+    </div>
+    <div class="ui-demo-block" style="max-width: 500px;">
+        <p>Реальные значения с подписью и единицами:</p>
+        <q0ui-slider id="demo-slider-2" label="Размер" units="px" min="8" max="256" step="8" value="64"></q0ui-slider>
+    </div>
+    <div class="ui-demo-block" style="max-width: 500px;">
+        <p>Без подписи, клавиатура (стрелки/Home/End):</p>
+        <q0ui-slider min="0" max="60" step="0.5" value="5"></q0ui-slider>
+    </div>
+    <p>Значения: <output id="demo-slider-log">—</output></p>
+</section>
+
+<section>
+    <h3>&lt;q0ui-number&gt;</h3>
+    <div class="ui-demo-row">
+        <q0ui-number id="demo-number-1" min="1" max="100" step="1" value="10" units="шт" editable></q0ui-number>
+        <q0ui-number min="0" max="5" step="0.5" value="1.5"></q0ui-number>
+        <q0ui-number value="42" disabled></q0ui-number>
+    </div>
+    <p>Значение: <output id="demo-number-log">—</output> (ввод понимает запятую, стрелки ↑/↓ в поле)</p>
+</section>
+
+<section>
+    <h3>&lt;q0ui-indicator&gt;</h3>
+    <div class="ui-demo-row">
+        <span class="ui-demo-cell"><q0ui-indicator></q0ui-indicator> нет состояния</span>
+        <span class="ui-demo-cell"><q0ui-indicator state="ok"></q0ui-indicator> ok</span>
+        <span class="ui-demo-cell"><q0ui-indicator state="warn"></q0ui-indicator> warn</span>
+        <span class="ui-demo-cell"><q0ui-indicator state="error" tooltip="Тултип индикатора"></q0ui-indicator> error (с тултипом)</span>
+    </div>
+</section>
+
+<section>
+    <h3>&lt;q0ui-status-card&gt;</h3>
+    <div class="cards-grid">
+        <q0ui-status-card state="ok" tooltip="Всё хорошо">
+            <h3>Ручной режим: ok</h3>
+        </q0ui-status-card>
+        <q0ui-status-card state="error" tooltip="Что-то сломалось">
+            <h3>Ручной режим: error</h3>
+        </q0ui-status-card>
+        <q0ui-status-card id="demo-status-card" tooltip="Состояние меняется кнопками">
+            <h3>Живая карточка</h3>
+        </q0ui-status-card>
+    </div>
+    <div class="ui-demo-row">
+        <button type="button" data-demo-state="ok">ok</button>
+        <button type="button" data-demo-state="warn">warn</button>
+        <button type="button" data-demo-state="error">error</button>
+        <button type="button" data-demo-problems>проблемы + варнинги</button>
+    </div>
+</section>
+{% endblock %}
+
+{% block body_scripts %}
+<script type="module" src="{{ static_url('js/ui/index.js') }}"></script>
+<script type="module">
+    const $ = (sel) => document.querySelector(sel);
+
+    $("#demo-switch-1").addEventListener("change", (e) => {
+        $("#demo-switch-log").value = `checked=${e.detail.checked}`;
+    });
+
+    const logSlider = (id) => {
+        $(id).addEventListener("input", (e) => {
+            $("#demo-slider-log").value = `${$(id).value} (input)`;
+        });
+        $(id).addEventListener("change", (e) => {
+            $("#demo-slider-log").value = `${e.detail.value} (change)`;
+        });
+    };
+    logSlider("#demo-slider-1");
+    logSlider("#demo-slider-2");
+
+    $("#demo-number-1").addEventListener("change", (e) => {
+        $("#demo-number-log").value = `${e.detail.value} (change)`;
+    });
+    $("#demo-number-1").addEventListener("input", (e) => {
+        $("#demo-number-log").value = `${e.detail.value} (input)`;
+    });
+
+    const demoCard = $("#demo-status-card");
+    demoCard.setStatus("ok");
+    document.querySelectorAll("[data-demo-state]").forEach((btn) => {
+        btn.addEventListener("click", () => {
+            demoCard.setStatus(btn.dataset.demoState);
+        });
+    });
+    document.querySelector("[data-demo-problems]").addEventListener("click", () => {
+        demoCard.setStatus("error", {
+            problems: ["twitch_token_invalid", "награда_отсутствует"],
+            warnings: ["welcome-bonus выключен на Memealerts"],
+        });
+    });
+</script>
+{% endblock %}

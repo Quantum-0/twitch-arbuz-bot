@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>q0ui harness</title>
+<style>
+  body { font-family: sans-serif; margin: 20px; color: #333; background: #fff; }
+  :root {
+    --color-primary: #4CAF50; --color-primary-hover: #45a049; --color-border: #ccc;
+    --color-bg-secondary: #fff; --color-bg-muted: #fafafa; --color-text: #333;
+    --color-text-muted: #888; --color-danger: #e53935;
+  }
+  #results li { font-family: monospace; }
+  #results .fail { color: #c00; font-weight: bold; }
+  .staged { max-width: 420px; border: 1px dashed #999; padding: 12px; margin: 10px 0; }
+</style>
+</head>
+<body>
+<h3>q0ui component harness</h3>
+<div class="staged">
+  <div class="row"><q0ui-switch id="sw1" name="test_setting"></q0ui-switch> switch</div>
+  <q0ui-slider id="sl1" label="Позиция" min="0" max="1" step="0.01" value="0.5"></q0ui-slider>
+  <q0ui-slider id="sl2" value="0.3" tick-step="0.1" snap></q0ui-slider>
+  <q0ui-number id="num1" min="1" max="100" step="1" value="10" editable units="шт"></q0ui-number>
+  <q0ui-number id="num2" min="0" max="5" step="0.5" value="1.5"></q0ui-number>
+  <q0ui-indicator id="ind1" state="ok" tooltip="ок"></q0ui-indicator>
+  <q0ui-status-card id="card1" endpoint="/api/user/check/sse" interval="1" tooltip="опрос">
+    <h3>Карточка с опросом</h3>
+  </q0ui-status-card>
+  <q0ui-status-card id="card2" state="warn"><h3>Ручная карточка</h3></q0ui-status-card>
+  <q0ui-status-card id="card-ok" endpoint="/api/user/check/telegram" interval="3600"><h3>OK+warnings</h3></q0ui-status-card>
+  <q0ui-status-card id="card-reauth" endpoint="/api/user/check/reauth" interval="3600"><h3>Реавторизация</h3></q0ui-status-card>
+  <button id="reward-btn" type="button">Загрузка...</button>
+</div>
+<ul id="results"></ul>
+<script>
+  // Результаты пишет харнесс; pytest читает window.__harnessDone.
+  window.__check = function check(name, cond) {
+    const li = document.createElement("li");
+    li.className = cond ? "pass" : "fail";
+    li.textContent = (cond ? "PASS" : "FAIL") + ": " + name;
+    document.getElementById("results").appendChild(li);
+    window.__harnessResults = window.__harnessResults || [];
+    window.__harnessResults.push({ name: name, pass: Boolean(cond) });
+  };
+  // Счётчик опросов SSE-ручки: проверяем, что поллинг не дублируется и
+  // честно останавливается (ставится ДО импорта модулей).
+  window.__sseFetches = 0;
+  const _origFetch = window.fetch.bind(window);
+  window.fetch = (...args) => {
+    if (String(args[0]).includes("/api/user/check/sse")) window.__sseFetches++;
+    return _origFetch(...args);
+  };
+</script>
+<script type="module">
+  import "/static/js/ui/index.js";
+  import { createRewardButton } from "/static/js/ui/bindings.js";
+
+  const check = window.__check;
+  const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+  await Promise.all([
+    "q0ui-switch", "q0ui-slider", "q0ui-number", "q0ui-indicator", "q0ui-status-card",
+  ].map((tag) => customElements.whenDefined(tag)));
+  check("все 5 компонентов зарегистрированы", true);
+
+  // ── switch ──
+  const sw = document.getElementById("sw1");
+  check("switch: исходно выкл", sw.checked === false);
+  let changeFired = null;
+  sw.addEventListener("change", (e) => { changeFired = e.detail; });
+  sw.click();
+  check("switch: клик включил + событие change", sw.checked === true && changeFired && changeFired.checked === true);
+  check("switch: aria-checked синхронизирован", sw.getAttribute("aria-checked") === "true");
+  sw.dispatchEvent(new KeyboardEvent("keydown", { key: " " }));
+  check("switch: Space выключил", sw.checked === false);
+  check("switch: shadow-разметка построена", Boolean(sw.shadowRoot.querySelector(".track")));
+
+  // ── slider ──
+  const sl = document.getElementById("sl1");
+  check("slider: значение из атрибута", sl.value === 0.5);
+  sl.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }));
+  check("slider: ArrowRight увеличил на step", Math.abs(sl.value - 0.51) < 1e-9);
+  sl.dispatchEvent(new KeyboardEvent("keydown", { key: "End", bubbles: true }));
+  check("slider: End = max", sl.value === 1);
+  check("slider: aria-valuenow обновлён", sl.getAttribute("aria-valuenow") === "1");
+  sl.value = 0.25;
+  check("slider: set value работает", sl.value === 0.25);
+  const sl2 = document.getElementById("sl2");
+  check("slider: тики отрисованы (9 шт)", sl2.shadowRoot.querySelectorAll(".tick").length === 9);
+  check("slider: подпись видна только с label",
+    sl.shadowRoot.querySelector(".header").style.display !== "none" &&
+    sl2.shadowRoot.querySelector(".header").style.display === "none");
+
+  // ── number ──
+  const num = document.getElementById("num1");
+  check("number: значение из атрибута", num.value === 10);
+  num.shadowRoot.querySelector(".btn-plus").click();
+  check("number: кнопка + увеличивает", num.value === 11);
+  const field = num.shadowRoot.querySelector(".field");
+  field.value = "7,5";
+  field.dispatchEvent(new Event("change", { bubbles: true }));
+  check("number: ввод с запятой прибит к шагу (→8)", num.value === 8);
+  const num2 = document.getElementById("num2");
+  num2.value = 100;
+  check("number: кламп к max", num2.value === 5);
+  check("number: plus disabled на границе", num2.shadowRoot.querySelector(".btn-plus").disabled === true);
+  check("number: units отрисованы", num.shadowRoot.querySelector(".units").textContent === "шт");
+
+  // ── indicator ──
+  check("indicator: dot построен", Boolean(document.getElementById("ind1").shadowRoot.querySelector(".dot")));
+
+  // ── status-card: поллинг ──
+  const card = document.getElementById("card1");
+  await wait(200);
+  check("status-card: один начальный опрос (без дублей)", window.__sseFetches === 1);
+  check("status-card: lastStatus заполнен", card.lastStatus !== null);
+  check("status-card: ok по result=true", card.state === "ok");
+  card.stop();
+  await wait(2600);
+  check("status-card: stop() останавливает поллинг", window.__sseFetches === 1);
+
+  const cardOk = document.getElementById("card-ok");
+  await wait(200);
+  check("status-card: warn при warnings (telegram-мок)", cardOk.state === "warn");
+  check("status-card: warnings отрисованы", cardOk.shadowRoot.querySelector(".warnings").children.length === 1);
+  cardOk.stop();
+
+  const cardReauth = document.getElementById("card-reauth");
+  await wait(200);
+  check("status-card: error по result=false", cardReauth.state === "error");
+  const problemHtml = cardReauth.shadowRoot.querySelector(".problems").innerHTML;
+  check("status-card: twitch_token_invalid → ссылка", problemHtml.includes('href="/login"'));
+  cardReauth.stop();
+
+  // ── status-card: ручной режим ──
+  const card2 = document.getElementById("card2");
+  check("status-card: ручной state из атрибута", card2.state === "warn");
+  card2.setStatus("ok");
+  check("status-card: setStatus работает", card2.state === "ok");
+
+  // ── createRewardButton: lastStatus-подхват (гонка первого события) ──
+  const rewardBtn = document.getElementById("reward-btn");
+  const calls = [];
+  createRewardButton(rewardBtn, cardReauth, {
+    create: () => calls.push("create"),
+    fix: () => calls.push("fix"),
+    delete: () => calls.push("delete"),
+  });
+  check("reward-кнопка: twitch_token_invalid → loading (кнопки бесполезны)",
+    rewardBtn.dataset.action === "loading" && rewardBtn.disabled === true);
+
+  const rewardBtn2 = document.createElement("button");
+  createRewardButton(rewardBtn2, card, {});
+  check("reward-кнопка: ok → delete + btn-danger",
+    rewardBtn2.dataset.action === "delete" && rewardBtn2.classList.contains("btn-danger"));
+
+  // Итог
+  const results = window.__harnessResults;
+  const failed = results.filter((r) => !r.pass);
+  document.title = failed.length === 0
+    ? "HARNESS: ALL PASS (" + results.length + ")"
+    : "HARNESS: " + failed.length + " FAILED";
+  window.__harnessDone = { total: results.length, failed: failed.length, failedNames: failed.map((r) => r.name) };
+</script>
+</body>
+</html>

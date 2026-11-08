@@ -3,7 +3,7 @@
     <p>Ниже представлены различные интерактивные <i>и не очень</i> оверлеи для стрима, которые вы можете подключить в OBS как браузерный источник.</p>
     <p>Все оверлеи рассчитаны на то, чтоб были растянуты на всю сцену, иначе они могут некорректно работать.</p>
     <p>Количество оверлеев не ограничено, подключать можете сколько угодно и каких угодно. <i>(Например, можете добавить несколько разных звёздочек с различным положением и цветом)</i></p>
-    <p onclick="document.getElementById('wtf-is-heat-clip').style.display = 'flex';"><u>Да кто такой этот ваш Heat?!</u></p>
+    <p id="wtf-is-heat-link" style="cursor: pointer;"><u>Да кто такой этот ваш Heat?!</u></p>
     <div id="wtf-is-heat-clip" style="display: none">
         <iframe src="https://clips.twitch.tv/embed?clip=RenownedGentleNuggetsOneHand-Qdid6nWmwKiSEGmB&parent=bot.quantum0.ru&parent=localhost" height="300" width="400" allowfullscreen></iframe>
     </div>
@@ -11,21 +11,23 @@
 
 <div class="overlay-cards">
 
-    <div class="card-status" data-endpoint="/api/user/check/heat-installed" data-type="heat" data-refreshtimer="180">
-        <div>
-            <h3>Плагин <a href="https://dashboard.twitch.tv/extensions/cr20njfkgll4okyrhag7xxph270sqk-2.1.1">Heat</a> установлен</h3>
-            <ul class="card-status-problems-list" style="margin: 0px"></ul>
-        </div>
-        <div class="status-indicator tooltip-container"><span class="tooltip-text">Показывает, что плагин успешно установлен и активирован</span></div>
-    </div>
+    <q0ui-status-card
+        id="heat-status-card"
+        endpoint="/api/user/check/heat-installed"
+        interval="180"
+        tooltip="Показывает, что плагин успешно установлен и активирован"
+    >
+        <h3>Плагин <a href="https://dashboard.twitch.tv/extensions/cr20njfkgll4okyrhag7xxph270sqk-2.1.1">Heat</a> установлен</h3>
+    </q0ui-status-card>
 
-    <div class="card-status" data-endpoint="/api/user/check/sse" data-type="sse" data-refreshtimer="5">
-        <div>
-            <h3>Оверлей подключён к SSE</h3>
-            <ul class="card-status-problems-list" style="margin: 0px"></ul>
-        </div>
-        <div class="status-indicator tooltip-container"><span class="tooltip-text">Оверлей добавлен в OBS и успешно подключён к серверу</span></div>
-    </div>
+    <q0ui-status-card
+        id="sse-status-card"
+        endpoint="/api/user/check/sse"
+        interval="5"
+        tooltip="Оверлей добавлен в OBS и успешно подключён к серверу"
+    >
+        <h3>Оверлей подключён к SSE</h3>
+    </q0ui-status-card>
 
     <div class="overlay-card" data-base="{{ request.base_url }}overlay/star">
         <h2>⭐ Звёздочка</h2>
@@ -33,36 +35,29 @@
         <div class="plugin-required">
             Для использования оверлея <b>обязательно</b> установить Heat
             <br/>
-            <button class="install-btn" onclick="setupHeat()">Установить Heat</button>
+            <button class="install-btn" type="button">Установить Heat</button>
         </div>
-        <button class="overlay-toggle-settings">Настройки</button>
+        <button class="overlay-toggle-settings" type="button">Настройки</button>
         <div class="overlay-settings">
             <div class="overlay-control">
-                Положение по горизонтали
-                <input type="range" min="0" max="1" step="0.01" value="0.5" data-param="pos"/>
+                <q0ui-slider label="Положение по горизонтали" min="0" max="1" step="0.01" value="0.5" data-param="pos"></q0ui-slider>
             </div>
             <div class="overlay-control">
-                Длина ниточки
-                <input type="range" min="0" max="1" step="0.01" value="0.39" data-param="length" />
+                <q0ui-slider label="Длина ниточки" min="0" max="1" step="0.01" value="0.39" data-param="length"></q0ui-slider>
             </div>
             <div class="overlay-control">
-                Размер
-                <input type="range" min="8" max="256" value="16" data-param="size" />
+                <q0ui-slider label="Размер" min="8" max="256" step="1" value="16" data-param="size"></q0ui-slider>
             </div>
             <div class="control">
                 Цвет
                 <input type="color" value="#ffd45a" data-param="color">
             </div>
-            <div class="control">
-                Шанс порвать ниточку 😱
-                <input type="range" min="0" max="0.4" step="0.001" value="0.015" data-param="break_chance" />
-            </div>
             <div class="overlay-control">
+                <q0ui-slider label="Шанс порвать ниточку 😱" min="0" max="0.4" step="0.001" value="0.015" data-param="break_chance"></q0ui-slider>
+            </div>
+            <div class="overlay-control overlay-control-switch-row">
                 Управление из чата
-                <label class="switch">
-                    <input type="checkbox" data-param="chat_control" checked />
-                    <span class="slider"></span>
-                </label>
+                <q0ui-switch data-param="chat_control" checked></q0ui-switch>
             </div>
         </div>
         <p>Скопируй ссылку и вставь в OBS, растянув на всю сцену:</p>
@@ -75,28 +70,22 @@
         <div class="plugin-required">
             Для использования оверлея <b>обязательно</b> установить Heat
             <br/>
-            <button class="install-btn" onclick="setupHeat()">Установить Heat</button>
+            <button class="install-btn" type="button">Установить Heat</button>
         </div>
-        <button class="overlay-toggle-settings">Настройки</button>
+        <button class="overlay-toggle-settings" type="button">Настройки</button>
         <div class="overlay-settings">
             <div class="overlay-control">
-                Количество искр
-                <input type="range" min="10" max="300" step="1" value="80" data-param="particle_count"/>
+                <q0ui-slider label="Количество искр" min="10" max="300" step="1" value="80" data-param="particle_count"></q0ui-slider>
             </div>
             <div class="overlay-control">
-                Затухание
-                <input type="range" min="0.005" max="0.05" step="0.001" value="0.015" data-param="decay"/>
+                <q0ui-slider label="Затухание" min="0.005" max="0.05" step="0.001" value="0.015" data-param="decay"></q0ui-slider>
             </div>
             <div class="overlay-control">
-                Гравитация
-                <input type="range" min="0" max="0.3" step="0.01" value="0.08" data-param="gravity"/>
+                <q0ui-slider label="Гравитация" min="0" max="0.3" step="0.01" value="0.08" data-param="gravity"></q0ui-slider>
             </div>
-            <div class="overlay-control">
+            <div class="overlay-control overlay-control-switch-row">
                 Управление из чата
-                <label class="switch">
-                    <input type="checkbox" data-param="chat_control" checked />
-                    <span class="slider"></span>
-                </label>
+                <q0ui-switch data-param="chat_control" checked></q0ui-switch>
             </div>
         </div>
         <p>Скопируй ссылку и вставь в OBS, растянув на всю сцену:</p>
@@ -109,28 +98,22 @@
         <div class="plugin-required">
             Для использования оверлея <b>обязательно</b> установить Heat
             <br/>
-            <button class="install-btn" onclick="setupHeat()">Установить Heat</button>
+            <button class="install-btn" type="button">Установить Heat</button>
         </div>
-        <button class="overlay-toggle-settings">Настройки</button>
+        <button class="overlay-toggle-settings" type="button">Настройки</button>
         <div class="overlay-settings">
             <div class="overlay-control">
-                Кулдаун команды !ошибка (минут)
-                <input type="range" min="0" max="60" step="0.5" value="5" data-param="cooldown_min"/>
+                <q0ui-slider label="Кулдаун команды !ошибка (минут)" min="0" max="60" step="0.5" value="5" data-param="cooldown_min"></q0ui-slider>
             </div>
             <div class="overlay-control">
-                Масштаб окон
-                <input type="range" min="0.3" max="3" step="0.1" value="1.5" data-param="scale"/>
+                <q0ui-slider label="Масштаб окон" min="0.3" max="3" step="0.1" value="1.5" data-param="scale"></q0ui-slider>
             </div>
             <div class="overlay-control">
-                Максимум одновременно открытых окон
-                <input type="range" min="1" max="10" step="1" value="5" data-param="max_windows"/>
+                <q0ui-slider label="Максимум одновременно открытых окон" min="1" max="10" step="1" value="5" data-param="max_windows"></q0ui-slider>
             </div>
-            <div class="overlay-control">
+            <div class="overlay-control overlay-control-switch-row">
                 Звук при появлении окна
-                <label class="switch">
-                    <input type="checkbox" data-param="sound" />
-                    <span class="slider"></span>
-                </label>
+                <q0ui-switch data-param="sound"></q0ui-switch>
             </div>
         </div>
         <p>Скопируй ссылку и вставь в OBS, растянув на всю сцену:</p>
@@ -143,9 +126,9 @@
         <div class="plugin-required">
             Для использования оверлея <b>обязательно</b> установить Heat
             <br/>
-            <button class="install-btn" onclick="setupHeat()">Установить Heat</button>
+            <button class="install-btn" type="button">Установить Heat</button>
         </div>
-        <button class="overlay-toggle-settings">Настройки</button>
+        <button class="overlay-toggle-settings" type="button">Настройки</button>
         <div class="overlay-settings">
             <div class="overlay-control overlay-radio-panel">
               <div class="target-behaviour-title">Размер сетки (ширина × высота)</div>
@@ -188,19 +171,13 @@
                 </label>
               </fieldset>
             </div>
-            <div class="overlay-control">
-              Использование стандартных смайликов твича
-              <label class="switch">
-                <input type="checkbox" data-param="use_twitch_emoji" />
-                <span class="slider"></span>
-              </label>
+            <div class="overlay-control overlay-control-switch-row">
+                Использование стандартных смайликов твича
+                <q0ui-switch data-param="use_twitch_emoji"></q0ui-switch>
             </div>
-            <div class="overlay-control">
-              Использование стикеров автора бота
-              <label class="switch">
-                <input type="checkbox" data-param="arbuz" />
-                <span class="slider"></span>
-              </label>
+            <div class="overlay-control overlay-control-switch-row">
+                Использование стикеров автора бота
+                <q0ui-switch data-param="arbuz"></q0ui-switch>
             </div>
             <div class="overlay-control overlay-radio-panel">
               <div class="target-behaviour-title">Цветовая тема</div>
@@ -253,36 +230,27 @@
                 <input type="color" value="#00f2fe" data-param="back2">
               </div>
             </div>
-            <div class="overlay-control">
-              Показывать ники
-              <label class="switch">
-                <input type="checkbox" data-param="show_names" checked />
-                <span class="slider"></span>
-              </label>
+            <div class="overlay-control overlay-control-switch-row">
+                Показывать ники
+                <q0ui-switch data-param="show_names" checked></q0ui-switch>
             </div>
             <div class="overlay-control">
-              Пауза перед новой игрой (в секундах)
-              <input type="range" min="3" max="30" step="1" value="8" data-param="restart_delay"/>
+                <q0ui-slider label="Пауза перед новой игрой (в секундах)" min="3" max="30" step="1" value="8" data-param="restart_delay"></q0ui-slider>
             </div>
             <div class="overlay-control">
-              Отступ слева
-              <input type="range" min="0" max="1" step="0.01" value="0.2" data-param="offset_left"/>
+                <q0ui-slider label="Отступ слева" min="0" max="1" step="0.01" value="0.2" data-param="offset_left"></q0ui-slider>
             </div>
             <div class="overlay-control">
-              Отступ справа
-              <input type="range" min="0" max="1" step="0.01" value="0.2" data-param="offset_right"/>
+                <q0ui-slider label="Отступ справа" min="0" max="1" step="0.01" value="0.2" data-param="offset_right"></q0ui-slider>
             </div>
             <div class="overlay-control">
-              Отступ сверху
-              <input type="range" min="0" max="1" step="0.01" value="0.02" data-param="offset_top"/>
+                <q0ui-slider label="Отступ сверху" min="0" max="1" step="0.01" value="0.02" data-param="offset_top"></q0ui-slider>
             </div>
             <div class="overlay-control">
-              Отступ снизу
-              <input type="range" min="0" max="1" step="0.01" value="0.05" data-param="offset_bottom"/>
+                <q0ui-slider label="Отступ снизу" min="0" max="1" step="0.01" value="0.05" data-param="offset_bottom"></q0ui-slider>
             </div>
             <div class="overlay-control">
-              Размер карточек
-              <input type="range" min="0" max="1" step="0.01" value="0.87" data-param="card_scale"/>
+                <q0ui-slider label="Размер карточек" min="0" max="1" step="0.01" value="0.87" data-param="card_scale"></q0ui-slider>
             </div>
         </div>
         <p>Скопируй ссылку и вставь в OBS, растянув на всю сцену:</p>
@@ -292,11 +260,10 @@
     <div class="overlay-card" data-base="{{ request.base_url }}overlay/jumping-chibi">
         <h2>🦊 Jumping Chibi</h2>
         <p>Маленький прыгающий чиби-лисёнок (персонаж создателя бота) внизу экрана.</p>
-        <button class="overlay-toggle-settings">Настройки</button>
+        <button class="overlay-toggle-settings" type="button">Настройки</button>
         <div class="overlay-settings">
             <div class="overlay-control">
-              Таймер появления (в минутах)
-              <input type="range" min="0" max="10" step="0.5" value="3" data-param="timer"/>
+                <q0ui-slider label="Таймер появления (в минутах)" min="0" max="10" step="0.5" value="3" data-param="timer"></q0ui-slider>
             </div>
         </div>
         <p>Скопируй ссылку и вставь в OBS:</p>
@@ -316,23 +283,23 @@
     <div class="overlay-card" data-base="{{ request.base_url }}overlay/tts">
         <h2>🗣 TTS</h2>
         <p>Простенький Text-To-Speach для чата.</p>
-        <button class="overlay-toggle-settings">Настройки</button>
+        <button class="overlay-toggle-settings" type="button">Настройки</button>
         <div class="overlay-settings">
             <div class="overlay-control">
-              Что озвучивать?
-              <fieldset>
-                <input type="radio" id="tts-filter-all" data-param="tts-filter" name="contact" value="all">
-                <label for="tts-filter-all">Все сообщения</label><br>
+                Что озвучивать?
+                <fieldset>
+                    <input type="radio" id="tts-filter-all" data-param="tts-filter" name="contact" value="all">
+                    <label for="tts-filter-all">Все сообщения</label><br>
 
-                <input type="radio" id="tts-filter-exclamation" data-param="tts-filter" name="contact" value="exclamation">
-                <label for="tts-filter-exclamation">Сообщения, начинающиеся с !!!</label><br>
+                    <input type="radio" id="tts-filter-exclamation" data-param="tts-filter" name="contact" value="exclamation">
+                    <label for="tts-filter-exclamation">Сообщения, начинающиеся с !!!</label><br>
 
-                <input type="radio" id="tts-filter-no-reply" data-param="tts-filter" name="contact" value="no-reply">
-                <label for="tts-filter-no-reply">Все сообщения без реплаев</label><br>
+                    <input type="radio" id="tts-filter-no-reply" data-param="tts-filter" name="contact" value="no-reply">
+                    <label for="tts-filter-no-reply">Все сообщения без реплаев</label><br>
 
-                <input type="radio" id="tts-filter-tag" data-param="tts-filter" name="contact" value="tag">
-                <label for="tts-filter-tag">Сообщения с тегом стримера</label>
-              </fieldset>
+                    <input type="radio" id="tts-filter-tag" data-param="tts-filter" name="contact" value="tag">
+                    <label for="tts-filter-tag">Сообщения с тегом стримера</label>
+                    </fieldset>
             </div>
         </div>
         <p>Скопируй ссылку и вставь в OBS:</p>
@@ -344,19 +311,16 @@
         <h2>🎲 Slovotron</h2>
         <p>Игра в угадывание слово по контексту от <a href="https://www.twitch.tv/fra3a">Fra3a</a>.</p>
         <p>Оригинальный сайт Словотрона <a href="https://slovotron.fra3a.ru/?channel_name={{ user.login_name }}">здесь</a>.</p>
-        <button class="overlay-toggle-settings">Настройки</button>
+        <button class="overlay-toggle-settings" type="button">Настройки</button>
         <div class="overlay-settings">
             <div class="overlay-control">
-              Автоматический рестарт через:
-              <input type="range" min="1" max="60" step="1" value="20" data-param="restart_time"/>
+                <q0ui-slider label="Автоматический рестарт через (минут)" min="1" max="60" step="1" value="20" data-param="restart_time"></q0ui-slider>
             </div>
             <div class="overlay-control">
-              Непрозрачность при отсутствии активности:
-              <input type="range" min="0" max="1" step="0.01" value="0.4" data-param="inactive_opacity"/>
+                <q0ui-slider label="Непрозрачность при отсутствии активности" min="0" max="1" step="0.01" value="0.4" data-param="inactive_opacity"></q0ui-slider>
             </div>
             <div class="overlay-control">
-              Время неактивности, через которое виджет становится полу-прозрачным (в секундах):
-              <input type="range" min="1" max="180" step="1" value="20" data-param="inactive_timeout"/>
+                <q0ui-slider label="Время неактивности до полупрозрачности (в секундах)" min="1" max="180" step="1" value="20" data-param="inactive_timeout"></q0ui-slider>
             </div>
         </div>
         <p>Скопируй ссылку и вставь в OBS:</p>
@@ -370,15 +334,13 @@
         <small>Эксперементальная функция!</small>
         <p>Позволяет через награду кидать на стрим стикеры, сгенерированные с помощью ИИ. Можно генерировать с персонажами стримеров.</p>
         <a class="ai-sticker-settings-btn" href="/ai-stickers" title="Настройки ИИ-стикеров"><span>⚙</span> Перейти в настройки</a>
-        <button class="overlay-toggle-settings">Настройки</button>
+        <button class="overlay-toggle-settings" type="button">Настройки</button>
         <div class="overlay-settings">
             <div class="overlay-control">
-              Размер стикера:
-              <input type="range" min="32" max="512" step="32" value="192" data-param="sticker_size"/>
+                <q0ui-slider label="Размер стикера (px)" min="32" max="512" step="32" value="192" data-param="sticker_size"></q0ui-slider>
             </div>
             <div class="overlay-control">
-              Время отображения на экране:
-              <input type="range" min="2" max="90" step="2" value="30" data-param="sticker_lifetime"/>
+                <q0ui-slider label="Время отображения на экране (секунды)" min="2" max="90" step="2" value="30" data-param="sticker_lifetime"></q0ui-slider>
             </div>
         </div>
         <p>Скопируй ссылку и вставь в OBS, растянув на всю сцену:</p>
@@ -390,7 +352,7 @@
         <p>Данный виджет отображает песню из приложения Яндекс Музыки на ПК в OBS</p>
         <p>Для подключения требуется установить <a href="https://pulsesync.dev/">Pulse Sync</a></p>
         <p>Оригинальная реализация от PulseSync-LLC <a href="https://github.com/PulseSync-LLC/Yandex-Music-Widget-for-OBS">здесь</a>.</p>
-        <button class="overlay-toggle-settings">Настройки</button>
+        <button class="overlay-toggle-settings" type="button">Настройки</button>
         <div class="overlay-settings">
             <div class="overlay-control overlay-radio-panel">
               <div class="target-behaviour-title">Тип виджета</div>
@@ -416,10 +378,11 @@
         <h2>🎃 Halloween Overlay</h2>
         <p>Хэллоуинский оверлей с падающими листьями, тыквами и пауком. Реагирует на сообщения в чате, фоллоу, подписки и рейды. Команда <code>!шуш</code> / <code>!фуф</code> / <code>!дуть</code> сдувает листья влево.</p>
         <p>Оверлей <u><b>должен быть растянут на всю сцену</b></u>.</p>
-        <button class="overlay-toggle-settings">Настройки</button>
+        <button class="overlay-toggle-settings" type="button">Настройки</button>
         <div class="overlay-settings">
-            <div class="overlay-control">
-                <label><input type="checkbox" data-param="chat_control" checked> Регистрация команд чата</label>
+            <div class="overlay-control overlay-control-switch-row">
+                Регистрация команд чата
+                <q0ui-switch data-param="chat_control" checked></q0ui-switch>
             </div>
         </div>
         <p>Скопируй ссылку и вставь в OBS, растянув на всю сцену:</p>

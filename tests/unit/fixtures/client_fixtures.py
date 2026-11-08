@@ -7,6 +7,7 @@ import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
+from starlette.middleware.sessions import SessionMiddleware
 
 from dependencies import get_db
 from main import app
@@ -36,8 +37,10 @@ def user_auth_mock(db_session, test_user):  # noqa: ARG001
 
 @pytest.fixture(scope="function")
 def test_user_cookie(test_user) -> dict[str, str]:
-    k = app.user_middleware[0].kwargs["secret_key"]
-    signer = itsdangerous.TimestampSigner(str(k))
+    # Ищем SessionMiddleware по классу: add_middleware вставляет в начало
+    # списка, и user_middleware[0] может оказаться любым другим middleware.
+    session_mw = next(m for m in app.user_middleware if m.cls is SessionMiddleware)
+    signer = itsdangerous.TimestampSigner(str(session_mw.kwargs["secret_key"]))
     cookie = signer.sign(b64encode(json.dumps({"user_id": test_user.twitch_id}).encode("utf-8")))
     return {"session": cookie.decode("utf-8")}
 

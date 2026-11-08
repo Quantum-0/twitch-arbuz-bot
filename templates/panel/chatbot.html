@@ -36,7 +36,7 @@
 <!-- Главный переключатель -->
 <div class="toggle-label">
     <span><b>Включить чат-бота</b></span>
-    <div class="toggle-switch {% if settings.enable_chat_bot %}active{% endif %}" data-name="enable_chat_bot"></div>
+    <q0ui-switch name="enable_chat_bot" {% if settings.enable_chat_bot %}checked{% endif %}></q0ui-switch>
 </div>
 
 <hr>
@@ -46,7 +46,7 @@
     {% for label, name, value in toggles %}
         <div class="toggle-label">
             <span>Включить {{ label }}</span>
-            <div class="toggle-switch {{ 'active' if value }}" data-name="{{ name }}"></div>
+            <q0ui-switch {% if value %}checked{% endif %} name="{{ name }}"></q0ui-switch>
         </div>
     {% endfor %}
 </div>
@@ -56,7 +56,7 @@
 <div id="chatbot-extra-settings" class="chatbot-extra-settings">
     <div class="toggle-label">
         <span>Разрешить работать в общих чатах</span>
-        <div class="toggle-switch {{ 'active' if settings.allow_shared_chat }}" data-name="allow_shared_chat"></div>
+        <q0ui-switch {{ 'checked' if settings.allow_shared_chat }} name="allow_shared_chat"></q0ui-switch>
     </div>
 
     <div class="target-behaviour-card">

@@ -91,7 +91,6 @@ async def index_page(
         307: {"description": "Возврат на главную страницу, если не авторизован"},
     },
 )
-@inject
 async def control_panel(
     request: Request,
     db: Annotated[AsyncSession, Depends(get_db)],
@@ -121,6 +120,12 @@ async def control_panel(
             and bool(settings.telegram.login_client_secret.get_secret_value()),
         },
     )
+
+
+@router.get("/ui-demo", response_class=HTMLResponse, include_in_schema=False)
+async def ui_demo_page(request: Request):
+    """Витрина библиотеки веб-компонентов q0ui (для разработки, не в навигации)."""
+    return templates.TemplateResponse("ui-demo.html", {"request": request})
 
 
 @router.get("/ai-stickers", response_class=HTMLResponse)

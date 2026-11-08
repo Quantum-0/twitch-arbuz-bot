@@ -80,6 +80,65 @@ poetry run uvicorn main:app --reload   # запустить дев-сервер
   (шаблон `templates/roadmap.html` не трогаем). Подробно не расписывать — пара слов:
   «добавлен поиск», «добавлены 3 новые команды», «введена система банов».
 
+## Библиотека UI-компонентов `q0ui`
+
+Собственные веб-компоненты (Shadow DOM, ES-модули, без бандлера). Префикс имён `q0ui-`.
+
+- **Расположение:** `static/js/ui/` — по модулю на компонент (`switch.js`, `slider.js`,
+  `number.js`, `indicator.js`, `status-card.js`), каркас `base.js` (общий базовый класс
+  `Q0Element`), утилиты `utils.js`, контроллеры сохранения `bindings.js`, вход — `index.js`.
+  Документация каждого компонента — в шапке его модуля.
+- **Подключение на страницу:** один тег `<script type="module" src="{{ static_url('js/ui/index.js') }}">`.
+- **Конвенции:** состояние — атрибуты (+отражённые свойства); наружу — события `input`/`change`
+  (bubbles, composed) и кастомные `q0ui-*` (например, `q0ui-status` у статус-карточки).
+  Компоненты не знают про API — сохранением занимается JS страницы (`bindings.js`:
+  `bindSettingSwitches`, `createRewardButton`). Темизация — CSS-переменные сайта
+  (`--color-*` наследуются в shadow DOM), кастомизация — `::part()`.
+- **Витрина:** `/ui-demo` (`templates/ui-demo.html`, роут в `pages.py`) — проверять компоненты
+  в обеих темах; в навигацию страница не добавлена.
+- **Мигрировано:** `/panel` (контроллеры `static/js/panel.js` + `static/js/panel-telegram.js`,
+  конфиг страницы — `window.__panel`). `static/js/panel-scripts.js` — ЛЕГАСИ, обслуживает
+  `/tts`, `/ai-stickers` и (мёртвым грузом) `/moderation/references`; удалить после их
+  миграции на q0ui (и убрать тег скрипта из `moderation/references.html`).
+- **FOUC:** в `styles.css` правила `q0ui-*:not(:defined)` прячут компоненты до регистрации.
+
+## Фронтенд-тесты и дев-сервер без бэка (tests/front)
+
+Три слоя проверки фронтенда, работают без БД/Redis/MQTT. Маркер `front`,
+входят в дефолтный `poetry run pytest` (e2e-фильтр их не трогает); отдельный
+запуск: `pytest tests/front -m front`. Браузерные тесты требуют Playwright
+Chromium (уже в dev-зависимостях; на новой машине: `poetry run playwright install chromium`,
+иначе тесты skip-нутся с инструкцией).
+
+- **Каталог моков — одна точка правды:** `tests/front/pages.py` (страница → шаблон →
+  мок-контекст; `user=None` обязателен для анонимных страниц — StrictUndefined) и
+  `api_mocks.py` (фейковые `/api/*`). Правки моков — только там.
+- **Рендер-слой** (`test_templates.py`): все шаблоны компилируются (синтаксис),
+  13 страниц каталога рендерятся в StrictUndefined (обращение к несуществующей
+  переменной = провал), смоук-маркеры (`pages.PAGE_MARKERS`).
+- **Браузерный слой** (headless Chromium): `test_js_syntax.py` — все `static/js`
+  парсятся в браузере; `test_components.py` — харнесс q0ui
+  (`static/components.html`); `test_panel_page.py` — реальная `/panel` с мок-API
+  (консоль чистая, тумблеры ходят в правильные ручки с точными телами,
+  оверлейные ссылки, кнопка награды, debounce мемкоинов, телеграм-секция);
+  `test_guard.py` — самотест защиты.
+  **Технический инвариант:** браузерный слой — АСИНХРОННЫЙ Playwright на общем
+  session-loop pytest-asyncio (sync-API живёт в своём loop и ломает async-тесты
+  той же сессии) и переставляется в КОНЕЦ сессии (`conftest.py`): у транспорта
+  Playwright есть долгоживущие задачи, а unit-тест `TestBackgroundTaskNoLeak`
+  следит за чистотой loop'а.
+- **Guard внешних вызовов** (`conftest.py:front_page`): каждый запрос браузера
+  перехватывается; всё, что не localhost и не из `STUBBED_HOSTS`, наружу не
+  улетает и **роняет тест** с именем и URL (twitch/memealerts/ai-tunnel API-хосты
+  мокаться обязаны); WebSocket'ы — через `route_web_socket`. `STUBBED_HOSTS` —
+  только осознанные статика/embed-ресурсы шаблонов (CDN-ассеты); API-хосты туда
+  добавлять нельзя.
+- **Дев-сервер:** `poetry run python -m tests.front.dev_server [--port 8099]` —
+  страницы каталога (рендер на каждый запрос, F5 подхватывает правки шаблонов),
+  `/static/*` из репо, `/api/*` моками (тумблеры «сохраняются»); без бэка.
+- **Хелпер тестов:** `helpers.mock_api(page, server_url, overrides)` — перехват
+  `/api/**` с записью вызовов (метод, путь, тело) и точечными ответами.
+
 ## Юридические документы и согласие (ФЗ-152)
 
 - **Саммари закона:** `docs/FZ-152.md` — справочник по 152-ФЗ и практическим требованиям к сайту.

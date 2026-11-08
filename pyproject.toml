@@ -79,6 +79,7 @@ timeout = 15
 timeout_method = "signal"
 markers = [
     "e2e: end-to-end Playwright-тесты против внешнего окружения; требуют секреты TEST_* и запущенный браузер",
+    "front: рендер/браузерные тесты фронтенда (tests/front): локальные моки, без бэка; входят в дефолтный прогон",
 ]
 
 [tool.mypy]
@@ -139,4 +140,5 @@ select = [
 "database/encrypted_string.py" = ["ARG002"]
 # CLI-скрипты: print уместен
 "regenerate_bot_token.py" = ["T201"]
+"tests/front/dev_server.py" = ["T201"]
 "issues/**" = ["T201"]

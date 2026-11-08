@@ -1,5 +1,7 @@
 import logging.config
+from collections.abc import MutableMapping
 from contextlib import asynccontextmanager
+from typing import Any
 
 import sentry_sdk
 import uvicorn
@@ -23,6 +25,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from starlette.requests import Request
 from starlette.responses import FileResponse, JSONResponse, RedirectResponse
 from starlette.staticfiles import StaticFiles
+from starlette.types import ASGIApp
 
 from config import settings
 from dependencies import lifespan as lifespan_dep
@@ -104,6 +107,42 @@ app.include_router(router=api_router)
 app.include_router(router=user_router)
 app.include_router(router=router_for_robots)
 app.mount("/static", StaticFiles(directory="static"), name="static")
+
+
+# ES-модули (static/js/ui/*, panel-telegram.js) импортируют друг друга по
+# относительным путям — cache-busting «?v=» из static_url до них не доходит.
+# Отдаём их с no-cache: браузер каждый раз ре-валидирует (ETag/304), поэтому
+# после деплоя не склеивается связка «новый вход + старые модули из кэша».
+# Чистый ASGI-middleware (не BaseHTTPMiddleware): не порождает задачи на
+# каждый запрос — иначе тест чистоты event-loop (TestBackgroundTaskNoLeak)
+# ловит зависшие корутины.
+class ESModulesNoCacheMiddleware:
+    _NO_CACHE_PREFIX = "/static/js/ui/"
+    _NO_CACHE_PATHS = ("/static/js/panel.js", "/static/js/panel-telegram.js")
+
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: MutableMapping[str, Any], receive, send) -> None:  # type: ignore[no-untyped-def]
+        if scope["type"] != "http" or not self._is_no_cache(str(scope.get("path", ""))):
+            await self.app(scope, receive, send)
+            return
+
+        async def send_with_no_cache(message) -> None:  # type: ignore[no-untyped-def]
+            if message["type"] == "http.response.start":
+                headers = list(message.get("headers") or [])
+                headers.append((b"cache-control", b"no-cache"))
+                message["headers"] = headers
+            await send(message)
+
+        await self.app(scope, receive, send_with_no_cache)
+
+    @classmethod
+    def _is_no_cache(cls, path: str) -> bool:
+        return path.startswith(cls._NO_CACHE_PREFIX) or path in cls._NO_CACHE_PATHS
+
+
+app.add_middleware(ESModulesNoCacheMiddleware)
 
 # Разрешаем Твичу встраивать этот iframe
 # (Используем те же домены, что Твич просит в своей политике)

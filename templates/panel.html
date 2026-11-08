@@ -3,17 +3,14 @@
 {% block title %}Настройки — Quantum0's Bot{% endblock %}
 {% block description %}Панель управления ботом Twitch Quantum0's Bot{% endblock %}
 
-{% block styles %}
-{{ super() }}
-{% endblock %}
-
 {% block head_scripts %}
-<script src="{{ static_url('js/panel-scripts.js') }}"></script>
 <script>
-    const channel_id = {{ user.twitch_id }};
-    const channel_name = "{{ user.login_name }}";
-    const slovotron_secret = "{{ slovotron_secret }}";
-    const overlay_secret = "{{ slovotron_secret }}";
+    // Конфиг для ES-модулей страницы (panel.js и модули секций).
+    window.__panel = {
+        channel_id: {{ user.twitch_id }},
+        channel_name: "{{ user.login_name }}",
+        slovotron_secret: "{{ slovotron_secret }}",
+    };
 </script>
 {% endblock %}
 
@@ -43,4 +40,8 @@
 
 <div class="notification-container"></div>
 
+{% endblock %}
+
+{% block body_scripts %}
+<script type="module" src="{{ static_url('js/panel.js') }}"></script>
 {% endblock %}

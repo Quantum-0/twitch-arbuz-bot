@@ -17,47 +17,49 @@
 {% if memealerts.enabled_v2 %}
     <div id="memealerts-v2-connected">
         <div class="cards-grid">
-            <div class="card-status" data-endpoint="/api/user/check/memealerts-token" data-type="memealerts-token" data-refreshtimer="180">
-                <div><h3>Подключение к Memealerts</h3>
-                <ul class="card-status-problems-list" style="margin: 0px"></ul>
-                <ul class="card-status-warnings-list" style="margin: 0px"></ul>
-                </div>
-                    <div class="status-indicator tooltip-container"><span class="tooltip-text">Показывает, что подключение к Memealerts активно и выдача мемкоинов работает</span></div>
-            </div>
+            <q0ui-status-card
+                id="memealerts-token-card"
+                endpoint="/api/user/check/memealerts-token"
+                interval="180"
+                tooltip="Показывает, что подключение к Memealerts активно и выдача мемкоинов работает"
+            >
+                <h3>Подключение к Memealerts</h3>
+            </q0ui-status-card>
 
-            <div class="card-status" data-endpoint="/api/user/check/memealerts-reward" data-type="memealerts-reward" data-refreshtimer="180">
-                <div><h3>Награда на Twitch</h3>
-                <ul class="card-status-problems-list" style="margin: 0px"></ul></div>
-                <div class="status-indicator tooltip-container"><span class="tooltip-text">Показывает, что награда на Twitch создана и сервис подписан на события о её использовании</span></div>
-            </div>
+            <q0ui-status-card
+                id="memealerts-reward-card"
+                endpoint="/api/user/check/memealerts-reward"
+                interval="180"
+                tooltip="Показывает, что награда на Twitch создана и сервис подписан на события о её использовании"
+            >
+                <h3>Награда на Twitch</h3>
+            </q0ui-status-card>
         </div>
         <div class="memealert-coins-wrapper">
             <span>Количество мемкоинов за награду</span>
-            <div class="memealert-coins">
-                <button type="button" class="coin-btn" onclick="changeCoinCount(-1)">−</button>
-                <input type="number" id="coin-count" min="1" max="100" value="{{ memealerts.coins_for_reward }}">
-                <button type="button" class="coin-btn" onclick="changeCoinCount(1)">+</button>
-            </div>
+            <q0ui-number id="coin-count" min="1" max="100" step="1" value="{{ memealerts.coins_for_reward }}" editable></q0ui-number>
         </div>
         <div class="cards-grid">
             <button
                 class="btn-danger"
                 id="disconnect-memealerts-btn"
-                onclick="disconnectMemealerts()">
+                type="button"
+            >
                 Отключить интеграцию Memealerts
             </button>
 
             <button
                 id="memealerts-reward-btn"
-                data-action=""
-                onclick="handleRewardButton()">
-                Загрузка...
+                type="button"
+                disabled
+            >
+                Проверка...
             </button>
         </div>
     </div>
     <div id="memealerts-v2-disconnected" style="display: none">
-        <button onclick="window.location.href='/memealerts/auth';">Включить интеграцию Memealerts</button>
+        <button type="button" data-nav="/memealerts/auth">Включить интеграцию Memealerts</button>
     </div>
 {% else %}
-    <button onclick="window.location.href='/memealerts/auth';">Включить интеграцию Memealerts</button>
+    <button type="button" data-nav="/memealerts/auth">Включить интеграцию Memealerts</button>
 {% endif %}

@@ -285,7 +285,17 @@ class TestLoginCallbackTask:
 
 class TestBackgroundTaskNoLeak:
     async def test_callback_task_not_leaked(self):
-        """Все фоновые задачи тестов завершены (нет зависших корутин)."""
+        """Все фоновые задачи тестов завершены (нет зависших корутин).
+
+        Исключение — touch_user_interaction: продовый fire-and-forget из
+        user_auth (security_helpers.py: asyncio.create_task). У задачи свой
+        жизненный цикл (дожидается ответа БД и завершается), она не является
+        утечкой теста — но без исключения тест гоняется с её DB-запросом и
+        флакается под нагрузкой."""
         me = asyncio.current_task()
-        pending = [t for t in asyncio.all_tasks() if t is not me and not t.done()]
+        pending = [
+            t
+            for t in asyncio.all_tasks()
+            if t is not me and not t.done() and getattr(t.get_coro(), "__name__", "") != "touch_user_interaction"
+        ]
         assert pending == []

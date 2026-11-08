@@ -1,3 +1,9 @@
+// ЛЕГАСИ-ФАЙЛ: обслуживает страницы /tts, /ai-stickers и (мёртвым грузом)
+// /moderation/references (initToggles, initStatusCards/checkStatus и пр.).
+// Страница /panel переведена на библиотеку q0ui и контроллеры
+// static/js/panel.js + static/js/panel-telegram.js — этот файл больше не
+// подключается на /panel. Удалить после миграции перечисленных страниц на q0ui
+// (перед удалением убрать тег скрипта из templates/moderation/references.html).
 let coinSaveTimer = null;
 
 // Коды проблем бэкенда, которые рендерим как HTML (ссылки).
