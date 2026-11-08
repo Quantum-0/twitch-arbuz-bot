@@ -124,10 +124,14 @@
     .game.compact .caption { display: none; }
 
     /* Спиральная карточка — лишняя клетка нечётной сетки. */
+    .back.spiral-back { padding: 0; }
+
     .spiral-disc {
-      width: 72%;
-      aspect-ratio: 1;
-      border-radius: 50%;
+      /* квадрат заметно больше карточки (√2 ≈ 1.41 хода диагонали), чтобы
+         при вращении углы не выглядывали — спираль всегда заполняет грань */
+      width: 150%;
+      height: 150%;
+      flex: none;
       background: repeating-conic-gradient(#1a1a1a 0deg 14deg, #f2f2f2 14deg 28deg);
       animation: spiral-spin 2.4s linear infinite;
     }

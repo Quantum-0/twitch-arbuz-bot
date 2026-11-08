@@ -53,7 +53,7 @@ function newRound(cards, hasSpiral) {
             card.dataset.spiral = "1";
             card.innerHTML = `
               <div class="face front"></div>
-              <div class="face back"><div class="spiral-disc"></div></div>
+              <div class="face back spiral-back"><div class="spiral-disc"></div></div>
             `;
             spiralCard = card;
         } else {
