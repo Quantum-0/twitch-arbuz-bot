@@ -140,5 +140,6 @@ select = [
 "database/encrypted_string.py" = ["ARG002"]
 # CLI-скрипты: print уместен
 "regenerate_bot_token.py" = ["T201"]
+"scripts/**" = ["T201"]
 "tests/front/dev_server.py" = ["T201"]
 "issues/**" = ["T201"]
