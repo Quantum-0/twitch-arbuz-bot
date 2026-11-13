@@ -17,6 +17,9 @@
     --color-danger: #e53935;
     --color-danger-hover: #d32f2f;
 
+    /* Предупреждающий акцент (тон .card-status-warnings-list) */
+    --color-warning: #e6a800;
+
     --color-shadow: rgba(0,0,0,0.1);
     --color-shadow-strong: rgba(0,0,0,0.2);
 
@@ -54,6 +57,8 @@ html[data-theme="dark"] {
     --color-danger: #ef5350;
     --color-danger-hover: #e04845;
 
+    --color-warning: #ffcc00;
+
     --color-shadow: rgba(0,0,0,0.4);
     --color-shadow-strong: rgba(0,0,0,0.6);
 
@@ -87,6 +92,8 @@ html[data-theme="dark"] {
 
         --color-danger: #ef5350;
         --color-danger-hover: #e04845;
+
+        --color-warning: #ffcc00;
 
         --color-shadow: rgba(0,0,0,0.4);
         --color-shadow-strong: rgba(0,0,0,0.6);

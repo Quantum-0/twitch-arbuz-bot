@@ -1,10 +1,11 @@
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from typing import Any, Literal
 
 import sqlalchemy as sa
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from database.models import MemealertsSettings, TwitchUserSettings, User, UserLike
+from database.models import MemealertsDeposit, MemealertsSettings, TwitchUserSettings, User, UserLike
+from schemas.enums import MemealertsDepositStatus
 from services.cache import Cache
 from twitch.client.twitch import Twitch
 from utils.streamers_sort import compute_streamer_score
@@ -44,6 +45,56 @@ def _build_select_query() -> sa.Select[tuple[Any, ...]]:
         .group_by(UserLike.to_user_id)
         .subquery()
     )
+
+    # Метрики награды мемкоинов для скоринга рекомендаций: только успешные
+    # пополнения. Накопительные метрики — скользящие 90 дней (отражают текущее
+    # состояние, а не исторический след), недельная — 7 дней. created_at в
+    # таблице naive-UTC, поэтому cutoff тоже собирается как naive-UTC.
+    now = datetime.now(UTC).replace(tzinfo=None)
+    succeeded = MemealertsDeposit.status == MemealertsDepositStatus.SUCCEEDED
+    since_90d = now - timedelta(days=90)
+    since_7d = now - timedelta(days=7)
+
+    deposits_90d = (
+        sa.select(
+            MemealertsDeposit.twitch_id.label("twitch_id"),
+            sa.func.count().label("deposits_count"),
+            sa.func.count(sa.func.distinct(MemealertsDeposit.chatter_twitch_id)).label("deposits_users"),
+        )
+        .where(succeeded, MemealertsDeposit.created_at >= since_90d)
+        .group_by(MemealertsDeposit.twitch_id)
+        .subquery()
+    )
+    # Самый активный зритель канала (для анти-халявы в скоринге): max по
+    # группировке (канал, зритель).
+    deposits_per_chatter = (
+        sa.select(
+            MemealertsDeposit.twitch_id.label("twitch_id"),
+            sa.func.count().label("chatter_count"),
+        )
+        .where(succeeded, MemealertsDeposit.created_at >= since_90d)
+        .group_by(MemealertsDeposit.twitch_id, MemealertsDeposit.chatter_twitch_id)
+        .subquery()
+    )
+    top_chatter = (
+        sa.select(
+            deposits_per_chatter.c.twitch_id.label("twitch_id"),
+            sa.func.max(deposits_per_chatter.c.chatter_count).label("deposits_top1_count"),
+        )
+        .group_by(deposits_per_chatter.c.twitch_id)
+        .subquery()
+    )
+    deposits_weekly = (
+        sa.select(
+            MemealertsDeposit.twitch_id.label("twitch_id"),
+            sa.func.coalesce(sa.func.sum(MemealertsDeposit.memecoins), 0).label("deposits_weekly_coins"),
+            sa.func.count(sa.func.distinct(MemealertsDeposit.chatter_twitch_id)).label("deposits_weekly_users"),
+        )
+        .where(succeeded, MemealertsDeposit.created_at >= since_7d)
+        .group_by(MemealertsDeposit.twitch_id)
+        .subquery()
+    )
+
     return (
         sa.select(
             User.id.label("id"),
@@ -61,11 +112,19 @@ def _build_select_query() -> sa.Select[tuple[Any, ...]]:
             TwitchUserSettings.ai_sticker_reward_id.is_not(None).label("ai_stickers_enabled"),
             MemealertsSettings.memealerts_reward.is_not(None).label("memealerts_enabled"),
             sa.func.coalesce(likes.c.likes_count, 0).label("likes_count"),
+            sa.func.coalesce(deposits_90d.c.deposits_count, 0).label("deposits_count"),
+            sa.func.coalesce(deposits_90d.c.deposits_users, 0).label("deposits_users"),
+            sa.func.coalesce(top_chatter.c.deposits_top1_count, 0).label("deposits_top1_count"),
+            sa.func.coalesce(deposits_weekly.c.deposits_weekly_coins, 0).label("deposits_weekly_coins"),
+            sa.func.coalesce(deposits_weekly.c.deposits_weekly_users, 0).label("deposits_weekly_users"),
         )
         .select_from(User)
         .join(TwitchUserSettings)
         .join(MemealertsSettings)
         .outerjoin(likes, likes.c.to_user_id == User.id)
+        .outerjoin(deposits_90d, deposits_90d.c.twitch_id == User.twitch_id)
+        .outerjoin(top_chatter, top_chatter.c.twitch_id == User.twitch_id)
+        .outerjoin(deposits_weekly, deposits_weekly.c.twitch_id == User.twitch_id)
         .where(User.followers_count > 2)
         .limit(500)
     )
@@ -150,7 +209,9 @@ async def get_streamers_list(
       username, avatar_url, followers, is_beta_tester, donated, created_at,
       interacted_at, overlays_last_usage, chat_bot_enabled, pants_enabled,
       ai_stickers_enabled, memealerts_enabled, is_live, score, role,
-      overlay_used_recently, likes_count.
+      overlay_used_recently, likes_count, deposits_count, deposits_users,
+      deposits_top1_count, deposits_weekly_coins, deposits_weekly_users
+      (deposits_* — агрегаты memealerts_deposits для скоринга рекомендаций).
     """
     res = [row._asdict() for row in (await db.execute(_build_select_query())).all()]
 

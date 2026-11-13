@@ -167,6 +167,41 @@ async function disconnectMemealerts() {
 }
 
 function initMemealertsSection() {
+    // Курс «1 <валюта> = N баллов канала» вычисляется на клиенте из полей
+    // «Количество мемкоинов» и «Стоимость награды»: обновляется при изменении
+    // любого из них и после первой загрузки цены из API.
+    // q0ui-number при живом вводе обновляет .value только на Enter/блюр
+    // (_commitField), поэтому слушатели input передают свежее число событием.
+    const syncCoinRate = (costValue = null, coinsValue = null) => {
+        const line = byId("coin-rate-line");
+        const valueEl = byId("coin-rate-value");
+        if (!line || !valueEl) return;
+        const costInputEl = byId("reward-cost");
+        // Поле цены включается только после успешной загрузки из API; до этого
+        // .value держит placeholder (=min=1) — курс по нему был бы выдуманным.
+        if (!costInputEl || costInputEl.disabled) {
+            line.hidden = true;
+            return;
+        }
+        const cost = Number(costValue ?? costInputEl.value);
+        const coinCount = Number(coinsValue ?? byId("coin-count")?.value);
+        if (!Number.isFinite(cost) || cost < 1 || !Number.isFinite(coinCount) || coinCount < 1) {
+            line.hidden = true;
+            return;
+        }
+        const rate = cost / coinCount;
+        const rounded = Math.round(rate);
+        // Дробный/субединичный курс: «≈ 0 баллов» — бессмыслица, честнее подписать.
+        valueEl.textContent =
+            rounded < 1 ? "меньше 1 балла канала" : `${Number.isInteger(rate) ? "" : "≈ "}${rounded} ${pluralPoints(rounded)} канала`;
+        line.hidden = false;
+    };
+
+    // Из shadow-DOM компонента до host-а доходит и нативный composed input —
+    // без detail и со старым .value. Игнорируем его: свежее число приходит
+    // кастомным событием, закоммиченное — событием change.
+    const isFreshValueEvent = (event) => event.detail?.value !== undefined;
+
     const coins = byId("coin-count");
     if (coins) {
         const saveCoins = debounce((count) => {
@@ -182,8 +217,16 @@ function initMemealertsSection() {
                 "Мемкоины",
             );
         }, 3000);
-        coins.addEventListener("input", (event) => saveCoins(event.detail?.value ?? coins.value));
-        coins.addEventListener("change", () => saveCoins(coins.value));
+        coins.addEventListener("input", (event) => {
+            if (!isFreshValueEvent(event)) return;
+            const value = event.detail.value;
+            saveCoins(value);
+            syncCoinRate(null, value);
+        });
+        coins.addEventListener("change", () => {
+            saveCoins(coins.value);
+            syncCoinRate();
+        });
     }
 
     const rewardCard = byId("memealerts-reward-card");
@@ -202,7 +245,15 @@ function initMemealertsSection() {
     // загрузке, сохраняем отдельной кнопкой (не debounce — цена важна).
     const costInput = byId("reward-cost");
     const costBtn = byId("reward-cost-save-btn");
+    const costHint = byId("reward-cost-hint");
     if (costInput && costBtn) {
+        // Последнее сохранённое значение: пока поле отличается от него,
+        // под ценой мигает подсказка «не забудь сохранить!».
+        let savedCost = null;
+        const syncCostHint = (value = null) => {
+            if (costHint) costHint.hidden = savedCost === null || Number(value ?? costInput.value) === savedCost;
+        };
+
         void (async () => {
             try {
                 const res = await fetch("/api/user/memealerts/reward", { credentials: "same-origin" });
@@ -210,13 +261,26 @@ function initMemealertsSection() {
                 const data = await res.json();
                 if (Number.isFinite(data.cost)) {
                     costInput.value = data.cost;
+                    savedCost = data.cost;
                     costInput.disabled = false;
                     costBtn.disabled = false;
+                    syncCoinRate();
                 }
             } catch (e) {
                 // Тихо: поле остаётся заблокированным, статус-карточка покажет проблему.
+                // Курс не считаем — без реальной цены он был бы выдуманным.
             }
         })();
+        costInput.addEventListener("input", (event) => {
+            if (!isFreshValueEvent(event)) return;
+            const value = event.detail.value;
+            syncCostHint(value);
+            syncCoinRate(value, null);
+        });
+        costInput.addEventListener("change", () => {
+            syncCostHint();
+            syncCoinRate();
+        });
         costBtn.addEventListener("click", () => {
             const cost = Number(costInput.value);
             if (!Number.isFinite(cost) || cost < 1) {
@@ -229,8 +293,13 @@ function initMemealertsSection() {
                 { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ cost }) },
                 "Memealerts",
             ).then(({ ok }) => {
-                if (ok) costBtn.textContent = "Сохранено!";
-                else costBtn.disabled = false;
+                if (ok) {
+                    savedCost = cost;
+                    syncCostHint();
+                    costBtn.textContent = "Сохранено!";
+                } else {
+                    costBtn.disabled = false;
+                }
                 setTimeout(() => {
                     costBtn.textContent = "Сохранить";
                     costBtn.disabled = false;
@@ -238,6 +307,123 @@ function initMemealertsSection() {
             });
         });
     }
+
+    initMemealertsHistory();
+}
+
+// ── История пополнений мемкоинов (/api/user/memealerts/deposits) ─────────────
+
+const MEME_DEPOSITS_PAGE_SIZE = 30;
+
+const DEPOSIT_ERROR_LABELS = {
+    user_not_found: "получатель не найден",
+    not_supporter: "зритель ещё не саппортер канала",
+    duplicate_user: "несколько пользователей с таким именем",
+    token_expired: "истёк токен интеграции",
+    token_invalid: "токен интеграции не принят",
+    ma_unavailable: "Memealerts недоступен",
+    unexpected: "непредвиденная ошибка",
+};
+
+function pluralPoints(n) {
+    const abs = Math.abs(n) % 100;
+    const last = abs % 10;
+    if (abs > 10 && abs < 20) return "баллов";
+    if (last > 1 && last < 5) return "балла";
+    if (last === 1) return "балл";
+    return "баллов";
+}
+
+function escDeposit(text) {
+    const div = document.createElement("div");
+    div.textContent = text == null ? "" : String(text);
+    return div.innerHTML.replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+}
+
+// API отдаёт naive-UTC ISO без суффикса Z — дописываем его перед парсингом
+// (как в balance_history.js), иначе Date() прочитает как локальное время.
+function formatDepositDate(value) {
+    if (!value) return "—";
+    const s = String(value);
+    const d = new Date(/Z|[+-]\d{2}:?\d{2}$/.test(s) ? s : `${s}Z`);
+    if (isNaN(d.getTime())) return "—";
+    return d.toLocaleString("ru-RU", {
+        day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit",
+    });
+}
+
+function renderDepositRow(d) {
+    const points = d.points_spent == null ? "—" : String(d.points_spent);
+    // «Получено»: количество показываем только при успехе — при провале зритель
+    // ничего не получил (баллы вернулись).
+    const coins = d.status === "succeeded" ? String(d.memecoins) : "—";
+    let statusCell;
+    if (d.status === "succeeded") {
+        statusCell = '<span class="meme-deposit-status succeeded">Начислено</span>';
+    } else if (d.status === "pending") {
+        statusCell = '<span class="meme-deposit-status pending">Обрабатывается</span>';
+    } else {
+        const reason = DEPOSIT_ERROR_LABELS[d.error] || "ошибка начисления";
+        statusCell =
+            '<span class="meme-deposit-status failed">Не начислено</span>' +
+            `<div class="meme-deposit-reason" title="${escDeposit(reason)}">${escDeposit(reason)}</div>`;
+    }
+    return `<tr>
+        <td>${escDeposit(formatDepositDate(d.created_at))}</td>
+        <td>${escDeposit(d.chatter_login)}</td>
+        <td>${escDeposit(d.memealerts_username)}</td>
+        <td>${escDeposit(points)}</td>
+        <td>${escDeposit(coins)}</td>
+        <td>${statusCell}</td>
+    </tr>`;
+}
+
+function initMemealertsHistory() {
+    const tbody = byId("memeDepositsBody");
+    if (!tbody) return;
+    const table = byId("memeDepositsTable");
+    const emptyEl = byId("memeDepositsEmpty");
+    const loadingEl = byId("memeDepositsLoading");
+    const moreBtn = byId("memeDepositsMore");
+    let nextCursor = null;
+    let loading = false;
+
+    const loadPage = async () => {
+        if (loading) return; // двойной клик не должен дублировать страницу
+        loading = true;
+        moreBtn.disabled = true;
+        const params = new URLSearchParams({ limit: String(MEME_DEPOSITS_PAGE_SIZE) });
+        if (nextCursor) params.set("before_id", String(nextCursor));
+        try {
+            const resp = await fetch(`/api/user/memealerts/deposits?${params}`, {
+                headers: { Accept: "application/json" },
+                credentials: "same-origin",
+            });
+            if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+            const data = await resp.json();
+
+            loadingEl.hidden = true;
+            table.hidden = false;
+            tbody.insertAdjacentHTML("beforeend", data.items.map(renderDepositRow).join(""));
+            emptyEl.hidden = tbody.children.length > 0;
+            nextCursor = data.next_cursor;
+            moreBtn.hidden = nextCursor == null;
+        } catch (e) {
+            loadingEl.hidden = true;
+            if (tbody.children.length === 0) {
+                emptyEl.textContent = "Не удалось загрузить историю.";
+                emptyEl.hidden = false;
+            } else {
+                showNotification("Ошибка", "Не удалось загрузить следующую страницу истории.", true);
+            }
+        } finally {
+            loading = false;
+            moreBtn.disabled = false;
+        }
+    };
+
+    moreBtn.addEventListener("click", () => void loadPage());
+    void loadPage();
 }
 
 // ── Оверлеи: сборка URL-конфига для OBS из [data-param] ─────────────────────

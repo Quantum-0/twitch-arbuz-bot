@@ -197,6 +197,28 @@ async def test_bonus_db_error_falls_back_to_api():
     assert await service.find_and_give_bonus(make_token(), "nick", 100) is True
 
 
+async def test_give_bonus_result_false_propagates_from_all_branches():
+    # MA может ответить 2xx с result:false — провал обязан прорастать из всех
+    # трёх веток (by-id / db-cache / supporters), а не заглушаться `return True`
+    # (иначе история покупок запишет «Начислено» при неначисленных мемкоинах).
+    ma_id = "0123456789abcdef01234567"
+
+    by_id = make_service()
+    by_id._give_bonus = AsyncMock(return_value=False)
+    assert await by_id.find_and_give_bonus(make_token(), ma_id, 100) is False
+
+    from_db = make_service()
+    from_db.search_supporter_from_db = AsyncMock(return_value=SimpleNamespace(id="b" * 24))
+    from_db._give_bonus = AsyncMock(return_value=False)
+    assert await from_db.find_and_give_bonus(make_token(), "nick", 100) is False
+
+    from_api = make_service()
+    from_api.search_supporter_from_db = AsyncMock(return_value=None)
+    from_api.find_user_in_supporters = AsyncMock(return_value=make_supporter(name="nick"))
+    from_api._give_bonus = AsyncMock(return_value=False)
+    assert await from_api.find_and_give_bonus(make_token(), "nick", 100) is False
+
+
 async def test_bonus_not_found_returns_false():
     service = make_service()
     service.search_supporter_from_db = AsyncMock(return_value=None)

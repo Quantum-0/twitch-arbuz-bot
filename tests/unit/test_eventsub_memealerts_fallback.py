@@ -9,8 +9,14 @@ from services.eventsub_service import TwitchEventSubService
 
 
 def build_service() -> TwitchEventSubService:
+    def _no_db() -> None:
+        # Явно отключаем БД: _try_insert_deposit поймает ошибку и продолжит
+        # начисление без истории (а не молча глотает AttributeError).
+        raise RuntimeError("db disabled in fallback tests")
+
     service = object.__new__(TwitchEventSubService)
     service._statistics = None
+    service._db_session_factory = _no_db
     service._memealerts_auth = SimpleNamespace(get_token_of_user=AsyncMock(return_value="v2-token"))
     service._memealerts_v2 = SimpleNamespace(give_bonus=AsyncMock())
     service._memealerts = SimpleNamespace(give_bonus=AsyncMock())

@@ -555,7 +555,9 @@ class Statistics(Base):
         nullable=False,
         default="",
         server_default="",
-        doc="Для reward_*: received/succeed/failed/failed_on_moderation/success; для command_handled — имя команды; иначе пустая строка.",
+        doc="Для reward_*: received/succeed/failed/duplicate/failed_on_moderation/success "
+        "(duplicate — повторная доставка вебхука, отфильтрованная дедупом); "
+        "для command_handled — имя команды; иначе пустая строка.",
     )
     channel_id: Mapped[int | None] = mapped_column(
         BigInteger,
@@ -727,6 +729,50 @@ class BalanceOperation(Base):
     balance_after: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
 
     details: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True, default=None)
+
+    # naive-UTC: now() at time zone 'utc' не зависит от TimeZone сессии БД
+    # (прямой func.now() писал бы локальное время сервера).
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=text("(now() at time zone 'utc')"), nullable=False
+    )
+
+
+class MemealertsDeposit(Base):
+    """Покупка мемкоинов через награду за баллы канала (история для /panel/memealerts).
+
+    ``twitch_id`` — twitch-ID стримера-владельца награды (не суррогатный ``User.id``):
+    по нему джойнится история канала. ``chatter_*`` — денормализованные данные
+    зрителя, купившего награду (логин в Twitch может смениться — храним как было).
+    ``memealerts_username`` — что зритель ввёл при выкупе (``user_input``): ник или
+    24-hex ID на Memealerts. ``points_spent`` — цена награды на момент выкупа
+    (NULL, если Helix не ответил); ``memecoins`` — ``coins_for_reward`` на момент
+    выкупа. UNIQUE на ``redemption_id`` — дедупликация повторной доставки вебхука
+    EventSub (дубль не начисляется и не записывается дважды).
+    ``status``/``error`` — значения ``schemas.enums.MemealertsDepositStatus`` /
+    ``MemealertsDepositError`` (строками, как ``balance_operations.type``).
+    """
+
+    __tablename__ = "memealerts_deposits"
+    __table_args__ = (
+        Index("memealerts_deposits_redemption_id_key", "redemption_id", unique=True),
+        Index("ix_memealerts_deposits_twitch_id_id", "twitch_id", "id"),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, Identity(), primary_key=True)
+    twitch_id: Mapped[str] = mapped_column(
+        String, ForeignKey("twitch_bot_users.twitch_id", ondelete="CASCADE"), nullable=False
+    )
+    redemption_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+
+    chatter_twitch_id: Mapped[str] = mapped_column(String, nullable=False)
+    chatter_login: Mapped[str] = mapped_column(String(25), nullable=False)
+    memealerts_username: Mapped[str] = mapped_column(String(200), nullable=False)
+
+    points_spent: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    memecoins: Mapped[int] = mapped_column(Integer, nullable=False)
+
+    status: Mapped[str] = mapped_column(String(16), nullable=False)
+    error: Mapped[str | None] = mapped_column(String(32), nullable=True)
 
     # naive-UTC: now() at time zone 'utc' не зависит от TimeZone сессии БД
     # (прямой func.now() писал бы локальное время сервера).

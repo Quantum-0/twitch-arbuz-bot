@@ -115,6 +115,11 @@ async def _panel_context(request: Request, db: AsyncSession, user: User) -> dict
                 )
                 if declension
             ],
+            # Родительный падеж ед. числа для лейбла «Стоимость 1 <валюты>: N баллов»
+            # и множественное для шапки колонки истории. Список currency
+            # фильтрует пустые — индексировать его нельзя.
+            "currency_genitive": user.memealerts.memecoin_name_genitive or "мемкоина",
+            "currency_multiple": user.memealerts.memecoin_name_accusative_multiple or "Мемкоины",
         },
         "slovotron_secret": overlay_secret,
         # Поэтапный rollout Telegram-интеграции: клипы пока только бета-тестерам.
@@ -770,6 +775,10 @@ async def roadmap_page(
                 {
                     "date": "Ноябрь 2026",
                     "text": "Панель настроек разделена на разделы, команды чат-бота сгруппированы по категориям со справкой",
+                },
+                {
+                    "date": "Ноябрь 2026",
+                    "text": "В разделе Memealerts добавлена история пополнений мемкоинов через награду",
                 },
             ],
             "todos": [

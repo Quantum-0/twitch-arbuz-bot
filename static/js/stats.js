@@ -11,7 +11,8 @@
         message_outgoing: [""],
         // reward_*: «(все)» убрано — succeed/success ⊆ received, суммирование
         // double-count'ит. Показываем только конкретные подтипы.
-        reward_memecoins: ["received", "succeed", "failed", "banned"],
+        // duplicate — повторные доставки вебхука, отфильтрованные дедупом истории.
+        reward_memecoins: ["received", "succeed", "failed", "duplicate", "banned"],
         reward_ai_stickers: ["received", "success", "failed_on_moderation", "banned"],
         // Блокировки TTS: сабтайпы — триггер (command/reward) и бан.
         tts_blocked: ["command", "reward", "banned"],
@@ -59,6 +60,7 @@
         failed: "ошибки",
         failed_on_moderation: "отклонено модерацией",
         banned: "отклонено баном",
+        duplicate: "дубли вебхуков",
         incoming: "входящие",
         outgoing: "исходящие",
         // ban_blocked / tts_blocked

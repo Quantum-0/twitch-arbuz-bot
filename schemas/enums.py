@@ -110,3 +110,34 @@ class BalanceOperationAction(StrEnum):
     AI_STICKER = "ai_sticker"
     # Синтетическое «историческое пополнение» на текущий баланс при внедрении истории
     INITIAL_BALANCE = "initial_balance"
+
+
+class MemealertsDepositStatus(StrEnum):
+    """Исход покупки мемкоинов через награду (memealerts_deposits.status).
+
+    ``pending`` — маркер вставлен, но обработка не дошла до финального UPDATE
+    (краш процесса между INSERT и UPDATE); в UI отображается бейджем
+    «Обрабатывается», колонка «Получено» — «—».
+    """
+
+    SUCCEEDED = "succeeded"
+    FAILED = "failed"
+    PENDING = "pending"
+
+
+class MemealertsDepositError(StrEnum):
+    """Причина провала покупки мемкоинов (memealerts_deposits.error), NULL при успехе."""
+
+    # give_bonus вернул False — получатель не найден среди саппортеров
+    USER_NOT_FOUND = "user_not_found"
+    # Зритель ещё не саппортер канала в Memealerts (не забрал welcome bonus)
+    NOT_SUPPORTER = "not_supporter"
+    # Найдено несколько пользователей с одинаковым именем — нужен ID
+    DUPLICATE_USER = "duplicate_user"
+    # Истёк/невалиден токен интеграции (стримеру нужно переподключить)
+    TOKEN_EXPIRED = "token_expired"  # noqa: S105 - не секрет, значение статуса
+    TOKEN_INVALID = "token_invalid"  # noqa: S105 - не секрет, значение статуса
+    # Memealerts ответил 5xx
+    MA_UNAVAILABLE = "ma_unavailable"
+    # Всё остальное
+    UNEXPECTED = "unexpected"

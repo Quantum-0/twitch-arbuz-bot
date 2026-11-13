@@ -4,15 +4,16 @@ from typing import Annotated
 
 import sqlalchemy as sa
 from dependency_injector.wiring import Provide, inject
-from fastapi import APIRouter, Depends, Security
+from fastapi import APIRouter, Depends, Query, Security
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.responses import JSONResponse
 from twitchAPI.type import TwitchAPIException, TwitchResourceNotFound
 
 from container import Container
-from database.models import MemealertsSettings, User
+from database.models import MemealertsDeposit, MemealertsSettings, User
+from dependencies import get_db
 from routers.security_helpers import user_auth
-from schemas.api import UpdateMemealertsRewardSchema
+from schemas.api import MemealertsDepositSchema, MemealertsDepositsResponseSchema, UpdateMemealertsRewardSchema
 from services.memes_v2 import MemealertsOAuthService
 from services.twitch_token_service import TwitchTokenExpiredError
 from twitch.client.twitch import Twitch
@@ -174,3 +175,42 @@ async def update_reward(
         return JSONResponse({"title": "Ошибка", "message": str(exc)}, 400)
     message = "Стоимость награды обновлена." if payload and payload.cost is not None else "Награда обновлена."
     return JSONResponse({"title": "Успешно", "message": message}, 200)
+
+
+@router.get("/deposits")
+async def list_deposits(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    user: Annotated[User, Security(user_auth)],
+    before_id: Annotated[int | None, Query(ge=1)] = None,
+    limit: Annotated[int, Query(ge=1, le=50)] = 30,
+) -> MemealertsDepositsResponseSchema:
+    """История покупок мемкоинов через награду текущего пользователя (новее → старше).
+
+    Курсорная пагинация по ``id`` (identity монотонен): ``next_cursor`` — id
+    последней строки страницы, передаётся в ``before_id`` для следующей.
+    """
+    stmt = sa.select(MemealertsDeposit).where(MemealertsDeposit.twitch_id == user.twitch_id)
+    if before_id is not None:
+        stmt = stmt.where(MemealertsDeposit.id < before_id)
+    stmt = stmt.order_by(MemealertsDeposit.id.desc()).limit(limit + 1)
+
+    rows = (await db.execute(stmt)).scalars().all()
+    has_more = len(rows) > limit
+    rows = rows[:limit]
+
+    return MemealertsDepositsResponseSchema(
+        items=[
+            MemealertsDepositSchema(
+                id=row.id,
+                created_at=row.created_at,
+                chatter_login=row.chatter_login,
+                memealerts_username=row.memealerts_username,
+                points_spent=row.points_spent,
+                memecoins=row.memecoins,
+                status=row.status,
+                error=row.error,
+            )
+            for row in rows
+        ],
+        next_cursor=rows[-1].id if has_more and rows else None,
+    )

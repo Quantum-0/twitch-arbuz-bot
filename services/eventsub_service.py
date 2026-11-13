@@ -9,12 +9,13 @@ from uuid import UUID
 
 import sqlalchemy as sa
 from opentelemetry import trace
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from twitchAPI.type import TwitchAPIException, TwitchResourceNotFound
 
 from config import settings
-from database.models import Base, TelegramSettings, TTSSettings, TwitchUserSettings, User
+from database.models import Base, MemealertsDeposit, TelegramSettings, TTSSettings, TwitchUserSettings, User
 from exceptions import (
     MADuplicateUserError,
     MAInvalidScopeError,
@@ -23,10 +24,11 @@ from exceptions import (
     MANotSupporterError,
     MATokenExpiredError,
     MATokenInvalidError,
+    MAUnavailableError,
     MAUserNotFoundError,
 )
 from schemas.api import StatsType
-from schemas.enums import BanFeature, FileStorageDir
+from schemas.enums import BanFeature, FileStorageDir, MemealertsDepositError, MemealertsDepositStatus
 from schemas.twitch import (
     EventSubRevocationSchema,
     FollowWebhookSchema,
@@ -728,137 +730,258 @@ class TwitchEventSubService:
                 exc_info=True,
             )
 
+    async def _try_insert_deposit(
+        self,
+        user: User,
+        payload: PointRewardRedemptionWebhookSchema,
+        points_spent: int | None,
+    ) -> tuple[bool, int | None]:
+        """Атомарный дедуп-маркер покупки мемкоинов (status=pending).
+
+        ``INSERT ... ON CONFLICT (redemption_id) DO NOTHING RETURNING id``:
+        строка создаётся ровно один раз на redemption даже при параллельной
+        повторной доставке вебхука EventSub. Возврат:
+
+        - ``(True, None)`` — redemption уже записан, это дубль (начисление пропускаем);
+        - ``(False, id)`` — маркер вставлен, ``id`` для финального UPDATE;
+        - ``(False, None)`` — БД недоступна: историю не пишем, начисление не ломаем
+          (дедуп на этот выкуп не действует — осознанный трейд-офф в пользу начисления).
+        """
+        try:
+            stmt = (
+                pg_insert(MemealertsDeposit)
+                .values(
+                    twitch_id=user.twitch_id,
+                    redemption_id=payload.event.redemption_id,
+                    chatter_twitch_id=str(payload.event.user_id),
+                    chatter_login=payload.event.user_login,
+                    # Twitch ограничивает ввод награды 200 символами — режим на всякий случай.
+                    memealerts_username=payload.event.user_input[:200],
+                    points_spent=points_spent,
+                    memecoins=user.memealerts.coins_for_reward,
+                    status=MemealertsDepositStatus.PENDING.value,
+                )
+                .on_conflict_do_nothing(index_elements=["redemption_id"])
+                .returning(MemealertsDeposit.id)
+            )
+            async with self._db_session_factory() as db:
+                deposit_id = (await db.execute(stmt)).scalar_one_or_none()
+                await db.commit()
+        except Exception:
+            logger.error(
+                "memealerts_deposits: не удалось записать маркер покупки redemption=%s",
+                payload.event.redemption_id,
+                exc_info=True,
+            )
+            return False, None
+        if deposit_id is None:
+            return True, None
+        return False, deposit_id
+
+    async def _finish_deposit(
+        self,
+        deposit_id: int | None,
+        status: MemealertsDepositStatus,
+        error: MemealertsDepositError | None,
+    ) -> None:
+        """Зафиксировать исход покупки в истории. Ошибки записи глушатся (лог)."""
+        if deposit_id is None:
+            return
+        try:
+            async with self._db_session_factory() as db:
+                await db.execute(
+                    sa.update(MemealertsDeposit)
+                    .where(MemealertsDeposit.id == deposit_id)
+                    .values(
+                        status=status.value,
+                        error=error.value if error is not None else None,
+                    )
+                )
+                await db.commit()
+        except Exception:
+            logger.error("memealerts_deposits: не удалось зафиксировать исход id=%s", deposit_id, exc_info=True)
+
     async def reward_buy_memealerts(  # noqa: C901
         self,
         payload: PointRewardRedemptionWebhookSchema,
         user: User,
     ) -> None:
+        # Цена награды — из самого вебхука (event.reward.cost): это цена на
+        # момент выкупа, без дополнительного Helix-вызова.
+        reward = getattr(payload.event, "reward", None)
+        points_spent = reward.cost if reward is not None else None
+
+        # Дедуп-маркер: повторная доставка вебхука не должна ни начислять
+        # мемкоины второй раз, ни писать вторую строку в историю покупок.
+        is_duplicate, deposit_id = await self._try_insert_deposit(user, payload, points_spent)
+        if is_duplicate:
+            logger.warning(
+                "Повторная доставка вебхука redemption=%s — начисление мемкоинов пропущено",
+                payload.event.redemption_id,
+            )
+            self._inc_reward("duplicate", StatsType.REWARD_MEMECOINS)
+            return
+
+        # Счётчик «received» считает уникальные выкупы, а не доставки вебхука
+        # (дубли выше не инкрементируются вовсе — см. inc("duplicate")).
         self._inc_reward("received", StatsType.REWARD_MEMECOINS)
+        # Исход для истории покупок: обновляется в каждой ветке ниже (до
+        # побочных эффектов), дефолт покрывает проход без явного исхода.
+        # finally гарантирует фиксацию даже при исключении из чат-бота/отмены
+        # награды — иначе строка зависла бы в pending навсегда, а дедуп-маркер
+        # не дал бы повторной доставке вебхука доисправить её.
+        status = MemealertsDepositStatus.FAILED
+        error: MemealertsDepositError | None = MemealertsDepositError.UNEXPECTED
         try:
-            # Deprecated: keep the v1 path and v2-to-v1 fallback until all users migrate to v2.
-            # TODO: Remove the v1 branch, fallback, dependency, and legacy token after migration is complete.
-            if user.memealerts.access_token is None:
-                # Старый флоу
-                result = await self._memealerts.give_bonus(
-                    user.memealerts.memealerts_token,
-                    user.login_name,
-                    supporter=payload.event.user_input,
-                    amount=user.memealerts.coins_for_reward,
-                )
-            else:
-                # Новый флоу
-                try:
-                    token = await self._memealerts_auth.get_token_of_user(user)
-                    result = await self._memealerts_v2.give_bonus(
-                        ma_token=token,
-                        streamer=user.login_name,
-                        supporter=payload.event.user_input,
-                        amount=user.memealerts.coins_for_reward,
-                    )
-                except MEMEALERTS_V2_FALLBACK_ERRORS:
-                    logger.warning("MemeAlerts v2 authorization failed; trying legacy v1 token", exc_info=True)
-                    if not user.memealerts.memealerts_token:
-                        raise
+            try:
+                # Deprecated: keep the v1 path and v2-to-v1 fallback until all users migrate to v2.
+                # TODO: Remove the v1 branch, fallback, dependency, and legacy token after migration is complete.
+                if user.memealerts.access_token is None:
+                    # Старый флоу
                     result = await self._memealerts.give_bonus(
                         user.memealerts.memealerts_token,
                         user.login_name,
                         supporter=payload.event.user_input,
                         amount=user.memealerts.coins_for_reward,
                     )
+                else:
+                    # Новый флоу
+                    try:
+                        token = await self._memealerts_auth.get_token_of_user(user)
+                        result = await self._memealerts_v2.give_bonus(
+                            ma_token=token,
+                            streamer=user.login_name,
+                            supporter=payload.event.user_input,
+                            amount=user.memealerts.coins_for_reward,
+                        )
+                    except MEMEALERTS_V2_FALLBACK_ERRORS:
+                        logger.warning("MemeAlerts v2 authorization failed; trying legacy v1 token", exc_info=True)
+                        if not user.memealerts.memealerts_token:
+                            raise
+                        result = await self._memealerts.give_bonus(
+                            user.memealerts.memealerts_token,
+                            user.login_name,
+                            supporter=payload.event.user_input,
+                            amount=user.memealerts.coins_for_reward,
+                        )
 
-            if result:
-                try:  # TODO: Проверить что работает, потом убрать
-                    msg = "Начислен"
-                    if user.memealerts.coins_for_reward % 10 == 1 and user.memealerts.coins_for_reward != 11:
-                        coins_name = user.memealerts.memecoin_name_accusative or "Мемкоин"
-                    elif 1 < user.memealerts.coins_for_reward % 10 < 5 and user.memealerts.coins_for_reward != 11:
-                        coins_name = user.memealerts.memecoin_name_genitive or "Мемкоина"
-                        msg += "ы"
-                    else:
-                        coins_name = user.memealerts.memecoin_name_genitive_multiple or "Мемкоинов"
-                        msg += "о"
+                if result:
+                    # Мемкоины уже начислены — фиксируем успех до побочных эффектов
+                    # (сообщение/fulfill): их сбой не должен записывать провал.
+                    status, error = MemealertsDepositStatus.SUCCEEDED, None
+                    try:  # TODO: Проверить что работает, потом убрать
+                        msg = "Начислен"
+                        if user.memealerts.coins_for_reward % 10 == 1 and user.memealerts.coins_for_reward != 11:
+                            coins_name = user.memealerts.memecoin_name_accusative or "Мемкоин"
+                        elif 1 < user.memealerts.coins_for_reward % 10 < 5 and user.memealerts.coins_for_reward != 11:
+                            coins_name = user.memealerts.memecoin_name_genitive or "Мемкоина"
+                            msg += "ы"
+                        else:
+                            coins_name = user.memealerts.memecoin_name_genitive_multiple or "Мемкоинов"
+                            msg += "о"
 
-                    msg += f" {user.memealerts.coins_for_reward} {coins_name} для {payload.event.user_input} :з"
-                    await self._chatbot.send_message(user, msg)
-                except Exception:
-                    await self._chatbot.send_message(user, f"Мемкоины для {payload.event.user_name} начислены :з")
+                        msg += f" {user.memealerts.coins_for_reward} {coins_name} для {payload.event.user_input} :з"
+                        await self._chatbot.send_message(user, msg)
+                    except Exception:
+                        await self._chatbot.send_message(user, f"Мемкоины для {payload.event.user_name} начислены :з")
 
-                # Deprecated v1: уведомляем стримера о необходимости миграции на v2.
-                # TODO: убрать после полного перехода пользователей на v2.
-                if (
-                    user.memealerts.access_token is None
-                    and user.memealerts.memealerts_token
-                    and user.id <= MEMEALERTS_V1_MIGRATION_USER_ID_THRESHOLD
-                ):
-                    await self._chatbot.send_message(user, MEMEALERTS_V1_MIGRATION_MESSAGE)
+                    # Deprecated v1: уведомляем стримера о необходимости миграции на v2.
+                    # TODO: убрать после полного перехода пользователей на v2.
+                    if (
+                        user.memealerts.access_token is None
+                        and user.memealerts.memealerts_token
+                        and user.id <= MEMEALERTS_V1_MIGRATION_USER_ID_THRESHOLD
+                    ):
+                        await self._chatbot.send_message(user, MEMEALERTS_V1_MIGRATION_MESSAGE)
 
-                await self._fulfill_redemption(user, payload)
-                self._inc_reward("succeed", StatsType.REWARD_MEMECOINS)
-            else:
+                    await self._fulfill_redemption(user, payload)
+                    self._inc_reward("succeed", StatsType.REWARD_MEMECOINS)
+                else:
+                    await self._chatbot.send_message(
+                        user,
+                        "Ошибка начисления >.< Баллы возвращены 👀. Проверьте имя пользователя на мемалёрте!",
+                    )
+                    await self._cancel_redemption(user, payload)
+                    self._inc_reward("failed", StatsType.REWARD_MEMECOINS)
+                    status, error = MemealertsDepositStatus.FAILED, MemealertsDepositError.USER_NOT_FOUND
+            except MADuplicateUserError as exc:
+                logger.warning(f"Found duplicate MA user = {exc.supporter}")
+                self._inc_reward("failed", StatsType.REWARD_MEMECOINS)
+                status, error = MemealertsDepositStatus.FAILED, MemealertsDepositError.DUPLICATE_USER
                 await self._chatbot.send_message(
                     user,
-                    "Ошибка начисления >.< Баллы возвращены 👀. Проверьте имя пользователя на мемалёрте!",
+                    f'Найдено несколько пользователей с именем "{exc.supporter}". Баллы возвращены. Для начисления мемкоинов используйте ID.',
                 )
                 await self._cancel_redemption(user, payload)
+            except MAUserNotFoundError:
+                logger.warning("MA supporter not found: %s", payload.event.user_input)
                 self._inc_reward("failed", StatsType.REWARD_MEMECOINS)
-        except MADuplicateUserError as exc:
-            logger.warning(f"Found duplicate MA user = {exc.supporter}")
-            self._inc_reward("failed", StatsType.REWARD_MEMECOINS)
-            await self._chatbot.send_message(
-                user,
-                f'Найдено несколько пользователей с именем "{exc.supporter}". Баллы возвращены. Для начисления мемкоинов используйте ID.',
-            )
-            await self._cancel_redemption(user, payload)
-        except MAUserNotFoundError:
-            logger.warning("MA supporter not found: %s", payload.event.user_input)
-            self._inc_reward("failed", StatsType.REWARD_MEMECOINS)
-            await self._chatbot.send_message(
-                user,
-                "Пользователь не найден в MemeAlerts. Баллы возвращены. "
-                "Проверьте ID или имя; новому зрителю может потребоваться забрать приветственный бонус.",
-            )
-            await self._cancel_redemption(user, payload)
-        except MANotSupporterError:
-            logger.warning("MA user is not a supporter of this streamer: %s", payload.event.user_input)
-            self._inc_reward("failed", StatsType.REWARD_MEMECOINS)
-            await self._chatbot.send_message(
-                user,
-                "Зритель ещё не является саппортером канала в MemeAlerts. Баллы возвращены. "
-                "Зрителю нужно зайти на страницу мемалёртса и забрать приветственный бонус.",
-            )
-            await self._cancel_redemption(user, payload)
-        except MATokenExpiredError:
-            logger.warning("MA Token expired")
-            self._inc_reward("failed", StatsType.REWARD_MEMECOINS)
-            await self._chatbot.send_message(
-                user,
-                f"Ошибка начисления мемкоинов. @{user.login_name}, истёк срок действия токена. Пожалуйста, обновите токен в панели управления ботом.",
-            )
-            await self._cancel_redemption(user, payload)
-        except MATokenInvalidError:
-            logger.warning("MA Token invalid")
-            self._inc_reward("failed", StatsType.REWARD_MEMECOINS)
-            await self._chatbot.send_message(
-                user,
-                "Ошибка начисления мемкоинов: Memealerts не принял установленный токен.",
-            )
-            await self._cancel_redemption(user, payload)
-        except (MAInvalidTokenError, MAInvalidScopeError, MANoToken):
-            logger.warning("MA v2 authorization is invalid")
-            self._inc_reward("failed", StatsType.REWARD_MEMECOINS)
-            await self._chatbot.send_message(
-                user,
-                f"Ошибка авторизации MemeAlerts. @{user.login_name}, переподключи интеграцию в панели управления ботом.",
-            )
-            await self._cancel_redemption(user, payload)
-        except Exception:
-            logger.error("Error handling redemption", exc_info=True)
-            self._inc_reward("failed", StatsType.REWARD_MEMECOINS)
-            await self._chatbot.send_message(
-                user,
-                "Непредвиденная ошибка начисления мемкоинов! О.О Баллы возвращены!",
-            )
-            await self._cancel_redemption(user, payload)
+                status, error = MemealertsDepositStatus.FAILED, MemealertsDepositError.USER_NOT_FOUND
+                await self._chatbot.send_message(
+                    user,
+                    "Пользователь не найден в MemeAlerts. Баллы возвращены. "
+                    "Проверьте ID или имя; новому зрителю может потребоваться забрать приветственный бонус.",
+                )
+                await self._cancel_redemption(user, payload)
+            except MANotSupporterError:
+                logger.warning("MA user is not a supporter of this streamer: %s", payload.event.user_input)
+                self._inc_reward("failed", StatsType.REWARD_MEMECOINS)
+                status, error = MemealertsDepositStatus.FAILED, MemealertsDepositError.NOT_SUPPORTER
+                await self._chatbot.send_message(
+                    user,
+                    "Зритель ещё не является саппортером канала в MemeAlerts. Баллы возвращены. "
+                    "Зрителю нужно зайти на страницу мемалёртса и забрать приветственный бонус.",
+                )
+                await self._cancel_redemption(user, payload)
+            except MATokenExpiredError:
+                logger.warning("MA Token expired")
+                self._inc_reward("failed", StatsType.REWARD_MEMECOINS)
+                status, error = MemealertsDepositStatus.FAILED, MemealertsDepositError.TOKEN_EXPIRED
+                await self._chatbot.send_message(
+                    user,
+                    f"Ошибка начисления мемкоинов. @{user.login_name}, истёк срок действия токена. "
+                    "Пожалуйста, обновите токен в панели управления ботом.",
+                )
+                await self._cancel_redemption(user, payload)
+            except MATokenInvalidError:
+                logger.warning("MA Token invalid")
+                self._inc_reward("failed", StatsType.REWARD_MEMECOINS)
+                status, error = MemealertsDepositStatus.FAILED, MemealertsDepositError.TOKEN_INVALID
+                await self._chatbot.send_message(
+                    user,
+                    "Ошибка начисления мемкоинов: Memealerts не принял установленный токен.",
+                )
+                await self._cancel_redemption(user, payload)
+            except (MAInvalidTokenError, MAInvalidScopeError, MANoToken):
+                logger.warning("MA v2 authorization is invalid")
+                self._inc_reward("failed", StatsType.REWARD_MEMECOINS)
+                status, error = MemealertsDepositStatus.FAILED, MemealertsDepositError.TOKEN_INVALID
+                await self._chatbot.send_message(
+                    user,
+                    f"Ошибка авторизации MemeAlerts. @{user.login_name}, переподключи интеграцию в панели управления ботом.",
+                )
+                await self._cancel_redemption(user, payload)
+            except Exception as exc:
+                logger.error("Error handling redemption", exc_info=True)
+                self._inc_reward("failed", StatsType.REWARD_MEMECOINS)
+                # Мемкоины могли уже быть начислены (сбой fulfill/сообщения после
+                # give_bonus): статус SUCCEEDED не перезабиваем — история отражает
+                # факт начисления, а не исход побочных эффектов.
+                if status is not MemealertsDepositStatus.SUCCEEDED:
+                    if isinstance(exc, MAUnavailableError):
+                        error = MemealertsDepositError.MA_UNAVAILABLE
+                    else:
+                        error = MemealertsDepositError.UNEXPECTED
+                await self._chatbot.send_message(
+                    user,
+                    "Непредвиденная ошибка начисления мемкоинов! О.О Баллы возвращены!",
+                )
+                await self._cancel_redemption(user, payload)
+        finally:
+            # Единственный await в finally — UPDATE истории (свои try/except внутри).
+            # При отмене задачи (CancelledError — BaseException) до UPDATE дело может
+            # не дойти и строка останется pending — принятая цена, как при краше процесса.
+            await self._finish_deposit(deposit_id, status, error)
 
     @tracer.start_as_current_span("Twitch Eventsub: Reward AI Sticker")
     async def reward_ai_sticker(

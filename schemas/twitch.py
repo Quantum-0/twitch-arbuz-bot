@@ -7,6 +7,19 @@ from pydantic import AnyHttpUrl, BaseModel, Field
 from config import settings
 
 
+class RedemptionRewardSchema(BaseModel):
+    """Вложенный объект reward в redemption-вебхуке.
+
+    Объявляем только используемые поля (id, cost): title/prompt Twitch тоже
+    присылает, но pydantic их игнорирует — меньше полей, меньше шансов упасть
+    при изменении формата. Поля Optional: частичное изменение формата не должно
+    ронять весь вебхук (422 = необработанный выкуп) — цена просто уйдёт в NULL.
+    """
+
+    id: UUID | None = None
+    cost: int | None = None
+
+
 class PointRewardRedemptionWebhookEventSchema(BaseModel):
     redemption_id: UUID = Field(..., alias="id")
     status: str = Field(..., examples=["unfulfilled"])
@@ -14,6 +27,11 @@ class PointRewardRedemptionWebhookEventSchema(BaseModel):
     user_name: str = Field(..., examples=["Quantum075"])
     user_input: str = Field(...)
     user_login: str = Field(..., examples=["quantum075"])
+    reward: RedemptionRewardSchema | None = Field(
+        None,
+        description="Выкупленная награда; по документации Twitch присылается всегда, "
+        "None — защита от будущих изменений формата (цена уйдёт в NULL)",
+    )
     redeemed_at: datetime = Field(...)
     broadcaster_user_id: int = Field(...)
     broadcaster_user_name: str = Field(..., examples=["Quantum075"])

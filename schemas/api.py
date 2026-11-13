@@ -12,6 +12,8 @@ from schemas.enums import (
     BalanceOperationAction,
     BalanceOperationType,
     ChatbotDefaultTargetBehaviour,
+    MemealertsDepositError,
+    MemealertsDepositStatus,
 )
 
 
@@ -390,4 +392,24 @@ class BalanceHistoryResponseSchema(BaseModel):
     """Ответ /api/user/balance/operations: страница истории + курсор следующей."""
 
     items: list[BalanceOperationSchema]
+    next_cursor: int | None = None
+
+
+class MemealertsDepositSchema(BaseModel):
+    """Одна покупка мемкоинов через награду в истории /panel/memealerts."""
+
+    id: int
+    created_at: datetime
+    chatter_login: str
+    memealerts_username: str
+    points_spent: int | None = None
+    memecoins: int
+    status: MemealertsDepositStatus
+    error: MemealertsDepositError | None = None
+
+
+class MemealertsDepositsResponseSchema(BaseModel):
+    """Ответ /api/user/memealerts/deposits: страница истории + курсор следующей."""
+
+    items: list[MemealertsDepositSchema]
     next_cursor: int | None = None

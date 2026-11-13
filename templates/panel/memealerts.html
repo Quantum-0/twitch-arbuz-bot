@@ -2,6 +2,36 @@
 
 {% block title %}Интеграция с Memealerts — Quantum0's Bot{% endblock %}
 
+{% block styles %}
+.reward-cost-unsaved-hint {
+    display: block; margin-top: 2px; font-size: 12px; font-weight: 600;
+    color: var(--color-warning); animation: textPulse 1.6s infinite;
+}
+/* Каденс как у livePulse/staffBadgePulse — мягкое мигание внимания. */
+@keyframes textPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+.meme-deposits-title { margin-top: 36px; }
+.meme-deposits-table { width: 100%; border-collapse: collapse; background: var(--color-bg-secondary); border-radius: 10px; overflow: hidden; }
+.meme-deposits-table th, .meme-deposits-table td {
+    padding: 10px 12px; text-align: left; border-bottom: 1px solid var(--color-border);
+    font-size: 0.92em; vertical-align: top;
+}
+.meme-deposits-table th { color: var(--color-text-muted); font-weight: 600; }
+.meme-deposits-table tr:last-child td { border-bottom: none; }
+.meme-deposit-status {
+    display: inline-block; padding: 2px 8px; border-radius: 6px; font-size: 0.8em; font-weight: 600; white-space: nowrap;
+}
+.meme-deposit-status.succeeded { background: rgba(76, 175, 80, 0.2); color: #66bb6a; }
+.meme-deposit-status.failed { background: rgba(229, 57, 53, 0.2); color: #ef5350; }
+.meme-deposit-status.pending { background: rgba(128, 128, 128, 0.2); color: var(--color-text-muted); }
+.meme-deposit-reason {
+    color: var(--color-text-muted); font-size: 0.85em; margin-top: 2px;
+    max-width: 340px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.meme-deposits-empty { padding: 30px; text-align: center; color: var(--color-text-muted); background: var(--color-bg-secondary); border-radius: 10px; }
+.meme-deposits-more { display: block; margin: 16px auto 0; }
+{% endblock %}
+
 {% block panel_section %}
 <h3>Интеграция с Memealerts</h3>
 <p>Привяжите ваш аккаунт к Memealerts, чтобы зрители могли обменивать баллы канала на мемкоины в сервисе Memealerts.</p>
@@ -41,6 +71,13 @@
             <q0ui-number id="reward-cost" min="1" max="10000000" step="1" editable disabled></q0ui-number>
             <button type="button" class="reward-cost-save-btn" id="reward-cost-save-btn" disabled>Сохранить</button>
         </div>
+        <small class="reward-cost-unsaved-hint" id="reward-cost-hint" hidden>не забудь сохранить!</small>
+        <p class="memealerts-currency-line" id="coin-rate-line" hidden>
+            <small>
+                Стоимость 1 {{ memealerts.currency_genitive }}:
+                <span id="coin-rate-value"></span>
+            </small>
+        </p>
         {% if memealerts.currency %}
         <p class="memealerts-currency-line">
             <small>
@@ -66,6 +103,24 @@
                 Проверка...
             </button>
         </div>
+
+        <h4 class="meme-deposits-title">История пополнений</h4>
+        <table class="meme-deposits-table" id="memeDepositsTable" hidden>
+            <thead>
+            <tr>
+                <th>Дата и время</th>
+                <th>Чаттер</th>
+                <th>Ник на Memealerts</th>
+                <th>Баллы канала</th>
+                <th>{{ memealerts.currency_multiple }}</th>
+                <th>Статус</th>
+            </tr>
+            </thead>
+            <tbody id="memeDepositsBody"></tbody>
+        </table>
+        <div class="meme-deposits-empty" id="memeDepositsEmpty" hidden>Пополнений пока нет</div>
+        <div class="meme-deposits-empty" id="memeDepositsLoading">Загрузка…</div>
+        <button type="button" class="streamers-btn meme-deposits-more" id="memeDepositsMore" hidden>Показать ещё</button>
     </div>
     <div id="memealerts-v2-disconnected" style="display: none">
         <button type="button" data-nav="/memealerts/auth">Включить интеграцию Memealerts</button>

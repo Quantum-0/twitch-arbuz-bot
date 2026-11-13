@@ -613,11 +613,12 @@ class MemealertsV2Service:
         """
         username_clean = username.lower().strip()
 
-        # Если указан айдишник - выдаём сразу по нему
+        # Если указан айдишник - выдаём сразу по нему.
+        # Результат не глотаем: result:false на 2xx значит «не начислено» —
+        # выше по цепочке вернут баллы и запишут провал в историю покупок.
         if self.is_id(username_clean):
             logger.info(f"Giving memecoins by user_id=`{username}`")
-            await self._give_bonus(ma_token=ma_token, user_id=UserID(username_clean), value=amount)
-            return True
+            return await self._give_bonus(ma_token=ma_token, user_id=UserID(username_clean), value=amount)
 
         # Пытаемся достать из БД закэшированного саппортера
         try:
@@ -631,16 +632,14 @@ class MemealertsV2Service:
 
         if supporter_from_db:
             logger.info(f"Giving memecoins for supporter from DB cache by username=`{username_clean}`")
-            await self._give_bonus(ma_token=ma_token, user_id=UserID(supporter_from_db.id), value=amount)
-            return True
+            return await self._give_bonus(ma_token=ma_token, user_id=UserID(supporter_from_db.id), value=amount)
 
         # Ищем пользователя среди саппортеров стримера через API (сначала точечно, затем полностью)
         user_in_supporters = await self.find_user_in_supporters(ma_token, username_clean)
 
         if user_in_supporters:
             logger.info(f"Giving memecoins for supporter by username=`{username_clean}`")
-            await self._give_bonus(ma_token=ma_token, user_id=user_in_supporters.supporter_id, value=amount)
-            return True
+            return await self._give_bonus(ma_token=ma_token, user_id=user_in_supporters.supporter_id, value=amount)
 
         # Последний шанс: Глобальный поиск через API
         # api_global_start = time.perf_counter()
