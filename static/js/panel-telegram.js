@@ -179,6 +179,10 @@ async function disconnectChat(scope) {
 }
 
 function initTelegramSection() {
+    // Страницы разделов панели грузят этот модуль все вместе — без TG-секции
+    // выходим сразу, не дёргая settings-API впустую.
+    if (!document.getElementById("telegram-panel")) return;
+
     // Тумблеры и радио автосохраняются, шаблоны — кнопкой «Сохранить шаблон».
     document.querySelectorAll("#telegram-panel q0ui-switch").forEach((control) => {
         control.addEventListener("change", () => void saveSettings());

@@ -4,7 +4,7 @@
 - ``GET /auth/steam`` — редирект на Steam OpenID (только для залогиненных).
 - ``GET /auth/steam/callback`` — приём OpenID-ответа, верификация через
   ``check_authentication``, подтягивание ``profileurl`` через GetPlayerSummaries,
-  сохранение ``steam_id`` + ``steam_profile_url`` в БД, редирект на ``/panel``.
+  сохранение ``steam_id`` + ``steam_profile_url`` в БД, редирект на ``/panel/other``.
 
 Отвязка Steam-аккаунта (POST /api/user/steam/unlink) — см. ``routers/api/user/steam.py``.
 """
@@ -52,12 +52,12 @@ async def steam_callback(
     params: dict[str, str] = {k: v for k, v in request.query_params.multi_items() if k.startswith("openid.")}
     if not params:
         logger.warning("Steam callback: no openid.* params in query string")
-        return RedirectResponse(url="/panel")
+        return RedirectResponse(url="/panel/other")
 
     steam_id = await steam.verify_openid_response(params)
     if not steam_id:
         logger.warning("Steam OpenID verification failed for user_id=%s", getattr(user, "id", None))
-        return RedirectResponse(url="/panel")
+        return RedirectResponse(url="/panel/other")
 
     profile_url = await steam.fetch_profile_url(steam_id)
     if not profile_url:
@@ -70,4 +70,4 @@ async def steam_callback(
         user.links.steam = profile_url
     await db.commit()
     logger.info("Steam linked: user_id=%s steam_id=%s", user.id, steam_id)
-    return RedirectResponse(url="/panel")
+    return RedirectResponse(url="/panel/other")

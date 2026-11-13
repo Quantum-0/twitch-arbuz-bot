@@ -538,6 +538,65 @@ class TestUpdateReward:
 
         fake.delete_eventsub_subscription.assert_not_awaited()
 
+    async def test_cost_passed_to_update(self, patch_user_client, monkeypatch):
+        reward_id = uuid4()
+        subs = [
+            make_sub(
+                "s1",
+                "channel.channel_points_custom_reward_redemption.add",
+                {"broadcaster_user_id": "123456", "reward_id": str(reward_id)},
+            )
+        ]
+        fake = patch_user_client(FakeUserClient(rewards=[reward_stub()], subs=subs))
+
+        await Twitch.update_reward(
+            user_stub(),
+            reward_id,
+            is_enabled=True,
+            is_user_input_required=True,
+            should_redemptions_skip_request_queue=False,
+            cost=5000,
+        )
+
+        kwargs = fake.update_custom_reward.await_args.kwargs
+        assert kwargs["cost"] == 5000
+
+    async def test_cost_omitted_when_none(self, patch_user_client):
+        reward_id = uuid4()
+        subs = [
+            make_sub(
+                "s1",
+                "channel.channel_points_custom_reward_redemption.add",
+                {"broadcaster_user_id": "123456", "reward_id": str(reward_id)},
+            )
+        ]
+        fake = patch_user_client(FakeUserClient(rewards=[reward_stub()], subs=subs))
+
+        await Twitch.update_reward(
+            user_stub(),
+            reward_id,
+            is_enabled=True,
+            is_user_input_required=True,
+            should_redemptions_skip_request_queue=False,
+        )
+
+        assert "cost" not in fake.update_custom_reward.await_args.kwargs
+
+
+class TestGetReward:
+    async def test_returns_reward(self, patch_user_client):
+        reward = reward_stub()
+        patch_user_client(FakeUserClient(rewards=[reward]))
+        assert await Twitch.get_reward(user_stub(), "r1") is reward
+
+    async def test_not_found_returns_none(self, patch_user_client):
+        patch_user_client(FakeUserClient(raise_on_rewards=TwitchResourceNotFound()))
+        assert await Twitch.get_reward(user_stub(), "r1") is None
+
+    async def test_empty_list_returns_none(self, patch_user_client):
+        patch_user_client(FakeUserClient(rewards=[]))
+        assert await Twitch.get_reward(user_stub(), "r1") is None
+
 
 class TestFixRewardAutofulfill:
     async def test_not_found_false(self, patch_user_client):

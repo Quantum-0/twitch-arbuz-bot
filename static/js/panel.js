@@ -1,13 +1,16 @@
 /**
- * Контроллер страницы /panel (ES-модуль).
+ * Контроллер страниц панели настроек: /panel/<section> (ES-модуль).
+ * Главная /panel — статичный хаб без JS; здесь — страницы разделов.
  *
  * Интерактивные контролы — библиотека q0ui (ui/index.js): тумблеры, слайдеры,
  * степпер мемкоинов, статус-карточки. Здесь — только логика страницы:
  * сохранение настроек, ссылки-конфиги оверлеев, кнопки-действия.
+ * Инициализация защищена от отсутствия элементов — один модуль обслуживает
+ * все разделы, на чужой странице каждый init — no-op.
  * Логика секции Telegram — panel-telegram.js.
  *
- * Конфиг страницы (id канала, секрет оверлеев) приходит из templates/panel.html
- * через window.__panel.
+ * Конфиг страницы (id канала, секрет оверлеев) приходит из
+ * templates/panel/base_section.html через window.__panel.
  */
 import "./ui/index.js";
 import "./panel-telegram.js";
@@ -38,7 +41,20 @@ async function fetchNotify(endpoint, options, fallbackTitle) {
 
 // ── Сохранение настроек (/api/user/update_settings) ─────────────────────────
 
-async function updateSetting(name, value) {
+// Очереди сохранений по имени настройки: быстрые переключения тумблера
+// (вкл→выкл подряд) раньше уходили параллельными fetch'ами и могли
+// примениться на сервере в обратном порядке. Теперь запросы одной настройки
+// строго последовательны — сервер видит их в порядке кликов.
+const settingSaveQueues = new Map();
+
+function updateSetting(name, value) {
+    const prev = settingSaveQueues.get(name) ?? Promise.resolve();
+    const chain = prev.catch(() => {}).then(() => saveSetting(name, value));
+    settingSaveQueues.set(name, chain);
+    return chain;
+}
+
+async function saveSetting(name, value) {
     const delays = [1000, 2000, 4000, 7000];
     let attempt = 0;
     const encodedValue = encodeURIComponent(String(value));
@@ -97,6 +113,27 @@ function initChatbotSection() {
         radio.addEventListener("change", (event) => {
             if (!event.target.checked) return;
             void updateSetting("chatbot_default_target_behaviour", event.target.value);
+        });
+    });
+}
+
+// ── Категории команд: кнопка «Включить все» ────────────────────────────────
+
+function initCommandCategories() {
+    // Программная установка checked не кидает событие change (его слушает
+    // bindSettingSwitches) — сохраняем настройки напрямую, по одному запросу.
+    document.querySelectorAll(".toggle-all-btn").forEach((btn) => {
+        btn.addEventListener("click", () => {
+            const grid = byId(btn.dataset.target ?? "");
+            if (!grid) return;
+            let enabled = 0;
+            grid.querySelectorAll("q0ui-switch[name]").forEach((sw) => {
+                if (sw.checked) return;
+                sw.checked = true;
+                enabled++;
+                void updateSetting(sw.name, true);
+            });
+            if (enabled === 0) showNotification("Настройки", "Все команды категории уже включены.");
         });
     });
 }
@@ -160,11 +197,93 @@ function initMemealertsSection() {
     }
 
     byId("disconnect-memealerts-btn")?.addEventListener("click", () => void disconnectMemealerts());
+
+    // Стоимость награды в баллах канала: подтягиваем текущую из Twitch при
+    // загрузке, сохраняем отдельной кнопкой (не debounce — цена важна).
+    const costInput = byId("reward-cost");
+    const costBtn = byId("reward-cost-save-btn");
+    if (costInput && costBtn) {
+        void (async () => {
+            try {
+                const res = await fetch("/api/user/memealerts/reward", { credentials: "same-origin" });
+                if (!res.ok) return;
+                const data = await res.json();
+                if (Number.isFinite(data.cost)) {
+                    costInput.value = data.cost;
+                    costInput.disabled = false;
+                    costBtn.disabled = false;
+                }
+            } catch (e) {
+                // Тихо: поле остаётся заблокированным, статус-карточка покажет проблему.
+            }
+        })();
+        costBtn.addEventListener("click", () => {
+            const cost = Number(costInput.value);
+            if (!Number.isFinite(cost) || cost < 1) {
+                showNotification("Ошибка", "Введите число от 1 и больше", true);
+                return;
+            }
+            costBtn.disabled = true;
+            void fetchNotify(
+                "/api/user/memealerts/reward",
+                { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ cost }) },
+                "Memealerts",
+            ).then(({ ok }) => {
+                if (ok) costBtn.textContent = "Сохранено!";
+                else costBtn.disabled = false;
+                setTimeout(() => {
+                    costBtn.textContent = "Сохранить";
+                    costBtn.disabled = false;
+                }, 1500);
+            });
+        });
+    }
 }
 
 // ── Оверлеи: сборка URL-конфига для OBS из [data-param] ─────────────────────
 // Настройки оверлеев не персистятся на сервере: конфиг живёт в URL, который
-// пользователь копирует в OBS. Значения сбрасываются к разметке при перезагрузке.
+// пользователь копирует в OBS. Значения сбрасываются к разметке при перезагрузке,
+// поэтому дополнительно запоминаем их в localStorage — вернувшись на страницу,
+// не нужно выставлять всё заново.
+
+const overlayCfgKey = (card) => `overlay_cfg:${(card.dataset.base || "").split("/overlay/").pop()}`;
+
+function readOverlayCfg(card) {
+    try {
+        return JSON.parse(localStorage.getItem(overlayCfgKey(card)) || "null");
+    } catch (e) {
+        return null;
+    }
+}
+
+function restoreOverlayCfg(card) {
+    const params = readOverlayCfg(card);
+    if (!params) return;
+    card.querySelectorAll("[data-param]").forEach((el) => {
+        const key = el.dataset.param;
+        if (!(key in params)) return;
+        const value = params[key];
+        if (el.tagName === "Q0UI-SWITCH") el.checked = Boolean(value);
+        else if (el.type === "radio") el.checked = String(value) === el.value;
+        else el.value = value;
+    });
+}
+
+function saveOverlayCfg(card) {
+    const params = {};
+    card.querySelectorAll("[data-param]").forEach((el) => {
+        const key = el.dataset.param;
+        if (el.tagName === "Q0UI-SWITCH") params[key] = el.checked;
+        else if (el.type === "radio") {
+            if (el.checked) params[key] = el.value;
+        } else params[key] = el.value;
+    });
+    try {
+        localStorage.setItem(overlayCfgKey(card), JSON.stringify(params));
+    } catch (e) {
+        // Приватный режим/переполнение — молча живём без персиста.
+    }
+}
 
 function updateOverlayLink(card) {
     const base = card.dataset.base;
@@ -200,13 +319,22 @@ function updateOverlayLink(card) {
 
 function initOverlays() {
     document.querySelectorAll(".overlay-card").forEach((card) => {
+        // Восстанавливаем сохранённые значения до первой сборки ссылок.
+        restoreOverlayCfg(card);
+
         const linkDiv = card.querySelector(".overlay-link");
         const linkDockDiv = card.querySelector(".dock-panel-link");
 
         card.querySelectorAll("[data-param]").forEach((el) => {
             // q0ui-slider кричит input, q0ui-switch — change; нативным хватит input+change.
-            el.addEventListener("input", () => updateOverlayLink(card));
-            el.addEventListener("change", () => updateOverlayLink(card));
+            el.addEventListener("input", () => {
+                updateOverlayLink(card);
+                saveOverlayCfg(card);
+            });
+            el.addEventListener("change", () => {
+                updateOverlayLink(card);
+                saveOverlayCfg(card);
+            });
         });
 
         // Показ/скрытие настроек по выбранному radio (data-visible-when-param / -value):
@@ -341,6 +469,7 @@ function initActionButtons() {
 
 function initPanel() {
     initChatbotSection();
+    initCommandCategories();
     initMemealertsSection();
     initOverlays();
     initHeat();

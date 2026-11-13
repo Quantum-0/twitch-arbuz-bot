@@ -660,3 +660,72 @@ async def test_tts_external_broadcasts(client, user_auth_mock, test_user, db_ses
 
     payload = json_lib.loads(args[2])
     assert payload["text"] == "привет"
+
+
+# ── Memealerts v2: стоимость награды (GET/PATCH /api/user/memealerts/reward) ─
+
+
+async def test_get_reward_cost_ok(client, user_auth_mock, test_user):
+    from routers.api.user import memealerts as memealerts_v2
+
+    test_user.memealerts.memealerts_reward = uuid.uuid4()
+    twitch = fake_twitch(get_reward=AsyncMock(return_value=Mock(cost=5000)))
+
+    with provide_overrides(memealerts_v2.get_reward_cost, {"twitch": twitch}):
+        resp = await client.get("/api/user/memealerts/reward")
+
+    assert resp.status_code == 200
+    assert resp.json() == {"cost": 5000}
+    twitch.get_reward.assert_awaited_once()
+
+
+async def test_get_reward_cost_reward_deleted_on_twitch(client, user_auth_mock, test_user):
+    from routers.api.user import memealerts as memealerts_v2
+
+    test_user.memealerts.memealerts_reward = uuid.uuid4()
+    twitch = fake_twitch(get_reward=AsyncMock(return_value=None))
+
+    with provide_overrides(memealerts_v2.get_reward_cost, {"twitch": twitch}):
+        resp = await client.get("/api/user/memealerts/reward")
+
+    assert resp.status_code == 200
+    assert resp.json() == {"cost": None}
+
+
+async def test_get_reward_cost_no_reward_created(client, user_auth_mock, test_user):
+    resp = await client.get("/api/user/memealerts/reward")
+    assert resp.status_code == 400
+
+
+async def test_update_reward_cost(client, user_auth_mock, test_user):
+    from routers.api.user import memealerts as memealerts_v2
+
+    test_user.memealerts.memealerts_reward = uuid.uuid4()
+    twitch = fake_twitch()
+
+    with provide_overrides(memealerts_v2.update_reward, {"twitch": twitch}):
+        resp = await client.patch("/api/user/memealerts/reward", json={"cost": 12345})
+
+    assert resp.status_code == 200
+    kwargs = twitch.update_reward.await_args.kwargs
+    assert kwargs["cost"] == 12345
+    assert kwargs["is_enabled"] is True
+    assert "Стоимость" in resp.json()["message"]
+
+
+async def test_update_reward_without_body_keeps_fix_flow(client, user_auth_mock, test_user):
+    from routers.api.user import memealerts as memealerts_v2
+
+    test_user.memealerts.memealerts_reward = uuid.uuid4()
+    twitch = fake_twitch()
+
+    with provide_overrides(memealerts_v2.update_reward, {"twitch": twitch}):
+        resp = await client.patch("/api/user/memealerts/reward")
+
+    assert resp.status_code == 200
+    assert twitch.update_reward.await_args.kwargs["cost"] is None
+
+
+async def test_update_reward_cost_validation(client, user_auth_mock, test_user):
+    resp = await client.patch("/api/user/memealerts/reward", json={"cost": 0})
+    assert resp.status_code == 422

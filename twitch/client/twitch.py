@@ -380,6 +380,7 @@ class Twitch:
         is_enabled: bool,
         is_user_input_required: bool,
         should_redemptions_skip_request_queue: bool,
+        cost: int | None = None,
     ):
         twitch_user = await _user_twitch_client(user)
         rewards = await twitch_user.get_custom_reward(
@@ -389,13 +390,23 @@ class Twitch:
         )
         if len(rewards) == 0:
             raise TwitchResourceNotFound("Reward not found")
-        await twitch_user.update_custom_reward(
-            broadcaster_id=user.twitch_id,
-            reward_id=str(reward_id),
-            is_enabled=is_enabled,
-            is_user_input_required=is_user_input_required,
-            should_redemptions_skip_request_queue=should_redemptions_skip_request_queue,
-        )
+        if cost is not None:
+            await twitch_user.update_custom_reward(
+                broadcaster_id=user.twitch_id,
+                reward_id=str(reward_id),
+                is_enabled=is_enabled,
+                is_user_input_required=is_user_input_required,
+                should_redemptions_skip_request_queue=should_redemptions_skip_request_queue,
+                cost=cost,
+            )
+        else:
+            await twitch_user.update_custom_reward(
+                broadcaster_id=user.twitch_id,
+                reward_id=str(reward_id),
+                is_enabled=is_enabled,
+                is_user_input_required=is_user_input_required,
+                should_redemptions_skip_request_queue=should_redemptions_skip_request_queue,
+            )
 
         subs = await twitch_user.get_eventsub_subscriptions(
             user_id=user.twitch_id,
@@ -418,6 +429,21 @@ class Twitch:
 
         if not memecoins_reward_subscription:
             await cls.subscribe_reward(user=user, reward_id=reward_id)
+
+    @staticmethod
+    @_reauth_on_auth_error
+    async def get_reward(user: User, reward_id: UUID | str) -> CustomReward | None:
+        """Награда канала пользователя или None, если удалена на стороне Twitch."""
+        twitch_user = await _user_twitch_client(user)
+        try:
+            rewards = await twitch_user.get_custom_reward(
+                user.twitch_id,
+                reward_id=str(reward_id),
+                only_manageable_rewards=True,
+            )
+        except TwitchResourceNotFound:
+            return None
+        return rewards[0] if rewards else None
 
     @staticmethod
     @_reauth_on_auth_error

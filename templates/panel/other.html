@@ -1,8 +1,13 @@
+{% extends "panel/base_section.html" %}
+
+{% block title %}Другие настройки — Quantum0's Bot{% endblock %}
+
+{% block panel_section %}
 <h3>Другие настройки</h3>
 <small class="overlay-copy-hint">
-    <p>Прочие настройки, не попавшие в другие категории.</p>
+    <p>Прочие настройки, не попавшие в другие разделы.</p>
 </small>
-<div class="toggles-grid active">
+<div class="settings-toggles-grid">
     <div class="toggle-label">
         <span>Включить shoutout на рейды</span>
         <q0ui-switch name="enable_shoutout_on_raid" {% if settings.enable_shoutout_on_raid %}checked{% endif %}></q0ui-switch>
@@ -16,22 +21,6 @@
 </div>
 
 <div style="margin-top: 20px;">
-    <h4>Telegram</h4>
-    <p><small>Привязанный Telegram может использоваться для уведомлений о проблемах с вашими интеграциями — например, если Twitch отзовёт авторизацию бота.</small></p>
-    {% if user.telegram and user.telegram.telegram_user_id %}
-        {% if user.telegram.telegram_username %}<p id="tg-username-line"><small>Привязан Telegram: @{{ user.telegram.telegram_username }}</small></p>{% endif %}
-    {% endif %}
-    <button class="btn-danger" id="tg-unlink-btn" type="button"
-            {% if not (user.telegram and user.telegram.telegram_user_id) %}hidden{% endif %}>
-        Отвязать Telegram
-    </button>
-    <button class="install-btn" id="tg-link-btn" type="button"
-            {% if (user.telegram and user.telegram.telegram_user_id) or not telegram_login_enabled %}hidden{% endif %}>
-        Привязать Telegram
-    </button>
-</div>
-
-<div style="margin-top: 20px;">
     <h4>Steam</h4>
     <p><small>Это позволит использовать команду !стим и добавит ссылку на ваш стим в команду !ссылки</small></p>
     <button class="btn-danger" id="steam-unlink-btn" type="button" {% if not user.links.steam_id %}hidden{% endif %}>
@@ -41,3 +30,4 @@
         <img src="https://shared.fastly.steamstatic.com/community_assets/images/steamworks_docs/russian/sits_large_border.png"/>
     </a>
 </div>
+{% endblock %}

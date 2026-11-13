@@ -7,7 +7,9 @@ APScheduler-джоба: раз в 5 минут проверяет новых к�
 1. SELECT пользователей с clips_enabled + clips_chat_id + access_token.
 2. Для каждого: получить валидный Twitch user token (через TwitchTokenService).
 3. GET https://api.twitch.tv/helix/clips?broadcaster_id=<id>&started_at=<iso>&first=100
-4. Фильтр по clips_mode: all → все, featured → только is_featured=True.
+4. Фильтр по clips_mode: all → все, featured → только is_featured=True
+   (режим удалён из UI: Twitch больше не позволяет помечать клипы избранными;
+   сохранённые в БД значения featured нормализуются к all).
 5. Для каждого нового клипа:
    - clips_delivery == "link" → MQTT twibot/telegram/send_message с ссылкой.
    - clips_delivery == "video" → GET /helix/clips/downloads → MQTT twibot/telegram/send_video.
@@ -305,6 +307,11 @@ class ClipsPollerService:
         clips_mode: str,
     ) -> list[dict[str, Any]]:
         """Отфильтровать дубликаты (created_at <= last_clip_date) и применить clips_mode."""
+        # Twitch убрал возможность помечать клипы избранными, режима featured
+        # больше нет в UI. Для старых настроек (featured в БД) ведём себя как
+        # «все клипы» — иначе фильтр is_featured молча отсеивал бы всё.
+        if clips_mode == "featured":
+            clips_mode = "all"
         if last_clip_date is not None:
             clips = [c for c in clips if self._parse_created_at(c.get("created_at", "")) > last_clip_date]
         if clips_mode == "featured":

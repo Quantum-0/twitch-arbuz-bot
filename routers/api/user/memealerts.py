@@ -7,11 +7,12 @@ from dependency_injector.wiring import Provide, inject
 from fastapi import APIRouter, Depends, Security
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.responses import JSONResponse
-from twitchAPI.type import TwitchAPIException
+from twitchAPI.type import TwitchAPIException, TwitchResourceNotFound
 
 from container import Container
 from database.models import MemealertsSettings, User
 from routers.security_helpers import user_auth
+from schemas.api import UpdateMemealertsRewardSchema
 from services.memes_v2 import MemealertsOAuthService
 from services.twitch_token_service import TwitchTokenExpiredError
 from twitch.client.twitch import Twitch
@@ -120,11 +121,33 @@ async def create_reward(
     return JSONResponse({"title": "Успешно", "message": "Награда создана."}, 201)
 
 
+@router.get("/reward", response_class=JSONResponse)
+@inject
+async def get_reward_cost(
+    twitch: Annotated[Twitch, Depends(Provide[Container.twitch])],
+    user: Annotated[User, Security(user_auth)],
+):
+    """Текущая стоимость награды в баллах канала (для панели)."""
+    if not user.memealerts.memealerts_reward:
+        return JSONResponse({"title": "Ошибка", "message": "Награда не существует."}, 400)
+    try:
+        reward = await twitch.get_reward(user, user.memealerts.memealerts_reward)
+    except TwitchTokenExpiredError:
+        return JSONResponse(
+            {"title": "Ошибка", "message": "Токен Twitch недействителен. Выйдите из аккаунта и войдите снова."},
+            400,
+        )
+    except TwitchAPIException as exc:
+        return JSONResponse({"title": "Ошибка", "message": str(exc)}, 400)
+    return JSONResponse({"cost": reward.cost if reward else None})
+
+
 @router.patch("/reward", response_class=JSONResponse)
 @inject
 async def update_reward(
     twitch: Annotated[Twitch, Depends(Provide[Container.twitch])],
     user: Annotated[User, Security(user_auth)],
+    payload: UpdateMemealertsRewardSchema | None = None,
 ):
     if not user.memealerts.memealerts_reward:
         return JSONResponse({"title": "Ошибка", "message": "Награда не существует."}, 400)
@@ -135,10 +158,19 @@ async def update_reward(
             is_enabled=True,
             is_user_input_required=True,
             should_redemptions_skip_request_queue=False,
+            cost=payload.cost if payload else None,
         )
     except TwitchTokenExpiredError:
         return JSONResponse(
             {"title": "Ошибка", "message": "Токен Twitch недействителен. Выйдите из аккаунта и войдите снова."},
             400,
         )
-    return JSONResponse({"title": "Успешно", "message": "Награда обновлена."}, 200)
+    except TwitchResourceNotFound:
+        return JSONResponse(
+            {"title": "Ошибка", "message": "Награда не найдена на Twitch — создайте её заново."},
+            400,
+        )
+    except TwitchAPIException as exc:
+        return JSONResponse({"title": "Ошибка", "message": str(exc)}, 400)
+    message = "Стоимость награды обновлена." if payload and payload.cost is not None else "Награда обновлена."
+    return JSONResponse({"title": "Успешно", "message": message}, 200)

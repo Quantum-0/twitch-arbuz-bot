@@ -70,6 +70,12 @@ class UpdateMemealertsCoinsSchema(BaseModel):
     count: int = Field(..., ge=1, le=100)
 
 
+class UpdateMemealertsRewardSchema(BaseModel):
+    """PATCH /api/user/memealerts/reward: обновление награды (пока — только цена)."""
+
+    cost: int | None = Field(None, ge=1, le=10_000_000)
+
+
 class BoolResponseSchema(BaseModel):
     result: bool
 

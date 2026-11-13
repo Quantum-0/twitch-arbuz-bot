@@ -19,7 +19,7 @@
   настройка `AppSettings.stream_restart_window_minutes`.
 - ✅ 2026-10-06, имплементировано в коде (деплой ожидает): привязка личного
   Telegram (`telegram_user_id`) — приватные чаты по deep-link + Telegram Login
-  (OIDC, кнопка в «Других настройках»); TG-уведомления при отзыве авторизации
+  (OIDC, кнопка в разделе «Интеграция с Telegram» панели); TG-уведомления при отзыве авторизации
   Twitch (revocation) с дедупом на 24 ч.
 - ✅ 2026-10-11, имплементировано в коде (деплой ожидает): обмен code и fetch
   JWKS в Telegram Login идут через релей TG-микросервиса (`/api/oauth/token`,
@@ -107,7 +107,7 @@ AI-стикеров (`stickers_*`), заготовки моста чатов (`t
    `telegram_username`; если поля нет (старый TG-сервис / юзер без username) —
    существующее значение не затираем.
 2. **Telegram Login (OpenID Connect)**, core.telegram.org/bots/telegram-login:
-   кнопка «Привязать Telegram» в «Других настройках» панели →
+   кнопка «Привязать Telegram» в разделе панели /panel/telegram →
    `GET /auth/telegram` (state + PKCE S256 в сессии) → oauth.telegram.org →
     `GET /auth/telegram/callback` → обмен code на `id_token` → валидация JWT
     (RS256/ES256 по JWKS, `iss`, `aud`, `exp`) → claim `id` (Telegram шлёт
@@ -122,7 +122,7 @@ AI-стикеров (`stickers_*`), заготовки моста чатов (`t
    `GET /api/oauth/jwks` (JWKS для проверки подписи; кэш ключей — PyJWKClient,
    `_ProxiedJWKClient` в twitch-bot). Релей прибит к фиксированным URL
    oauth.telegram.org и ничего не логирует (в трафике токены и secret).
-   При неудачном обмене — редирект `/panel?tg_link=failed` + тост в панели.
+   При неудачном обмене — редирект `/panel/telegram?tg_link=failed` + тост в панели.
 
    Сервис: `services/telegram_oidc.py` (`TelegramLoginService`), роуты:
    `routers/web/telegram_routes.py`. Конфиг: `telegram_login_client_id`

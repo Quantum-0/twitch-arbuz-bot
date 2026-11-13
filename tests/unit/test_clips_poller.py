@@ -212,3 +212,20 @@ def test_parse_created_at_formats() -> None:
 def service_parse(value: str) -> datetime:
     service = object.__new__(ClipsPollerService)
     return service._parse_created_at(value)
+
+
+@pytest.mark.asyncio
+async def test_filter_clips_featured_mode_normalized_to_all() -> None:
+    """Режим featured удалён из UI (Twitch убрал избранные клипы): старые
+    настройки из БД ведут себя как «все клипы», иначе фильтр отсеивал бы всё."""
+    service = build_service(FakeMQTT(), FakeSession())
+    clips = [
+        {"id": "c1", "title": "Клип", "created_at": "2026-10-20T10:00:00Z", "is_featured": False},
+        {"id": "c2", "title": "Избранный", "created_at": "2026-10-20T11:00:00Z", "is_featured": True},
+    ]
+
+    featured = service._filter_clips(list(clips), None, "featured")
+    all_mode = service._filter_clips(list(clips), None, "all")
+
+    assert [c["id"] for c in featured] == ["c1", "c2"]
+    assert featured == all_mode

@@ -1,3 +1,8 @@
+{% extends "panel/base_section.html" %}
+
+{% block title %}Оверлеи — Quantum0's Bot{% endblock %}
+
+{% block panel_section %}
 <h3>Оверлеи</h3>
 <small class="overlay-copy-hint">
     <p>Ниже представлены различные интерактивные <i>и не очень</i> оверлеи для стрима, которые вы можете подключить в OBS как браузерный источник.</p>
@@ -274,7 +279,7 @@
         <h2>🗣 TTS</h2>
         <p>Text-To-Speech оверлей, озвучивающий сообщения из чата через внешний TTS-движок. Настройка ролей, триггеров, модерации и КД — на отдельной странице.</p>
         <p><b>Функционал в бета-тесте. Доступ ограничен.</b></p>
-        <a class="ai-sticker-settings-btn" href="/tts" title="Настройки TTS"><span>⚙</span> Перейти в настройки</a>
+        <a class="ai-sticker-settings-btn" href="/panel/tts" title="Настройки TTS"><span>⚙</span> Перейти в настройки</a>
         <p>Скопируй ссылку и вставь в OBS, растянув на всю сцену:</p>
         <div class="overlay-link"></div>
     </div>
@@ -333,7 +338,7 @@
         <h2>⭐ AI Stickers</h2>
         <small>Эксперементальная функция!</small>
         <p>Позволяет через награду кидать на стрим стикеры, сгенерированные с помощью ИИ. Можно генерировать с персонажами стримеров.</p>
-        <a class="ai-sticker-settings-btn" href="/ai-stickers" title="Настройки ИИ-стикеров"><span>⚙</span> Перейти в настройки</a>
+        <a class="ai-sticker-settings-btn" href="/panel/ai-stickers" title="Настройки ИИ-стикеров"><span>⚙</span> Перейти в настройки</a>
         <button class="overlay-toggle-settings" type="button">Настройки</button>
         <div class="overlay-settings">
             <div class="overlay-control">
@@ -390,3 +395,4 @@
     </div>
     {% endif %}
 </div>
+{% endblock %}

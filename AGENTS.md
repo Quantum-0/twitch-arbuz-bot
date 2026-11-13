@@ -66,6 +66,11 @@ poetry run uvicorn main:app --reload   # запустить дев-сервер
     не добавляйте эти строки вручную (JOIN'ы дают fanout-дубли), меняйте флаги в существующих.
 - **User.access_token/refresh_token:** property-сеттеры шифруют и `assert`-ят не-None —
   сценарий «токенов нет» эмулируйте SimpleNamespace, а не `User(access_token=None)`.
+- **User.balance (computed-колонка) в шаблонах:** `base.html` читает `user.balance` синхронно
+  (пункт меню «История баланса»). После любого flush с UPDATE строки users баланс экспайрится,
+  и ленивая загрузка роняет рендер с MissingGreenlet. Если хендлер делает commit по users
+  перед рендером — перепрогрейте (`routers/web/pages.py:_panel_context`), а в тестах фикстура
+  `test_user` прогревает `balance` в `db_session.refresh`.
 
 ## Соглашения по коду
 
@@ -97,8 +102,12 @@ poetry run uvicorn main:app --reload   # запустить дев-сервер
 - **Витрина:** `/ui-demo` (`templates/ui-demo.html`, роут в `pages.py`) — проверять компоненты
   в обеих темах; в навигацию страница не добавлена.
 - **Мигрировано:** `/panel` (контроллеры `static/js/panel.js` + `static/js/panel-telegram.js`,
-  конфиг страницы — `window.__panel`). `static/js/panel-scripts.js` — ЛЕГАСИ, обслуживает
-  `/tts`, `/ai-stickers` и (мёртвым грузом) `/moderation/references`; удалить после их
+  конфиг страницы — `window.__panel`). `/panel` — хаб-навигация по разделам (без JS),
+  сами разделы — отдельные страницы `/panel/<section>` (chatbot, memealerts, telegram,
+  overlays, other — динамический роут с whitelist `PANEL_SECTIONS`; ai-stickers и tts —
+  собственные роуты) на каркасе `templates/panel/base_section.html`;
+  старые пути `/ai-stickers`, `/tts` редиректят на новые. `static/js/panel-scripts.js` — ЛЕГАСИ, обслуживает
+  `/panel/tts`, `/panel/ai-stickers` и (мёртвым грузом) `/moderation/references`; удалить после их
   миграции на q0ui (и убрать тег скрипта из `moderation/references.html`).
 - **FOUC:** в `styles.css` правила `q0ui-*:not(:defined)` прячут компоненты до регистрации.
 
@@ -114,7 +123,7 @@ Chromium (уже в dev-зависимостях; на новой машине: 
   мок-контекст; `user=None` обязателен для анонимных страниц — StrictUndefined) и
   `api_mocks.py` (фейковые `/api/*`). Правки моков — только там.
 - **Рендер-слой** (`test_templates.py`): все шаблоны компилируются (синтаксис),
-  13 страниц каталога рендерятся в StrictUndefined (обращение к несуществующей
+  все страницы каталога рендерятся в StrictUndefined (обращение к несуществующей
   переменной = провал), смоук-маркеры (`pages.PAGE_MARKERS`).
 - **Браузерный слой** (headless Chromium): `test_js_syntax.py` — все `static/js`
   парсятся в браузере; `test_components.py` — харнесс q0ui
@@ -171,7 +180,7 @@ Chromium (уже в dev-зависимостях; на новой машине: 
   обновлять этот файл в том же коммите.**
 - **Личная привязка TG (`telegram_user_id` + `telegram_username`):** заполняется приватными чатами по deep-link
   (`handle_chat_connected`) и Telegram Login OIDC (`services/telegram_oidc.py`,
-  `/auth/telegram/*`, кнопка в «Других настройках», конфиг `telegram_login_client_id/secret`).
+  `/auth/telegram/*`, кнопка в разделе `/panel/telegram`, конфиг `telegram_login_client_id/secret`).
   **Серверные запросы OAuth (обмен code, JWKS) идут только через релей twibot-tg**
   (`/api/oauth/token`, `/api/oauth/jwks`) — прямого доступа к Telegram из этого сервиса нет.
 - **Revocation-уведомления:** `services/eventsub_service.py:notify_revocation` (fire-and-forget из
@@ -302,8 +311,10 @@ static/                  # CSS, JS (streamers.js, stats.js, heat-ws.js)
 - **API:** `GET /api/user/balance/operations?before_id&limit` — курсор по `id`
   (`routers/api/user/balance.py`).
 - **Страница** `/balance-history` (`templates/balance_history.html` + `static/js/balance_history.js`):
-  таблица Дата | Тип | Сумма | Действие | Баланс после, «Показать ещё» по курсору.
-  Переход — ссылка «История →» с панелек «Баланс» на `/ai-stickers` и `/tts`.
+  плашка текущего баланса сверху, таблица Дата | Тип | Сумма | Действие | Баланс после,
+  «Показать ещё» по курсору. Переходы — ссылка «История →» с панельки «Баланс» на
+  `/panel/ai-stickers` и `/panel/tts` + пункт меню пользователя «История баланса»
+  (виден только при ненулевом балансе, `templates/base.html`).
 
 ## SSE — Server-Sent Events
 

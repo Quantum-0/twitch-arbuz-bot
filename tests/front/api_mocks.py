@@ -74,6 +74,8 @@ def default_for(method: str, path: str) -> tuple[int, dict[str, Any] | list[Any]
             return 200, CHECK_RESPONSES[path]
         if path == "/api/user/telegram/settings":
             return 200, TELEGRAM_SETTINGS
+        if path == "/api/user/memealerts/reward":
+            return 200, {"cost": 5000}
         if path == "/api/user/staff-badges":
             return 200, {"server_alerts": 0, "pending_references": 0}
         if path == "/api/user/streamers":

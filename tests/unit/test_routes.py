@@ -128,8 +128,75 @@ async def test_debug_ok_for_beta_tester(client, user_auth_mock, test_user):
 
 
 @pytest.mark.asyncio
-async def test_panel(client, user_auth_mock):
+@pytest.mark.parametrize(
+    "path",
+    ["/panel", "/panel/chatbot", "/panel/memealerts", "/panel/telegram", "/panel/overlays", "/panel/other"],
+)
+async def test_panel_pages(client, user_auth_mock, path):
+    resp = await client.get(path)
+    assert resp.status_code == 200
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "path",
+    ["/panel", "/panel/chatbot", "/panel/memealerts", "/panel/telegram", "/panel/overlays", "/panel/other"],
+)
+async def test_panel_pages_anonymous_redirect(client, path):
+    resp = await client.get(path)
+    assert resp.status_code == 307
+    assert resp.next_request.url.path == "/"
+
+
+@pytest.mark.asyncio
+async def test_panel_hub_contains_section_links(client, user_auth_mock):
     resp = await client.get("/panel")
+    assert resp.status_code == 200
+    for href in (
+        "/panel/chatbot",
+        "/panel/memealerts",
+        "/panel/telegram",
+        "/panel/ai-stickers",
+        "/panel/tts",
+        "/panel/overlays",
+        "/panel/other",
+        "https://resizer.quantum0.ru",
+        "https://cut.quantum0.ru",
+    ):
+        assert href in resp.text
+
+
+@pytest.mark.asyncio
+async def test_panel_unknown_section_404(client, user_auth_mock):
+    resp = await client.get("/panel/unknown-section")
+    assert resp.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_panel_section_renders_template(client, user_auth_mock):
+    resp = await client.get("/panel/chatbot")
+    assert resp.status_code == 200
+    assert "cmd-category-interactions" in resp.text
+    assert "toggle-all-btn" in resp.text
+
+
+@pytest.mark.asyncio
+async def test_old_settings_pages_redirect(client, user_auth_mock):
+    """/ai-stickers и /tts переехали в разделы панели — со старых путей редирект."""
+    resp = await client.get("/ai-stickers")
+    assert resp.status_code == 307
+    assert resp.next_request.url.path == "/panel/ai-stickers"
+
+    resp = await client.get("/tts")
+    assert resp.status_code == 307
+    assert resp.next_request.url.path == "/panel/tts"
+
+
+@pytest.mark.asyncio
+async def test_panel_ai_stickers_and_tts_pages(client, user_auth_mock):
+    resp = await client.get("/panel/ai-stickers")
+    assert resp.status_code == 200
+    resp = await client.get("/panel/tts")
     assert resp.status_code == 200
 
 
@@ -140,9 +207,10 @@ async def test_todo(client, user_auth_mock):
 
 
 @pytest.mark.asyncio
-async def test_memealerts_tutorial(client, user_auth_mock):
+async def test_memealerts_tutorial_removed(client, user_auth_mock):
+    """Старый туториал ручной интеграции удалён."""
     resp = await client.get("/memealerts-tutorial")
-    assert resp.status_code == 200
+    assert resp.status_code == 404
 
 
 @pytest.mark.asyncio

@@ -62,6 +62,10 @@ def generate_sitemap(request: Request):
         # Превращаем пути со swagger-параметрами вроде /items/{item_id} в чистый путь /items/
         # (Поисковикам нельзя сканировать фигурные скобки)
         clean_path = re.sub(r"\{.*?\}", "", path)
+        # Вычищенный параметр оставляет хвостовой слэш (/panel/, /profile/) —
+        # такой страницы нет (редирект/404), в sitemap ей не место.
+        if clean_path != "/" and clean_path.endswith("/"):
+            continue
 
         # Проверяем, заблокирован ли путь правилами из robots.txt
         is_disallowed = False
@@ -75,7 +79,7 @@ def generate_sitemap(request: Request):
             url_el = ET.SubElement(root, "url")
             ET.SubElement(url_el, "loc").text = f"{base_url}{clean_path}"
             ET.SubElement(url_el, "changefreq").text = "weekly"
-            if path in {"/", "/faq", "/about", "/streamers", "/memealerts-tutorial", "/kinda_roadmap"}:
+            if path in {"/", "/faq", "/about", "/streamers", "/kinda_roadmap"}:
                 ET.SubElement(url_el, "priority").text = "1"
             else:
                 ET.SubElement(url_el, "priority").text = "0.5"

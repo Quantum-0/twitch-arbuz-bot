@@ -96,9 +96,11 @@ async def test_user(db_session):
     await db_session.commit()
     # Прогреваем lazy-relationship'ы (реальный user_auth делает joinedload этих
     # атрибутов, а шаблоны читают user.settings/memealerts/tts синхронно —
-    # без прогрева рендер страницы падает с MissingGreenlet).
+    # без прогрева рендер страницы падает с MissingGreenlet). balance —
+    # computed-колонка: после INSERT она не загружена (в проду приходит полным
+    # SELECT'ом), а меню пользователя читает её на каждой странице.
     await db_session.refresh(
         user,
-        attribute_names=["settings", "memealerts", "links", "tts", "telegram"],
+        attribute_names=["settings", "memealerts", "links", "tts", "telegram", "balance"],
     )
     return user

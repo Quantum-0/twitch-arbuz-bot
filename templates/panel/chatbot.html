@@ -1,36 +1,68 @@
-{% set toggles = [
-    ("!кусь", "enable_bite", settings.enable_bite),
-    ("!лизь", "enable_lick", settings.enable_lick),
-    ("!boop", "enable_boop", settings.enable_boop),
-    ("!pat", "enable_pat", settings.enable_pat),
-    ("!почесать", "enable_scratch", settings.enable_scratch),
-    ("!hug", "enable_hug", settings.enable_hug),
-    ("!банан", "enable_banana", settings.enable_banana),
-    ("!lurk", "enable_lurk", settings.enable_lurk),
-    ("!хорни", "enable_horny_good", settings.enable_horny_good),
-    ("!хвост", "enable_tail", settings.enable_tail),
-    ("!dice", "enable_dice", settings.enable_dice),
-    ("!bonk", "enable_bonk", settings.enable_bonk),
-    ("!трусы", "enable_pants", settings.enable_pants),
-    ("!якто", "enable_whoami", settings.enable_whoami),
-    ("!вкусняшка", "enable_treat", settings.enable_treat),
-    ("!покормить", "enable_feed", settings.enable_feed),
-    ("!паста", "enable_pasta", settings.enable_pasta),
-    ("!тг", "enable_tg_link", settings.enable_tg_link),
-    ("!дискорд", "enable_ds_link", settings.enable_ds_link),
-    ("!тикток", "enable_tiktok_link", settings.enable_tiktok_link),
-    ("!ютуб", "enable_youtube_link", settings.enable_youtube_link),
-    ("!мемы", "enable_memealerts_link", settings.enable_memealerts_link),
-    ("!ссылки", "enable_links_command", settings.enable_links_command),
-    ("!стим", "enable_steam_link", settings.enable_steam_link),
+{% extends "panel/base_section.html" %}
+
+{% block title %}Настройки чат-бота — Quantum0's Bot{% endblock %}
+
+{% set categories = [
+    {
+        "id": "interactions",
+        "title": "Взаимодействие между чаттерсами",
+        "hint": "!кусь !обнять !покормить — команды-действия на другого зрителя",
+        "toggles": [
+            ("!кусь", "enable_bite", settings.enable_bite),
+            ("!лизь", "enable_lick", settings.enable_lick),
+            ("!обнять", "enable_hug", settings.enable_hug),
+            ("!boop", "enable_boop", settings.enable_boop),
+            ("!bonk", "enable_bonk", settings.enable_bonk),
+            ("!pat", "enable_pat", settings.enable_pat),
+            ("!почесать", "enable_scratch", settings.enable_scratch),
+            ("!покормить", "enable_feed", settings.enable_feed),
+        ],
+    },
+    {
+        "id": "links",
+        "title": "Ссылки на соцсети",
+        "hint": "!тг !тт !ют — сохранённые ссылки на соц.сети стримера",
+        "toggles": [
+            ("!тг", "enable_tg_link", settings.enable_tg_link),
+            ("!тикток", "enable_tiktok_link", settings.enable_tiktok_link),
+            ("!ютуб", "enable_youtube_link", settings.enable_youtube_link),
+            ("!дискорд", "enable_ds_link", settings.enable_ds_link),
+            ("!стим", "enable_steam_link", settings.enable_steam_link),
+            ("!мемы", "enable_memealerts_link", settings.enable_memealerts_link),
+            ("!ссылки", "enable_links_command", settings.enable_links_command),
+        ],
+    },
+    {
+        "id": "random",
+        "title": "Рандомайзеры",
+        "hint": "!dice !якто !хвост — команды, выдающие случайное значение и запоминающие его результат",
+        "toggles": [
+            ("!dice", "enable_dice", settings.enable_dice),
+            ("!якто", "enable_whoami", settings.enable_whoami),
+            ("!хвост", "enable_tail", settings.enable_tail),
+            ("!банан", "enable_banana", settings.enable_banana),
+            ("!вкусняшка", "enable_treat", settings.enable_treat),
+            ("!хорни", "enable_horny_good", settings.enable_horny_good),
+        ],
+    },
+    {
+        "id": "other",
+        "title": "Другие команды",
+        "hint": "!паста, !лурк и розыгрыш !трусы",
+        "toggles": [
+            ("!паста", "enable_pasta", settings.enable_pasta),
+            ("!lurk", "enable_lurk", settings.enable_lurk),
+            ("!трусы", "enable_pants", settings.enable_pants),
+        ],
+    },
 ] %}
 
+{% block panel_section %}
 <h3>Настройки чат-бота</h3>
 
 <small class="overlay-copy-hint">
     <p>Тут вы можете подключить чат-бота, который будет отвечать на различные команды в чате.</p>
-    <p>Команды глубоко проработаны: поддерживается выбор случайного пользователя (напр. <code>!кусь кого-нибудь</code> <code>!обнять рандом</code>), можно вызывать команды через реплай, поддерживается несколько пользователей (напр. <code>!лизь стримера и @Quantum075</code> <code>!лизь чат</code>), у команд есть КД и запоминание предыдущего состояния.</p>
-    <p>Ответы выдаются случайным образом из заготовленных вариантов. Если вы хотите предложить свои ответы на существующую команду, или попросить новую команду - можете обратиться к автору бота.</p>
+    <p>Команды сгруппированы по категориям — у каждой есть кнопка «Включить все» и раскрывающаяся справка с примерами. Ответы выдаются случайным образом из заготовленных вариантов. Если вы хотите предложить свои ответы на существующую команду, или попросить новую команду - можете обратиться к автору бота.</p>
 </small>
 
 <!-- Главный переключатель -->
@@ -41,13 +73,63 @@
 
 <hr>
 
-<!-- Остальные переключатели -->
-<div id="dependent-toggles" class="toggles-grid">
-    {% for label, name, value in toggles %}
-        <div class="toggle-label">
-            <span>Включить {{ label }}</span>
-            <q0ui-switch {% if value %}checked{% endif %} name="{{ name }}"></q0ui-switch>
+<!-- Категории команд (видны только при включённом боте) -->
+<div id="dependent-toggles" class="command-categories">
+    {% for cat in categories %}
+    <section class="command-category" id="cmd-category-{{ cat.id }}">
+        <div class="command-category-header">
+            <div class="command-category-title">
+                <h4>{{ cat.title }}</h4>
+                <small class="command-category-hint">{{ cat.hint }}</small>
+            </div>
+            <button type="button" class="toggle-all-btn" data-target="cmd-category-{{ cat.id }}-grid">Включить все</button>
         </div>
+        <div class="toggles-grid active command-category-grid" id="cmd-category-{{ cat.id }}-grid">
+            {% for label, name, value in cat.toggles %}
+                <div class="toggle-label">
+                    <span>Включить {{ label }}</span>
+                    <q0ui-switch {% if value %}checked{% endif %} name="{{ name }}"></q0ui-switch>
+                </div>
+            {% endfor %}
+        </div>
+        <details class="command-help">
+            <summary>Справка</summary>
+            <div class="command-help-body">
+                {% if cat.id == "interactions" %}
+                <p><b>Как задать цель:</b> по нику — <code>!кусь @Ник</code>; несколько целей сразу —
+                    <code>!лизь @A @B @C</code>; реплаем на чужое сообщение — целью станет автор сообщения.</p>
+                <p><b>Особые цели:</b> <code>стримера</code> — стример; <code>себя</code> — вы сами;
+                    <code>кого-нибудь</code>/<code>рандом</code> — случайный активный зритель;
+                    <code>всех</code>/<code>чат</code> — перечислит всех активных зрителей (если их меньше 7).</p>
+                <p>Команда без цели подчиняется настройке «Дефолтное поведение» ниже.
+                    У команд есть кулдауны — на чат и на пользователя.</p>
+                {% elif cat.id == "links" %}
+                <p>Сохранить ссылку может только стример: <code>!тг @ник</code> или
+                    <code>!тг https://t.me/канал</code> — сохранит ссылку на ваш телеграм-канал.
+                    Аналогично работают <code>!тт</code>, <code>!ютуб</code> и <code>!дискорд</code>.</p>
+                <p>Любой чаттерс может вызвать команду без аргументов (просто <code>!тг</code>) и получить
+                    сохранённую ссылку. <code>!ссылки</code> выведет всё сохранённое сразу.</p>
+                <p><code>!стим</code> показывает привязанный Steam-аккаунт (привязка — в разделе
+                    <a href="/panel/other">«Другие настройки»</a>), <code>!мемы</code> — ссылку на ваш профиль Memealerts
+                    (заполняется автоматически при подключении <a href="/panel/memealerts">интеграции</a>).</p>
+                {% elif cat.id == "random" %}
+                <p>Результат закрепляется за пользователем и через время перевыбирается —
+                    повторный вызов в этом окне напомнит прежний результат.</p>
+                <p><code>!якто</code> — «кто ты сегодня»: результат свой у каждого и держится сутки.</p>
+                <p><code>!dice</code> — кубик <code>d6</code> <code>d8</code> <code>d12</code>
+                    <code>d20</code> <code>d100</code> или монетка (<code>!монетка</code>).
+                    С шансом 5% кубик падает под стол — поднять его можно командой <code>!поднять</code>.</p>
+                {% else %}
+                <p><code>!паста &lt;текст&gt;</code> — стример сохраняет свою пасту (только владелец канала);
+                    <code>!паста</code> без аргументов — показать сохранённую;
+                    <code>!рандомпаста</code> — случайная паста из общей базы.</p>
+                <p><code>!лурк</code> — уйти в лурк, <code>!анлурк</code> — вернуться.</p>
+                <p><code>!трусы</code> — розыгрыш трусов среди активных зрителей. Зритель может навсегда
+                    отказаться от участия командой <code>!запретитьтрусы</code>.</p>
+                {% endif %}
+            </div>
+        </details>
+    </section>
     {% endfor %}
 </div>
 
@@ -56,7 +138,7 @@
 <div id="chatbot-extra-settings" class="chatbot-extra-settings">
     <div class="toggle-label">
         <span>Разрешить работать в общих чатах</span>
-        <q0ui-switch {{ 'checked' if settings.allow_shared_chat }} name="allow_shared_chat"></q0ui-switch>
+        <q0ui-switch {% if settings.allow_shared_chat %}checked{% endif %} name="allow_shared_chat"></q0ui-switch>
     </div>
 
     <div class="target-behaviour-card">
@@ -97,3 +179,4 @@
         </fieldset>
     </div>
 </div>
+{% endblock %}

@@ -29,6 +29,13 @@
 {% block content %}
 <div class="balance-history-page">
     <h1>История баланса</h1>
+    <div class="balance-current-banner">
+        <span class="balance-current-banner__label">Текущий баланс</span>
+        {#- Decimal без хвостовых нулей: «100» вместо «100.00». -#}
+        <span class="balance-current-banner__value">
+            {{- (user.balance | int) if user.balance % 1 == 0 else user.balance }} 🍪
+        </span>
+    </div>
     <p class="balance-history-intro">
         Все начисления и списания вашего баланса.
     </p>

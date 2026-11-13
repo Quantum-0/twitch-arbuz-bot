@@ -1,8 +1,31 @@
+{% extends "panel/base_section.html" %}
+
+{% block title %}Интеграция с Telegram — Quantum0's Bot{% endblock %}
+
+{% block panel_section %}
 <h3>Telegram-интеграция</h3>
 <small class="overlay-copy-hint">
     <p>Подключите Telegram-канал, группу или личный чат, чтобы получать уведомления о начале стрима и автоматически заливать AI-стикеры.</p>
     <p>Для каждого типа контента можно подключить отдельный чат или использовать один общий.</p>
 </small>
+
+<div style="margin-top: 20px;">
+    <h4>Личный Telegram-аккаунт</h4>
+    <p><small>Привязанный Telegram может использоваться для уведомлений о проблемах с вашими интеграциями — например, если Twitch отзовёт авторизацию бота.</small></p>
+    {% if user.telegram and user.telegram.telegram_user_id %}
+        {% if user.telegram.telegram_username %}<p id="tg-username-line"><small>Привязан Telegram: @{{ user.telegram.telegram_username }}</small></p>{% endif %}
+    {% endif %}
+    <button class="btn-danger" id="tg-unlink-btn" type="button"
+            {% if not (user.telegram and user.telegram.telegram_user_id) %}hidden{% endif %}>
+        Отвязать Telegram
+    </button>
+    <button class="install-btn" id="tg-link-btn" type="button"
+            {% if (user.telegram and user.telegram.telegram_user_id) or not telegram_login_enabled %}hidden{% endif %}>
+        Привязать Telegram
+    </button>
+</div>
+
+<hr class="tg-divider">
 
 <div id="telegram-panel">
     <div class="cards-grid">
@@ -121,10 +144,16 @@
 
         <hr class="tg-divider">
 
-        <!-- ── Раздел: Клипы ── -->
+        <!-- ── Раздел: Клипы и яркие моменты ── -->
         {% if tg_clips_beta %}
-        <h4>Клипы</h4>
+        <h4>Клипы и яркие моменты</h4>
         <div class="tg-section-block">
+            <!-- TODO: чекбоксы «клипы» и «яркие моменты» — что именно отправлять
+                 (можно выбрать только что-то одно; сейчас отправляется всё). -->
+            <!-- TODO: выбор режима загрузки видео в Telegram: альбомный или портретный. -->
+            <!-- TODO: расширенная подпись клипа: сейчас только название и автор; добавить
+                 время создания, кем сделан (со ссылкой на автора), игру (категорию) и т.п.,
+                 вывести кнопками под сообщением. -->
             <div class="toggle-label">
                 <span>Чат: <strong id="tg-clips-chat">не подключён</strong></span>
                 <span id="tg-clips-connect-btns" hidden>
@@ -135,27 +164,8 @@
                 <button class="btn-danger" id="tg-clips-disconnect-btn" type="button" data-tg-disconnect="clips" hidden>Отключить</button>
             </div>
             <div class="toggle-label">
-                <span>Включить автозагрузку клипов</span>
+                <span>Включить автозагрузку клипов и ярких моментов</span>
                 <q0ui-switch id="tg-clips-toggle"></q0ui-switch>
-            </div>
-            <div class="toggle-label tg-column">
-                <span>Какие клипы отправлять</span>
-                <div class="overlay-radio-panel">
-                    <fieldset class="overlay-radio-options">
-                        <label class="overlay-radio-option">
-                            <input type="radio" name="tg-clips-mode" value="all">
-                            Все клипы
-                        </label>
-                        <label class="overlay-radio-option">
-                            <input type="radio" name="tg-clips-mode" value="featured">
-                            Только избранные (featured)
-                        </label>
-                    </fieldset>
-                </div>
-                <small class="overlay-copy-hint">
-                    Клипы, созданные не как избранные, но помеченные избранным позже — отправлены <strong>не будут</strong>.<br>
-                    Яркие моменты отправляются все и только ссылкой — в этот же чат.
-                </small>
             </div>
             <div class="toggle-label tg-column">
                 <span>Способ отправки клипов</span>
@@ -171,6 +181,9 @@
                         </label>
                     </fieldset>
                 </div>
+                <small class="overlay-copy-hint">
+                    Яркие моменты отправляются все и только ссылкой — в этот же чат.
+                </small>
             </div>
         </div>
         <hr class="tg-divider">
@@ -211,3 +224,4 @@
 
     </div>
 </div>
+{% endblock %}

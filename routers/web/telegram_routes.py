@@ -6,7 +6,7 @@
 - ``GET /auth/telegram/callback`` — приём ``code``/``state``, обмен на id_token
   (через релей TG-микросервиса), валидация (JWKS, RS256/ES256), сохранение
   ``telegram_user_id``/``telegram_username`` в ``TelegramSettings``, редирект
-  на ``/panel`` (при ошибке обмена — ``/panel?tg_link=failed``).
+  на ``/panel/telegram`` (при ошибке обмена — ``/panel/telegram?tg_link=failed``).
 
 Отвязка личного аккаунта (POST /api/user/telegram/unlink-account) —
 см. ``routers/api/user/telegram.py``.
@@ -47,8 +47,8 @@ async def telegram_auth(
 ):
     """Инициировать привязку Telegram — редирект на oauth.telegram.org."""
     if not login.is_configured:
-        logger.warning("Telegram Login не настроен (telegram_login_client_id/secret), редирект в /panel")
-        return RedirectResponse(url="/panel")
+        logger.warning("Telegram Login не настроен (telegram_login_client_id/secret), редирект в /panel/telegram")
+        return RedirectResponse(url="/panel/telegram")
 
     state = secrets.token_urlsafe(24)
     verifier = login.generate_pkce_verifier()
@@ -74,12 +74,12 @@ async def telegram_callback(
 
     if not code or not state or not verifier or not expected_state or not secrets.compare_digest(state, expected_state):
         logger.warning("Telegram callback: invalid state or missing code (user_id=%s)", user.id)
-        return RedirectResponse(url="/panel")
+        return RedirectResponse(url="/panel/telegram")
 
     claims = await login.exchange_code(code, verifier)
     if claims is None:
         logger.warning("Telegram callback: token exchange/validation failed (user_id=%s)", user.id)
-        return RedirectResponse(url="/panel?tg_link=failed")
+        return RedirectResponse(url="/panel/telegram?tg_link=failed")
 
     tg = await ensure_telegram_settings(db, user)
     tg.telegram_user_id = str(claims["id"])
@@ -91,4 +91,4 @@ async def telegram_callback(
         tg.telegram_user_id,
         tg.telegram_username,
     )
-    return RedirectResponse(url="/panel")
+    return RedirectResponse(url="/panel/telegram")

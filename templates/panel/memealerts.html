@@ -1,19 +1,16 @@
-<h3>Настройки мемалёртов</h3>
+{% extends "panel/base_section.html" %}
+
+{% block title %}Интеграция с Memealerts — Quantum0's Bot{% endblock %}
+
+{% block panel_section %}
+<h3>Интеграция с Memealerts</h3>
+<p>Привяжите ваш аккаунт к Memealerts, чтобы зрители могли обменивать баллы канала на мемкоины в сервисе Memealerts.</p>
+
 <small class="overlay-copy-hint">
-    <p>Старая ручная интеграция Memealerts больше не поддерживается и будет отключена в ближайшее время.</p>
-    <p>Если вы использовали ручную интеграцию, пожалуйста, подключите нативную интеграцию ниже.</p>
     <p>Редактировать стоимость награды, её описание и название можно <a href="https://dashboard.twitch.tv/u/{{ user.login_name }}/viewer-rewards/channel-points/rewards">в настройках награды Twitch</a> — это не повлияет на её работу.</p>
     <p>НЕ ВКЛЮЧАЙТЕ <u>Пропустить очередь запросов на награды</u>, бот сам отмечает награду выполненной, если начисление прошло успешно, и отклоняет выполнение награды, возвращая баллы, если не получилось.</p>
 </small>
 
-<h4>Ручная интеграция</h4>
-<p>Ручное подключение по токену больше недоступно. Эта интеграция не поддерживается и будет отключена в ближайшее время. Для продолжения работы подключите нативную интеграцию.</p>
-<button type="button" disabled style="opacity: 0.5; cursor: not-allowed;">Ручная интеграция недоступна</button>
-
-<br>
-
-<h3>Нативная интеграция с Memealerts</h3>
-<p>Привяжите ваш аккаунт к Memealerts через кнопку ниже, чтобы позволись зрителям обменивать баллы канала на мемкоины в сервисе Memealerts.</p>
 {% if memealerts.enabled_v2 %}
     <div id="memealerts-v2-connected">
         <div class="cards-grid">
@@ -39,6 +36,19 @@
             <span>Количество мемкоинов за награду</span>
             <q0ui-number id="coin-count" min="1" max="100" step="1" value="{{ memealerts.coins_for_reward }}" editable></q0ui-number>
         </div>
+        <div class="memealert-reward-cost-wrapper">
+            <span>Стоимость награды (баллы канала)</span>
+            <q0ui-number id="reward-cost" min="1" max="10000000" step="1" editable disabled></q0ui-number>
+            <button type="button" class="reward-cost-save-btn" id="reward-cost-save-btn" disabled>Сохранить</button>
+        </div>
+        {% if memealerts.currency %}
+        <p class="memealerts-currency-line">
+            <small>
+                Название валюты, полученное от Memealerts:
+                {%- for form in memealerts.currency %} <code>{{ form }}</code>{% if not loop.last %} {% endif %}{% endfor %}
+            </small>
+        </p>
+        {% endif %}
         <div class="cards-grid">
             <button
                 class="btn-danger"
@@ -63,3 +73,4 @@
 {% else %}
     <button type="button" data-nav="/memealerts/auth">Включить интеграцию Memealerts</button>
 {% endif %}
+{% endblock %}

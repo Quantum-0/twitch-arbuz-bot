@@ -149,10 +149,17 @@ def _panel(base_url: str) -> dict[str, Any]:
         "request": MockRequest(base_url),
         "user": user,
         "settings": user.settings,
-        "memealerts": {"enabled": True, "enabled_v2": True, "coins_for_reward": 10},
+        "memealerts": {
+            "enabled": True,
+            "enabled_v2": True,
+            "coins_for_reward": 10,
+            "currency": ["мемкоина", "мемкоин", "мемкоинов", "мемкоины"],
+        },
         "slovotron_secret": "mock-secret",
         "tg_clips_beta": True,
         "telegram_login_enabled": True,
+        # Бейджи главной /panel (panel.html).
+        "hub": {"chatbot": True, "memealerts": True, "telegram": True},
     }
 
 
@@ -238,8 +245,15 @@ class PageSpec:
 PAGES: tuple[PageSpec, ...] = (
     PageSpec("/", "main.html", _main),
     PageSpec("/panel", "panel.html", _panel),
-    PageSpec("/tts", "tts.html", _tts),
-    PageSpec("/ai-stickers", "ai_stickers.html", _ai_stickers),
+    # Разделы панели: общий мок-контекст _panel (StrictUndefined требует
+    # все переменные каркаса panel/base_section.html).
+    PageSpec("/panel/chatbot", "panel/chatbot.html", _panel),
+    PageSpec("/panel/memealerts", "panel/memealerts.html", _panel),
+    PageSpec("/panel/telegram", "panel/telegram.html", _panel),
+    PageSpec("/panel/overlays", "panel/overlays.html", _panel),
+    PageSpec("/panel/other", "panel/other.html", _panel),
+    PageSpec("/panel/tts", "tts.html", _tts),
+    PageSpec("/panel/ai-stickers", "ai_stickers.html", _ai_stickers),
     PageSpec("/ui-demo", "ui-demo.html", _ui_demo),
     PageSpec("/streamers", "streamers.html", _streamers),
     PageSpec("/stats", "stats.html", _user_only),
@@ -255,13 +269,29 @@ PAGES_BY_PATH: dict[str, PageSpec] = {spec.url_path: spec for spec in PAGES}
 
 # Смоук-маркеры: что обязано быть в отрендеренном HTML страницы.
 PAGE_MARKERS: dict[str, tuple[str, ...]] = {
-    "/panel": ("q0ui-switch", "q0ui-status-card", "q0ui-slider", "q0ui-number", "__panel"),
-    "/tts": ("toggle-switch", "tts.js"),
-    "/ai-stickers": ("balance-card", "ai-stickers.js"),
+    "/panel": (
+        "panel-hub",
+        "/panel/chatbot",
+        "/panel/memealerts",
+        "/panel/telegram",
+        "/panel/ai-stickers",
+        "/panel/tts",
+        "/panel/overlays",
+        "/panel/other",
+        "resizer.quantum0.ru",
+        "cut.quantum0.ru",
+    ),
+    "/panel/chatbot": ("q0ui-switch", "command-category", "toggle-all-btn", "command-help", "cmd-category-links-grid"),
+    "/panel/memealerts": ("q0ui-status-card", "coin-count", "memealerts-reward-btn", "reward-cost", "Название валюты"),
+    "/panel/telegram": ("telegram-panel", "tg-link-btn", "tg-stream-notif-toggle"),
+    "/panel/overlays": ("overlay-card", "q0ui-slider", "overlay-link", "panel/tts"),
+    "/panel/other": ("enable_shoutout_on_raid", "reset-overlay-secret-btn", "steam-unlink-btn"),
+    "/panel/tts": ("toggle-switch", "tts.js"),
+    "/panel/ai-stickers": ("balance-card", "ai-stickers.js"),
     "/ui-demo": ("q0ui-switch", "q0ui-slider", "ui/index.js"),
     "/streamers": ("streamerCardTemplate",),
     "/stats": ("chart", "stats.js"),
-    "/balance-history": ("balance_history.js",),
+    "/balance-history": ("balance-current-banner", "balance_history.js"),
     "/bans": ("user-suggest.js",),
     "/faq": ("Кто такой бот",),
     "/kinda_roadmap": ("Рефакторинг панели",),

@@ -3,45 +3,73 @@
 {% block title %}Настройки — Quantum0's Bot{% endblock %}
 {% block description %}Панель управления ботом Twitch Quantum0's Bot{% endblock %}
 
-{% block head_scripts %}
-<script>
-    // Конфиг для ES-модулей страницы (panel.js и модули секций).
-    window.__panel = {
-        channel_id: {{ user.twitch_id }},
-        channel_name: "{{ user.login_name }}",
-        slovotron_secret: "{{ slovotron_secret }}",
-    };
-</script>
-{% endblock %}
-
 {% block content %}
 <h2>Привет, {{ user.login_name }}!</h2>
-<p>Добро пожаловать в панель управления ботом. Здесь вы можете настроить весь необходимый функционал для своих стиримов.</p>
+<p>Добро пожаловать в панель управления ботом. Выберите раздел с нужными настройками.</p>
 
-<section>
-{% include "panel/chatbot.html" %}
-</section>
+<div class="panel-hub">
+    <a class="panel-hub-card" href="/panel/chatbot">
+        <span class="panel-hub-card__icon" aria-hidden="true">💬</span>
+        <span class="panel-hub-card__title">Чат-бот</span>
+        <span class="panel-hub-card__desc">Команды, их категории и поведение бота в чате</span>
+        <span class="panel-hub-badge {{ 'panel-hub-badge--on' if hub.chatbot else 'panel-hub-badge--off' }}">
+            {{ 'Включён' if hub.chatbot else 'Выключен' }}
+        </span>
+    </a>
 
-<section>
-{% include "panel/memealerts.html" %}
-</section>
+    <a class="panel-hub-card" href="/panel/memealerts">
+        <span class="panel-hub-card__icon" aria-hidden="true">🪙</span>
+        <span class="panel-hub-card__title">Интеграция с Memealerts</span>
+        <span class="panel-hub-card__desc">Обмен баллов канала на мемкоины</span>
+        <span class="panel-hub-badge {{ 'panel-hub-badge--on' if hub.memealerts else 'panel-hub-badge--off' }}">
+            {{ 'Подключено' if hub.memealerts else 'Не подключено' }}
+        </span>
+    </a>
 
-<section>
-{% include "panel/other.html" %}
-</section>
+    <a class="panel-hub-card" href="/panel/telegram">
+        <span class="panel-hub-card__icon" aria-hidden="true">✈️</span>
+        <span class="panel-hub-card__title">Интеграция с Telegram</span>
+        <span class="panel-hub-card__desc">Уведомления о стриме, клипы, стикеры</span>
+        <span class="panel-hub-badge {{ 'panel-hub-badge--on' if hub.telegram else 'panel-hub-badge--off' }}">
+            {{ 'Подключено' if hub.telegram else 'Не подключено' }}
+        </span>
+    </a>
 
-<section>
-{% include "panel/telegram.html" %}
-</section>
+    <a class="panel-hub-card" href="/panel/ai-stickers">
+        <span class="panel-hub-card__icon" aria-hidden="true">🎨</span>
+        <span class="panel-hub-card__title">ИИ-стикеры</span>
+        <span class="panel-hub-card__desc">Генерация стикеров по награде, баланс</span>
+    </a>
 
-<section>
-{% include "panel/overlays.html" %}
-</section>
+    <a class="panel-hub-card" href="/panel/tts">
+        <span class="panel-hub-card__icon" aria-hidden="true">🗣</span>
+        <span class="panel-hub-card__title">TTS <span class="panel-hub-dev-badge">[В РАЗРАБОТКЕ]</span></span>
+        <span class="panel-hub-card__desc">Озвучка сообщений чата на стриме</span>
+    </a>
 
-<div class="notification-container"></div>
+    <a class="panel-hub-card" href="/panel/overlays">
+        <span class="panel-hub-card__icon" aria-hidden="true">🖥</span>
+        <span class="panel-hub-card__title">Оверлеи</span>
+        <span class="panel-hub-card__desc">Звёздочка, словотрон, салют и другие для OBS</span>
+    </a>
 
-{% endblock %}
+    <a class="panel-hub-card" href="/panel/other">
+        <span class="panel-hub-card__icon" aria-hidden="true">⚙️</span>
+        <span class="panel-hub-card__title">Другие настройки</span>
+        <span class="panel-hub-card__desc">Шутаут на рейды, ключ оверлеев, Steam</span>
+    </a>
 
-{% block body_scripts %}
-<script type="module" src="{{ static_url('js/panel.js') }}"></script>
+    <a class="panel-hub-card panel-hub-card--external" href="https://resizer.quantum0.ru" target="_blank" rel="noopener">
+        <span class="panel-hub-card__icon" aria-hidden="true">📐</span>
+        <span class="panel-hub-card__title">Резайзер изображений <span class="panel-hub-card__external-mark" aria-hidden="true">↗</span></span>
+        <span class="panel-hub-card__desc">Простой ресайз картинок под требования Twitch</span>
+    </a>
+
+    <a class="panel-hub-card panel-hub-card--external" href="https://cut.quantum0.ru" target="_blank" rel="noopener">
+        <span class="panel-hub-card__icon" aria-hidden="true">✂️</span>
+        <span class="panel-hub-card__title">Видео-редактор <span class="panel-hub-card__external-mark" aria-hidden="true">↗</span></span>
+        <span class="panel-hub-card__desc">Быстрая нарезка видео для клипов и ярких моментов</span>
+    </a>
+</div>
+
 {% endblock %}

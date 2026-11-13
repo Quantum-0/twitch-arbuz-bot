@@ -83,11 +83,61 @@ async def index_page(
     )
 
 
+# Разделы панели настроек: /panel/<section> (ИИ-стикеры и TTS — отдельные роуты ниже).
+PANEL_SECTIONS: frozenset[str] = frozenset({"chatbot", "memealerts", "telegram", "overlays", "other"})
+
+
+async def _panel_context(request: Request, db: AsyncSession, user: User) -> dict[str, Any]:
+    """Общий контекст страниц панели настроек (хаб /panel и разделы /panel/<section>)."""
+    overlay_secret = str(await ensure_overlay_secret(db, user))
+    if "balance" in sa.inspect(user).unloaded:
+        # ensure_overlay_secret мог сделать UPDATE+commit — после flush'а
+        # computed-колонка balance экспайрится, а меню пользователя в base.html
+        # читает её синхронно (ленивая загрузка вне greenlet роняет рендер).
+        await db.refresh(user, attribute_names=["balance"])
+    tg = user.telegram
+    return {
+        "request": request,
+        "user": user,
+        "settings": user.settings,
+        "memealerts": {
+            "enabled": user.memealerts.memealerts_reward is not None,
+            "coins_for_reward": user.memealerts.coins_for_reward,
+            "enabled_v2": user.memealerts.access_token is not None,
+            # Склонения названия валюты канала Memealerts (только отображение).
+            "currency": [
+                declension
+                for declension in (
+                    user.memealerts.memecoin_name_genitive,
+                    user.memealerts.memecoin_name_accusative,
+                    user.memealerts.memecoin_name_genitive_multiple,
+                    user.memealerts.memecoin_name_accusative_multiple,
+                )
+                if declension
+            ],
+        },
+        "slovotron_secret": overlay_secret,
+        # Поэтапный rollout Telegram-интеграции: клипы пока только бета-тестерам.
+        "tg_clips_beta": user.login_name in TG_CLIPS_BETA_USERS,
+        # Кнопка «Привязать Telegram» (OIDC) видна только при настроенном client_id/secret.
+        "telegram_login_enabled": settings.telegram.login_client_id is not None
+        and bool(settings.telegram.login_client_secret.get_secret_value()),
+        # Бейджи карточек на главной /panel: состояние интеграций по данным БД
+        # (без сетевых проверок — живые статусы видны внутри разделов).
+        "hub": {
+            "chatbot": user.settings.enable_chat_bot,
+            "memealerts": user.memealerts.access_token is not None,
+            "telegram": tg is not None
+            and any((tg.stream_chat_id, tg.clips_chat_id, tg.stickers_chat_id, tg.telegram_user_id)),
+        },
+    }
+
+
 @router.get(
     "/panel",
     response_class=HTMLResponse,
     responses={
-        200: {"description": "Панель управления ботом"},
+        200: {"description": "Панель управления ботом (выбор раздела настроек)"},
         307: {"description": "Возврат на главную страницу, если не авторизован"},
     },
 )
@@ -100,26 +150,7 @@ async def control_panel(
     #     return templates.TemplateResponse("beta-test.html", {"request": request})
     if not user:
         return RedirectResponse("/")
-    overlay_secret = str(await ensure_overlay_secret(db, user))
-    return templates.TemplateResponse(
-        "panel.html",
-        {
-            "request": request,
-            "user": user,
-            "settings": user.settings,
-            "memealerts": {
-                "enabled": user.memealerts.memealerts_reward is not None,
-                "coins_for_reward": user.memealerts.coins_for_reward,
-                "enabled_v2": user.memealerts.access_token is not None,
-            },
-            "slovotron_secret": overlay_secret,
-            # Поэтапный rollout Telegram-интеграции: клипы пока только бета-тестерам.
-            "tg_clips_beta": user.login_name in TG_CLIPS_BETA_USERS,
-            # Кнопка «Привязать Telegram» (OIDC) видна только при настроенном client_id/secret.
-            "telegram_login_enabled": settings.telegram.login_client_id is not None
-            and bool(settings.telegram.login_client_secret.get_secret_value()),
-        },
-    )
+    return templates.TemplateResponse("panel.html", await _panel_context(request, db, user))
 
 
 @router.get("/ui-demo", response_class=HTMLResponse, include_in_schema=False)
@@ -128,7 +159,7 @@ async def ui_demo_page(request: Request):
     return templates.TemplateResponse("ui-demo.html", {"request": request})
 
 
-@router.get("/ai-stickers", response_class=HTMLResponse)
+@router.get("/panel/ai-stickers", response_class=HTMLResponse)
 async def ai_stickers_page(
     request: Request,
     db: Annotated[AsyncSession, Depends(get_db)],
@@ -169,7 +200,19 @@ async def ai_stickers_page(
     )
 
 
-@router.get("/tts", response_class=HTMLResponse)
+@router.get("/ai-stickers", response_class=RedirectResponse, include_in_schema=False)
+async def ai_stickers_redirect():
+    """Редирект со старого пути (страница переехала в раздел панели)."""
+    return RedirectResponse(url="/panel/ai-stickers")
+
+
+@router.get("/tts", response_class=RedirectResponse, include_in_schema=False)
+async def tts_settings_redirect():
+    """Редирект со старого пути (страница переехала в раздел панели)."""
+    return RedirectResponse(url="/panel/tts")
+
+
+@router.get("/panel/tts", response_class=HTMLResponse)
 async def tts_settings_page(
     request: Request,
     user: Annotated[User | None, Security(user_auth_optional)],
@@ -187,6 +230,28 @@ async def tts_settings_page(
             "trigger_keys": TTS_TRIGGER_KEYS,
         },
     )
+
+
+@router.get(
+    "/panel/{section}",
+    response_class=HTMLResponse,
+    responses={
+        200: {"description": "Раздел панели управления ботом"},
+        307: {"description": "Возврат на главную страницу, если не авторизован"},
+        404: {"description": "Неизвестный раздел панели"},
+    },
+)
+async def control_panel_section(
+    section: str,
+    request: Request,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    user: Annotated[User | None, Security(user_auth_optional)],
+):
+    if section not in PANEL_SECTIONS:
+        raise HTTPException(status_code=404, detail="Unknown panel section")
+    if not user:
+        return RedirectResponse("/")
+    return templates.TemplateResponse(f"panel/{section}.html", await _panel_context(request, db, user))
 
 
 @router.get("/agreement", response_class=HTMLResponse)
@@ -240,7 +305,7 @@ async def read_faq(request: Request):
         },
         {
             "question": "Как подключить автоматическую выдачу мемкоинов на Twitch?",
-            "answer": 'Перейдите на сайт сервиса bot.quantum0.ru, авторизуйтесь через твич, перейдите в раздел "настройка мемалёртов" в панели управления ботом, вставьте токен с сервиса Memealerts. После этого у вас появится соответствующая награда на Twitch.',
+            "answer": "Перейдите на сайт сервиса bot.quantum0.ru, авторизуйтесь через твич, откройте в панели управления раздел Memealerts и нажмите «Включить интеграцию Memealerts», после чего подтвердите доступ на сайте Memealerts. Награда на Twitch создастся автоматически.",
         },
         {
             "question": "Могу ли я переименовать награду для автоматической выдачи мемкоинов?",
@@ -388,24 +453,6 @@ async def about_page(
 ):
     return templates.TemplateResponse(
         "about.html",
-        {
-            "request": request,
-            "user": user,
-        },
-    )
-
-
-@router.get(
-    "/memealerts-tutorial",
-    response_class=HTMLResponse,
-    deprecated=True,
-)
-async def meme_tutorial_page(
-    request: Request,
-    user: Annotated[User | None, Security(user_auth_optional)],
-):
-    return templates.TemplateResponse(
-        "memealerts-tutorial.html",
         {
             "request": request,
             "user": user,
@@ -719,6 +766,10 @@ async def roadmap_page(
                 {
                     "date": "Ноябрь 2026",
                     "text": "Добавлена поисковая система и система банов, доработана игра «Найди пару»",
+                },
+                {
+                    "date": "Ноябрь 2026",
+                    "text": "Панель настроек разделена на разделы, команды чат-бота сгруппированы по категориям со справкой",
                 },
             ],
             "todos": [

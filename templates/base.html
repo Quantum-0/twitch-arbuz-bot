@@ -81,7 +81,6 @@
         {% if user and user.in_beta_test %}
         <a href="/kinda_roadmap" style="color: white; text-decoration: none;">TODO</a>
         {% endif %}
-        <a href="https://resizer.quantum0.ru/" style="color: white; text-decoration: none;">Ресайзер иконок для твича</a>
         <a href="/faq" style="color: white; text-decoration: none;">FAQ</a>
         <a href="/about" style="color: white; text-decoration: none;">О сервисе</a>
 
@@ -115,8 +114,13 @@
                 </a>
                 {% endif %}
                 {% if user %}
-                <a href="/ai-stickers" class="user-menu__item" role="menuitem">
+                <a href="/panel/ai-stickers" class="user-menu__item" role="menuitem">
                     Настройки AI-стикеров
+                </a>
+                {% endif %}
+                {% if user.balance %}
+                <a href="/balance-history" class="user-menu__item" role="menuitem">
+                    История баланса
                 </a>
                 {% endif %}
                 {% if user and user.login_name == "quantum075" %}

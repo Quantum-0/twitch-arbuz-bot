@@ -98,7 +98,7 @@ async def callback(
         except Exception:
             logger.warning("Не удалось включить награду при подключении Memealerts", exc_info=True)
 
-    return RedirectResponse(url="/panel")
+    return RedirectResponse(url="/panel/memealerts")
 
 
 async def _store_channel_info(
