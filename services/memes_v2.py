@@ -111,7 +111,7 @@ class Tokens(BaseModel, Generic[T]):
 
 
 class MemealertsOAuthService:
-    # Коды ошибок токен-эндпоинта, которые безопасно ретраить (см. docs/memealerts.md).
+    # Коды ошибок токен-эндпоинта, которые безопасно ретраить (см. docs/memealerts-api.md).
     _RETRYABLE_TOKEN_ERRORS: frozenset[str] = frozenset({"server_error"})
     # Backoff между попытками ретрая (сек). Порядок: 1, 2, 4, 8, 10.
     _RETRY_BACKOFFS: tuple[int, ...] = (1, 2, 4, 8, 10)
@@ -320,7 +320,7 @@ class MemealertsOAuthService:
           -- перечитываем токен из БД (другой воркер мог уже обновить)
           -- при необходимости обновляем через Memealerts
 
-        Ретраится только ``server_error`` и сетевые ошибки (см. docs/memealerts.md).
+        Ретраится только ``server_error`` и сетевые ошибки (см. docs/memealerts-api.md).
         ``invalid_grant`` / ``invalid_client`` / ``invalid_request`` /
         ``unsupported_grant_type`` пробрасываются без ретрая.
 

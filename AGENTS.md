@@ -1,6 +1,8 @@
 # AGENTS.md
 
 Краткая шпаргалка для агентов, работающих с этим репозиторием.
+Обзор всех бизнес-фич и структура проекта — в `README.md`; подробности по фичам —
+в `docs/` (индекс ниже). Здесь — только правила работы с репозиторием.
 
 ## Запреты
 
@@ -11,6 +13,41 @@
   **Редактировать на сервере ничего нельзя** (правка файлов/конфигов, git pull,
   docker compose, миграции БД на сервере и т.п.).
 
+## Документация
+
+- Входная точка — `README.md` (обзор фич, схема обработки сообщений, структура
+  проекта). Подробности — в `docs/<фича>.md`; загружай в контекст только нужный док.
+- **Правило: изменил бизнес-логику/поведение фичи — обязательно обнови
+  соответствующий `docs/<фича>.md` в том же коммите.**
+- Новая фича → новый `docs/<фича>.md` + строка в `README.md` («Ключевые
+  возможности») + пункт в `CHANGELOG.md` (раздел «Не выпущено»; только крупные
+  изменения — мелкие правки и фиксы не фиксируем). Крупные пользовательские фичи —
+  дополнительно пункт в `/kinda_roadmap` (см. «Соглашения по коду»).
+- Доки держим краткими: поведение, инварианты, ключевые файлы. Без воды.
+
+### Индекс docs/
+
+| Файл | О чём |
+|---|---|
+| `architecture.md` | компоненты, жизненный цикл приложения, APScheduler-джобы, DI, конфигурация |
+| `chatbot.md` | чат-бот: конвейер сообщений, система команд, полный список команд, шаутауты |
+| `memecoins.md` | мемкоины Memealerts: OAuth v2, обработка награды, история депозитов |
+| `ai-stickers.md` | ИИ-стикеры: пайплайн генерации, референсы персонажей, провайдер |
+| `tts.md` | TTS: триггеры, матрица разрешений, модерация текста |
+| `overlays.md` | оверлеи OBS: каталог, SSE-инфраструктура, Heat, словотрон |
+| `telegram.md` | Telegram-интеграция (эталонная спека: уведомления, клипы, привязка TG) |
+| `bans.md` | система банов: фичи, scope, гейты, веб-панель |
+| `balance.md` | внутренний баланс и история операций |
+| `auth.md` | авторизация: Twitch OAuth, refresh токенов, уровни доступа, Steam/TG OIDC |
+| `social.md` | профиль, лайки, каталог /streamers, нечёткий поиск пользователей |
+| `extension.md` | Twitch-расширение «визуальная новелла» |
+| `consent.md` | ФЗ-152: согласия, cookie-баннер, Boosty |
+| `monitoring.md` | статистика /stats, live-метрики /flowviz, метрики хоста /server |
+| `infrastructure.md` | прод vds-msk: Jaeger, бэкапы, разовые CLI-скрипты |
+| `memealerts-api.md` | внешняя документация API Memealerts |
+| `FZ-152.md` | справочник по 152-ФЗ |
+| `tz/` | черновики техзаданий |
+
 ## Технологический стек
 
 - **Язык:** Python 3.11
@@ -18,7 +55,7 @@
 - **БД:** PostgreSQL (asyncpg + SQLAlchemy 2.x async)
 - **Миграции:** Alembic
 - **Кэш / стейт:** Redis (`services.cache.Cache`, `services.redis_state_manager.StateManager`)
-- **Pub-Sub:** MQTT/EMQX (`services/mqtt.MQTTClient`, `aiomqtt`)
+- **Pub-Sub:** MQTT/EMQX (`services.mqtt.MQTTClient`, `aiomqtt`)
 - **Трассировка:** Sentry + OpenTelemetry (`tracer`)
 - **DI:** `dependency_injector` (контейнер `container.Container`, wiring в `container.py`)
 - **Шаблоны:** Jinja2 (`templates/`)
@@ -148,51 +185,14 @@ Chromium (уже в dev-зависимостях; на новой машине: 
 - **Хелпер тестов:** `helpers.mock_api(page, server_url, overrides)` — перехват
   `/api/**` с записью вызовов (метод, путь, тело) и точечными ответами.
 
-## Юридические документы и согласие (ФЗ-152)
-
-- **Саммари закона:** `docs/FZ-152.md` — справочник по 152-ФЗ и практическим требованиям к сайту.
-- **Документы:** `templates/legal/privacy.html` (Политика конфиденциальности) и
-  `templates/legal/agreement.html` (Пользовательское соглашение). Роуты `/privacy`, `/agreement`
-  в `routers/web/pages.py` (`user_auth_optional`, передают `user` в контекст).
-- **Согласие перед авторизацией:** на `main.html` отдельно подтверждаются Пользовательское соглашение
-  (`#agreement`) и согласие на обработку ПД (`#personalDataConsent`). Кнопка `#twitchLoginBtn`
-  заблокирована (`disabled`), пока не установлены обе отметки. После подтверждения выполняется переход на `/login`.
-- **Cookie-баннер:** в `templates/base.html` (флаг залогиненности — `<meta name="logged-in">`).
-  Согласие хранится в `localStorage` (`cookie_consent` = `accepted`/`rejected`) для всех;
-  для залогиненных дополнительно фиксируется в БД (`User.cookie_consent_at`).
-  Яндекс.Метрика загружается только при значении `accepted`; выбор «Только необходимые» не завершает сессию.
-- **Boosty-предложение:** модал в `base.html`, только для залогиненных. Не показывается минимум 35 дней
-  после закрытия/перехода (`User.boosty_dismissed_at`). Переходы на Boosty считаются в `User.boosty_clicks`
-  (грубая оценка факта подписки — API Boosty нет). Данные отдаются в шаблон через `window.__userBoostyDismissed`.
-- **API consent/boosty:** `routers/api/user/consent.py`, подключён в `routers/api/user_api.py`,
-  префикс `/api/user/consent` (`/cookie-consent`, `/boosty/dismiss`, `/boosty/click`), `user_auth`.
-- **Выход:** `GET /logout` в `routers/web/service_routes.py` — `request.session.clear()` + редирект на `/`.
-- **Миграция:** `7c2a1f4e9d30_user_cookie_consent_and_boosty_tracking.py` (колонки `twitch_bot_users`:
-  `cookie_consent_at`, `boosty_dismissed_at`, `boosty_clicks`).
-- **Провайдер ИИ-стикеров:** проверка aitunnel vs routerai показала, что переход на routerai **невыгоден**
-  (нет `gpt-image-2` и эндпоинта `/images/edits`; `glm-5.2` дороже на ~22–38%). Остаёмся на aitunnel
-  (env `OPENAI_BASE_URL`, `config.py:AISettings.base_url`). Менять на routerai **нельзя**.
-
 ## Telegram-интеграция
 
-- **Спецификация поведения:** `docs/telegram.md` — настройки, кейсы падения/перезапуска стрима,
-  Redis-ключи, MQTT-топики, конвенция request_id. **При любом изменении поведения интеграции —
-  обновлять этот файл в том же коммите.**
-- **Личная привязка TG (`telegram_user_id` + `telegram_username`):** заполняется приватными чатами по deep-link
-  (`handle_chat_connected`) и Telegram Login OIDC (`services/telegram_oidc.py`,
-  `/auth/telegram/*`, кнопка в разделе `/panel/telegram`, конфиг `telegram_login_client_id/secret`).
-  **Серверные запросы OAuth (обмен code, JWKS) идут только через релей twibot-tg**
-  (`/api/oauth/token`, `/api/oauth/jwks`) — прямого доступа к Telegram из этого сервиса нет.
-- **Revocation-уведомления:** `services/eventsub_service.py:notify_revocation` (fire-and-forget из
-  `handle_revocation`), дедуп Redis `revocation_notified:{twitch_id}` (24 ч), для стрим-типов
-  снимает `stream_notification_enabled`.
-- **Смежный TG-микросервис:** соседний репозиторий `../twibot-tg`
-- Основная логика уведомлений о стриме: `services/stream_notifications.py`
-  (`handle_stream_online` / `handle_stream_offline` / отложенная джоба `stream_offline_deferred:*`;
-  вызывается из `routers/api/twitch_eventsub.py`),
-  результаты доставок: `services/telegram_integration.py:handle_telegram_result`.
-- Окно перезапуска/задержка подтверждения окончания: `config.py:AppSettings.stream_restart_window_minutes`
-  (env `STREAM_RESTART_WINDOW_MINUTES`, дефолт 15).
+- **Спецификация поведения — `docs/telegram.md`** (настройки, кейсы падения/
+  перезапуска стрима, Redis-ключи, MQTT-топики, конвенция request_id, клипы,
+  привязка личного TG). **При любом изменении поведения интеграции — обновлять
+  этот файл в том же коммите.**
+- Смежный TG-микросервис — соседний репозиторий `../twibot-tg`. Прямого доступа
+  к Telegram из этого сервиса нет (серверные OAuth-запросы — через релей twibot-tg).
 
 ## Трекинг ошибок (GlitchTip MCP)
 
@@ -217,42 +217,6 @@ Chromium (уже в dev-зависимостях; на новой машине: 
   Ишьюс от SDK (OTel exporter, `MqttCodeError` и пр.) часто являются инфраструктурным шумом —
   фильтровать по `environment=production` и `lastSeen`.
 
-## Инфраструктура (vds-msk)
-
-- **Jaeger:** compose в `~/jaeger/` (config `jaeger-config.yml`).
-  Хранилище in-memory с **кольцевым буфером `max_traces: 40000`** — лимит подобран под memory-лимит
-- Healthcheck: `wget http://127.0.0.1:13133/status`
-  (важно: путь `/status`, не `/`). Приложение шлёт трейсы на `jaeger:4317` (`config.otel_endpoint`),
-  семплирование 100% — глубокая история трейсов в буфере не хранится.
-- **Шум OTel в GlitchTip:** логгер `opentelemetry.exporter.otlp.proto.grpc.exporter` заглушен уровнем
-  CRITICAL (`utils/logging_conf.py`) — `propagate=False` не спасает, т.к. sentry-sdk ≥2.x перехватывает
-  логи monkeypatch'ем `logging.Logger.callHandlers`.
-- **Бэкапы:** все на сервере в `~/backup` (структура, команды и восстановление — `~/backup/README.md`).
-  Ежедневный `pg_dump` БД `twitch_bot` — systemd-таймер `pg-backup.timer` (04:30 MSK + jitter,
-  ротация 14 дней, логи `journalctl -u pg-backup.service`).
-  **Перед любой миграцией на сервере** запускать из корня репо `./backup-before-migrate.sh <лейбл>`
-  (дамп `twitch_bot_pre-mig_*` не ротируется; откат — `pg_restore --clean --if-exists`).
-  Офсайт-копии нет — бэкапы защищают от кривых миграций, но не от потери диска.
-
-## Структура проекта
-
-```
-main.py                  # FastAPI entry point, роутеры, lifespan
-container.py             # DI-контейнер и wiring_config
-dependencies.py          # get_db, lifespan, get_container
-database/models.py       # SQLAlchemy-модели
-routers/
-    routers.py           # сборка api_router и user_router
-    web/                 # HTML-страницы и оверлеи
-    api/                 # JSON-API (user_api, extension, eventsub, slovotron, user/*)
-services/                # бизнес-логика (cache, mqtt, twitch, statistics, sse_manager, ...)
-twitch/chat/             # чат-бот (bot.py, command_manager.py, commands/, handlers/)
-schemas/api.py           # Pydantic-схемы (StatsType, StatsPeriod, ...)
-utils/                   # хелперы (streamers, streamers_sort, overlays, enums)
-templates/               # Jinja2-шаблоны
-static/                  # CSS, JS (streamers.js, stats.js, heat-ws.js)
-```
-
 ## Миграции БД
 
 Миграции создаём **исключительно** через `alembic revision --autogenerate -m "..."` —
@@ -261,215 +225,13 @@ static/                  # CSS, JS (streamers.js, stats.js, heat-ws.js)
 связанные с твоей задачей.
 
 **ЗАПРЕЩЕНО применять миграции** (`alembic upgrade head` и т.п.) — применение уходит
-сразу на прод. Миграции применяет **только пользователь**; агенту разрешено лишь
-создавать их через alembic.
+сразу на прод. Миграции применяет **только пользователь**; перед применением на сервере
+пользователь делает бэкап (`backup-before-migrate.sh`, см. `docs/infrastructure.md`).
 
 Для создания миграции нужно, чтобы были прокинуты порты к прод-БД. Если alembic
 выдаёт ошибку, что не подключился к БД, — попроси пользователя поднять ssh-туннель.
 Ручное создание миграции — исключительный запасной вариант: всегда сначала
 предлагать/просить пользователя поднять туннель.
-
-## /streamers — фильтры, сортировка и поиск
-
-- HTML `/streamers` отдаёт заглушку; список грузится через `fetch('/api/user/streamers?...')` (`static/js/streamers.js`).
-- API: `sort` (recommended|followers|created|interacted|likes|name), `order` (asc|desc), фильтры `f_bot`/`f_meme`/`f_ai`/`f_overlay`/`f_online`/`f_pants`.
-- Логика: `utils/streamers.py:get_streamers_list`. Скоринг: `utils/streamers_sort.py:compute_streamer_score`.
-- `User.overlays_last_usage` обновляется в `utils/overlays.py:touch_overlay_usage` (не чаще 1/час). «Использует оверлеи» = обращение не позднее 14 дней.
-- **Поиск по имени** — на клиенте (`#streamersSearch`, debounce): подстрока ИЛИ Levenshtein
-  (порог `max(1, len(q)/3)`). Запрос синхронизируется с URL (`?q=`). На бэк не ходит.
-- **Имя под аватаркой** изгибается по дуге (SVG `textPath`, концентричной кругу аватара):
-  разметка в `#streamerCardTemplate`, id пути уникализируется в JS (`setArcName`),
-  обрезка 20 символов + «…», цвет `var(--streamer-name-color)` (чёрный/ярко-зелёный по теме).
-
-## Нечёткий поиск пользователей
-
-- **Механизм:** `utils/user_search.py:search_users` — два этапа: SQL-пул кандидатов через
-  pg_trgm (`login_name % q OR ILIKE`, GIN-индекс `ix_twitch_bot_users_login_trgm`, объявлен
-  в `User.__table_args__` чтобы autogenerate его не дропал) → переранжирование `rapidfuzz`.
-- **API:** `GET /api/user/search?q&limit&context` (`routers/api/user/search.py`, `user_auth`).
-  `context=bans` — исключает стафф (`utils/reference_moderation.py`) + `KNOWN_BOTS` + самого
-  юзера и добавляет активных чаттеров его канала (`ChatBot.get_last_active_users`, группировка
-  по `name.lower()`); `deposit`/`generic` — без исключений.
-- **Виджет подсказок:** `static/js/user-suggest.js` (дропдаун под инпутом, стрелки/Esc,
-  подсказки не строгие). Используется на `/bans` (логин таргета) и в `/admin` (пополнение).
-
-## История баланса
-
-- Таблица `balance_operations` (`database/models.py:BalanceOperation`): `twitch_id`
-  (FK → `twitch_bot_users.twitch_id`, по нему джойн), `type` (`deposit`/`spend`),
-  `action` (`admin_deposit`/`ai_sticker`/`initial_balance`), `amount` (при списании —
-  с наценкой: `cost * ai.cost_multiplier + ai.cost_single_call`), `balance_after`,
-  `details` JSONB, `created_at` (naive-UTC). Енумы: `schemas/enums.py:BalanceOperation*`.
-- **Запись операций:** `services/stickers.py:_save_to_db` (в той же транзакции, что
-  `total_spent`) и `routers/api/admin_api.py:deposit_balance` (до `db.execute(update)` —
-  после него instance экспайрится и синхронный `user.*` даёт MissingGreenlet).
-- **Миграция** `8ff4753d63df`: создание таблицы + инициализация истории — одна строка
-  `initial_balance` («Инициализация истории операций с текущим балансом») каждому
-  с ненулевым балансом: deposit при положительном, spend на `|balance|` при
-  отрицательном (овердрафт возможен — иначе CHECK `amount > 0` роняет миграцию).
-  Прошлых операций нет — только итоги.
-- **API:** `GET /api/user/balance/operations?before_id&limit` — курсор по `id`
-  (`routers/api/user/balance.py`).
-- **Страница** `/balance-history` (`templates/balance_history.html` + `static/js/balance_history.js`):
-  плашка текущего баланса сверху, таблица Дата | Тип | Сумма | Действие | Баланс после,
-  «Показать ещё» по курсору. Переходы — ссылка «История →» с панельки «Баланс» на
-  `/panel/ai-stickers` и `/panel/tts` + пункт меню пользователя «История баланса»
-  (виден только при ненулевом балансе, `templates/base.html`).
-
-## Live-метрики и карта потоков (`/flowviz`)
-
-Живая схема трафика: частицы между узлами (Twitch, бот, PostgreSQL, Redis, MQTT,
-twibot-tg, Telegram, Heat, пользователи) летят по кривым Безье с частотой,
-пропорциональной реальным скоростям (шапка — суммарные метрики, у рёбер —
-подписи с настоящими числами). PoC-исходник движка: `poc/architecture-viz.html`.
-
-- **Страница** `GET /flowviz` (`routers/web/pages.py:flowviz_page`, `staff_auth` —
-  только модераторы), движок `static/js/flowviz.js` (canvas, без зависимостей),
-  шаблон `templates/flowviz.html` — standalone тёмная страница, НЕ наследует `base.html`.
-- **API** `GET /api/admin/flowviz` (`routers/api/admin_api.py:flowviz_rates`,
-  `staff_auth`): `{ts, rates: {type: {subtype: rate/с}}, sse: {...}, active_channels}`;
-  фронт поллит раз в 1 с, при обрыве — индикатор «нет связи» и затухание потоков.
-- **LiveRegistry** (`services/live_metrics.py`) — модульный синглтон кумулятивных
-  счётчиков процесса (по аналогии с `tracer`, без DI). `bump()` синхронный
-  (dict-инкремент, без `create_task`) — можно звать из sync-колбэков
-  (SQLAlchemy-ивенты, `httpx.send`); `rates()` — дифф сэмплов за окно ~2 с
-  (лениво сэмплит при каждом вызове). **Валидно только пока приложение
-  однопроцессное** (uvicorn без `--workers`) — иначе числа станут per-worker.
-- **Интеграция со статистикой:** `StatisticsService.inc()` дублирует инкремент
-  в реестр (`bump_persisted` — не попадает в pending); высокочастотные метрики
-  (SQL/Redis/SSE/Twitch API) пишут только `bump()`; джоба `flush_live_metrics`
-  (каждые 10 с, dependencies.py) переносит дельты в Redis-бакеты через
-  `StatisticsService.flush_live_delta` → таблица `statistics` → графики `/stats`.
-  `count_active_channels()` — live-SCARD SET'а активных каналов текущего бакета.
-- **Новые StatsType** (`schemas/api.py`): `http_requests`, `db_queries`, `redis_ops`,
-  `mqtt_publish`, `mqtt_messages`, `eventsub_events`, `sse_events`,
-  `twitch_api_calls` — все обычные counter'ы.
-- **Точки инкремента** (каждая — единственная воронка):
-  - HTTP — pure-ASGI `HttpRequestCounterMiddleware` (`main.py`), subtype = первый
-    сегмент пути; `/static` и `/metrics` исключены;
-  - SQL — engine event `before_cursor_execute` на `async_engine.sync_engine`
-    (`database/database.py`, `install_db_query_counter`), subtype = глагол
-    (SELECT/…); SQL jobstore'а APScheduler идёт через собственный engine и не
-    считается (осознанно);
-  - Redis — `CountingRedis` + `CountingPipeline` (`services/redis_state_manager.py`):
-    фабрика `init_redis` возвращает субкласс; pipeline-команды буферизуются мимо
-    `execute_command`, поэтому Pipeline субклассится отдельно;
-  - MQTT — `MQTTClient.publish` (на входе, включая дропнутые) и цикл `__listen`
-    (`services/mqtt.py`), subtype = первый уровень топика (`telegram`/…).
-    Подписка — с `noLocal=True` (MQTT v5): собственные публикации не возвращаются
-    эхом и не попадают в `mqtt_messages`;
-  - EventSub — `routers/helpers.py:parse_eventsub_payload`, subtype =
-    `Twitch-Eventsub-Subscription-Type` (считаются все доставки, включая невалидные);
-  - SSE — `SSEManager.broadcast` после проверки «0 клиентов» (только доставленные),
-    subtype = канал;
-  - Twitch API — обёртка приватного `_api_request` twitchAPI в `Twitch.startup()`
-    (хрупкое место: при апгрейде библиотеки метода может не быть — тогда warning
-    и метрика отключается) + `install_httpx_twitch_counter()` в `main.py`
-    (патчит `httpx.AsyncClient.send` для хостов api/id.twitch.tv; вызывается
-    ПОСЛЕ OTel-инструментации httpx).
-- **Честные ограничения (v1):** ребро users→Twitch показывает наблюдаемый ботом
-  чат (`message_incoming`), users→Heat — наблюдаемый Heat-трафик, а не весь Twitch;
-  twitch→бот — все доставки `eventsub_events` (чат идёт через EventSub
-  `channel.chat.message`, IRC-путь отключён — `message_incoming` на этом ребре
-  считался бы дважды); twibot-tg→Telegram = скорость наших
-  `mqtt_publish(telegram/*)` (Bot API зовёт соседний сервис, собственной
-  экспорт-статистики у него нет). Эффект наблюдателя не исключён: открытая
-  страница /flowviz сама создаёт ~1 HTTP-запрос/с и SCARD/SELECT на поллинг.
-- **Тесты:** `tests/unit/test_live_metrics.py` (реестр, CountingRedis,
-  flush, интеграция); фронт — страница в каталоге `tests/front/pages.py`, мок
-  `/api/admin/flowviz` в `tests/front/api_mocks.py` (дев-сервер без бэка
-  показывает живую схему на правдоподобных числах).
-
-## SSE — Server-Sent Events
-
-Бот отдаёт стримерам данные для оверлеев OBS через SSE (один HTTP-соединение
-на клиент, сервер пушит события в `text/event-stream`).
-
-- **Роут:** `GET /sse/{user_id}/{channel}` в `routers/sse.py`. `user_id` — Twitch channel ID стримера.
-- **Аутентификации нет** (кроме `slovotron` — требует `?secret=<UUIDv3>`).
-- **Каналы** (`utils/enums.py:SSEChannel`): `ai-sticker`, `heat`, `slovotron`, `msg` (последний не используется).
-- **`SSEManager`** (`services/sse_manager.py`): хранит активные подключения в памяти,
-  `broadcast()` → `put_nowait` во все очереди канала (неблокирующе).
-  Grace-период 15с после дисконнекта (чтобы микро-разрывы EventSource не отменяли награды).
-  `snapshot()` — мгновенный срез для метрики `sse_connections`.
-- **Heat upstream** (`services/heat_upstream.py`): единственный канал с upstream-WS
-  (`wss://heat-api.j38.net/...`). Один `HeatUpstreamConnection` на user_id, лениво
-  создаётся при подключении SSE-клиента на канал `HEAT`, глушится при отключении.
-
-## Подсистема статистики (`/stats`)
-
-Метрики агрегируются по 10-минутным бакетам. Модель `Statistics`
-(`database/models.py`), сервис `StatisticsService` (`services/statistics.py`),
-API `/api/user/stats`, фронт `/stats` (`templates/stats.html` + `static/js/stats.js`).
-
-### Таблица `statistics`
-
-- `bucket_ts` (timestamptz) — начало 10-минутного бакета (UTC).
-- `type` (varchar64) — тип метрики (см. `StatsType` в `schemas/api.py`).
-- `subtype` (varchar64, default `""`) — для `reward_*`: `received`/`succeed`/`failed`/...;
-  для `command_handled` — имя команды; для `active_channels` — `incoming`/`outgoing`;
-  для `sse_connections` — `total`/`unique_users`/`unique_pairs`/`<channel_name>`
-  (всего / по пользователям / по типам / по каналам в UI).
-- `channel_id` (bigint, NULL) — **всегда NULL**: per-channel статистика не собирается.
-- `count` (int) — счётчик или gauge-значение.
-- `sum_ms` (bigint, nullable) — для timing/sum-метрик.
-- Unique index `statistics_pk` по `(bucket_ts, type, subtype, channel_id)` с `NULLS NOT DISTINCT`.
-
-### Категории метрик
-
-- **Counter** (по умолчанию): `value = sum(count)`. Сообщения, награды, команды.
-- **`GAUGE_TYPES`** = `{SSE_CONNECTIONS, ACTIVE_CHANNELS}`: `value = avg(count)`.
-  В Redis — `hset` (перезапись), в БД — `ON CONFLICT DO UPDATE set count = EXCLUDED.count`.
-- **`TIMING_TYPES`** = `{MESSAGE_PROCESSING_TIME, AI_STICKER_PROCESSING_TIME}`:
-  `value = sum(sum_ms) / sum(count)` (avg ms). Пишутся через `inc_timing()`.
-- **`SUM_TYPES`** = `{HEAT_PROXY_BYTES}`: `value = sum(sum_ms)` (суммарный объём).
-- Расширяемо: добавить значение в `StatsType` + в соответствующее множество + точку инкремента.
-
-### Накопление и дамп
-
-- Счётчики накапливаются в Redis-хэшах `statistics:bucket:<ISO-UTC>` (TTL 2ч), инкремент — `hincrby`.
-- `inc()` / `inc_timing()` / `set_gauge()` / `mark_channel()` — **синхронные**, fire-and-forget
-  (через `asyncio.create_task`), вызываются без `await`.
-- `flush_to_db()` — APScheduler-джоб раз в 10 мин: SCAN `statistics:bucket:*`, `HGETALL`,
-  батч `INSERT ... ON CONFLICT DO UPDATE`. После успешного INSERT ключ в Redis удаляется.
-- `cleanup_old_data()` — раз в сутки (04:00 UTC), удаляет строки старше 90 дней.
-- `SUM_MS_SUFFIX = "__sum_ms"` (без двоеточия!) — суффикс для sum_ms-полей в Redis,
-  чтобы `_parse_field` не разбил их в отдельный subtype.
-
-### Точки инкремента
-
-- `twitch/chat/bot.py:on_message` → `inc("message_incoming")` + `mark_channel("incoming")`.
-- `twitch/chat/bot.py:send_message` → `inc("message_outgoing")` + `mark_channel("outgoing")`
-  + `inc_timing("message_processing_time")` (при первом ответе в задаче).
-- `twitch/chat/command_manager.py:handle` → `inc("command_handled", subtype=cmd.command_name)`.
-- `services/eventsub_service.py` → `inc("reward_memecoins"/"reward_ai_stickers", subtype=...)`.
-- `services/heat_upstream.py:_run` → `inc("heat_proxy_messages")` + `inc_timing("heat_proxy_bytes")`.
-- `dependencies.py:snapshot_sse_job` (раз в минуту) → `set_gauge("sse_connections", snapshot)`.
-- `services/ai.py` + `services/stickers.py` → `inc_timing("ai_sticker_processing_time", subtype=...)`.
-
-### Метрика `message_processing_time`
-
-Замеряет время от `on_message` до **первого** `send_message` в **той же задаче**.
-Использует два ContextVar: `_message_processing_start` (monotonic) и
-`_message_processing_task` (id текущей задачи). Проверка `task_id == id(asyncio.current_task())`
-гарантирует, что detached-таски (`IAmBotHandler` 0.5/2.5с задержки, `finish_raffle` 60с)
-**не записывают** завышенное время — у них другой `current_task()`.
-
-### API
-
-- `GET /api/user/stats` — single-line график. Query: `type`, `subtype`, `period`, `from`/`to` (UTC).
-- `GET /api/user/stats/series` — multi-line (топ-N подтипов). Query: `type`, `period`, `top`, `from`/`to`.
-- `GET /api/user/stats/users-count` — кумулятивный график пользователей (из `User.created_at`, не из `statistics`).
-- Параметр `channel` удалён (per-channel статистика не собирается).
-
-### Фронт `/stats`
-
-Chart.js (CDN v4). Селекторы type/subtype/period/dates + preset-диапазоны (1ч–7д) +
-auto-refresh (раз в 10 мин). Фильтры синхронизируются с URL (shareable links).
-Для `command_handled`/`sse_connections`/`ai_sticker_processing_time` доступен режим «раздельно»
-(по командам / по каналам / по этапам — top-N подтипов на одном графике).
-Для gauge-метрик (`sse_connections`, `active_channels`) «(все)» убран —
-выбирается конкретный подтип (`total`/`incoming`/...).
 
 ## TODO
 
