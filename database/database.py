@@ -3,6 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 
 from config import settings
+from services.live_metrics import install_db_query_counter
 
 async_engine = create_async_engine(
     settings.db.url,
@@ -19,6 +20,9 @@ async_engine = create_async_engine(
 
 if not SQLAlchemyInstrumentor().is_instrumented_by_opentelemetry:
     SQLAlchemyInstrumentor().instrument(engine=async_engine.sync_engine)
+
+# Live-счётчик SQL-запросов для карты потоков /flowviz (метрика db_queries).
+install_db_query_counter(async_engine.sync_engine)
 
 AsyncSessionLocal = sessionmaker(  # type: ignore
     bind=async_engine,

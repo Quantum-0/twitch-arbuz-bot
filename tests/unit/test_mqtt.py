@@ -70,6 +70,7 @@ class FakeAiomqttClient:
         # (итератор raises → слушатель умирает с MqttError).
         self.listen_error = listen_error
         self.subscribed: list[str] = []
+        self.subscribe_options: Any = None
         self.published: list[dict[str, Any]] = []
         self.closed = False
         self._messages: FakeMessages | None = None
@@ -101,8 +102,9 @@ class FakeAiomqttClient:
         self.closed = True
         return False
 
-    async def subscribe(self, topic: str) -> None:
+    async def subscribe(self, topic: str, options: Any = None, **kwargs: Any) -> None:  # noqa: ARG002
         self.subscribed.append(topic)
+        self.subscribe_options = options
 
     async def publish(self, topic: str, payload: Any = None, properties: Any = None) -> None:
         self.published.append({"topic": topic, "payload": payload, "properties": properties})
@@ -305,6 +307,9 @@ class TestLifespan:
         async with client.lifespan():
             fake = created[0]
             assert fake.subscribed == ["twibot/#"]
+            # noLocal: собственные публикации не возвращаются эхом (mqtt v5)
+            assert fake.subscribe_options is not None
+            assert fake.subscribe_options.noLocal
             assert client.is_alive
             # Bot published на входе
             assert json.loads(fake.published[0]["payload"]) == {"message": "Bot started"}

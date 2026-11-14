@@ -26,6 +26,7 @@ EXPECTED_JOBS = {
     "server_metrics_flush",
     "cleanup_server_metrics",
     "snapshot_sse",
+    "flush_live_metrics",
     "cleanup_overlay_eventsub",
 }
 

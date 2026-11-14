@@ -181,6 +181,28 @@ class StatsType(StrEnum):
     BAN_BLOCKED = "ban_blocked"
     # Timing-метрика: avg время (мс) синтеза TTS во внешнем API.
     TTS_PROCESSING_TIME = "tts_processing_time"
+    # ── Live-метрики карты потоков /flowviz (см. services/live_metrics.py).
+    # Высокочастотные (SQL/Redis/SSE/Twitch API) пишутся только в live-реестр
+    # процесса и раз в 10 с переносятся в Redis-бакеты джобой flush_live_metrics,
+    # поэтому видны и в /stats. Остальные инкрементятся обычным inc(). ──
+    # Counter: входящие HTTP-запросы. Subtype — первый сегмент пути (api/panel/sse/…).
+    HTTP_REQUESTS = "http_requests"
+    # Counter: SQL-запросы приложения (event на единственном async_engine).
+    # Subtype — глагол запроса (SELECT/INSERT/UPDATE/…).
+    DB_QUERIES = "db_queries"
+    # Counter: команды Redis обоих клиентов (включая pipeline). Subtype — имя команды.
+    REDIS_OPS = "redis_ops"
+    # Counter: публикации в MQTT (MQTTClient.publish). Subtype — первый уровень топика.
+    MQTT_PUBLISH = "mqtt_publish"
+    # Counter: входящие сообщения MQTT. Subtype — первый уровень топика.
+    MQTT_MESSAGES = "mqtt_messages"
+    # Counter: входящие EventSub-вебхуки. Subtype — subscription type.
+    EVENTSUB_EVENTS = "eventsub_events"
+    # Counter: события, доставленные в SSE-подключения (broadcast). Subtype — канал.
+    SSE_EVENTS = "sse_events"
+    # Counter: вызовы Twitch API: обёртка twitchAPI (helix) + прямые httpx-вызовы
+    # (helix/oauth). Subtype: "helix" | "oauth".
+    TWITCH_API_CALLS = "twitch_api_calls"
 
 
 class StatsPeriod(StrEnum):
@@ -191,6 +213,18 @@ class StatsPeriod(StrEnum):
     THREE_HOURS = "3h"
     SIX_HOURS = "6h"
     ONE_DAY = "1d"
+
+
+class FlowVizResponseSchema(BaseModel):
+    """Снимок live-скоростей для карты потоков /flowviz (GET /api/admin/flowviz)."""
+
+    ts: float = Field(description="Unix-time снимка")
+    # type → subtype → единиц/сек (сглажено окном ~2 с в LiveRegistry.rates)
+    rates: dict[str, dict[str, float]]
+    # Мгновенный снапшот SSE-подключений (SSEManager.snapshot)
+    sse: dict[str, int]
+    # Число активных каналов (SCARD SET'а текущего бакета, incoming)
+    active_channels: int
 
 
 class StatsPointSchema(BaseModel):

@@ -8,7 +8,9 @@ from dataclasses import dataclass, field
 import redis.asyncio as aioredis
 
 from config import settings
+from schemas.api import StatsType
 from services.heat_upstream import HeatUpstreamConnection
+from services.live_metrics import live_metrics
 from services.statistics import StatisticsService
 from utils.enums import SSEChannel
 
@@ -149,6 +151,9 @@ class SSEManager:
                 if not conn.filter_re.search(text):
                     continue
             conn.queue.put_nowait(message)
+            # Live-метрика sse_events (subtype — канал): только реально
+            # доставленные события (broadcast при 0 клиентов не считается).
+            live_metrics().bump(StatsType.SSE_EVENTS, channel.value)
 
     async def has_clients(self, user_id: int, channel: SSEChannel | None) -> bool:
         if channel is None:

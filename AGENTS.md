@@ -316,6 +316,70 @@ static/                  # CSS, JS (streamers.js, stats.js, heat-ws.js)
   `/panel/ai-stickers` и `/panel/tts` + пункт меню пользователя «История баланса»
   (виден только при ненулевом балансе, `templates/base.html`).
 
+## Live-метрики и карта потоков (`/flowviz`)
+
+Живая схема трафика: частицы между узлами (Twitch, бот, PostgreSQL, Redis, MQTT,
+twibot-tg, Telegram, Heat, пользователи) летят по кривым Безье с частотой,
+пропорциональной реальным скоростям (шапка — суммарные метрики, у рёбер —
+подписи с настоящими числами). PoC-исходник движка: `poc/architecture-viz.html`.
+
+- **Страница** `GET /flowviz` (`routers/web/pages.py:flowviz_page`, `staff_auth` —
+  только модераторы), движок `static/js/flowviz.js` (canvas, без зависимостей),
+  шаблон `templates/flowviz.html` — standalone тёмная страница, НЕ наследует `base.html`.
+- **API** `GET /api/admin/flowviz` (`routers/api/admin_api.py:flowviz_rates`,
+  `staff_auth`): `{ts, rates: {type: {subtype: rate/с}}, sse: {...}, active_channels}`;
+  фронт поллит раз в 1 с, при обрыве — индикатор «нет связи» и затухание потоков.
+- **LiveRegistry** (`services/live_metrics.py`) — модульный синглтон кумулятивных
+  счётчиков процесса (по аналогии с `tracer`, без DI). `bump()` синхронный
+  (dict-инкремент, без `create_task`) — можно звать из sync-колбэков
+  (SQLAlchemy-ивенты, `httpx.send`); `rates()` — дифф сэмплов за окно ~2 с
+  (лениво сэмплит при каждом вызове). **Валидно только пока приложение
+  однопроцессное** (uvicorn без `--workers`) — иначе числа станут per-worker.
+- **Интеграция со статистикой:** `StatisticsService.inc()` дублирует инкремент
+  в реестр (`bump_persisted` — не попадает в pending); высокочастотные метрики
+  (SQL/Redis/SSE/Twitch API) пишут только `bump()`; джоба `flush_live_metrics`
+  (каждые 10 с, dependencies.py) переносит дельты в Redis-бакеты через
+  `StatisticsService.flush_live_delta` → таблица `statistics` → графики `/stats`.
+  `count_active_channels()` — live-SCARD SET'а активных каналов текущего бакета.
+- **Новые StatsType** (`schemas/api.py`): `http_requests`, `db_queries`, `redis_ops`,
+  `mqtt_publish`, `mqtt_messages`, `eventsub_events`, `sse_events`,
+  `twitch_api_calls` — все обычные counter'ы.
+- **Точки инкремента** (каждая — единственная воронка):
+  - HTTP — pure-ASGI `HttpRequestCounterMiddleware` (`main.py`), subtype = первый
+    сегмент пути; `/static` и `/metrics` исключены;
+  - SQL — engine event `before_cursor_execute` на `async_engine.sync_engine`
+    (`database/database.py`, `install_db_query_counter`), subtype = глагол
+    (SELECT/…); SQL jobstore'а APScheduler идёт через собственный engine и не
+    считается (осознанно);
+  - Redis — `CountingRedis` + `CountingPipeline` (`services/redis_state_manager.py`):
+    фабрика `init_redis` возвращает субкласс; pipeline-команды буферизуются мимо
+    `execute_command`, поэтому Pipeline субклассится отдельно;
+  - MQTT — `MQTTClient.publish` (на входе, включая дропнутые) и цикл `__listen`
+    (`services/mqtt.py`), subtype = первый уровень топика (`telegram`/…).
+    Подписка — с `noLocal=True` (MQTT v5): собственные публикации не возвращаются
+    эхом и не попадают в `mqtt_messages`;
+  - EventSub — `routers/helpers.py:parse_eventsub_payload`, subtype =
+    `Twitch-Eventsub-Subscription-Type` (считаются все доставки, включая невалидные);
+  - SSE — `SSEManager.broadcast` после проверки «0 клиентов» (только доставленные),
+    subtype = канал;
+  - Twitch API — обёртка приватного `_api_request` twitchAPI в `Twitch.startup()`
+    (хрупкое место: при апгрейде библиотеки метода может не быть — тогда warning
+    и метрика отключается) + `install_httpx_twitch_counter()` в `main.py`
+    (патчит `httpx.AsyncClient.send` для хостов api/id.twitch.tv; вызывается
+    ПОСЛЕ OTel-инструментации httpx).
+- **Честные ограничения (v1):** ребро users→Twitch показывает наблюдаемый ботом
+  чат (`message_incoming`), users→Heat — наблюдаемый Heat-трафик, а не весь Twitch;
+  twitch→бот — все доставки `eventsub_events` (чат идёт через EventSub
+  `channel.chat.message`, IRC-путь отключён — `message_incoming` на этом ребре
+  считался бы дважды); twibot-tg→Telegram = скорость наших
+  `mqtt_publish(telegram/*)` (Bot API зовёт соседний сервис, собственной
+  экспорт-статистики у него нет). Эффект наблюдателя не исключён: открытая
+  страница /flowviz сама создаёт ~1 HTTP-запрос/с и SCARD/SELECT на поллинг.
+- **Тесты:** `tests/unit/test_live_metrics.py` (реестр, CountingRedis,
+  flush, интеграция); фронт — страница в каталоге `tests/front/pages.py`, мок
+  `/api/admin/flowviz` в `tests/front/api_mocks.py` (дев-сервер без бэка
+  показывает живую схему на правдоподобных числах).
+
 ## SSE — Server-Sent Events
 
 Бот отдаёт стримерам данные для оверлеев OBS через SSE (один HTTP-соединение

@@ -39,6 +39,8 @@ from twitchAPI.type import (
 from config import bot_scope, settings, user_scope
 from container_runtime import get_container
 from database.models import User
+from schemas.api import StatsType
+from services.live_metrics import live_metrics
 from services.twitch_token_service import TwitchTokenExpiredError
 from utils.singleton import singleton
 
@@ -216,6 +218,21 @@ class Twitch:
             bot_scope,
             settings.twitch.bot_refresh_token.get_secret_value(),
         )
+        # Live-метрика twitch_api_calls: обёртка над приватным _api_request
+        # twitchAPI ловит все вызовы Helix через клиент (они идут через aiohttp
+        # мимо httpx-счётчика). Приватный метод — хрупкое место при апгрейде
+        # twitchAPI (пин 4.5.x): если метод пропадёт — warning и без счётчика,
+        # а не падение стартапа.
+        orig_api_request = getattr(twitch, "_api_request", None)
+        if orig_api_request is not None:
+
+            async def _counting_api_request(*args: Any, **kwargs: Any) -> Any:
+                live_metrics().bump(StatsType.TWITCH_API_CALLS, "helix")
+                return await orig_api_request(*args, **kwargs)
+
+            twitch._api_request = _counting_api_request  # type: ignore[method-assign]
+        else:
+            logger.warning("twitchAPI _api_request not found; twitch_api_calls live-metric disabled")
         self._twitch = twitch
 
     def get_bot_auth_token(self) -> str | None:

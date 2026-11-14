@@ -66,6 +66,30 @@ TELEGRAM_SETTINGS: dict[str, Any] = {
 }
 
 
+# GET /api/admin/flowviz: снимок live-скоростей карты потоков (FlowVizResponseSchema).
+# Числа правдоподобные, чтобы в дев-режиме схема «жила».
+FLOWVIZ_RESPONSE: dict[str, Any] = {
+    "ts": 0,
+    "rates": {
+        "message_incoming": {"": 12.4},
+        "message_outgoing": {"": 3.1},
+        # чат идёт через EventSub channel.chat.message — число совпадает
+        # с message_incoming (иначе карта врёт на ребре twitch→бот)
+        "eventsub_events": {"channel.chat.message": 12.4, "stream.online": 0.01},
+        "heat_proxy_messages": {"": 6.8},
+        "http_requests": {"api": 1.7, "panel": 0.4},
+        "db_queries": {"SELECT": 4.2, "INSERT": 0.3, "UPDATE": 0.2},
+        "redis_ops": {"get": 22.5, "set": 8.1, "hincrby": 5.0},
+        "mqtt_publish": {"telegram": 0.02, "system": 0.0},
+        "mqtt_messages": {"telegram": 0.02},
+        "sse_events": {"heat": 6.8, "twitch-events": 0.1},
+        "twitch_api_calls": {"helix": 0.8, "oauth": 0.01},
+    },
+    "sse": {"total": 14, "unique_users": 9, "unique_pairs": 11, "heat": 8},
+    "active_channels": 37,
+}
+
+
 def default_for(method: str, path: str) -> tuple[int, dict[str, Any] | list[Any]]:
     """Дефолтный мок-ответ для запроса. Неизвестные ручки — тоже мок, чтобы
     дев-сервер не падал и фронт не ходил дальше нас."""
@@ -80,5 +104,7 @@ def default_for(method: str, path: str) -> tuple[int, dict[str, Any] | list[Any]
             return 200, {"server_alerts": 0, "pending_references": 0}
         if path == "/api/user/streamers":
             return 200, []
+        if path == "/api/admin/flowviz":
+            return 200, FLOWVIZ_RESPONSE
         return 200, {"result": True, "problems": [], "warnings": []}
     return 200, OK_MESSAGE

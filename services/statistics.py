@@ -27,6 +27,7 @@ from sqlalchemy.sql.elements import Label
 
 from database.models import Statistics
 from schemas.api import StatsPeriod, StatsType
+from services.live_metrics import live_metrics
 from utils.enums import SSEChannel
 
 logger = logging.getLogger(__name__)
@@ -205,11 +206,39 @@ class StatisticsService:
         вызывающий код. Исключения логируются (не всплывают), чтобы падение
         Redis не роняло обработку чата. ``amount`` по умолчанию = 1; для
         byte-счётчиков можно передать размер сообщения.
+
+        Дополнительно дублирует инкремент в live-реестр (карта потоков /flowviz):
+        live-числа обновляются мгновенно, без ожидания Redis-бакетов.
         """
+        live_metrics().bump_persisted(str(type_), subtype, amount)
         coro = self._inc(str(type_), subtype, channel_id, amount)
         task = asyncio.create_task(coro)
         self._tasks.add(task)
         task.add_done_callback(self._tasks.discard)
+
+    async def flush_live_delta(self, type_: str, subtype: str, amount: int) -> None:
+        """Перенос live-дельты высокочастотного счётчика в Redis-бакеты.
+
+        Вызывается джобой ``flush_live_metrics`` (см. ``services/live_metrics.py``)
+        для метрик, инкрементящих только live-реестр (SQL/Redis/SSE/Twitch API).
+        В отличие от ``inc`` — не дублирует в live (событие уже посчитано там)
+        и не порождает задачу: вызывается из асинхронной джобы напрямую.
+        """
+        await self._inc(type_, subtype, None, amount)
+
+    async def count_active_channels(self, subtype: str = "incoming") -> int:
+        """Live-число активных каналов: SCARD SET'а текущего бакета.
+
+        Тот же SET, куда пишет ``mark_channel`` (без ожидания flush_to_db).
+        При недоступном Redis возвращает 0 (live-значение не критично).
+        """
+        try:
+            bucket = _floor_to_bucket(datetime.now(UTC), BUCKET_SECONDS)
+            key = self._channels_key(subtype, bucket)
+            return int(await self._r.scard(key))
+        except Exception:
+            logger.error("count_active_channels failed for subtype=%s", subtype, exc_info=True)
+            return 0
 
     def inc_timing(
         self,

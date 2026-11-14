@@ -12,9 +12,12 @@ from opentelemetry.propagate import extract, inject
 from opentelemetry.trace import SpanKind
 from paho.mqtt.packettypes import PacketTypes
 from paho.mqtt.properties import Properties
+from paho.mqtt.subscribeoptions import SubscribeOptions
 from pydantic import BaseModel
 
 from config import settings
+from schemas.api import StatsType
+from services.live_metrics import live_metrics
 from utils.observability import spawn_logged_task
 
 logger = logging.getLogger(__name__)
@@ -80,7 +83,13 @@ class MQTTClient:
                         identifier=self._client_id,
                         protocol=ProtocolVersion.V5,
                     ) as cli:
-                        await cli.subscribe(self._prefix + "/#")
+                        await cli.subscribe(
+                            self._prefix + "/#",
+                            # noLocal (MQTT v5): не получать собственные публикации —
+                            # иначе брокер возвращает эхо каждого publish'а (накручивает
+                            # метрику mqtt_messages и гоняет бессмысленный матчинг).
+                            options=SubscribeOptions(noLocal=True),
+                        )
                         self._client = cli
                         listen_task = asyncio.create_task(self.__listen(cli), name="mqtt_listen")
                         self._listen_task = listen_task
@@ -133,6 +142,9 @@ class MQTTClient:
 
     @tracer.start_as_current_span("MQTT: Publish")
     async def publish(self, topic: str, data: dict[str, Any] | BaseModel | str):
+        # Live-метрика mqtt_publish (subtype — первый уровень топика): считаем
+        # на входе, включая дропнутые при отсутствии коннекта (это наши команды).
+        live_metrics().bump(StatsType.MQTT_PUBLISH, topic.split("/")[0])
         if not self._client:
             logger.error("MQTT publish dropped (no connection): topic=%s", topic)
             return
@@ -220,6 +232,8 @@ class MQTTClient:
                 parent_context: Context = extract(incoming_headers)
 
                 short_topic = topic[len(self._prefix) + 1 :]
+                # Live-метрика mqtt_messages (subtype — первый уровень топика).
+                live_metrics().bump(StatsType.MQTT_MESSAGES, short_topic.split("/")[0])
 
                 for pattern, handler in self._handlers:
                     params = self.match_topic(pattern, short_topic)

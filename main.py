@@ -31,6 +31,8 @@ from config import settings
 from dependencies import lifespan as lifespan_dep
 from exceptions import UserBannedError
 from routers.routers import api_router, router_for_robots, user_router
+from schemas.api import StatsType
+from services.live_metrics import install_httpx_twitch_counter, live_metrics
 from utils.logging_conf import LOGGING_CONFIG
 
 if settings.app.sentry_dsn:
@@ -72,6 +74,8 @@ FastAPIInstrumentor.instrument_app(
 )
 if not HTTPXClientInstrumentor().is_instrumented_by_opentelemetry:
     HTTPXClientInstrumentor().instrument()
+# После OTel-инструментации httpx: оборачивает уже инструментированный send.
+install_httpx_twitch_counter()
 
 
 @app.exception_handler(RequestValidationError)
@@ -143,6 +147,28 @@ class ESModulesNoCacheMiddleware:
 
 
 app.add_middleware(ESModulesNoCacheMiddleware)
+
+
+# Live-счётчик входящих HTTP-запросов для карты потоков /flowviz (метрика
+# http_requests, subtype — первый сегмент пути). Чистый ASGI-middleware по
+# образцу ESModulesNoCacheMiddleware: без задач на запрос; инкремент —
+# дешёвый dict-бамп live-реестра. /static и /metrics исключены (шум).
+class HttpRequestCounterMiddleware:
+    _SKIP_PREFIXES = ("/static", "/metrics")
+
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: MutableMapping[str, Any], receive, send) -> None:  # type: ignore[no-untyped-def]
+        if scope["type"] == "http":
+            path = str(scope.get("path", ""))
+            if not path.startswith(self._SKIP_PREFIXES):
+                segment = (path.strip("/") or "root").split("/")[0][:24]
+                live_metrics().bump(StatsType.HTTP_REQUESTS, segment)
+        await self.app(scope, receive, send)
+
+
+app.add_middleware(HttpRequestCounterMiddleware)
 
 # Разрешаем Твичу встраивать этот iframe
 # (Используем те же домены, что Твич просит в своей политике)

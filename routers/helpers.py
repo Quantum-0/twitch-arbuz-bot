@@ -4,6 +4,7 @@ from fastapi import Header, HTTPException, Request, Security
 from pydantic import BaseModel, ValidationError
 
 from routers.security_helpers import verify_eventsub_signature
+from schemas.api import StatsType
 from schemas.twitch import (
     ChatMessageSchema,
     EventSubRevocationSchema,
@@ -16,6 +17,7 @@ from schemas.twitch import (
     SubscriptionMessageWebhookSchema,
     TwitchChallengeSchema,
 )
+from services.live_metrics import live_metrics
 
 logger = logging.getLogger(__name__)
 
@@ -52,6 +54,9 @@ async def parse_eventsub_payload(
     """
     Reusable dependency that parses the incoming EventSub payload and returns the appropriate schema.
     """
+    # Live-метрика eventsub_events (subtype — subscription type): считаем ВСЕ
+    # доставки Twitch (включая невалидные/неизвестные типы) — честный «вход».
+    live_metrics().bump(StatsType.EVENTSUB_EVENTS, eventsub_subscription_type)
     try:
         body = await request.json()
     except Exception:

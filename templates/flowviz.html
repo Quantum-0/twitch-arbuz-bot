@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Карта потоков — Quantum0's Bot</title>
+<meta name="robots" content="noindex, nofollow">
+<style>
+  :root {
+    --bg: #0d0d0d;
+    --text: #e0e0e0;
+    --muted: #8a8a8a;
+    --accent: #66bb6a;
+    --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    min-width: 1080px;
+    display: flex; flex-direction: column;
+    background: var(--bg); color: var(--text);
+    font-family: -apple-system, "Segoe UI", system-ui, Roboto, sans-serif;
+    overflow: hidden;
+  }
+
+  /* ---------- шапка ---------- */
+  header {
+    display: flex; align-items: center; gap: 28px; flex-wrap: wrap;
+    padding: 12px 20px 10px;
+    background: linear-gradient(180deg, #161616, #111);
+    border-bottom: 1px solid #262626;
+    z-index: 5;
+  }
+  .brand { display: flex; align-items: center; gap: 12px; margin-right: auto; }
+  .brand .logo {
+    width: 40px; height: 40px; border-radius: 12px;
+    display: grid; place-items: center; font-size: 22px;
+    background: radial-gradient(circle at 35% 30%, #2b2b2b, #171717);
+    border: 1.5px solid var(--accent);
+    box-shadow: 0 0 16px rgba(102, 187, 106, .35);
+  }
+  .brand h1 { font-size: 17px; font-weight: 700; letter-spacing: .2px; }
+  .brand h1 span { color: var(--muted); font-weight: 500; }
+  .brand p { font-size: 11px; color: var(--muted); margin-top: 1px; }
+  .brand p b {
+    color: var(--accent); font-weight: 600; font-size: 10px;
+    border: 1px solid rgba(102,187,106,.4); border-radius: 6px; padding: 0 5px;
+    margin-right: 4px; letter-spacing: .5px;
+  }
+  .conn { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--muted); }
+  .conn i {
+    width: 8px; height: 8px; border-radius: 50%; background: #666;
+    transition: background .3s, box-shadow .3s;
+  }
+  .conn.ok i { background: var(--accent); box-shadow: 0 0 8px var(--accent); }
+  .conn.err i { background: #ef5350; box-shadow: 0 0 8px #ef5350; }
+  .conn.deny i { background: #ffcc00; box-shadow: 0 0 8px #ffcc00; }
+
+  .chips { display: flex; gap: 14px; align-items: stretch; }
+  .chip { display: flex; align-items: center; gap: 8px; }
+  .chip i {
+    width: 8px; height: 8px; border-radius: 50%; background: var(--c);
+    box-shadow: 0 0 8px var(--c); flex: none;
+  }
+  .chip b {
+    display: block; font: 600 15px var(--mono); color: var(--c);
+    min-width: 46px; text-align: right; font-variant-numeric: tabular-nums;
+  }
+  .chip span { display: block; font-size: 9.5px; color: var(--muted); letter-spacing: .3px; }
+
+  .controls { display: flex; align-items: center; gap: 14px; }
+  .btn {
+    background: #232323; color: var(--text); border: 1px solid #333;
+    border-radius: 9px; padding: 7px 13px; font-size: 12.5px; cursor: pointer;
+    text-decoration: none;
+    transition: background .15s, border-color .15s, transform .05s;
+  }
+  .btn:hover { background: #2b2b2b; border-color: #444; }
+  .btn:active { transform: scale(.97); }
+
+  .slider { display: flex; align-items: center; gap: 7px; font-size: 11px; color: var(--muted); }
+  .slider input { width: 90px; accent-color: var(--accent); }
+  .slider b { font: 600 11px var(--mono); color: var(--text); min-width: 32px; }
+
+  /* ---------- сцена ---------- */
+  #flowviz-stage { position: relative; flex: 1; min-height: 520px; overflow: hidden; }
+  #flowviz-stage canvas { position: absolute; inset: 0; display: block; }
+
+  #flowviz-cards { position: absolute; inset: 0; pointer-events: none; }
+  .card {
+    position: absolute; display: flex; flex-direction: column; align-items: center;
+    pointer-events: auto; cursor: default;
+    transform: translate(-50%, calc(-1 * var(--r)));
+    transition: opacity .3s, filter .3s;
+  }
+  .card .ball {
+    border-radius: 50%; display: grid; place-items: center;
+    background: radial-gradient(circle at 35% 30%, #2a2a2a, #181818);
+    border: 2px solid var(--c);
+    box-shadow:
+      0 0 20px color-mix(in srgb, var(--c) 40%, transparent),
+      inset 0 0 14px rgba(0, 0, 0, .65);
+    font-size: calc(var(--r) * .74);
+    transition: box-shadow .3s, transform .3s;
+  }
+  .card .name {
+    margin-top: 9px; font-size: 12.5px; font-weight: 650;
+    color: var(--text); text-shadow: 0 1px 3px #000; white-space: nowrap;
+  }
+  .card .sub { font-size: 10px; color: #9a9a9a; white-space: nowrap; margin-top: 1px; }
+  .card .rate {
+    margin-top: 5px; font: 600 10.5px var(--mono); color: var(--c);
+    background: rgba(0, 0, 0, .5); padding: 1.5px 8px; border-radius: 9px;
+    border: 1px solid color-mix(in srgb, var(--c) 45%, transparent);
+    font-variant-numeric: tabular-nums; white-space: nowrap;
+  }
+  #flowviz-cards.dim .card { opacity: .22; }
+  #flowviz-cards.dim .card.hot { opacity: 1; }
+  .card.hot .ball {
+    transform: scale(1.07);
+    box-shadow:
+      0 0 34px color-mix(in srgb, var(--c) 75%, transparent),
+      inset 0 0 14px rgba(0, 0, 0, .65);
+  }
+
+  .hint {
+    position: absolute; left: 16px; bottom: 12px;
+    font-size: 11px; color: #6a6a6a; pointer-events: none;
+  }
+  .hint kbd {
+    font: 10px var(--mono); color: #9a9a9a;
+    border: 1px solid #333; border-radius: 5px; padding: 1px 5px; margin: 0 2px;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <div class="logo">🤖</div>
+    <div>
+      <h1>twitch-bot <span>· карта потоков</span></h1>
+      <p><b>LIVE</b>живые метрики сервиса · обновление раз в секунду</p>
+    </div>
+  </div>
+
+  <div class="conn" id="connState"><i></i><span>подключение…</span></div>
+
+  <div class="chips">
+    <div class="chip" style="--c:#a970ff"><i></i><div><b id="m-msg">—</b><span>сообщений/с</span></div></div>
+    <div class="chip" style="--c:#ff6b6b"><i></i><div><b id="m-ops">—</b><span>операций/с</span></div></div>
+    <div class="chip" style="--c:#26c6da"><i></i><div><b id="m-sse">—</b><span>SSE-подкл.</span></div></div>
+    <div class="chip" style="--c:#4fc3f7"><i></i><div><b id="m-tg">—</b><span>TG/с</span></div></div>
+    <div class="chip" style="--c:#bdbdbd"><i></i><div><b id="m-part">0</b><span>частиц</span></div></div>
+  </div>
+
+  <div class="controls">
+    <button class="btn" id="btnPause">⏸ Пауза</button>
+    <label class="slider">скорость
+      <input type="range" id="speed" min="0.25" max="2.5" step="0.05" value="1">
+      <b id="speedV">1.0×</b>
+    </label>
+    <a class="btn" href="/server" title="Мониторинг сервера">🖥 /server</a>
+    <a class="btn" href="/">← на сайт</a>
+  </div>
+</header>
+
+<main id="flowviz-stage" aria-label="Живая карта потоков данных сервиса">
+  <canvas id="fv-fx"></canvas>
+  <canvas id="fv-edges"></canvas>
+  <div id="flowviz-cards"></div>
+  <div class="hint">наведи на узел — подсветятся его потоки · <kbd>пробел</kbd> пауза</div>
+</main>
+
+<script src="{{ static_url('js/flowviz.js') }}"></script>
+</body>
+</html>

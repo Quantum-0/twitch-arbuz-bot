@@ -194,6 +194,24 @@ def _register_scheduler_jobs(
         replace_existing=True,
     )
 
+    # Перенос live-счётчиков (/flowviz: SQL/Redis/SSE/Twitch API) в обычную
+    # статистику каждые 10 с — они попадают в Redis-бакеты и графики /stats.
+    from services.live_metrics import flush_live_metrics
+
+    async def flush_live_metrics_job() -> None:
+        try:
+            await flush_live_metrics()
+        except Exception:
+            logging.getLogger(__name__).error("flush_live_metrics failed", exc_info=True)
+
+    scheduler.add_job(
+        flush_live_metrics_job,
+        trigger="cron",
+        second="*/10",
+        id="flush_live_metrics",
+        replace_existing=True,
+    )
+
     # Cleanup overlay-managed EventSub подписок (раз в 3 минуты).
     # Если heartbeat истёк и нет SSE-клиентов — отписываемся.
     from services.overlay_eventsub_cleanup import cleanup_overlay_eventsub

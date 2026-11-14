@@ -601,6 +601,24 @@ async def server_page(
     )
 
 
+@router.get("/flowviz", response_class=HTMLResponse)
+async def flowviz_page(
+    request: Request,
+    user: Annotated[User, Security(staff_auth)],
+):
+    """Живая карта потоков сервиса (live-метрики, поллинг /api/admin/flowviz).
+
+    Только модераторам (staff_auth) — метрики глобальные на весь сервис.
+    """
+    return templates.TemplateResponse(
+        "flowviz.html",
+        {
+            "request": request,
+            "user": user,
+        },
+    )
+
+
 @router.get(
     "/cmdlist",
     response_class=HTMLResponse,

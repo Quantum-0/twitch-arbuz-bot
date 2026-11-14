@@ -3,11 +3,14 @@ import json
 import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager, suppress
+from typing import Any
 
 import redis.asyncio as aioredis
 from opentelemetry import trace
 from redis.asyncio import Redis
 
+from schemas.api import StatsType
+from services.live_metrics import live_metrics
 from twitch.state_manager import (
     COMMAND_TYPE,
     COMMON_CHANNEL,
@@ -281,14 +284,54 @@ class RedisStateManager(StateManager):
                     break
 
 
+def _bump_redis_cmd(name: Any) -> None:
+    """Инкремент live-метрики redis_ops по имени команды (нормализация к lower-str)."""
+    live_metrics().bump(StatsType.REDIS_OPS, str(name).lower())
+
+
+class CountingPipeline(aioredis.client.Pipeline):
+    """Pipeline, считающий каждую буферизуемую команду в live-реестр.
+
+    Pipeline-команды идут мимо ``Redis.execute_command`` (буферизуются в стек
+    клиента), поэтому субкласс нужен отдельно — иначе метрика теряла бы все
+    батчевые записи (statistics, cache, server_metrics).
+    """
+
+    def execute_command(self, *args: Any, **options: Any) -> Any:
+        if args:
+            _bump_redis_cmd(args[0])
+        return super().execute_command(*args, **options)
+
+
+class CountingRedis(Redis):
+    """Redis-клиент, считающий все прямые команды в live-реестр (/flowviz)."""
+
+    async def execute_command(self, *args: Any, **options: Any) -> Any:
+        if args:
+            _bump_redis_cmd(args[0])
+        return await super().execute_command(*args, **options)
+
+    def pipeline(self, transaction: bool = True, shard_hint: str | None = None) -> CountingPipeline:
+        return CountingPipeline(
+            self.connection_pool,
+            self.response_callbacks,
+            transaction,
+            shard_hint,
+        )
+
+
 def init_redis(redis_url: str, binary: bool = False) -> Redis:
     """Синхронная фабрика Redis-клиента (from_url ленивый, соединение не ставит).
 
     Синхронность принципиальна: async Resource в DI-контейнере делает async-вызываемыми
     все зависимые Singleton'ы. Fail-fast ping и keyspace-events настраиваются в lifespan
     (dependencies.py).
+
+    Возвращает ``CountingRedis`` — оба клиента приложения создаются только здесь,
+    поэтому субкласс прозрачен для всех сервисов и считает 100 % команд Redis
+    (метрика ``redis_ops`` для карты потоков /flowviz, см. services/live_metrics.py).
     """
-    return aioredis.from_url(redis_url, decode_responses=not binary)
+    return CountingRedis.from_url(redis_url, decode_responses=not binary)
 
 
 #

@@ -1,3 +1,4 @@
+import time
 from collections.abc import Callable
 from decimal import Decimal
 from typing import Annotated
@@ -17,11 +18,15 @@ from schemas.api import (
     AdminBalanceResponseSchema,
     AdminDepositRequestSchema,
     AdminDepositResponseSchema,
+    FlowVizResponseSchema,
     HealthcheckResponseSchema,
 )
 from schemas.enums import BalanceOperationAction, BalanceOperationType
 from services.healthcheck import run_healthchecks
+from services.live_metrics import live_metrics
 from services.mqtt import MQTTClient
+from services.sse_manager import SSEManager
+from services.statistics import StatisticsService
 from twitch.chat.bot import ChatBot
 from twitch.client.twitch import Twitch
 
@@ -134,6 +139,28 @@ async def healthcheck(
         mqtt=mqtt,
         twitch=twitch,
     )
+
+
+@router.get("/flowviz")
+@inject
+async def flowviz_rates(
+    statistics: Annotated[StatisticsService, Depends(Provide[Container.statistics])],
+    sse_manager: Annotated[SSEManager, Depends(Provide[Container.sse_manager])],
+    _: Annotated[User, Security(staff_auth)],
+) -> FlowVizResponseSchema:
+    """Снимок live-скоростей для карты потоков /flowviz (поллинг раз в 1 с).
+
+    Доступ — модераторам (staff_auth, как у самой страницы /flowviz).
+    Скорости считаются in-memory LiveRegistry (дифф сэмплов ~2 с), SSE-снапшот
+    и активные каналы — мгновенные значения.
+    """
+    flat = live_metrics().rates()
+    rates: dict[str, dict[str, float]] = {}
+    for (type_, subtype), rate in flat.items():
+        rates.setdefault(type_, {})[subtype] = round(rate, 2)
+    sse = await sse_manager.snapshot()
+    active_channels = await statistics.count_active_channels()
+    return FlowVizResponseSchema(ts=time.time(), rates=rates, sse=sse, active_channels=active_channels)
 
 
 @router.get("/eventsub/subscriptions")
