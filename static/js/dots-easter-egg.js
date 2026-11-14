@@ -11,6 +11,7 @@
     var EXTRA_DOTS = 100;               // Сколько точек накинуть после второго уведомления
     var ACTIVITY_WINDOW_MS = 10 * 1000; // Окно оценки активности курсора
     var ACTIVITY_DISTANCE_PX = 150;     // Минимальный путь курсора за окно, чтобы считать сбор активным
+    var RECENT_MOVE_MS = 5 * 1000;      // Последнее движение курсора не старше этого — иначе мышь «замерла»
 
     var triggered = false;
     var sustainStart = null;
@@ -20,6 +21,14 @@
     var moves = [];
     var moveSum = 0;
     var lastMouse = null;
+    var lastMoveT = 0;
+
+    function pruneMoves(now) {
+        while (moves.length > 0 && now - moves[0].t > ACTIVITY_WINDOW_MS) {
+            moveSum -= moves[0].d;
+            moves.shift();
+        }
+    }
 
     window.addEventListener("pointermove", function (event) {
         var now = Date.now();
@@ -29,17 +38,18 @@
             moveSum += d;
         }
         lastMouse = {x: event.clientX, y: event.clientY};
-        while (moves.length > 0 && now - moves[0].t > ACTIVITY_WINDOW_MS) {
-            moveSum -= moves[0].d;
-            moves.shift();
-        }
+        lastMoveT = now;
+        pruneMoves(now);
     });
 
-    function isCollecting() {
+    function isCollecting(now) {
         var count = window.starsBg ? window.starsBg.nearMouseCount(COLLECT_RADIUS) : 0;
         if (count < COLLECT_THRESHOLD) return false;
         // Лежащая мышь не собирает: точки сами натекают к стоящему курсору,
-        // поэтому требуем, чтобы курсор за последнее время реально двигался.
+        // поэтому требуем, чтобы курсор двигался прямо сейчас, а путь набирал
+        // за окно непрерывно, а не был намотан когда-то до паузы.
+        if (now - lastMoveT > RECENT_MOVE_MS) return false;
+        pruneMoves(now);
         return moveSum >= ACTIVITY_DISTANCE_PX;
     }
 
@@ -52,11 +62,16 @@
     window.addEventListener("scroll", reset, {passive: true, capture: true});
     window.addEventListener("pointerdown", reset, {passive: true});
     window.addEventListener("keydown", reset);
+    // Свёрнутая вкладка и переключение окна — пользователя нет за игрой.
+    document.addEventListener("visibilitychange", function () {
+        if (document.hidden) reset();
+    });
+    window.addEventListener("blur", reset);
 
     function check() {
         if (triggered) return;
         var now = Date.now();
-        if (isCollecting()) {
+        if (isCollecting(now)) {
             belowSince = null;
             if (sustainStart === null) sustainStart = now;
             if (now - sustainStart >= SUSTAIN_MS) trigger();
