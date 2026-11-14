@@ -60,7 +60,9 @@ user_id, лениво создаётся при подключении SSE-кл�
 
 ## Словотрон
 
-Внешняя игра «угадай слово» (slovotron.fra3a.ru, автор fra3a). Вебхуки
+Внешняя игра «угадай слово» (slovotron.fra3a.ru, автор fra3a). Роут `/overlay/slovotron`
+редиректит на внешний сайт, всегда добавляя `obs-overlay=1&transparent_background=1`
+(прозрачный фон для OBS; в ссылке оверлея в панели параметры не видны). Вебхуки
 `POST /api/webhook/slovotron` (auth по overlay_secret канала): `game-new` (новое
 слово) и `game-win` (победитель) → SSE-канал `slovotron`; при победе бот пишет в
 чат «@победитель угадывает слово «X»! Поздравляем!». Dock-панель для OBS:
