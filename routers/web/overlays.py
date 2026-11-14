@@ -112,7 +112,7 @@ async def overlay_slovotron(
     else:
         secret = compute_legacy_overlay_secret(channel_name)
     return RedirectResponse(
-        url=f"https://slovotron.fra3a.ru/?obs-overlay=1&"
+        url=f"https://slovotron.fra3a.ru/?obs-overlay=1&transparent_background=1&"
         f"channel={channel_name}&inactive_timeout={inactive_timeout}&"
         f"inactive_opacity={inactive_opacity}&webhook_secret={secret}&"
         f"win_notification_enable=0&"
