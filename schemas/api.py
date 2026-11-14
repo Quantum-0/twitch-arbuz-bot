@@ -78,6 +78,19 @@ class UpdateMemealertsRewardSchema(BaseModel):
     cost: int | None = Field(None, ge=1, le=10_000_000)
 
 
+class UpdateMemealertsCurrencySchema(BaseModel):
+    """PATCH /api/user/memealerts/currency: пользовательские склонения валюты.
+
+    Непустая строка (strip, 1-32 символа) — override; пустая строка — сброс
+    поля к автоматическому значению Memealerts.
+    """
+
+    genitive: str | None = Field(None, max_length=32)
+    accusative: str | None = Field(None, max_length=32)
+    genitive_multiple: str | None = Field(None, max_length=32)
+    accusative_multiple: str | None = Field(None, max_length=32)
+
+
 class BoolResponseSchema(BaseModel):
     result: bool
 

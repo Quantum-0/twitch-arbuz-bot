@@ -255,13 +255,14 @@ async def _sync_memealerts_channel_settings(
         return
     user.settings.memealerts_link = channel.unique_link  # type: ignore[assignment]
     if channel.currency_name_declensions:
-        user.memealerts.memecoin_name_genitive = channel.currency_name_declensions.genitive  # 2 мемкоина
-        user.memealerts.memecoin_name_accusative = channel.currency_name_declensions.accusative  # 1 мемкоин
+        # Пишем только автоматические ma_*-поля: пользовательские override не трогаем.
+        user.memealerts.ma_memecoin_name_genitive = channel.currency_name_declensions.genitive  # 2 мемкоина
+        user.memealerts.ma_memecoin_name_accusative = channel.currency_name_declensions.accusative  # 1 мемкоин
         if channel.currency_name_declensions.multiple:
-            user.memealerts.memecoin_name_genitive_multiple = (
+            user.memealerts.ma_memecoin_name_genitive_multiple = (
                 channel.currency_name_declensions.multiple.genitive
             )  # 5 мемкоинов
-            user.memealerts.memecoin_name_accusative_multiple = (
+            user.memealerts.ma_memecoin_name_accusative_multiple = (
                 channel.currency_name_declensions.multiple.accusative
             )  # Получить мемкоины
 

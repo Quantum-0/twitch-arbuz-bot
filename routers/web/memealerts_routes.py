@@ -106,15 +106,19 @@ async def _store_channel_info(
     user_id: int,
     channel: MAChannel,
 ) -> None:
-    """Сохраняет unique_link и склонения валюты канала Memealerts в БД."""
+    """Сохраняет unique_link и склонения валюты канала Memealerts в БД.
+
+    Склонения пишутся только в автоматические ``ma_memecoin_name_*`` —
+    пользовательские override-значения не затираются.
+    """
     ma_values: dict[str, str | None] = {}
     decl = channel.currency_name_declensions
     if decl is not None:
-        ma_values["memecoin_name_genitive"] = decl.genitive
-        ma_values["memecoin_name_accusative"] = decl.accusative
+        ma_values["ma_memecoin_name_genitive"] = decl.genitive
+        ma_values["ma_memecoin_name_accusative"] = decl.accusative
         if decl.multiple is not None:
-            ma_values["memecoin_name_genitive_multiple"] = decl.multiple.genitive
-            ma_values["memecoin_name_accusative_multiple"] = decl.multiple.accusative
+            ma_values["ma_memecoin_name_genitive_multiple"] = decl.multiple.genitive
+            ma_values["ma_memecoin_name_accusative_multiple"] = decl.multiple.accusative
 
     async with db_session_factory() as db:
         if ma_values:

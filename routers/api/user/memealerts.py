@@ -13,7 +13,12 @@ from container import Container
 from database.models import MemealertsDeposit, MemealertsSettings, User
 from dependencies import get_db
 from routers.security_helpers import user_auth
-from schemas.api import MemealertsDepositSchema, MemealertsDepositsResponseSchema, UpdateMemealertsRewardSchema
+from schemas.api import (
+    MemealertsDepositSchema,
+    MemealertsDepositsResponseSchema,
+    UpdateMemealertsCurrencySchema,
+    UpdateMemealertsRewardSchema,
+)
 from services.memes_v2 import MemealertsOAuthService
 from services.twitch_token_service import TwitchTokenExpiredError
 from twitch.client.twitch import Twitch
@@ -175,6 +180,30 @@ async def update_reward(
         return JSONResponse({"title": "Ошибка", "message": str(exc)}, 400)
     message = "Стоимость награды обновлена." if payload and payload.cost is not None else "Награда обновлена."
     return JSONResponse({"title": "Успешно", "message": message}, 200)
+
+
+@router.patch("/currency", response_class=JSONResponse)
+async def update_currency(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    user: Annotated[User, Security(user_auth)],
+    payload: UpdateMemealertsCurrencySchema,
+):
+    """Пользовательские склонения названия валюты (override над значениями Memealerts).
+
+    Непустая строка — override (заголовок награды и сообщения в чат используют
+    его); пустая строка — сброс поля к автоматическому значению Memealerts.
+    """
+    values = {
+        "memecoin_name_genitive_override": payload.genitive,
+        "memecoin_name_accusative_override": payload.accusative,
+        "memecoin_name_genitive_multiple_override": payload.genitive_multiple,
+        "memecoin_name_accusative_multiple_override": payload.accusative_multiple,
+    }
+    overrides = {column: (value.strip() or None) for column, value in values.items() if value is not None}
+    if overrides:
+        await db.execute(sa.update(MemealertsSettings).where(MemealertsSettings.user_id == user.id).values(**overrides))
+        await db.commit()
+    return JSONResponse({"title": "Memealerts", "message": "Название валюты обновлено."}, 200)
 
 
 @router.get("/deposits")

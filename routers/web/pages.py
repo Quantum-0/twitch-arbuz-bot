@@ -120,6 +120,42 @@ async def _panel_context(request: Request, db: AsyncSession, user: User) -> dict
             # фильтрует пустые — индексировать его нельзя.
             "currency_genitive": user.memealerts.memecoin_name_genitive or "мемкоина",
             "currency_multiple": user.memealerts.memecoin_name_accusative_multiple or "Мемкоины",
+            # Форма редактирования склонений: value — текущий override (пусто = авто),
+            # placeholder — автоматическое значение из Memealerts.
+            "currency_edit": [
+                {
+                    "key": "genitive",
+                    "label": "«начислены 2 …» (2-4 шт.)",
+                    "value": user.memealerts.memecoin_name_genitive_override or "",
+                    "placeholder": user.memealerts.ma_memecoin_name_genitive or "",
+                },
+                {
+                    "key": "accusative",
+                    "label": "«начислен 1 …» (1 шт.)",
+                    "value": user.memealerts.memecoin_name_accusative_override or "",
+                    "placeholder": user.memealerts.ma_memecoin_name_accusative or "",
+                },
+                {
+                    "key": "genitive_multiple",
+                    "label": "«начислено 5 …» (5+ шт.)",
+                    "value": user.memealerts.memecoin_name_genitive_multiple_override or "",
+                    "placeholder": user.memealerts.ma_memecoin_name_genitive_multiple or "",
+                },
+                {
+                    "key": "accusative_multiple",
+                    "label": "«Получить …» (название награды)",
+                    "value": user.memealerts.memecoin_name_accusative_multiple_override or "",
+                    "placeholder": user.memealerts.ma_memecoin_name_accusative_multiple or "",
+                },
+            ],
+            "currency_overridden": any(
+                (
+                    user.memealerts.memecoin_name_genitive_override,
+                    user.memealerts.memecoin_name_accusative_override,
+                    user.memealerts.memecoin_name_genitive_multiple_override,
+                    user.memealerts.memecoin_name_accusative_multiple_override,
+                )
+            ),
         },
         "slovotron_secret": overlay_secret,
         # Поэтапный rollout Telegram-интеграции: клипы пока только бета-тестерам.

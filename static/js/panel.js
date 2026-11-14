@@ -308,6 +308,46 @@ function initMemealertsSection() {
         });
     }
 
+    // Склонения названия валюты: ручной override над (кривыми) значениями
+    // Memealerts. После сохранения — перезагрузка: склонения вшиты в несколько
+    // серверных мест страницы (строка курса, шапка истории, placeholder-ы).
+    const currencyForm = byId("memealerts-currency-form");
+    const currencyEditBtn = byId("memealerts-currency-edit-btn");
+    if (currencyForm && currencyEditBtn) {
+        const saveBtn = byId("memealerts-currency-save-btn");
+        const cancelBtn = byId("memealerts-currency-cancel-btn");
+        const resetBtn = byId("memealerts-currency-reset-btn");
+
+        currencyEditBtn.addEventListener("click", () => {
+            currencyForm.hidden = !currencyForm.hidden;
+        });
+        cancelBtn?.addEventListener("click", () => {
+            currencyForm.hidden = true;
+        });
+
+        const patchCurrency = async (body) => {
+            const { ok } = await fetchNotify(
+                "/api/user/memealerts/currency",
+                { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) },
+                "Memealerts",
+            );
+            if (ok) window.location.reload();
+        };
+
+        saveBtn?.addEventListener("click", () => {
+            const body = {};
+            // Что в поле — то и сохранится: непустое = override, пустое = сброс
+            // поля к значению Memealerts (нетронутые override предзаполнены).
+            currencyForm.querySelectorAll("input[data-currency-key]").forEach((input) => {
+                body[input.dataset.currencyKey] = input.value;
+            });
+            void patchCurrency(body);
+        });
+        resetBtn?.addEventListener("click", () => {
+            void patchCurrency({ genitive: "", accusative: "", genitive_multiple: "", accusative_multiple: "" });
+        });
+    }
+
     initMemealertsHistory();
 }
 

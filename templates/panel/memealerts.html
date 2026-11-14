@@ -10,6 +10,25 @@
 /* Каденс как у livePulse/staffBadgePulse — мягкое мигание внимания. */
 @keyframes textPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
 
+.memealerts-currency-edit-btn {
+    margin-left: 8px; padding: 2px 10px; font-size: 0.9em;
+}
+.memealerts-currency-overridden { color: var(--color-warning); }
+.memealerts-currency-form {
+    display: flex; flex-direction: column; gap: 10px; margin-top: 10px; max-width: 520px;
+    padding: 14px 16px; border: 1px solid var(--color-border); border-radius: 10px;
+    background: var(--color-bg-secondary);
+}
+.memealerts-currency-field { display: flex; align-items: center; gap: 12px; }
+.memealerts-currency-field > span { min-width: 220px; color: var(--color-text-muted); }
+.memealerts-currency-field input {
+    flex: 1; padding: 6px 10px; font-size: 0.95em;
+    border: 2px solid var(--color-border); border-radius: 8px;
+    background: var(--color-bg-secondary); color: var(--color-text);
+}
+.memealerts-currency-hint { color: var(--color-text-muted); }
+.memealerts-currency-actions { display: flex; flex-wrap: wrap; gap: 12px; }
+
 .meme-deposits-title { margin-top: 36px; }
 .meme-deposits-table { width: 100%; border-collapse: collapse; background: var(--color-bg-secondary); border-radius: 10px; overflow: hidden; }
 .meme-deposits-table th, .meme-deposits-table td {
@@ -83,8 +102,46 @@
             <small>
                 Название валюты, полученное от Memealerts:
                 {%- for form in memealerts.currency %} <code>{{ form }}</code>{% if not loop.last %} {% endif %}{% endfor %}
+                {%- if memealerts.currency_overridden %}
+                <span class="memealerts-currency-overridden">— переопределено вами</span>
+                {%- endif %}
+                <button
+                    type="button"
+                    class="memealerts-currency-edit-btn"
+                    id="memealerts-currency-edit-btn"
+                >редактировать</button>
             </small>
         </p>
+        <div class="memealerts-currency-form" id="memealerts-currency-form" hidden>
+            {% for field in memealerts.currency_edit %}
+            <label class="memealerts-currency-field">
+                <span>{{ field.label }}</span>
+                <input
+                    type="text"
+                    maxlength="32"
+                    data-currency-key="{{ field.key }}"
+                    value="{{ field.value }}"
+                    placeholder="{{ field.placeholder }}"
+                >
+            </label>
+            {% endfor %}
+            <p class="memealerts-currency-hint">
+                <small>
+                    Пустое поле — используется значение из Memealerts (подсказка в поле).
+                    Название применяется в сообщениях чата и заголовке награды.
+                </small>
+            </p>
+            <div class="memealerts-currency-actions">
+                <button type="button" id="memealerts-currency-save-btn">Сохранить</button>
+                <button type="button" class="btn-danger" id="memealerts-currency-cancel-btn">Отмена</button>
+                <button
+                    type="button"
+                    class="btn-danger"
+                    id="memealerts-currency-reset-btn"
+                    {% if not memealerts.currency_overridden %}hidden{% endif %}
+                >Сбросить к Memealerts</button>
+            </div>
+        </div>
         {% endif %}
         <div class="cards-grid">
             <button

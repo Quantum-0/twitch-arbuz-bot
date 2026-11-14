@@ -312,18 +312,53 @@ class MemealertsSettings(Base):
     coins_for_reward: Mapped[int] = mapped_column(
         "coins_for_reward", Integer, nullable=False, server_default="2", default=2
     )
-    memecoin_name_genitive: Mapped[str | None] = mapped_column(
-        "memecoin_name_genitive", String, nullable=True, default=None
+    # Склонения названия валюты канала. ``ma_*`` — автоматические значения из
+    # Memealerts: синхронизация (OAuth-callback) пишет только их и никогда не
+    # трогает пользовательские. ``*_override`` — значения, введённые стримером
+    # на /panel/memealerts (MA часто криво склоняет выдуманные названия).
+    # Эффективное значение — property ``memecoin_name_*`` = override или ma_
+    # или None; читатели (чат-сообщение, заголовок награды, панель) работают
+    # с property, ничего не зная о разделении.
+    ma_memecoin_name_genitive: Mapped[str | None] = mapped_column(
+        "ma_memecoin_name_genitive", String, nullable=True, default=None
     )
-    memecoin_name_accusative: Mapped[str | None] = mapped_column(
-        "memecoin_name_accusative", String, nullable=True, default=None
+    ma_memecoin_name_accusative: Mapped[str | None] = mapped_column(
+        "ma_memecoin_name_accusative", String, nullable=True, default=None
     )
-    memecoin_name_genitive_multiple: Mapped[str | None] = mapped_column(
-        "memecoin_name_genitive_multiple", String, nullable=True, default=None
+    ma_memecoin_name_genitive_multiple: Mapped[str | None] = mapped_column(
+        "ma_memecoin_name_genitive_multiple", String, nullable=True, default=None
     )
-    memecoin_name_accusative_multiple: Mapped[str | None] = mapped_column(
-        "memecoin_name_accusative_multiple", String, nullable=True, default=None
+    ma_memecoin_name_accusative_multiple: Mapped[str | None] = mapped_column(
+        "ma_memecoin_name_accusative_multiple", String, nullable=True, default=None
     )
+    memecoin_name_genitive_override: Mapped[str | None] = mapped_column(
+        "memecoin_name_genitive_override", String(32), nullable=True, default=None
+    )
+    memecoin_name_accusative_override: Mapped[str | None] = mapped_column(
+        "memecoin_name_accusative_override", String(32), nullable=True, default=None
+    )
+    memecoin_name_genitive_multiple_override: Mapped[str | None] = mapped_column(
+        "memecoin_name_genitive_multiple_override", String(32), nullable=True, default=None
+    )
+    memecoin_name_accusative_multiple_override: Mapped[str | None] = mapped_column(
+        "memecoin_name_accusative_multiple_override", String(32), nullable=True, default=None
+    )
+
+    @property
+    def memecoin_name_genitive(self) -> str | None:
+        return self.memecoin_name_genitive_override or self.ma_memecoin_name_genitive
+
+    @property
+    def memecoin_name_accusative(self) -> str | None:
+        return self.memecoin_name_accusative_override or self.ma_memecoin_name_accusative
+
+    @property
+    def memecoin_name_genitive_multiple(self) -> str | None:
+        return self.memecoin_name_genitive_multiple_override or self.ma_memecoin_name_genitive_multiple
+
+    @property
+    def memecoin_name_accusative_multiple(self) -> str | None:
+        return self.memecoin_name_accusative_multiple_override or self.ma_memecoin_name_accusative_multiple
 
     access_token: Mapped[str | None] = mapped_column("access_token", EncryptedString, nullable=True, default=None)
     refresh_token: Mapped[str | None] = mapped_column("refresh_token", EncryptedString, nullable=True, default=None)
