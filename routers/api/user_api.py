@@ -21,6 +21,7 @@ from twitchAPI.type import TwitchAPIException, TwitchResourceNotFound
 from container import Container
 from database.models import CharacterInfo, TTSSettings, User
 from dependencies import get_db
+from routers.api.user.achievements import router as achievements_router
 from routers.api.user.balance import router as balance_router
 from routers.api.user.checks import router as checks_router
 from routers.api.user.consent import router as consent_router
@@ -96,6 +97,7 @@ router = APIRouter(prefix="/user", tags=["User API"])
 router.include_router(checks_router)
 router.include_router(consent_router)
 router.include_router(balance_router)
+router.include_router(achievements_router)
 router.include_router(likes_router)
 router.include_router(memealerts_router)
 router.include_router(overlay_router)

@@ -32,6 +32,8 @@ MQTT/EMQX, APScheduler, Jinja2 + Vanilla JS. Менеджер зависимос
   [docs/balance.md](docs/balance.md).
 - **Социальные фичи** — профиль стримера, лайки, каталог `/streamers` с
   фильтрами и нечётким поиском — [docs/social.md](docs/social.md).
+- **Ачивки** — достижения стримеров за действия на сайте и в Twitch,
+  условия скрыты, панель на профиле — [docs/achievements.md](docs/achievements.md).
 - **Twitch-расширение** — интерактивная «визуальная новелла» о сервисе —
   [docs/extension.md](docs/extension.md).
 - **Согласия (ФЗ-152)** — юрдокументы, cookie-баннер, гейтинг Яндекс.Метрики —

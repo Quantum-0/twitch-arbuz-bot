@@ -182,6 +182,31 @@
         </div>
     </section>
 
+    {% if profile_user.achievements %}
+    <!-- Достижения -->
+    <section class="profile-achievements">
+        <div class="profile-achievements-head">
+            <h3>Достижения</h3>
+            <span class="profile-achievements-count">{{ profile_user.achievements | length }}</span>
+        </div>
+        <div class="profile-achievements-row">
+            <button type="button" class="achievements-scroll" data-ach-scroll="-1" aria-label="Предыдущие ачивки" hidden>‹</button>
+            <div class="profile-achievements-strip" data-ach-strip>
+                {% for a in profile_user.achievements %}
+                <div class="achievement-badge" title="{{ a.name }} — получена {{ a.unlocked_at.strftime('%d.%m.%Y') }}">
+                    <span class="achievement-icon">
+                        <img src="{{ static_url('images/' ~ a.icon) }}" alt="{{ a.name }}" loading="lazy" width="48" height="48">
+                        {% if a.roman %}<span class="achievement-level">{{ a.roman }}</span>{% endif %}
+                    </span>
+                    <span class="achievement-name">{{ a.name }}</span>
+                </div>
+                {% endfor %}
+            </div>
+            <button type="button" class="achievements-scroll" data-ach-scroll="1" aria-label="Следующие ачивки" hidden>›</button>
+        </div>
+    </section>
+    {% endif %}
+
     {% if profile_user.is_live %}
     <!-- Стрим -->
     <section>
@@ -303,5 +328,6 @@
 
 {% block body_scripts %}
 <script src="/static/js/profile-likes.js"></script>
+<script src="/static/js/profile-achievements.js"></script>
 <script src="/static/js/profile-stickers.js"></script>
 {% endblock %}

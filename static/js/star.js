@@ -199,6 +199,18 @@ canvas.addEventListener("pointerdown", e => {
 
 /* ================= HEAT ================= */
 
+// Тихий репорт ачивки «Звезда с неба»: ниточку сорвал зритель (heat-клик),
+// а не сам стример кликами в OBS. Секрет есть в URL только при chat_control
+// (const из star.html) — без него репорт на бэке всё равно не прошёл бы.
+function reportStarBreak() {
+    if (typeof OVERLAY_SECRET === "undefined" || !OVERLAY_SECRET) return;
+    fetch("/api/user/achievements/star-break", {
+        method: "POST",
+        headers: {"Content-Type": "application/json", "X-Overlay-Secret": OVERLAY_SECRET},
+        body: JSON.stringify({channel_id: CHANNEL_ID})
+    }).catch(() => {});
+}
+
 window.addEventListener("heat:message", (e) => {
     const data = e.detail;
 
@@ -220,6 +232,7 @@ window.addEventListener("heat:message", (e) => {
 
     if (!isBroken && interactionsBeforeBreak < MIN_INTERACTIONS_BEFORE_BREAK && Math.random() < (BREAK_CHANCE / 100)) {
         breakString();
+        reportStarBreak();
     } else {
         interactionsBeforeBreak += 1;
     }

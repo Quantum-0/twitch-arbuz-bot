@@ -5,6 +5,7 @@ from dependency_injector import containers, providers
 
 from config import settings
 from database.database import AsyncSessionLocal
+from services.achievements import AchievementsService
 from services.ai import OpenAIClient
 from services.bans import BanService
 from services.cache import Cache
@@ -41,6 +42,7 @@ class Container(containers.DeclarativeContainer):
             "routers.api.galleries",
             "routers.api.twitch_eventsub",
             "routers.api.user_api",
+            "routers.api.user.achievements",
             "routers.api.user.memealerts",
             "routers.api.user.likes",
             "routers.api.user.overlay",
@@ -96,6 +98,10 @@ class Container(containers.DeclarativeContainer):
         StatisticsService,
         db_session_factory=db_session_factory,
         redis=redis,
+    )
+    achievements = providers.Singleton(
+        AchievementsService,
+        db_session_factory=db_session_factory,
     )
     server_metrics = providers.Singleton(
         ServerMetricsService,

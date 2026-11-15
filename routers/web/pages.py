@@ -20,6 +20,7 @@ from dependencies import get_db
 from routers.security_helpers import admin_auth, staff_auth, user_auth, user_auth_optional
 from routers.web.overlays import get_temp_commands
 from schemas.enums import ChatterRole, TTSTrigger
+from services.achievements import AchievementsService
 from services.bans import BanService
 from services.cache import Cache
 from twitch.chat.bot import ChatBot
@@ -380,6 +381,7 @@ async def profile_page(
     db: Annotated[AsyncSession, Depends(get_db)],
     cache: Annotated[Cache, Depends(Provide[Container.cache])],
     twitch: Annotated[Twitch, Depends(Provide[Container.twitch])],
+    achievements: Annotated[AchievementsService, Depends(Provide[Container.achievements])],
     user: Annotated[User | None, Security(user_auth_optional)],
 ):
     likes_count = (
@@ -442,6 +444,11 @@ async def profile_page(
     profile_user_dict["overlays_used_recently"] = profile_user_data.overlays_last_usage is not None and (
         datetime.now() - profile_user_data.overlays_last_usage
     ) < timedelta(days=14)
+    # Ачивки: ленивый пересчёт по незамороженным источникам (лайки уже посчитаны
+    # выше) + список полученных для панели «Достижения» (новые — первыми).
+    profile_user_dict["achievements"] = await achievements.evaluate_and_get(
+        profile_user_data, profile_likes_given_count, profile_likes_count
+    )
     try:
         async with aiohttp.ClientSession() as http_session:
             async with http_session.get(
@@ -828,11 +835,8 @@ async def roadmap_page(
                 },
                 {
                     "date": "Ноябрь 2026",
-                    "text": "Панель настроек разделена на разделы, команды чат-бота сгруппированы по категориям со справкой",
-                },
-                {
-                    "date": "Ноябрь 2026",
-                    "text": "В разделе Memealerts добавлена история пополнений мемкоинов через награду",
+                    "text": "Панель настроек разделена на разделы, команды чат-бота сгруппированы по категориям со справкой. "
+                    "В разделе Memealerts добавлена история пополнений мемкоинов через награду. Добавлена система ачивок",
                 },
             ],
             "todos": [

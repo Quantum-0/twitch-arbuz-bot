@@ -12,6 +12,7 @@ static_url/site_url/is_staff) со StrictUndefined — рендер падает
 
 from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import datetime
 from types import SimpleNamespace
 from typing import Any
 
@@ -154,6 +155,26 @@ def _panel(base_url: str) -> dict[str, Any]:
             "enabled_v2": True,
             "coins_for_reward": 10,
             "currency": ["мемкоина", "мемкоин", "мемкоинов", "мемкоины"],
+            "currency_genitive": "мемкоина",
+            "currency_multiple": "Мемкоины",
+            # Форма редактирования склонений (структура как в _panel_context).
+            "currency_edit": [
+                {"key": "genitive", "label": "«начислены 2 …» (2-4 шт.)", "value": "", "placeholder": "мемкоина"},
+                {"key": "accusative", "label": "«начислен 1 …» (1 шт.)", "value": "", "placeholder": "мемкоин"},
+                {
+                    "key": "genitive_multiple",
+                    "label": "«начислено 5 …» (5+ шт.)",
+                    "value": "",
+                    "placeholder": "мемкоинов",
+                },
+                {
+                    "key": "accusative_multiple",
+                    "label": "«Получить …» (название награды)",
+                    "value": "",
+                    "placeholder": "Мемкоины",
+                },
+            ],
+            "currency_overridden": False,
         },
         "slovotron_secret": "mock-secret",
         "tg_clips_beta": True,
@@ -235,6 +256,73 @@ def _cmdlist(base_url: str) -> dict[str, Any]:
     }
 
 
+def _profile(base_url: str) -> dict[str, Any]:
+    """Публичный профиль с ачивками: панель «Достижения» (server-side render).
+
+    ``is_beta_tester``/``tt_rank`` и прочие вычисляемые ключи передаём явно —
+    в проде их кладёт ``profile_page`` в dict из ORM ``__dict__``, а
+    StrictUndefined роняет рендер при пропуске.
+    """
+    profile_user = make_user(
+        id=7,
+        twitch_id="123456",
+        login_name="mock_streamer",
+        created_at=datetime(2026, 1, 15, 12, 0),
+        interacted_at=datetime(2026, 11, 1, 12, 0),
+        donated=0,
+        likes_count=3,
+        likes_given_count=5,
+        is_liked=False,
+        is_live=False,
+        is_beta_tester=False,
+        tt_rank=42,
+        memealerts_enabled=True,
+        overlays_used_recently=True,
+        settings=make_settings(
+            memealerts_link="mock_streamer",
+            enable_chat_bot=True,
+            ai_sticker_reward_id="11111111-1111-1111-1111-111111111111",
+        ),
+        links=SimpleNamespace(
+            tiktok="mock_tt",
+            youtube="c/mock",
+            telegram="mock_tg",
+            discord="https://discord.gg/mock",
+            steam=None,
+            steam_id=None,
+        ),
+        # Панель «Достижения»: две ачивки, одна уровневая (римская II).
+        achievements=[
+            SimpleNamespace(
+                code="easter_dots",
+                name="Ловец точек",
+                icon="achievements/easter_dots.svg",
+                level=1,
+                roman=None,
+                unlocked_at=datetime(2026, 11, 1),
+            ),
+            SimpleNamespace(
+                code="memecoins_sold",
+                name="Мем-магнат",
+                icon="achievements/memecoins_sold.svg",
+                level=2,
+                roman="II",
+                unlocked_at=datetime(2026, 10, 1),
+            ),
+        ],
+    )
+    return {
+        "request": MockRequest(base_url),
+        "user": None,
+        "profile_user": profile_user,
+        "profile_followers_count": 142,
+        # Стикеры выключены: их секция лениво фетчит /api/profile/... —
+        # для каталога профиля этот флоу не нужен.
+        "ai_stickers_enabled": False,
+        "reference": None,
+    }
+
+
 @dataclass(frozen=True)
 class PageSpec:
     url_path: str
@@ -264,6 +352,7 @@ PAGES: tuple[PageSpec, ...] = (
     PageSpec("/faq", "faq.html", _faq),
     PageSpec("/kinda_roadmap", "roadmap.html", _roadmap),
     PageSpec("/cmdlist", "streamer-commands.html", _cmdlist),
+    PageSpec("/profile/mock_streamer", "profile.html", _profile),
 )
 
 PAGES_BY_PATH: dict[str, PageSpec] = {spec.url_path: spec for spec in PAGES}
@@ -298,6 +387,13 @@ PAGE_MARKERS: dict[str, tuple[str, ...]] = {
     "/faq": ("Кто такой бот",),
     "/kinda_roadmap": ("Рефакторинг панели",),
     "/cmdlist": ("!кусь",),
+    "/profile/mock_streamer": (
+        "profile-achievements",
+        "Ловец точек",
+        "Мем-магнат",
+        "achievement-level",
+        "data-ach-scroll",
+    ),
 }
 
 

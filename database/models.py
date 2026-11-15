@@ -17,6 +17,7 @@ from sqlalchemy import (
     Integer,
     Numeric,
     PrimaryKeyConstraint,
+    SmallInteger,
     String,
     Text,
     event,
@@ -814,6 +815,39 @@ class MemealertsDeposit(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=text("(now() at time zone 'utc')"), nullable=False
     )
+
+
+class UserAchievement(Base):
+    """Полученная стримером ачивка (реестр — ``utils/achievements.py``).
+
+    Строка существует только для **полученной** ачивки (``level >= 1``).
+    ``twitch_id`` — twitch-ID пользователя (как у ``balance_operations``):
+    по нему джойнятся все ачивки юзера. ``code`` — значение из
+    ``utils.achievements.ACHIEVEMENTS``. ``level`` — текущий уровень
+    (римская цифра на профиле); уровневые ачивки растут при пересчёте,
+    одноуровневые всегда 1. Уровень только увеличивается — ачивка не может
+    пропасть или понизиться (правило заморозки: достигнутый максимальный
+    уровень источник больше не перепроверяет, см. ``services/achievements.py``).
+    ``unlocked_at`` — момент получения (для ленивых — первый просмотр профиля
+    после выполнения условия); ``updated_at`` — последнее повышение уровня.
+    """
+
+    __tablename__ = "user_achievements"
+    __table_args__ = (Index("uq_user_achievements_twitch_code", "twitch_id", "code", unique=True),)
+
+    id: Mapped[int] = mapped_column(BigInteger, Identity(), primary_key=True)
+    twitch_id: Mapped[str] = mapped_column(
+        String, ForeignKey("twitch_bot_users.twitch_id", ondelete="CASCADE"), nullable=False
+    )
+    code: Mapped[str] = mapped_column(String(64), nullable=False)
+    level: Mapped[int] = mapped_column(SmallInteger, nullable=False, default=1, server_default="1")
+
+    # naive-UTC: now() at time zone 'utc' не зависит от TimeZone сессии БД
+    # (прямой func.now() писал бы локальное время сервера).
+    unlocked_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=text("(now() at time zone 'utc')"), nullable=False
+    )
+    updated_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, default=None)
 
 
 class TelegramSettings(Base):

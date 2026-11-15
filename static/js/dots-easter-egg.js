@@ -90,6 +90,12 @@
     function trigger() {
         triggered = true;
         document.body.classList.add("dots-easter-egg");
+        // Тихая отметка ачивки «Ловец точек»: один fire-and-forget POST,
+        // только для залогиненных (мета есть только при активной сессии).
+        var loggedIn = document.querySelector('meta[name="logged-in"]');
+        if (loggedIn) {
+            fetch("/api/user/achievements/easter-egg", {method: "POST"}).catch(function () {});
+        }
         notify(
             "Тоже залипаешь на эти точки? :з",
             "Дааа, мне тоже нравится их ловить!\nСделал интерфейс прозрачным, чтоб тебе было удобнее.\nРазвлекайся! :D"

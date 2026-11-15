@@ -19,6 +19,18 @@ from utils.misc import call_with_delay, run_in_clean_otel_context
 logger = logging.getLogger(__name__)
 tracer = trace.get_tracer(__name__)
 
+# Ачивка «Вернул своё»: минимум участников, претендующих на трусы стримера.
+PANTS_ACHIEVEMENT_MIN_PARTICIPANTS = 5
+
+
+def pants_achievement_earned(channel_login: str, target: str, winner: str, participants_count: int) -> bool:
+    """Стример выиграл розыгрыш собственных трусов (зрители пытались украсть,
+    он поставил «+» и победил) при достаточном числе участников."""
+    return (
+        participants_count >= PANTS_ACHIEVEMENT_MIN_PARTICIPANTS
+        and winner.lower() == target.lower() == channel_login.lower()
+    )
+
 
 class PantsCommand(SimpleCDCommand):
     command_name = "pants"
@@ -227,3 +239,13 @@ class PantsCommand(SimpleCDCommand):
                 channel=channel.login_name, command=self.command_name, param=SMParam.PARTICIPANTS
             )
             logger.info("State for pants raffle is erased")
+
+            # Ачивка «Вернул своё»: свой канал, свои трусы, победа при 5+ участниках.
+            # После очистки стейтов и под try: сбой ачивки не должен ломать розыгрыш.
+            if pants_achievement_earned(channel.login_name, target, winner, participants_count):
+                try:
+                    from container_runtime import get_container
+
+                    await get_container().achievements().unlock(channel.twitch_id, "pants_kept")
+                except Exception:
+                    logger.warning("Pants achievement unlock failed", exc_info=True)
