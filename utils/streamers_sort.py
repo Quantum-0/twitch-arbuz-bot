@@ -67,6 +67,9 @@ def compute_streamer_score(usr: dict) -> float:
         + (3 * usr["chat_bot_enabled"])
         + (4 * usr["ai_stickers_enabled"])
         + min(2, usr.get("likes_count", 0) * 0.05)
+        # +0.05 за каждую полученную ачивку (естественный потолок — размер
+        # реестра utils/achievements.py, сверху не ограничиваем).
+        + (0.05 * usr.get("achievements_count", 0))
         + _memealerts_reward_score(usr)
         + (5 * random.random())
     )

@@ -19,8 +19,10 @@
 - API: `sort` (recommended|followers|created|interacted|likes|name), `order`
   (asc|desc), фильтры `f_bot`/`f_meme`/`f_ai`/`f_overlay`/`f_online`/`f_pants`.
 - Логика: `utils/streamers.py:get_streamers_list`. Скоринг:
-  `utils/streamers_sort.py:compute_streamer_score`. `User.overlays_last_usage`
-  обновляется в `utils/overlays.py:touch_overlay_usage` (не чаще 1/час).
+  `utils/streamers_sort.py:compute_streamer_score` (в т.ч. +0.05 за каждую
+  полученную ачивку — счётчик из `user_achievements`, см. `docs/achievements.md`).
+  `User.overlays_last_usage` обновляется в
+  `utils/overlays.py:touch_overlay_usage` (не чаще 1/час).
   «Использует оверлеи» = обращение не позднее 14 дней.
 - **Поиск по имени** — на клиенте (`#streamersSearch`, debounce): подстрока ИЛИ
   Levenshtein (порог `max(1, len(q)/3)`). Запрос синхронизируется с URL (`?q=`).

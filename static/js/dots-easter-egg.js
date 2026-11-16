@@ -94,7 +94,7 @@
         // только для залогиненных (мета есть только при активной сессии).
         var loggedIn = document.querySelector('meta[name="logged-in"]');
         if (loggedIn) {
-            fetch("/api/user/achievements/easter-egg", {method: "POST"}).catch(function () {});
+            fetch("/api/user/achievements/easter-dots", {method: "POST"}).catch(function () {});
         }
         notify(
             "Тоже залипаешь на эти точки? :з",

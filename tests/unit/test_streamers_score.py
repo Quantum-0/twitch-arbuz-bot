@@ -1,13 +1,13 @@
 # ruff: noqa: S101
 
-"""Скоринг /streamers: бонусы за активность награды мемкоинов (memealerts_deposits)."""
+"""Скоринг /streamers: бонусы за награду мемкоинов (memealerts_deposits) и ачивки."""
 
 from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 import pytest
 
-from database.models import MemealertsDeposit, User
+from database.models import MemealertsDeposit, User, UserAchievement
 from schemas.enums import MemealertsDepositStatus
 from utils.streamers import _build_select_query
 from utils.streamers_sort import _memealerts_reward_score, compute_streamer_score
@@ -84,6 +84,42 @@ def test_compute_streamer_score_tolerates_missing_deposit_fields(monkeypatch):
     without_deposits = compute_streamer_score(dict(base))
     with_deposits = compute_streamer_score({**base, "deposits_count": 25, "deposits_users": 12})
     assert with_deposits == pytest.approx(without_deposits + 0.4)
+
+
+def test_achievements_count_adds_005_each(monkeypatch):
+    # +0.05 за каждую полученную ачивку; без поля (старые словари) — как с нулём.
+    monkeypatch.setattr("utils.streamers_sort.random.random", lambda: 0)
+    base = {
+        "is_live": False,
+        "created_at": datetime.now() - timedelta(days=60),
+        "interacted_at": datetime.now() - timedelta(days=60),
+        "followers": 0,
+        "username": "some_streamer",
+        "donated": 0,
+        "is_beta_tester": False,
+        "memealerts_enabled": False,
+        "chat_bot_enabled": False,
+        "ai_stickers_enabled": False,
+    }
+
+    without = compute_streamer_score(dict(base))
+    assert compute_streamer_score({**base, "achievements_count": 0}) == pytest.approx(without)
+    assert compute_streamer_score({**base, "achievements_count": 1}) == pytest.approx(without + 0.05)
+    assert compute_streamer_score({**base, "achievements_count": 7}) == pytest.approx(without + 0.35)
+
+
+@pytest.mark.asyncio
+async def test_streamers_query_counts_achievements(db_session, test_user):
+    test_user.followers_count = 10  # иначе where(followers_count > 2) выкинет юзера
+    db_session.add(UserAchievement(twitch_id=test_user.twitch_id, code="easter_dots", level=1))
+    db_session.add(UserAchievement(twitch_id=test_user.twitch_id, code="likes_given", level=3))
+    await db_session.commit()
+
+    stmt = _build_select_query().where(User.login_name == test_user.login_name)
+    row = (await db_session.execute(stmt)).one()._asdict()
+
+    # Строка в user_achievements = полученная ачивка (уровень не важен).
+    assert row["achievements_count"] == 2
 
 
 def test_streamers_query_aggregates_deposits_in_sql():

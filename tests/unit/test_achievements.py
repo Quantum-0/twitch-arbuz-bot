@@ -296,17 +296,17 @@ async def test_stale_db_code_hidden_not_fatal(db_session, test_user):
 # ----------------------------------------------------------------------
 
 
-async def test_easter_egg_api_requires_auth(client):
-    resp = await client.post("/api/user/achievements/easter-egg")
+async def test_easter_dots_api_requires_auth(client):
+    resp = await client.post("/api/user/achievements/easter-dots")
     assert resp.status_code in (401, 403)
 
 
-async def test_easter_egg_api_idempotent(client, db_session, test_user, user_auth_mock):  # noqa: ARG001
+async def test_easter_dots_api_idempotent(client, db_session, test_user, user_auth_mock):  # noqa: ARG001
     service = make_service(db_session)
-    dep = _dep(achievements_module.easter_egg, "achievements")
+    dep = _dep(achievements_module.easter_dots, "achievements")
     with _override(dep, lambda: service):
-        assert (await client.post("/api/user/achievements/easter-egg")).status_code == 200
-        assert (await client.post("/api/user/achievements/easter-egg")).status_code == 200
+        assert (await client.post("/api/user/achievements/easter-dots")).status_code == 200
+        assert (await client.post("/api/user/achievements/easter-dots")).status_code == 200
 
     rows = await _rows(db_session, test_user.twitch_id)
     assert list(rows) == ["easter_dots"]

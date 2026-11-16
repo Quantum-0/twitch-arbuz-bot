@@ -4,7 +4,14 @@ from typing import Any, Literal
 import sqlalchemy as sa
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from database.models import MemealertsDeposit, MemealertsSettings, TwitchUserSettings, User, UserLike
+from database.models import (
+    MemealertsDeposit,
+    MemealertsSettings,
+    TwitchUserSettings,
+    User,
+    UserAchievement,
+    UserLike,
+)
 from schemas.enums import MemealertsDepositStatus
 from services.cache import Cache
 from twitch.client.twitch import Twitch
@@ -95,6 +102,17 @@ def _build_select_query() -> sa.Select[tuple[Any, ...]]:
         .subquery()
     )
 
+    # Количество полученных ачивок (строка в user_achievements = полученная
+    # ачивка) — небольшой бонус в скоринге рекомендаций.
+    achievements = (
+        sa.select(
+            UserAchievement.twitch_id.label("twitch_id"),
+            sa.func.count().label("achievements_count"),
+        )
+        .group_by(UserAchievement.twitch_id)
+        .subquery()
+    )
+
     return (
         sa.select(
             User.id.label("id"),
@@ -117,6 +135,7 @@ def _build_select_query() -> sa.Select[tuple[Any, ...]]:
             sa.func.coalesce(top_chatter.c.deposits_top1_count, 0).label("deposits_top1_count"),
             sa.func.coalesce(deposits_weekly.c.deposits_weekly_coins, 0).label("deposits_weekly_coins"),
             sa.func.coalesce(deposits_weekly.c.deposits_weekly_users, 0).label("deposits_weekly_users"),
+            sa.func.coalesce(achievements.c.achievements_count, 0).label("achievements_count"),
         )
         .select_from(User)
         .join(TwitchUserSettings)
@@ -125,6 +144,7 @@ def _build_select_query() -> sa.Select[tuple[Any, ...]]:
         .outerjoin(deposits_90d, deposits_90d.c.twitch_id == User.twitch_id)
         .outerjoin(top_chatter, top_chatter.c.twitch_id == User.twitch_id)
         .outerjoin(deposits_weekly, deposits_weekly.c.twitch_id == User.twitch_id)
+        .outerjoin(achievements, achievements.c.twitch_id == User.twitch_id)
         .where(User.followers_count > 2)
         .limit(500)
     )
@@ -211,7 +231,8 @@ async def get_streamers_list(
       ai_stickers_enabled, memealerts_enabled, is_live, score, role,
       overlay_used_recently, likes_count, deposits_count, deposits_users,
       deposits_top1_count, deposits_weekly_coins, deposits_weekly_users
-      (deposits_* — агрегаты memealerts_deposits для скоринга рекомендаций).
+      (deposits_* — агрегаты memealerts_deposits для скоринга рекомендаций),
+      achievements_count — количество полученных ачивек (для скоринга).
     """
     res = [row._asdict() for row in (await db.execute(_build_select_query())).all()]
 

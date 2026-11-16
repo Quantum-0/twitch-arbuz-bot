@@ -36,15 +36,16 @@ class StarBreakSchema(BaseModel):
     channel_id: int = Field(ge=1)
 
 
-@router.post("/easter-egg")
+@router.post("/easter-dots")
 @inject
-async def easter_egg(
+async def easter_dots(
     user: Annotated[User, Security(user_auth)],
     achievements: Annotated[AchievementsService, Depends(Provide[Container.achievements])],
 ) -> dict[str, str]:
     """Отметить активацию пасхалки «сборщик точек» (``dots-easter-egg.js``).
 
-    Идемпотентно: повторные вызовы ничего не меняют.
+    Пасхалок может быть много — путь именуется конкретной пасхалкой, а не
+    общим «easter-egg». Идемпотентно: повторные вызовы ничего не меняют.
     """
     await achievements.unlock(user.twitch_id, "easter_dots")
     return {"status": "ok"}
