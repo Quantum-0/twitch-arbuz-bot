@@ -63,6 +63,18 @@ class TTSHandler(CommonMessagesHandler):
         # целиком, чтобы простая смена тоггла не требовала перезапуска.
         return True
 
+    async def is_candidate(self, message: ChatMessageWebhookEventSchema) -> bool:
+        # Награды здесь не озвучиваем (reward-редемпшны обрабатывает webhook);
+        # без подключённого TTS-оверлея handle гарантированно SKIPED (первая же
+        # проверка после tts.enabled), так что достаточно дешёвой проверки SSE.
+        if message.channel_points_custom_reward_id:
+            return False
+        try:
+            ssem: SSEManager = self._container.sse_manager()
+            return await ssem.has_clients(int(message.broadcaster_user_id), SSEChannel.TTS)
+        except (TypeError, ValueError):
+            return False
+
     @tracer.start_as_current_span("ChatBot: TTS Handler")
     async def handle(self, streamer: User, message: ChatMessageWebhookEventSchema) -> HandlerResult:
         tts = get_tts_settings(streamer)

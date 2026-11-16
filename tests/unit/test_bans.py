@@ -356,6 +356,15 @@ def _chat_message(chatter_id: int = 777, chatter_login: str = "vasya", text: str
 def chat_bot(db_session, state_manager, ban_service):
     from twitch.chat.bot import ChatBot
 
+    class _ManagerStub(SimpleNamespace):
+        """Стаб менеджера: handle + префильтр is_candidate (всё кандидат)."""
+
+        async def is_candidate(self, message):  # noqa: ARG002
+            return True
+
+        async def is_any_candidate(self, message):  # noqa: ARG002
+            return True
+
     bot = ChatBot(
         db_session_factory=session_factory(db_session),
         state_manager=state_manager,
@@ -369,8 +378,8 @@ def chat_bot(db_session, state_manager, ban_service):
     async def _handle(user_settings, streamer, message):  # noqa: ARG001
         calls.append("commands")
 
-    bot._command_manager = SimpleNamespace(handle=_handle)  # noqa: SLF001
-    bot._handler_manager = SimpleNamespace(handle=_handle)  # noqa: SLF001
+    bot._command_manager = _ManagerStub(handle=_handle)  # noqa: SLF001
+    bot._handler_manager = _ManagerStub(handle=_handle)  # noqa: SLF001
     bot._calls = calls  # noqa: SLF001
     return bot
 

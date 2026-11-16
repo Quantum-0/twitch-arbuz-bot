@@ -16,6 +16,11 @@ class PantsRaffleHandler(CommonMessagesHandler):
     def is_enabled(self, streamer_settings: TwitchUserSettings) -> bool:
         return streamer_settings.enable_pants
 
+    async def is_candidate(self, message: ChatMessageWebhookEventSchema) -> bool:
+        # Участие в раффле — «+»/«-» отдельным сообщением; активность раффла
+        # проверяется в handle по стейту.
+        return message.message.text.strip() in ("+", "-")
+
     async def check_denied(self, *names: str) -> Sequence[PantsDeny]:
         async with self.db_session() as session:
             result = await session.execute(sa.select(PantsDeny).where(PantsDeny.name.in_([n.lower() for n in names])))

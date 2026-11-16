@@ -57,7 +57,7 @@ class RedisStateManager(StateManager):
         self,
         *,
         channel: str = COMMON_CHANNEL,
-        user: int = COMMON_USER,
+        user: USER_TYPE = COMMON_USER,
         command: str = COMMON_COMMAND,
         param: PARAM_TYPE = PARAM_TYPE.DEFAULT,
     ) -> VALUE_TYPE:
@@ -72,7 +72,7 @@ class RedisStateManager(StateManager):
         self,
         *,
         channel: str | None = None,
-        user: int | None = None,
+        user: USER_TYPE | None = None,
         command: str | None = None,
         param: PARAM_TYPE | None = None,
     ) -> dict[str, VALUE_TYPE]:
@@ -161,7 +161,7 @@ class RedisStateManager(StateManager):
         value: VALUE_TYPE,
         *,
         channel: str = COMMON_CHANNEL,
-        user: int = COMMON_USER,
+        user: USER_TYPE = COMMON_USER,
         command: str = COMMON_COMMAND,
         param: PARAM_TYPE = PARAM_TYPE.DEFAULT,
     ) -> None:
@@ -186,7 +186,7 @@ class RedisStateManager(StateManager):
         self,
         *,
         channel: str = COMMON_CHANNEL,
-        user: int = COMMON_USER,
+        user: USER_TYPE = COMMON_USER,
         command: str = COMMON_COMMAND,
         param: PARAM_TYPE = PARAM_TYPE.DEFAULT,
     ) -> int:
@@ -230,7 +230,7 @@ class RedisStateManager(StateManager):
             parts = redis_key.split(":")
             if len(parts) != 5:
                 continue
-            user: int
+            user: USER_TYPE
             sm, channel, command, user, param = parts
             if sm != "sm":
                 continue

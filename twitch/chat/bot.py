@@ -28,7 +28,7 @@ from services.sse_manager import SSEManager
 from services.statistics import StatisticsService
 from twitch.chat.command_manager import CommandsManager
 from twitch.chat.commands import *  # noqa: F403
-from twitch.chat.handlers import PantsRaffleHandler, ThanksHandler
+from twitch.chat.handlers import GiveMemesHandler, PantsRaffleHandler, ThanksHandler
 from twitch.chat.handlers.handlers import (
     HelloHandler,
     IAmBotHandler,
@@ -105,6 +105,7 @@ class ChatBot:
         self._handler_manager.register(HelloHandler)
         self._handler_manager.register(IAmBotHandler)
         self._handler_manager.register(ThanksHandler)
+        self._handler_manager.register(GiveMemesHandler)
         self._handler_manager.register(TTSHandler)
         self._command_manager.register(CmdlistCommand)  # noqa: F405
         self._command_manager.register(DiceCommand)  # noqa: F405
@@ -283,6 +284,13 @@ class ChatBot:
             _message_processing_task.set(None)
             return
 
+        # ── Префильтр: сообщение не совпадает ни с одной командой/хендлером ──
+        # Обходимся БЕЗ похода в БД (см. _try_fast_path).
+        if await self._try_fast_path(message, channel):
+            _message_processing_start.set(None)
+            _message_processing_task.set(None)
+            return
+
         async with self._get_user_with_settings_by_twitch_id(message.broadcaster_user_id) as user:
             if user.login_name != message.broadcaster_user_login:
                 user.login_name = message.broadcaster_user_login
@@ -304,6 +312,32 @@ class ChatBot:
         # следующий вызов этой же задачи (если она переиспользуется event loop'ом).
         _message_processing_start.set(None)
         _message_processing_task.set(None)
+
+    async def _try_fast_path(self, message: ChatMessageWebhookEventSchema, channel: str) -> bool:
+        """Префильтр до загрузки стримера из БД (после бан-гейта).
+
+        Сообщение проверяется на совпадение с алиасами команд и
+        ``is_candidate``-предикатами хендлеров — без учёта настроек стримера
+        (промах по выключенной команде допустим). Если не совпало ни с чем —
+        обслуживаем без единого запроса в БД: метрика incoming, список активных
+        юзеров и SSE-broadcast не требуют стримера.
+
+        :return: True — сообщение обслужено быстрым путём, полный путь не нужен.
+        """
+        if await self._command_manager.is_candidate(message):
+            return False
+        if await self._handler_manager.is_any_candidate(message):
+            return False
+
+        if self._statistics is not None:
+            self._statistics.inc(StatsType.MESSAGE_INCOMING, subtype="prefiltered")
+            try:
+                self._statistics.mark_channel("incoming", int(message.broadcaster_user_id))
+            except (TypeError, ValueError):
+                pass
+        await self._user_list_manager.handle(channel, message)
+        await self._broadcast_message_to_sse(message)
+        return True
 
     async def _drop_for_bans(self, message: ChatMessageWebhookEventSchema, channel: str) -> bool:
         """Бан-гейт сообщения (до загрузки стримера из БД — twitch-ID есть в самом сообщении).

@@ -31,6 +31,18 @@ class CommonMessagesHandler:
     def is_enabled(self, streamer_settings: TwitchUserSettings) -> bool:
         raise NotImplementedError
 
+    async def is_candidate(self, message: ChatMessageWebhookEventSchema) -> bool:
+        """Дешёвая проверка ДО загрузки стримера из БД: может ли handler
+        среагировать на это сообщение. Вызывается по каждому сообщению, поэтому
+        здесь нельзя ходить в БД (Redis/текст — можно).
+
+        Контракт: результат — надмножество реальных условий ``handle`` (False
+        только когда handler гарантированно вернёт SKIPED). Дефолт True —
+        консервативно: handler без собственного предиката не отключает
+        оптимизацию, а лишь оставляет за собой полный путь с БД.
+        """
+        return True
+
     def __init__(
         self,
         sm: StateManager,
@@ -61,6 +73,10 @@ class PyramidHandler(CommonMessagesHandler):
 
     def is_enabled(self, streamer_settings: TwitchUserSettings) -> bool:
         return False  # streamer_settings.enable_pyramid or streamer_settings.enable_pyramid_breaker
+
+    async def is_candidate(self, message: ChatMessageWebhookEventSchema) -> bool:
+        # Хендлер выключен хардкодом (is_enabled → False) — кандидатом быть не может.
+        return False
 
     def _single_emote(self, message: ChatMessageWebhookEventSchema) -> tuple[str | None, int]:
         """Единственный эмод в сообщении → (emote, количество); текст сообщения очищается от эмода."""
@@ -219,6 +235,14 @@ class MessagesHandlerManager:
     def register(self, command: type[CommonMessagesHandler]):
         self.handlers.append(command(self._sm, self._send_message, self._db_session_factory))
 
+    async def is_any_candidate(self, message: ChatMessageWebhookEventSchema) -> bool:
+        """Префикс-фильтр до загрузки стримера из БД: хотя бы один handler
+        может среагировать на сообщение (см. ``CommonMessagesHandler.is_candidate``)."""
+        for handler in self.handlers:
+            if await handler.is_candidate(message):
+                return True
+        return False
+
     @tracer.start_as_current_span("ChatBot: Messages Handler Manager: Handle")
     async def handle(
         self,
@@ -259,6 +283,17 @@ class UnlurkHandler(CommonMessagesHandler):
     def is_enabled(self, streamer_settings: TwitchUserSettings) -> bool:
         return True or streamer_settings.enable_lurk
 
+    async def is_candidate(self, message: ChatMessageWebhookEventSchema) -> bool:
+        # Триггер — любое сообщение от юзера в лурке: без лурк-стейта handler
+        # гарантированно SKIPED. Ключ по broadcaster_user_login эквивалентен
+        # streamer.login_name (login синхронизируется с сообщением в on_message).
+        if any(x in message.message.text for x in ("!lurk", "!unlurk", "!лурк", "!анлурк")):
+            return False
+        state = await self._state_manager.get_state(
+            channel=message.broadcaster_user_login, user=message.chatter_user_login, command=self.COMMAND_NAME
+        )
+        return state is not None
+
     async def handle(self, streamer: User, message: ChatMessageWebhookEventSchema) -> HandlerResult:
         if any(x in message.message.text for x in ("!lurk", "!unlurk", "!лурк", "!анлурк")):
             return HandlerResult.SKIPED
@@ -283,16 +318,26 @@ class UnlurkHandler(CommonMessagesHandler):
 
 
 class HelloHandler(CommonMessagesHandler):
+    HELLO_WORDS = ("привет", "дарова", "здравствуй", "кваствуй", "здорова")
+
     def is_enabled(self, streamer_settings: TwitchUserSettings) -> bool:
         return True
+
+    async def is_candidate(self, message: ChatMessageWebhookEventSchema) -> bool:
+        # Приветствие + адресация боту (тег/реплай) или «всем» (шанс проверяется в handle).
+        text = message.message.text.lower()
+        if not any(hello_word in text for hello_word in self.HELLO_WORDS):
+            return False
+        return (
+            "@quantum075bot" in text
+            or "всем" in text
+            or (message.reply is not None and message.reply.parent_user_name == "quantum075bot")
+        )
 
     async def handle(self, streamer: User, message: ChatMessageWebhookEventSchema) -> HandlerResult:
         if message.reply and message.reply.parent_user_name == "quantum075bot":
             message.message.text = "@quantum075bot " + message.message.text
-        if any(
-            hello_word in message.message.text.lower()
-            for hello_word in {"привет", "дарова", "здравствуй", "кваствуй", "здорова"}
-        ) and (
+        if any(hello_word in message.message.text.lower() for hello_word in self.HELLO_WORDS) and (
             "@quantum075bot" in message.message.text.lower()
             or ("всем" in message.message.text.lower() and random.random() < 0.25)
         ):
@@ -316,11 +361,22 @@ class HelloHandler(CommonMessagesHandler):
 
 
 class IAmBotHandler(CommonMessagesHandler):
+    _RE_BOT_QUESTION = re.compile(r"@quantum075bot .{0,5}бот\?")
+    _RE_BOTS_PLUS = re.compile(r"(кто )?боты? (- )?(плюс|плюсик|плюсики|плюсаните|\+)( в ча[тч])")
+
     def is_enabled(self, streamer_settings: TwitchUserSettings) -> bool:
         return True
 
+    async def is_candidate(self, message: ChatMessageWebhookEventSchema) -> bool:
+        text = message.message.text.lower()
+        if self._RE_BOT_QUESTION.match(text) or self._RE_BOTS_PLUS.match(text):
+            return True
+        # HelloHandler (раньше в цепочке) дописывает «@quantum075bot » к реплаям
+        # на бота — после этого может сматчиться _RE_BOT_QUESTION.
+        return message.reply is not None and message.reply.parent_user_name == "quantum075bot" and "бот?" in text
+
     async def handle(self, streamer: User, message: ChatMessageWebhookEventSchema) -> HandlerResult:
-        if re.match(r"@quantum075bot .{0,5}бот\?", message.message.text.lower()):
+        if self._RE_BOT_QUESTION.match(message.message.text.lower()):
             if random.random() < 0.1:
                 asyncio.create_task(
                     call_with_delay(
@@ -345,10 +401,7 @@ class IAmBotHandler(CommonMessagesHandler):
                 await self.send_response(chat=streamer, message=random.choice(replies))
             return HandlerResult.HANDLED
 
-        if re.match(
-            r"(кто )?боты? (- )?(плюс|плюсик|плюсики|плюсаните|\+)( в ча[тч])",
-            message.message.text.lower(),
-        ):
+        if self._RE_BOTS_PLUS.match(message.message.text.lower()):
             await self.send_response(chat=streamer, message="+")
             return HandlerResult.HANDLED
 

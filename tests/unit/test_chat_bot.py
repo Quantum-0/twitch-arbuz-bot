@@ -124,6 +124,16 @@ class FakeUserListManager:
         return 123.5
 
 
+class ManagerStub(SimpleNamespace):
+    """Стаб менеджера команд/хендлеров для on_message: handle + префильтр-кандидат."""
+
+    async def is_candidate(self, message: Any) -> bool:  # noqa: ARG002
+        return True
+
+    async def is_any_candidate(self, message: Any) -> bool:  # noqa: ARG002
+        return True
+
+
 class _ScalarResult:
     def __init__(self, values: list[Any]) -> None:
         self._values = values
@@ -334,7 +344,7 @@ class TestSseBroadcast:
 
 class TestStartup:
     async def test_startup_registers_all(self, bot, monkeypatch, db_session):
-        """Стартап регистрирует все хендлеры (7) и команды (29), чат-клиент сохранён."""
+        """Стартап регистрирует все хендлеры (8) и команды (29), чат-клиент сохранён."""
         fake_chat = object()
         fake_twitch = SimpleNamespace(build_chat_client=AsyncMock(return_value=fake_chat))
         fake_container = SimpleNamespace(chat_bot=lambda: object(), twitch=lambda: object(), bans=lambda: object())
@@ -344,7 +354,7 @@ class TestStartup:
 
         assert bot._chat is fake_chat
         assert bot._twitch is fake_twitch
-        assert len(bot._handler_manager.handlers) == 7
+        assert len(bot._handler_manager.handlers) == 8
         assert len(bot._command_manager.commands) == 29
         names = {c.command_name for c in bot._command_manager.commands}
         assert {"pants", "dice", "ban", "unban", "links", "steam", "whoami"} <= names
@@ -358,8 +368,8 @@ class TestOnMessageIntegration:
         async def _handle(user_settings, streamer, message):
             calls.append("m")
 
-        bot._command_manager = SimpleNamespace(handle=_handle)
-        bot._handler_manager = SimpleNamespace(handle=_handle)
+        bot._command_manager = ManagerStub(handle=_handle)
+        bot._handler_manager = ManagerStub(handle=_handle)
         monkeypatch.setattr(bot, "_broadcast_message_to_sse", AsyncMock())
 
         raw = make_event(text="hello").model_dump(mode="json")
@@ -375,8 +385,8 @@ class TestOnMessageIntegration:
             calls.append("m")
 
         calls: list[str] = []
-        bot._command_manager = SimpleNamespace(handle=_handle)
-        bot._handler_manager = SimpleNamespace(handle=_handle)
+        bot._command_manager = ManagerStub(handle=_handle)
+        bot._handler_manager = ManagerStub(handle=_handle)
         monkeypatch.setattr(bot, "_broadcast_message_to_sse", AsyncMock())
 
         await bot.on_message(make_event())
@@ -391,8 +401,8 @@ class TestOnMessageIntegration:
         async def _handle(user_settings, streamer, message):
             calls.append(streamer.login_name)
 
-        bot._command_manager = SimpleNamespace(handle=_handle)
-        bot._handler_manager = SimpleNamespace(handle=_handle)
+        bot._command_manager = ManagerStub(handle=_handle)
+        bot._handler_manager = ManagerStub(handle=_handle)
         monkeypatch.setattr(bot, "_broadcast_message_to_sse", AsyncMock())
 
         # Логин в сообщении отличается от БД — синхронизируется до хендлеров
@@ -401,9 +411,77 @@ class TestOnMessageIntegration:
         assert calls == ["new_login", "new_login"]
 
     async def test_unknown_user_raises(self, bot, monkeypatch):
+        """Сообщение-кандидат (менеджеры-стабы) → полный путь: неизвестный стример — ошибка."""
+        bot._command_manager = ManagerStub(handle=AsyncMock())
+        bot._handler_manager = ManagerStub(handle=AsyncMock())
         monkeypatch.setattr(bot, "_broadcast_message_to_sse", AsyncMock())
         with pytest.raises(UserNotFoundInDatabase):
             await bot.on_message(make_event(broadcaster_id=404, broadcaster_login="ghost"))
+
+
+class TestPrefilter:
+    """Префильтр: сообщение без совпадений с командами/хендлерами не ходит в БД."""
+
+    @staticmethod
+    def _bot(factory, statistics=None, sse=None) -> ChatBot:
+        return ChatBot(
+            db_session_factory=factory,
+            state_manager=InMemoryStateManager(),
+            mqtt=SimpleNamespace(),
+            statistics=statistics,
+            sse_manager=sse,
+        )
+
+    async def test_non_candidate_skips_db(self):
+        calls: list[int] = []
+
+        def factory():
+            calls.append(1)
+            raise AssertionError("session factory must not be called for non-candidate message")
+
+        statistics = FakeStatistics()
+        sse = FakeSSEManager(has_clients=True)
+        bot = self._bot(factory, statistics=statistics, sse=sse)
+        bot._user_list_manager = FakeUserListManager()
+
+        await bot.on_message(make_event(text="просто болтовня в чате"))
+
+        assert calls == []
+        # Но метрики/список активных/SSE работают и без стримера из БД
+        assert (str(StatsType.MESSAGE_INCOMING), "prefiltered") in statistics.counters
+        assert ("incoming", 123456) in statistics.channels
+        assert bot._user_list_manager.handled == ["test_user"]
+        assert len(sse.broadcasts) == 1
+
+    async def test_candidate_goes_full_path(self, db_session, test_user, monkeypatch):
+        statistics = FakeStatistics()
+        bot = make_bot(db_session, statistics=statistics)
+        handles: list[str] = []
+
+        async def _handle(user_settings, streamer, message):  # noqa: ARG001
+            handles.append(streamer.login_name)
+
+        bot._command_manager = ManagerStub(handle=_handle)
+        bot._handler_manager = ManagerStub(handle=_handle)
+        monkeypatch.setattr(bot, "_broadcast_message_to_sse", AsyncMock())
+
+        await bot.on_message(make_event(text="!cmdlist"))
+
+        assert handles == ["test_user", "test_user"]
+        assert (str(StatsType.MESSAGE_INCOMING), "prefiltered") not in statistics.counters
+        assert ("incoming", 123456) in statistics.channels
+
+    async def test_command_alias_is_candidate(self, db_session, test_user, monkeypatch):
+        """Реальный CommandsManager: алиас зарегистрированной команды → полный путь."""
+        monkeypatch.setattr("container_runtime.get_container", lambda: SimpleNamespace(chat_bot=lambda: object()))
+        statistics = FakeStatistics()
+        bot = make_bot(db_session, statistics=statistics)
+        bot._command_manager.register(EchoCommand)
+        monkeypatch.setattr(bot, "_broadcast_message_to_sse", AsyncMock())
+
+        await bot.on_message(make_event(text="!эхо привет"))
+
+        assert ("incoming", 123456) in statistics.channels  # дошли до загрузки стримера
 
 
 class TestDropForBans:
@@ -689,3 +767,29 @@ class TestCommandsManager:
         user = SimpleNamespace(settings=settings_stub)
         result = await manager.get_commands_of_user(user)
         assert result == [("echo", "!echo, !эхо", "повторяет")]
+
+    @pytest.mark.parametrize(
+        ("text", "expected"),
+        [
+            ("!echo hi", True),
+            ("!echo", True),
+            ("!эхо привет", True),
+            ("!ECHO hi", True),  # lower()
+            ("echo hi", False),  # без !
+            ("!echoing", False),  # первый токен — не алиас
+            ("!other", False),
+            ("просто текст", False),
+        ],
+    )
+    async def test_is_candidate(self, manager, text, expected):
+        assert await manager.is_candidate(make_event(text=text)) is expected
+
+    async def test_is_candidate_ignores_enablement(self, manager):
+        """Префильтр не знает настроек стримера: алиас команды — кандидат даже выключенной."""
+        assert await manager.is_candidate(make_event(text="!echo hi")) is True
+
+    async def test_is_candidate_strips_reply_prefix_without_mutation(self, manager):
+        """Reply-префикс «@имя » учитывается, но сообщение не мутируется."""
+        msg = make_event(text="@Alice !echo hi", reply_parent_name="Alice")
+        assert await manager.is_candidate(msg) is True
+        assert msg.message.text == "@Alice !echo hi"

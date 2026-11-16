@@ -15,6 +15,17 @@ logger = logging.getLogger(__name__)
 tracer = trace.get_tracer(__name__)
 
 
+def _text_without_reply_prefix(message: ChatMessageWebhookEventSchema) -> str:
+    """Текст сообщения без префикса реплая «@имя » (Twitch вставляет его в text реплая)."""
+    if (
+        message.reply
+        and message.reply.parent_user_name
+        and message.message.text.startswith(f"@{message.reply.parent_user_name} ")
+    ):
+        return message.message.text[len(message.reply.parent_user_name) + 2 :]
+    return message.message.text
+
+
 class CommandsManager:
     def __init__(
         self,
@@ -24,14 +35,25 @@ class CommandsManager:
         statistics: StatisticsService | None = None,
     ):
         self.commands: list[Command] = []
+        self._aliases: set[str] = set()
         self._sm = storage
         self._send_message = send_message
         self._db_session_factory = db_session_factory
         self._statistics = statistics
 
     def register(self, command: type[Command]):
-        self.commands.append(command(self._sm, self._send_message, self._db_session_factory))
+        cmd = command(self._sm, self._send_message, self._db_session_factory)
+        self.commands.append(cmd)
+        self._aliases.update(f"!{alias}".lower() for alias in cmd.command_aliases)
         logger.info(f"Command {command} was registered")
+
+    async def is_candidate(self, message: ChatMessageWebhookEventSchema) -> bool:
+        """Префильтр до загрузки стримера из БД: начинается ли сообщение с алиаса
+        какой-то из зарегистрированных команд. ``enable_*`` стримера тут неизвестен —
+        проверяется позже (промах по выключенной команде допустим, см. on_message).
+        """
+        first_token = _text_without_reply_prefix(message).lower().split(" ", 1)[0]
+        return first_token in self._aliases
 
     @tracer.start_as_current_span("ChatBot: Command Manager: Handle")
     async def handle(
@@ -50,12 +72,7 @@ class CommandsManager:
             if not cmd.is_enabled(user_settings):
                 continue
             # Обработка реплаев
-            if (
-                message.reply
-                and message.reply.parent_user_name
-                and message.message.text.startswith(f"@{message.reply.parent_user_name} ")
-            ):
-                message.message.text = message.message.text[len(message.reply.parent_user_name) + 2 :]
+            message.message.text = _text_without_reply_prefix(message)
 
             if any(
                 # текст сообщения начинается с "!cmd " или = "!cmd"

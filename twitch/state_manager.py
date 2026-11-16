@@ -26,7 +26,9 @@ class SMParam(StrEnum):
 
 COMMAND_TYPE = str
 CHANNEL_TYPE = str
-USER_TYPE = int
+# Юзер — twitch-ID (int) или логин (str): часть команд кладёт стейт по ID,
+# часть (лурк, пирамидки) — по логину; оба варианта поддерживаются рантаймом.
+USER_TYPE = str | int
 VALUE_TYPE = str | int | float | set[str] | bool | None
 PARAM_TYPE = SMParam
 
@@ -41,7 +43,7 @@ class StateManager(ABC):
         self,
         *,
         channel: str = COMMON_CHANNEL,
-        user: int = COMMON_USER,
+        user: USER_TYPE = COMMON_USER,
         command: str = COMMON_COMMAND,
         param: PARAM_TYPE = PARAM_TYPE.DEFAULT,
     ):
@@ -53,7 +55,7 @@ class StateManager(ABC):
         value: VALUE_TYPE,
         *,
         channel: str = COMMON_CHANNEL,
-        user: int = COMMON_USER,
+        user: USER_TYPE = COMMON_USER,
         command: str = COMMON_COMMAND,
         param: PARAM_TYPE = PARAM_TYPE.DEFAULT,
     ):
@@ -64,7 +66,7 @@ class StateManager(ABC):
         self,
         *,
         channel: str = COMMON_CHANNEL,
-        user: int = COMMON_USER,
+        user: USER_TYPE = COMMON_USER,
         command: str = COMMON_COMMAND,
         param: PARAM_TYPE = PARAM_TYPE.DEFAULT,
     ):
@@ -101,7 +103,7 @@ class InMemoryStateManager(StateManager):
         self,
         *,
         channel: str = COMMON_CHANNEL,
-        user: int = COMMON_USER,
+        user: USER_TYPE = COMMON_USER,
         command: str = COMMON_COMMAND,
         param: PARAM_TYPE = PARAM_TYPE.DEFAULT,
     ):
@@ -128,7 +130,7 @@ class InMemoryStateManager(StateManager):
         self,
         *,
         channel: str = COMMON_CHANNEL,
-        user: int = COMMON_USER,
+        user: USER_TYPE = COMMON_USER,
         command: str = COMMON_COMMAND,
         param: PARAM_TYPE = PARAM_TYPE.DEFAULT,
     ) -> VALUE_TYPE:
@@ -149,7 +151,7 @@ class InMemoryStateManager(StateManager):
         value: VALUE_TYPE,
         *,
         channel: str = COMMON_CHANNEL,
-        user: int = COMMON_USER,
+        user: USER_TYPE = COMMON_USER,
         command: str = COMMON_COMMAND,
         param: PARAM_TYPE = PARAM_TYPE.DEFAULT,
     ):
@@ -159,7 +161,7 @@ class InMemoryStateManager(StateManager):
         if isinstance(user, str):
             user = user.lower()
         if channel not in self._storage:
-            self._storage[channel] = OrderedDict[int, OrderedDict[str, OrderedDict[SMParam, VALUE_TYPE]]]()
+            self._storage[channel] = OrderedDict[USER_TYPE, OrderedDict[str, OrderedDict[SMParam, VALUE_TYPE]]]()
         if user not in self._storage[channel]:
             self._storage[channel][user] = OrderedDict[str, OrderedDict[SMParam, VALUE_TYPE]]()
         if command not in self._storage[channel][user]:

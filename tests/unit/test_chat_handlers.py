@@ -1,13 +1,23 @@
 # ruff: noqa: S101, ARG001
 
 import random
+from time import time
 from types import SimpleNamespace
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 
 from schemas.twitch import ChatMessageSchema, ChatMessageWebhookEventSchema
-from twitch.chat.handlers.handlers import HelloHandler
+from twitch.chat.handlers.handlers import (
+    HelloHandler,
+    IAmBotHandler,
+    MessagesHandlerManager,
+    PyramidHandler,
+    UnlurkHandler,
+)
+from twitch.chat.handlers.memes import GiveMemesHandler
+from twitch.chat.handlers.pants_raffle import PantsRaffleHandler
+from twitch.chat.handlers.thanks import ThanksHandler
 
 
 def _streamer(login: str) -> SimpleNamespace:
@@ -157,3 +167,223 @@ async def test_new_message(
     handler = HelloHandler(sm=state_manager, send_message=send_message_mock)
     await handler.handle("TestStreamer", msg)
     send_message_mock.assert_not_sent()
+
+
+# ───────────────────────────── GiveMemesHandler ─────────────────────────────
+
+
+def _streamer_ma(reward: UUID | None) -> SimpleNamespace:
+    return SimpleNamespace(login_name="teststreamer", memealerts=SimpleNamespace(memealerts_reward=reward))
+
+
+_MEMES_BASE_REPLIES = {"@Vasya, неть", "@Vasya, не дам", "@Vasya, не хЪ"}
+_MEMES_REWARD_REPLIES = {
+    "@Vasya, только через награду 👀",
+    "@Vasya, только если хорошо попросишь",
+    "@Vasya, воспользуйся наградой!",
+}
+
+
+@pytest.mark.parametrize(
+    "text", ["@Quantum075Bot дай мемов", "дай мемаф @Quantum075Bot", "@Quantum075Bot, ну дай мем!"]
+)
+async def test_give_memes_positive(state_manager, send_message_mock, text):
+    """Адресованное боту «дай мем…» — отказ из базового пула."""
+    handler = GiveMemesHandler(sm=state_manager, send_message=send_message_mock)
+
+    result = await handler.handle(_streamer_ma(None), _msg("vasya", "Vasya", text))
+
+    assert result.name == "HANDLED"
+    sent = _sent_messages(send_message_mock)
+    assert sent & _MEMES_BASE_REPLIES
+    assert sent <= _MEMES_BASE_REPLIES
+
+
+async def test_give_memes_reply_to_bot(state_manager, send_message_mock):
+    handler = GiveMemesHandler(sm=state_manager, send_message=send_message_mock)
+
+    result = await handler.handle(
+        _streamer_ma(None), _msg("vasya", "Vasya", "дай мемафов", reply_parent_name="quantum075bot")
+    )
+
+    assert result.name == "HANDLED"
+    assert _sent_messages(send_message_mock) & _MEMES_BASE_REPLIES
+
+
+@pytest.mark.parametrize(
+    ("text", "reply_parent"),
+    [
+        ("дай мемов", None),  # без адресации боту
+        ("дай мемов", "SomebodyElse"),  # реплай чужому человеку
+        ("@Quantum075Bot дай конфет", None),  # не про мемы
+        ("@Quantum075Bot мемов!", None),  # нет «дай»
+    ],
+)
+async def test_give_memes_negative(state_manager, send_message_mock, text, reply_parent):
+    handler = GiveMemesHandler(sm=state_manager, send_message=send_message_mock)
+
+    result = await handler.handle(_streamer_ma(None), _msg("vasya", "Vasya", text, reply_parent_name=reply_parent))
+
+    assert result.name == "SKIPED"
+    send_message_mock.assert_not_sent()
+
+
+async def test_give_memes_reward_pool(state_manager, send_message_mock):
+    """Награда мемкоинов подключена — к пулу добавляются наводящие варианты."""
+    handler = GiveMemesHandler(sm=state_manager, send_message=send_message_mock)
+    sent = set()
+    for seed in range(50):
+        random.seed(seed)
+        await handler.handle(
+            _streamer_ma(UUID("11111111-1111-1111-1111-111111111111")),
+            _msg("vasya", "Vasya", "@Quantum075Bot дай мемов"),
+        )
+    sent = _sent_messages(send_message_mock)
+
+    assert sent <= _MEMES_BASE_REPLIES | _MEMES_REWARD_REPLIES
+    assert sent & _MEMES_BASE_REPLIES
+    assert sent & _MEMES_REWARD_REPLIES
+
+
+async def test_give_memes_no_reward_pool(state_manager, send_message_mock):
+    """Награда не подключена — только базовые отказы."""
+    handler = GiveMemesHandler(sm=state_manager, send_message=send_message_mock)
+    for seed in range(50):
+        random.seed(seed)
+        await handler.handle(_streamer_ma(None), _msg("vasya", "Vasya", "@Quantum075Bot дай мемов"))
+
+    assert _sent_messages(send_message_mock) <= _MEMES_BASE_REPLIES
+    assert _sent_messages(send_message_mock) & _MEMES_BASE_REPLIES
+
+
+@pytest.mark.parametrize(
+    ("text", "reply_parent", "expected"),
+    [
+        ("@Quantum075Bot дай мемов", None, True),
+        ("дай мемов", "quantum075bot", True),
+        ("дай мемов", None, False),
+        ("@Quantum075Bot дай конфет", None, False),
+    ],
+)
+async def test_give_memes_is_candidate(state_manager, send_message_mock, text, reply_parent, expected):
+    handler = GiveMemesHandler(sm=state_manager, send_message=send_message_mock)
+    assert await handler.is_candidate(_msg("vasya", "Vasya", text, reply_parent_name=reply_parent)) is expected
+
+
+# ───────────────────────── is_candidate-предикаты хендлеров ─────────────────────────
+
+
+@pytest.mark.parametrize(
+    ("text", "reply_parent", "expected"),
+    [
+        ("@Quantum075Bot спасибо!", None, True),
+        ("пасибки @Quantum075Bot", None, True),
+        ("спасибо", "quantum075bot", True),
+        ("спасибо всем", None, False),  # без адресации боту
+        ("@Quantum075Bot привет", None, False),  # не благодарность
+        ("@Quantum075Bot", None, False),  # пусто после очистки тега
+    ],
+)
+async def test_thanks_is_candidate(state_manager, send_message_mock, text, reply_parent, expected):
+    handler = ThanksHandler(sm=state_manager, send_message=send_message_mock)
+    assert await handler.is_candidate(_msg("vasya", "Vasya", text, reply_parent_name=reply_parent)) is expected
+
+
+@pytest.mark.parametrize(
+    ("text", "reply_parent", "expected"),
+    [
+        ("привет @Quantum075Bot", None, True),
+        ("всем привет", None, True),
+        ("привет!", "quantum075bot", True),
+        ("привет!", None, False),
+        ("привет!", "SomebodyElse", False),
+        ("йоу @Quantum075Bot", None, False),
+    ],
+)
+async def test_hello_is_candidate(state_manager, send_message_mock, text, reply_parent, expected):
+    handler = HelloHandler(sm=state_manager, send_message=send_message_mock)
+    assert await handler.is_candidate(_msg("vasya", "Vasya", text, reply_parent_name=reply_parent)) is expected
+
+
+@pytest.mark.parametrize(
+    ("text", "reply_parent", "expected"),
+    [
+        ("@quantum075bot бот?", None, True),
+        ("@quantum075bot ты бот?", None, True),
+        ("ты бот?", "quantum075bot", True),  # HelloHandler допишет тег к реплаю
+        ("боты плюс в чат", None, True),
+        ("ты бот?", None, False),
+        ("ты бот?", "SomebodyElse", False),
+        ("@quantum075bot, ты не бот", None, False),
+        ("боты плюс", None, False),  # « в чат» — обязательная часть триггера
+    ],
+)
+async def test_iam_bot_is_candidate(state_manager, send_message_mock, text, reply_parent, expected):
+    handler = IAmBotHandler(sm=state_manager, send_message=send_message_mock)
+    assert await handler.is_candidate(_msg("vasya", "Vasya", text, reply_parent_name=reply_parent)) is expected
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"), [("+", True), ("-", True), (" + ", True), ("++", False), ("плюс", False)]
+)
+async def test_pants_raffle_is_candidate(state_manager, send_message_mock, text, expected):
+    handler = PantsRaffleHandler(sm=state_manager, send_message=send_message_mock)
+    assert await handler.is_candidate(_msg("vasya", "Vasya", text)) is expected
+
+
+async def test_unlurk_is_candidate(state_manager, send_message_mock, monkeypatch):
+    """Кандидат — только сообщение от юзера с лурк-стейтом (и не командой лурка)."""
+    fake_container = SimpleNamespace(chat_bot=lambda: object())
+    monkeypatch.setattr("container_runtime.get_container", lambda: fake_container)
+    handler = UnlurkHandler(sm=state_manager, send_message=send_message_mock)
+
+    assert not await handler.is_candidate(_msg("vasya", "Vasya", "привет"))
+
+    await state_manager.set_state(channel="streamer", user="vasya", command="lurk", value=time())
+    assert await handler.is_candidate(_msg("vasya", "Vasya", "привет"))
+    assert not await handler.is_candidate(_msg("vasya", "Vasya", "!лурк"))
+
+
+async def test_pyramid_is_candidate_always_false(state_manager, send_message_mock):
+    """PyramidHandler выключен хардкодом — кандидатом быть не может."""
+    handler = PyramidHandler(sm=state_manager, send_message=send_message_mock)
+    assert not await handler.is_candidate(_msg("vasya", "Vasya", "Kappa"))
+
+
+class _FakeSSEManager:
+    def __init__(self, has_clients: bool) -> None:
+        self._has = has_clients
+
+    async def has_clients(self, user_id: int, channel) -> bool:  # noqa: ARG002
+        return self._has
+
+
+async def test_tts_is_candidate(state_manager, send_message_mock, monkeypatch):
+    """Кандидат — только при подключённом TTS-оверлее; редемпшны наград не озвучиваются."""
+    from twitch.chat.handlers.tts import TTSHandler
+
+    sse = _FakeSSEManager(has_clients=False)
+    fake_container = SimpleNamespace(sse_manager=lambda: sse)
+    monkeypatch.setattr("container_runtime.get_container", lambda: fake_container)
+    handler = TTSHandler(sm=state_manager, send_message=send_message_mock)
+
+    assert not await handler.is_candidate(_msg("vasya", "Vasya", "привет"))
+
+    sse._has = True
+    assert await handler.is_candidate(_msg("vasya", "Vasya", "привет"))
+
+    reward_msg = _msg("vasya", "Vasya", "привет")
+    object.__setattr__(reward_msg, "channel_points_custom_reward_id", "reward-1")
+    assert not await handler.is_candidate(reward_msg)
+
+
+async def test_handler_manager_is_any_candidate(state_manager, send_message_mock, monkeypatch):
+    """Менеджер: кандидат, если хотя бы один хендлер кандидат (Thanks — да, Pyramid — нет)."""
+    fake_container = SimpleNamespace(chat_bot=lambda: object())
+    monkeypatch.setattr("container_runtime.get_container", lambda: fake_container)
+    manager = MessagesHandlerManager(state_manager, send_message_mock)
+    manager.register(ThanksHandler)
+    manager.register(PyramidHandler)
+
+    assert await manager.is_any_candidate(_msg("vasya", "Vasya", "@Quantum075Bot спасибо"))
+    assert not await manager.is_any_candidate(_msg("vasya", "Vasya", "просто болтовня"))

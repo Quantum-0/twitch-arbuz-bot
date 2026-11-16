@@ -31,28 +31,34 @@ _THANKS_WORDS = {
 }
 
 
+def _thanks_match(message: ChatMessageWebhookEventSchema) -> bool:
+    """Адресованная боту благодарность (реплай на бота или упоминание + слово из _THANKS_WORDS)."""
+    text = message.message.text.lower()
+    # Если сообщение адресовано боту (реплай на бота или упоминание)
+    addressed_to_bot = (message.reply and message.reply.parent_user_name == "quantum075bot") or "@quantum075bot" in text
+    if not addressed_to_bot:
+        return False
+
+    # Убираем упоминание бота из текста для проверки
+    cleaned = re.sub(r"@quantum075bot", "", text).strip()
+    if not cleaned:
+        return False
+
+    # Проверяем что хотя бы одно слово — благодарность
+    # (сообщения вида "спасибо боту за помощь" тоже ловим)
+    words = re.findall(r"[a-zа-яё]+", cleaned)
+    return any(w in _THANKS_WORDS for w in words)
+
+
 class ThanksHandler(CommonMessagesHandler):
     def is_enabled(self, streamer_settings: TwitchUserSettings) -> bool:
         return True
 
+    async def is_candidate(self, message: ChatMessageWebhookEventSchema) -> bool:
+        return _thanks_match(message)
+
     async def handle(self, streamer: User, message: ChatMessageWebhookEventSchema) -> HandlerResult:
-        text = message.message.text.lower()
-        # Если сообщение адресовано боту (реплай на бота или упоминание)
-        addressed_to_bot = (
-            message.reply and message.reply.parent_user_name == "quantum075bot"
-        ) or "@quantum075bot" in text
-        if not addressed_to_bot:
-            return HandlerResult.SKIPED
-
-        # Убираем упоминание бота из текста для проверки
-        cleaned = re.sub(r"@quantum075bot", "", text).strip()
-        if not cleaned:
-            return HandlerResult.SKIPED
-
-        # Проверяем что хотя бы одно слово — благодарность
-        # (сообщения вида "спасибо боту за помощь" тоже ловим)
-        words = re.findall(r"[a-zа-яё]+", cleaned)
-        if not any(w in _THANKS_WORDS for w in words):
+        if not _thanks_match(message):
             return HandlerResult.SKIPED
 
         user = message.chatter_user_name
