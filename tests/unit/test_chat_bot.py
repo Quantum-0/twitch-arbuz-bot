@@ -117,6 +117,9 @@ class FakeUserListManager:
     async def handle(self, channel: str, message: Any) -> None:
         self.handled.append(channel)
 
+    def get_active_entries(self, channel: str, timeout: float | None = None) -> list[tuple[str, int, float]]:  # noqa: ARG002
+        return [("Alice", 11, time() - 30), ("Bob", 22, time() - 90)]
+
     def get_active_users(self, channel: str, timeout: float | None = None) -> list[tuple[str, float]]:  # noqa: ARG002
         return [("Alice", time() - 30), ("Bob", time() - 90)]
 
@@ -585,10 +588,46 @@ class TestUserListDelegation:
         bot._user_list_manager = FakeUserListManager()
         assert await bot.get_user_last_active("chan", "alice") == 123.5
 
+    async def test_get_last_active_users_with_ids(self, bot):
+        bot._user_list_manager = FakeUserListManager()
+        result = await bot.get_last_active_users_with_ids(SimpleNamespace(login_name="chan"))
+        assert result == [("Alice", 11), ("Bob", 22)]
+
+    async def test_get_last_active_users_with_ids_accepts_str(self, bot):
+        bot._user_list_manager = FakeUserListManager()
+        assert await bot.get_last_active_users_with_ids("chan") == [("Alice", 11), ("Bob", 22)]
+
     async def test_get_random_active_user(self, bot, monkeypatch):
         bot._user_list_manager = FakeUserListManager()
         monkeypatch.setattr("twitch.chat.bot.random.choice", lambda seq: seq[-1])
         assert await bot.get_random_active_user("chan") == "Bob"
+
+
+class TestUserListManager:
+    """Реальный UserListManager: хранит и имя, и twitch-id активного чаттера."""
+
+    async def test_handle_stores_id_and_entries(self):
+        from twitch.user_list_manager import UserListManager
+
+        ulm = UserListManager()
+        await ulm.handle("Chan", make_event(chatter_id=42, chatter_login="vasya"))  # display: Vasya
+
+        entries = ulm.get_active_entries("chan")  # канал регистронезависим
+        assert [entry[:2] for entry in entries] == [("Vasya", 42)]
+        # Прежний API не изменился
+        assert ulm.get_active_users("chan")[0][0] == "Vasya"
+        assert ulm.get_last_active("chan", "vasya") is not False
+
+    async def test_entries_fresh_first_and_timeout(self):
+        from twitch.user_list_manager import UserListManager
+
+        ulm = UserListManager()
+        await ulm.handle("chan", make_event(chatter_id=1, chatter_login="old"))
+        await ulm.handle("chan", make_event(chatter_id=2, chatter_login="new"))
+
+        names = [name for name, _, _ in ulm.get_active_entries("chan")]
+        assert names == ["New", "Old"]  # свежие первыми
+        assert [name for name, _, _ in ulm.get_active_entries("chan", timeout=-1)] == []
 
 
 class TestUpdateBotChannels:

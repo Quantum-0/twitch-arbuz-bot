@@ -22,15 +22,20 @@ CHANNEL = "streamer"
 
 
 class FakeChatBot:
-    def __init__(self, active: list[tuple[str, str]]) -> None:
+    """Активные чаттеры: (display_name, twitch_id)."""
+
+    def __init__(self, active: list[tuple[str, int]]) -> None:
         self._active = list(active)
         self._user_list_manager = SimpleNamespace(get_active_users=self._get_active_users)
 
-    async def _get_active_users(self, channel: str, timeout: float | None = None) -> list[tuple[str, str]]:  # noqa: ARG002
-        return self._active
+    async def _get_active_users(self, channel: str, timeout: float | None = None) -> list[tuple[str, float]]:  # noqa: ARG002
+        return [(name, time()) for name, _ in self._active]
 
-    async def get_last_active_users(self, user: Any) -> list[tuple[str, str]]:
-        return self._active
+    async def get_last_active_users(self, user: Any) -> list[tuple[str, str]]:  # noqa: ARG002
+        return [(name, "только что") for name, _ in self._active]
+
+    async def get_last_active_users_with_ids(self, user: Any) -> list[tuple[str, int]]:  # noqa: ARG002
+        return list(self._active)
 
     async def get_random_active_user(self, channel: Any, max_period_sec: float = 1800) -> str:  # noqa: ARG002
         return self._active[0][0]
@@ -83,8 +88,8 @@ def fast_sleep(monkeypatch):
 
 @pytest.fixture
 def make_command(sm, send_message_mock, db_session, monkeypatch):
-    def _make(active: list[tuple[str, str]] | None = None) -> tuple[PantsCommand, FakeChatBot]:
-        bot = FakeChatBot(active if active is not None else [("User1", "u1"), ("User2", "u2"), ("User3", "u3")])
+    def _make(active: list[tuple[str, int]] | None = None) -> tuple[PantsCommand, FakeChatBot]:
+        bot = FakeChatBot(active if active is not None else [("User1", 101), ("User2", 102), ("User3", 103)])
         holder = SimpleNamespace(chat_bot=lambda: bot)
         monkeypatch.setattr("container_runtime.get_container", lambda: holder)
         cmd = PantsCommand(sm, send_message_mock, lambda: SessionCtx(db_session))
@@ -138,7 +143,9 @@ class TestHandleStart:
         assert "розыгрыш трусов @User2" in response
         assert await sm.get_state(channel=CHANNEL, command="pants", param=SMParam.USER) == "User2"
         assert await sm.get_state(channel=CHANNEL, command="pants", param=SMParam.PARTICIPANTS) == set()
-        assert await get_target_cd(sm, "User2") is not None
+        # Кулдаун цели — по twitch-id (102), не по display name
+        assert await get_target_cd(sm, 102) is not None
+        assert await get_target_cd(sm, "User2") is None
         await asyncio.sleep(0)  # даём созданной задаче fake_delay выполниться
         assert no_background_tasks == [60]
 
@@ -159,6 +166,12 @@ class TestHandleStart:
         response = await cmd._handle(streamer, "Chatter", "!трусы @Ghost")
         assert "Не вижу такого пользователя" in response
 
+    async def test_at_without_name_rejected(self, make_command, sm, streamer):
+        """«!трусы @» без ника: extract_targets даёт [] — раньше IndexError вместо ответа."""
+        cmd, _ = make_command()
+        response = await cmd._handle(streamer, "Chatter", "!трусы @")
+        assert "Не вижу такого пользователя" in response
+
     async def test_denied_target_rejected(self, make_command, sm, db_session, streamer):
         cmd, _ = make_command()
         db_session.add(PantsDeny(name="user2"))
@@ -170,9 +183,25 @@ class TestHandleStart:
 
     async def test_target_on_cooldown_rejected(self, make_command, sm, streamer):
         cmd, _ = make_command()
-        await sm.set_state(time() - 10, channel=CHANNEL, command="pants", user="User2", param=SMParam.TARGET_COOLDOWN)
+        await sm.set_state(time() - 10, channel=CHANNEL, command="pants", user=102, param=SMParam.TARGET_COOLDOWN)
 
         response = await cmd._handle(streamer, "Chatter", "!трусы @User2")
+        assert "уже были недавно разыграны" in response
+
+    async def test_cooldown_survives_display_rename(self, make_command, sm, streamer):
+        """КД цели переживает смену display name: ключ стейта — twitch-id.
+        По старым именным ключам смена ника обходила 20-минутный КД."""
+        cmd, bot = make_command(active=[("Vasya", 102)])
+
+        assert "розыгрыш трусов @Vasya" in await cmd._handle(streamer, "Chatter", "!трусы @Vasya")
+
+        # Чистим стейт раффла (finish_raffle перехвачен фикстурой), КД цели остаётся
+        await sm.set_state(None, channel=CHANNEL, command="pants", param=SMParam.USER)
+        await sm.set_state(None, channel=CHANNEL, command="pants", param=SMParam.PARTICIPANTS)
+
+        # Тот же юзер (id=102) в чате под новым display name
+        bot._active = [("Вася", 102)]
+        response = await cmd._handle(streamer, "Chatter", "!трусы @Вася")
         assert "уже были недавно разыграны" in response
 
 
@@ -185,13 +214,13 @@ class TestRandomTarget:
     async def test_all_on_cooldown_reports_min_wait(self, make_command, sm, streamer):
         cmd, _ = make_command()
         now = time()
-        await sm.set_state(now - 10, channel=CHANNEL, command="pants", user="User1", param=SMParam.TARGET_COOLDOWN)
-        await sm.set_state(now - 100, channel=CHANNEL, command="pants", user="User2", param=SMParam.TARGET_COOLDOWN)
-        await sm.set_state(now - 50, channel=CHANNEL, command="pants", user="User3", param=SMParam.TARGET_COOLDOWN)
+        await sm.set_state(now - 10, channel=CHANNEL, command="pants", user=101, param=SMParam.TARGET_COOLDOWN)
+        await sm.set_state(now - 100, channel=CHANNEL, command="pants", user=102, param=SMParam.TARGET_COOLDOWN)
+        await sm.set_state(now - 50, channel=CHANNEL, command="pants", user=103, param=SMParam.TARGET_COOLDOWN)
 
         response = await cmd._handle(streamer, "Chatter", "!трусы")
 
-        # Минимальный ts у User2 — её и назовём
+        # Минимальный ts у User2 (id=102) — её и назовём (в сообщении — имя, не id)
         assert "Трусы @User2 разыграть можно будет через" in response
         assert await sm.get_state(channel=CHANNEL, command="pants", param=SMParam.USER) is None
 
@@ -216,6 +245,15 @@ class TestRandomTarget:
         assert await sm.get_state(channel=CHANNEL, command="pants", param=SMParam.USER) == "User1"
         await asyncio.sleep(0)
         assert no_background_tasks == [60]
+
+    async def test_raffle_with_tiny_active_list(self, make_command, sm, streamer, no_background_tasks):
+        """Розыгрыш проходит и при крошечном списке активных (один юзер)."""
+        cmd, _ = make_command(active=[("Solo", 777)])
+
+        response = await cmd._handle(streamer, "Chatter", "!трусы")
+
+        assert "розыгрыш трусов @Solo" in response
+        assert await get_target_cd(sm, 777) is not None
 
 
 class TestCooldowns:
@@ -250,6 +288,18 @@ class TestFinishRaffle:
         cmd, _ = make_command()
         await cmd.finish_raffle(streamer, "User2")
         assert send_message_mock.calls == []
+
+    async def test_finish_after_target_evicted_from_active_list(self, make_command, sm, send_message_mock, streamer):
+        """Сверхактивный чат вытеснил цель из UserListManager за время розыгрыша —
+        finish_raffle живёт на именах из стейта и список не читает."""
+        cmd, bot = make_command(active=[("User2", 102)])
+        await cmd._handle(streamer, "Chatter", "!трусы @User2")
+        bot._active = []  # цель вытеснена
+
+        await cmd.finish_raffle(streamer, "User2")
+
+        assert "остаются при тебе" in send_message_mock.last()
+        assert await sm.get_state(channel=CHANNEL, command="pants", param=SMParam.USER) is None
 
     async def test_target_mismatch_cancels(self, make_command, sm, send_message_mock, streamer):
         cmd, _ = make_command()

@@ -472,6 +472,16 @@ class ChatBot:
             result.append((name, delay_to_seconds(dt - last_active) + " назад"))
         return result
 
+    async def get_last_active_users_with_ids(self, user: User | str) -> list[tuple[str, int]]:
+        """Активные чаттеры канала: (display_name, twitch_id). Для ключей стейта по id
+        (коллизии/смены display name, см. TARGET_COOLDOWN PantsCommand)."""
+        return [
+            (name, twitch_id)
+            for name, twitch_id, _ in self._user_list_manager.get_active_entries(
+                user.login_name if isinstance(user, User) else user
+            )
+        ]
+
     async def get_user_last_active(self, channel: str, user: str) -> float | None:
         return self._user_list_manager.get_last_active(channel, user)
 

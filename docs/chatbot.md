@@ -147,6 +147,12 @@ EventSub `channel.raid` → shoutout рейдера от имени бота (`s
 ключи `sm:{channel}:{command}:{user}:{param}` + индексные множества, TTL 24 ч
 (подробности — `docs/architecture.md`).
 
+Конвенция ключа `{user}`: twitch-id (int) — везде, где id известен (кулдауны
+команд, TTS, «запоминаемые» результаты, КД целей `!трусы` — резолв id активного
+чаттера через `UserListManager.get_active_entries`, фолбэк — имя); display name
+(str, в lower) — где writer имеет только имя (лурк, «упавший кубик», обнимашки;
+`SimpleCDCommand`/`SimpleTargetCommand` передают в `_handle` display name).
+
 ## /cmdlist
 
 Веб-страница `/cmdlist?streamer=X` (`routers/web/pages.py`) — только включённые

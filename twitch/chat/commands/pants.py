@@ -22,6 +22,10 @@ tracer = trace.get_tracer(__name__)
 # Ачивка «Вернул своё»: минимум участников, претендующих на трусы стримера.
 PANTS_ACHIEVEMENT_MIN_PARTICIPANTS = 5
 
+# Заготовки «типов трусов» для будущих вариантов анонса победителя (TODO)
+_PANTS_TYPES_PLAIN = {"красные", "чёрные", "белые", "чистые", "ношенные"}
+_PANTS_TYPES_FANCY = {"с сердечками", "кружевные", "семейные", "эротичные"}
+
 
 def pants_achievement_earned(channel_login: str, target: str, winner: str, participants_count: int) -> bool:
     """Стример выиграл розыгрыш собственных трусов (зрители пытались украсть,
@@ -30,6 +34,13 @@ def pants_achievement_earned(channel_login: str, target: str, winner: str, parti
         participants_count >= PANTS_ACHIEVEMENT_MIN_PARTICIPANTS
         and winner.lower() == target.lower() == channel_login.lower()
     )
+
+
+def _target_key(target_ids: dict[str, int], name: str) -> str | int:
+    """Ключ TARGET_COOLDOWN: twitch-id цели (резолв по имени из снапшота активных,
+    см. _handle), фолбэк — имя. По имени ключ коллизится (одинаковые display name)
+    и обходится сменой ника."""
+    return target_ids.get(name.lower(), name)
 
 
 class PantsCommand(SimpleCDCommand):
@@ -57,6 +68,32 @@ class PantsCommand(SimpleCDCommand):
     def is_enabled(self, streamer_settings: TwitchUserSettings) -> bool:
         return streamer_settings.enable_pants
 
+    async def _explicit_target(self, streamer: User, user: str, message: str) -> tuple[str | None, str | None]:
+        """Явная цель «!трусы @имя»: (target, None) при успехе, (None, ответ-отказ) при ошибке,
+        (None, None) — цель не указана (сообщение без «@...»)."""
+        if not message.lower().startswith("!трусы @"):
+            return None, None
+        targets = await extract_targets(
+            message,
+            streamer.login_name,
+            user,
+            partial(self.chat_bot.get_random_active_user, streamer),
+            partial(self.chat_bot._user_list_manager.get_active_users, streamer.login_name),
+        )  # TODO replace with display name
+        logger.info(f"Target = {targets}")
+        if not targets:
+            # «!трусы @» без ника: extract_targets отбрасывает «@» — раньше падал IndexError
+            return (
+                None,
+                'Не вижу такого пользователя :< Разыгрывать трусы можно только тех людей, кто писал в чатик ^^"',
+            )
+        if len(targets) > 1:
+            return (
+                None,
+                "Для розыгрыша трусов нужно выбрать только одну цель! Нельзя утаскивать трусы у людей массово, это неприлично!",
+            )
+        return targets[0][1:], None
+
     async def _handle(self, streamer: User, user: str, message: str) -> str | None:
         logger.info("Handle pants raffle")
 
@@ -68,23 +105,16 @@ class PantsCommand(SimpleCDCommand):
             logger.info("Cancel, because raffle is active on channel")
             return f"Невозможно начать новый розыгрыш трусов, пока не разыграли трусы @{pants_user}"
 
-        # Берём активных чаттерсов
-        active_users: list[str] = [x for x, y in await self.chat_bot.get_last_active_users(streamer.login_name)]
+        # Берём активных чаттерсов: имя + twitch-id (ключ TARGET_COOLDOWN — по id,
+        # чтобы одинаковые display name не склеивались, а смена ника не обходила КД)
+        active_entries: list[tuple[str, int]] = await self.chat_bot.get_last_active_users_with_ids(streamer.login_name)
+        active_users: list[str] = [name for name, _ in active_entries]
+        target_ids: dict[str, int] = {name.lower(): twitch_id for name, twitch_id in active_entries}
 
         # Выбор цели
-        target: str | None = None
-        if message.lower().startswith("!трусы @"):
-            targets = await extract_targets(
-                message,
-                streamer.login_name,
-                user,
-                partial(self.chat_bot.get_random_active_user, streamer),
-                partial(self.chat_bot._user_list_manager.get_active_users, streamer.login_name),
-            )  # TODO replace with display name
-            logger.info(f"Target = {targets}")
-            if len(targets) > 1:
-                return "Для розыгрыша трусов нужно выбрать только одну цель! Нельзя утаскивать трусы у людей массово, это неприлично!"
-            target = targets[0][1:]
+        target, reject = await self._explicit_target(streamer, user, message)
+        if reject:
+            return reject
 
         if target and target.lower() not in {usr.lower() for usr in active_users}:
             return 'Не вижу такого пользователя :< Разыгрывать трусы можно только тех людей, кто писал в чатик ^^"'
@@ -101,7 +131,7 @@ class PantsCommand(SimpleCDCommand):
                 usr: await self._state_manager.get_state(
                     channel=streamer.login_name,
                     command=self.command_name,
-                    user=usr,
+                    user=_target_key(target_ids, usr),
                     param=SMParam.TARGET_COOLDOWN,
                 )
                 for usr in active_users
@@ -133,11 +163,16 @@ class PantsCommand(SimpleCDCommand):
             target = random.choice(targets)
             logger.info(f"Chosen random target: {target}")
 
+        # К этому моменту цель гарантированно выбрана: явная назначена хелпером
+        # (иначе вернули отказ), случайная — выше (иначе вернули ответ).
+        if target is None:
+            return None
+
         # Проверяем кулдаун для цели
         last_ts = await self._state_manager.get_state(
             channel=streamer.login_name,
             command=self.command_name,
-            user=target,
+            user=_target_key(target_ids, target),
             param=SMParam.TARGET_COOLDOWN,
         )
         logger.info(
@@ -162,7 +197,7 @@ class PantsCommand(SimpleCDCommand):
             value=time(),
             channel=streamer.login_name,
             command=self.command_name,
-            user=target,
+            user=_target_key(target_ids, target),
             param=SMParam.TARGET_COOLDOWN,
         )
         return f"Внимание, объявляется розыгрыш трусов @{target}! Ставьте '+' в чат, чтобы принять участие в розыгрыше!"
@@ -218,8 +253,6 @@ class PantsCommand(SimpleCDCommand):
 
         with tracer.start_as_current_span("Pants Raffle: Announce Winner"):
             # Объявляем победителя
-            type1 = {"красные", "чёрные", "белые", "чистые", "ношенные"}  # TODO
-            type2 = {"с сердечками", "кружевные", "семейные", "эротичные"}  # TODO
             if winner.lower() == target.lower():
                 logger.info("Winner = self")
                 await self.send_response(
