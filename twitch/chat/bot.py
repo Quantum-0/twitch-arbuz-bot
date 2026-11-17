@@ -258,9 +258,6 @@ class ChatBot:
         else:
             message = raw_message
 
-        if self._statistics is not None:
-            self._statistics.inc(StatsType.MESSAGE_INCOMING)
-
         # Старт обработки сообщения для метрики message_processing_time.
         # Используется в send_message (см. выше). Сбрасывается в None в момент
         # первого отправленного ответа. Дополнительно сохраняем id текущей задачи,
@@ -290,6 +287,12 @@ class ChatBot:
             _message_processing_start.set(None)
             _message_processing_task.set(None)
             return
+
+        # Полный путь. MESSAGE_INCOMING инкрементится ровно один раз на сообщение:
+        # здесь — полный путь, в _try_fast_path (subtype="prefiltered") — быстрый,
+        # в _drop_for_bans — забаненные.
+        if self._statistics is not None:
+            self._statistics.inc(StatsType.MESSAGE_INCOMING)
 
         async with self._get_user_with_settings_by_twitch_id(message.broadcaster_user_id) as user:
             if user.login_name != message.broadcaster_user_login:
@@ -364,6 +367,7 @@ class ChatBot:
         # команды/хендлеры не выполняем, но пользователь остаётся в списке
         # активных (цель команд) и в SSE-овервее чата. Без обращений к БД.
         if self._statistics is not None:
+            self._statistics.inc(StatsType.MESSAGE_INCOMING)
             self._statistics.inc(StatsType.BAN_BLOCKED, subtype=BanFeature.CHAT_BOT.value)
         logger.info(f"Skip commands for banned chatter `{message.chatter_user_login}` on `{channel}`")
         await self._user_list_manager.handle(channel, message)

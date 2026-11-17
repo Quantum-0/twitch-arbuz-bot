@@ -5,6 +5,7 @@ import sqlalchemy as sa
 
 from database.models import PantsDeny, TwitchUserSettings, User
 from schemas.twitch import ChatMessageWebhookEventSchema
+from twitch.chat.command_manager import text_without_reply_prefix
 from twitch.chat.commands import PantsCommand
 from twitch.chat.handlers.handlers import CommonMessagesHandler, HandlerResult
 from twitch.state_manager import SMParam
@@ -18,8 +19,9 @@ class PantsRaffleHandler(CommonMessagesHandler):
 
     async def is_candidate(self, message: ChatMessageWebhookEventSchema) -> bool:
         # Участие в раффле — «+»/«-» отдельным сообщением; активность раффла
-        # проверяется в handle по стейту.
-        return message.message.text.strip() in ("+", "-")
+        # проверяется в handle по стейту. CommandsManager срезает reply-префикс
+        # «@имя » до хендлера — проверяем оба варианта текста.
+        return message.message.text.strip() in ("+", "-") or text_without_reply_prefix(message).strip() in ("+", "-")
 
     async def check_denied(self, *names: str) -> Sequence[PantsDeny]:
         async with self.db_session() as session:

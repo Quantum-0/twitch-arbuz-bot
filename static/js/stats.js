@@ -7,7 +7,9 @@
     "use strict";
 
     const SUBTYPES_BY_TYPE = {
-        message_incoming: [""],
+        // prefiltered — сообщения, отсеянные префильтром до БД (остальное — полный путь;
+        // забаненные считаются в «(все)»). Каждое сообщение инкрементится ровно один раз.
+        message_incoming: ["", "prefiltered"],
         message_outgoing: [""],
         // reward_*: «(все)» убрано — succeed/success ⊆ received, суммирование
         // double-count'ит. Показываем только конкретные подтипы.
@@ -63,6 +65,7 @@
         duplicate: "дубли вебхуков",
         incoming: "входящие",
         outgoing: "исходящие",
+        prefiltered: "отсеяно префильтром",
         // ban_blocked / tts_blocked
         chat_bot: "чат-бот",
         memecoins: "мемкоины",

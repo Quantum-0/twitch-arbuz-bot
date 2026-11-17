@@ -53,4 +53,4 @@ class GiveMemesHandler(CommonMessagesHandler):
                 f"@{user}, воспользуйся наградой!",
             ]
         await self.send_response(chat=streamer, message=random.choice(replies))
-        return HandlerResult.HANDLED
+        return HandlerResult.HANDLED_AND_CONTINUE

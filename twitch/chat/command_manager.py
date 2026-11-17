@@ -15,8 +15,13 @@ logger = logging.getLogger(__name__)
 tracer = trace.get_tracer(__name__)
 
 
-def _text_without_reply_prefix(message: ChatMessageWebhookEventSchema) -> str:
-    """Текст сообщения без префикса реплая «@имя » (Twitch вставляет его в text реплая)."""
+def text_without_reply_prefix(message: ChatMessageWebhookEventSchema) -> str:
+    """Текст сообщения без префикса реплая «@имя » (Twitch вставляет его в text реплая).
+
+    ВАЖНО: ``handle`` менеджера команд срезает этот префикс ДО хендлеров —
+    анкорные триггеры хендлеров (regex ``match``, «+»/«-») обязаны проверять
+    оба варианта текста (см. ``is_candidate`` хендлеров).
+    """
     if (
         message.reply
         and message.reply.parent_user_name
@@ -52,7 +57,7 @@ class CommandsManager:
         какой-то из зарегистрированных команд. ``enable_*`` стримера тут неизвестен —
         проверяется позже (промах по выключенной команде допустим, см. on_message).
         """
-        first_token = _text_without_reply_prefix(message).lower().split(" ", 1)[0]
+        first_token = text_without_reply_prefix(message).lower().split(" ", 1)[0]
         return first_token in self._aliases
 
     @tracer.start_as_current_span("ChatBot: Command Manager: Handle")
@@ -72,7 +77,7 @@ class CommandsManager:
             if not cmd.is_enabled(user_settings):
                 continue
             # Обработка реплаев
-            message.message.text = _text_without_reply_prefix(message)
+            message.message.text = text_without_reply_prefix(message)
 
             if any(
                 # текст сообщения начинается с "!cmd " или = "!cmd"

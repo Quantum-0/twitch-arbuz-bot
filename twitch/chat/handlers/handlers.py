@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from database.models import TwitchUserSettings, User
 from schemas.twitch import ChatMessageWebhookEventSchema
+from twitch.chat.command_manager import text_without_reply_prefix
 from twitch.state_manager import SMParam, StateManager
 from utils.misc import call_with_delay
 
@@ -285,12 +286,13 @@ class UnlurkHandler(CommonMessagesHandler):
 
     async def is_candidate(self, message: ChatMessageWebhookEventSchema) -> bool:
         # Триггер — любое сообщение от юзера в лурке: без лурк-стейта handler
-        # гарантированно SKIPED. Ключ по broadcaster_user_login эквивалентен
-        # streamer.login_name (login синхронизируется с сообщением в on_message).
+        # гарантированно SKIPED. Ключ стейта — display name (см. handle).
         if any(x in message.message.text for x in ("!lurk", "!unlurk", "!лурк", "!анлурк")):
             return False
         state = await self._state_manager.get_state(
-            channel=message.broadcaster_user_login, user=message.chatter_user_login, command=self.COMMAND_NAME
+            channel=message.broadcaster_user_login,
+            user=message.chatter_user_name.lower(),
+            command=self.COMMAND_NAME,
         )
         return state is not None
 
@@ -298,21 +300,26 @@ class UnlurkHandler(CommonMessagesHandler):
         if any(x in message.message.text for x in ("!lurk", "!unlurk", "!лурк", "!анлурк")):
             return HandlerResult.SKIPED
 
-        user = message.chatter_user_login
+        display_name = message.chatter_user_name
+        # Лурк-стейт ключуется по display name — так его пишет LurkCommand
+        # (SimpleCDCommand передаёт в _handle только chatter_user_name), и
+        # активность юзеров UserListManager хранит тоже по display name.
+        # Чтение по логину не находило стейт у юзеров с display ≠ логин.
+        state_user = display_name.lower()
 
         previous_state: float = await self._state_manager.get_state(
-            channel=streamer.login_name, user=user, command=self.COMMAND_NAME
+            channel=streamer.login_name, user=state_user, command=self.COMMAND_NAME
         )
         if previous_state is not None and time() - previous_state > self.UNLURK_AFTER:
             await self._state_manager.set_state(
                 channel=streamer.login_name,
-                user=user,
+                user=state_user,
                 command=self.COMMAND_NAME,
                 value=None,
             )
-            last_active = await self.chat_bot.get_user_last_active(streamer.login_name, user)
+            last_active = await self.chat_bot.get_user_last_active(streamer.login_name, display_name)
             if last_active is not None and time() - last_active > self.UNLURK_AFTER:
-                await self.send_response(chat=streamer, message=f"@{user}, с возвращением из лурка!")
+                await self.send_response(chat=streamer, message=f"@{display_name}, с возвращением из лурка!")
             return HandlerResult.HANDLED_AND_CONTINUE
         return HandlerResult.SKIPED
 
@@ -368,8 +375,13 @@ class IAmBotHandler(CommonMessagesHandler):
         return True
 
     async def is_candidate(self, message: ChatMessageWebhookEventSchema) -> bool:
+        # Триггеры анкорные (re.match — от начала строки), а CommandsManager до
+        # хендлеров срезает reply-префикс «@имя » — проверяем оба варианта текста.
         text = message.message.text.lower()
+        stripped = text_without_reply_prefix(message).lower()
         if self._RE_BOT_QUESTION.match(text) or self._RE_BOTS_PLUS.match(text):
+            return True
+        if self._RE_BOT_QUESTION.match(stripped) or self._RE_BOTS_PLUS.match(stripped):
             return True
         # HelloHandler (раньше в цепочке) дописывает «@quantum075bot » к реплаям
         # на бота — после этого может сматчиться _RE_BOT_QUESTION.

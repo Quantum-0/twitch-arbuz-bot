@@ -447,8 +447,10 @@ class TestPrefilter:
         await bot.on_message(make_event(text="просто болтовня в чате"))
 
         assert calls == []
-        # Но метрики/список активных/SSE работают и без стримера из БД
-        assert (str(StatsType.MESSAGE_INCOMING), "prefiltered") in statistics.counters
+        # Но метрики/список активных/SSE работают и без стримера из БД.
+        # MESSAGE_INCOMING — ровно один раз на сообщение (subtype=prefiltered).
+        incoming = [c for c in statistics.counters if c[0] == str(StatsType.MESSAGE_INCOMING)]
+        assert incoming == [(str(StatsType.MESSAGE_INCOMING), "prefiltered")]
         assert ("incoming", 123456) in statistics.channels
         assert bot._user_list_manager.handled == ["test_user"]
         assert len(sse.broadcasts) == 1
@@ -468,6 +470,8 @@ class TestPrefilter:
         await bot.on_message(make_event(text="!cmdlist"))
 
         assert handles == ["test_user", "test_user"]
+        # Полный путь: MESSAGE_INCOMING инкрементится ровно один раз (subtype="").
+        assert statistics.counters.count((str(StatsType.MESSAGE_INCOMING), "")) == 1
         assert (str(StatsType.MESSAGE_INCOMING), "prefiltered") not in statistics.counters
         assert ("incoming", 123456) in statistics.channels
 
@@ -527,6 +531,8 @@ class TestDropForBans:
         dropped = await bot._drop_for_bans(msg, "test_user")
 
         assert dropped is True
+        # Забаненный чаттер тоже считается входящим — ровно один раз (subtype="").
+        assert statistics.counters.count((str(StatsType.MESSAGE_INCOMING), "")) == 1
         assert (str(StatsType.BAN_BLOCKED), "chat_bot") in statistics.counters
         assert len(sse.broadcasts) == 1
         assert bot._user_list_manager.handled == ["test_user"]

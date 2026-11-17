@@ -193,7 +193,7 @@ async def test_give_memes_positive(state_manager, send_message_mock, text):
 
     result = await handler.handle(_streamer_ma(None), _msg("vasya", "Vasya", text))
 
-    assert result.name == "HANDLED"
+    assert result.name == "HANDLED_AND_CONTINUE"
     sent = _sent_messages(send_message_mock)
     assert sent & _MEMES_BASE_REPLIES
     assert sent <= _MEMES_BASE_REPLIES
@@ -206,7 +206,7 @@ async def test_give_memes_reply_to_bot(state_manager, send_message_mock):
         _streamer_ma(None), _msg("vasya", "Vasya", "дай мемафов", reply_parent_name="quantum075bot")
     )
 
-    assert result.name == "HANDLED"
+    assert result.name == "HANDLED_AND_CONTINUE"
     assert _sent_messages(send_message_mock) & _MEMES_BASE_REPLIES
 
 
@@ -312,6 +312,11 @@ async def test_hello_is_candidate(state_manager, send_message_mock, text, reply_
         ("@quantum075bot ты бот?", None, True),
         ("ты бот?", "quantum075bot", True),  # HelloHandler допишет тег к реплаю
         ("боты плюс в чат", None, True),
+        # Reply-префикс: CommandsManager срезает «@Vasya » ДО хендлера —
+        # триггер обязан находиться и в постриптованном тексте.
+        ("@Vasya @quantum075bot бот?", "Vasya", True),
+        ("@Vasya боты плюс в чат", "Vasya", True),
+        ("@Vasya бот?", "Vasya", False),  # после стрипа тега бота нет
         ("ты бот?", None, False),
         ("ты бот?", "SomebodyElse", False),
         ("@quantum075bot, ты не бот", None, False),
@@ -331,17 +336,57 @@ async def test_pants_raffle_is_candidate(state_manager, send_message_mock, text,
     assert await handler.is_candidate(_msg("vasya", "Vasya", text)) is expected
 
 
+async def test_pants_raffle_is_candidate_reply_prefix(state_manager, send_message_mock):
+    """«+»/«-» реплаем: CommandsManager срезает «@Vasya » до хендлера — участие тоже кандидат."""
+    handler = PantsRaffleHandler(sm=state_manager, send_message=send_message_mock)
+
+    assert await handler.is_candidate(_msg("vasya", "Vasya", "@Vasya +", reply_parent_name="Vasya")) is True
+    assert await handler.is_candidate(_msg("vasya", "Vasya", "@Vasya -", reply_parent_name="Vasya")) is True
+    assert await handler.is_candidate(_msg("vasya", "Vasya", "@Vasya ++", reply_parent_name="Vasya")) is False
+
+
 async def test_unlurk_is_candidate(state_manager, send_message_mock, monkeypatch):
-    """Кандидат — только сообщение от юзера с лурк-стейтом (и не командой лурка)."""
+    """Кандидат — сообщение от юзера с лурк-стейтом (и не командой лурка).
+
+    Ключ стейта — display name (так его пишет LurkCommand): юзер с display «ВАСЯ»
+    и логином vasya должен находиться — регрессия, чтение по логину его теряло.
+    """
     fake_container = SimpleNamespace(chat_bot=lambda: object())
     monkeypatch.setattr("container_runtime.get_container", lambda: fake_container)
     handler = UnlurkHandler(sm=state_manager, send_message=send_message_mock)
 
-    assert not await handler.is_candidate(_msg("vasya", "Vasya", "привет"))
+    assert not await handler.is_candidate(_msg("vasya", "ВАСЯ", "привет"))
 
-    await state_manager.set_state(channel="streamer", user="vasya", command="lurk", value=time())
-    assert await handler.is_candidate(_msg("vasya", "Vasya", "привет"))
-    assert not await handler.is_candidate(_msg("vasya", "Vasya", "!лурк"))
+    # LurkCommand пишет стейт по display name («ВАСЯ» → ключ «вася»)
+    await state_manager.set_state(channel="streamer", user="ВАСЯ", command="lurk", value=time())
+    assert await handler.is_candidate(_msg("vasya", "ВАСЯ", "привет"))
+    assert not await handler.is_candidate(_msg("vasya", "ВАСЯ", "!лурк"))
+
+
+async def test_unlurk_after_lurk_command(state_manager, send_message_mock, monkeypatch):
+    """Сквозной сценарий с display ≠ логин: !лурк → сообщение через >5 минут → авто-анлурк."""
+    from twitch.chat.commands.lurk import LurkCommand
+
+    class FakeChatBot:
+        async def get_user_last_active(self, channel, user):  # noqa: ARG002
+            return time() - 400  # неактивен дольше UNLURK_AFTER (300с)
+
+    fake_container = SimpleNamespace(chat_bot=lambda: FakeChatBot())
+    monkeypatch.setattr("container_runtime.get_container", lambda: fake_container)
+
+    streamer = _streamer("streamer")
+    lurk_cmd = LurkCommand(state_manager, send_message_mock)
+    await lurk_cmd._handle(streamer, "ВАСЯ", "!лурк")
+
+    # Имитируем прошествие 5+ минут с момента захода в лурк
+    await state_manager.set_state(channel="streamer", user="ВАСЯ", command="lurk", value=time() - 400)
+
+    handler = UnlurkHandler(sm=state_manager, send_message=send_message_mock)
+    result = await handler.handle(streamer, _msg("vasya", "ВАСЯ", "снова здесь"))
+
+    assert result.name == "HANDLED_AND_CONTINUE"
+    send_message_mock.assert_sent("@ВАСЯ, с возвращением из лурка!")
+    assert await state_manager.get_state(channel="streamer", user="ВАСЯ", command="lurk") is None
 
 
 async def test_pyramid_is_candidate_always_false(state_manager, send_message_mock):
