@@ -55,6 +55,8 @@ API `/api/user/stats`, фронт `/stats` (`templates/stats.html` + `static/js/
 - `services/heat_upstream.py:_run` → `inc("heat_proxy_messages")` + `inc_timing("heat_proxy_bytes")`.
 - `dependencies.py:snapshot_sse_job` (раз в минуту) → `set_gauge("sse_connections", snapshot)`.
 - `services/ai.py` + `services/stickers.py` → `inc_timing("ai_sticker_processing_time", subtype=...)`.
+- `dependencies.py:poll_pg_io_job` (раз в 10 мин) → дельты `pg_io` из `pg_stat_database`
+  (см. «Метрика `pg_io`»).
 
 ### Метрика `message_processing_time`
 
@@ -64,6 +66,32 @@ API `/api/user/stats`, фронт `/stats` (`templates/stats.html` + `static/js/
 `task_id == id(asyncio.current_task())` гарантирует, что detached-таски
 (`IAmBotHandler` 0.5/2.5с задержки, `finish_raffle` 60с) **не записывают**
 завышенное время — у них другой `current_task()`.
+
+### Метрика `pg_io` (серверная статистика PostgreSQL)
+
+Counter, 9 подтипов из `pg_stat_database`: `blks_read`/`blks_hit` (блочный I/O:
+чтение с диска / из кэша буферов), `tup_returned`/`tup_fetched`/`tup_inserted`/
+`tup_updated`/`tup_deleted` (строчные операции), `xact_commit`/`xact_rollback`
+(транзакции).
+
+- **Опросщик** `services/pg_stats.py:poll_pg_io`, джоба `poll_pg_io`
+  (cron `5-59/10 * * * *`, second=15): сэмпл в середине 10-минутного бакета —
+  одна дельта на бакет, разнесено с `flush_statistics` (second=0).
+- **Изоляция:** запрос фильтрует `WHERE datname = current_database()` —
+  учитывается ТОЛЬКО база приложения. Соседние базы кластера (postgres,
+  template*, базы других сервисов) и синтетическая строка `_shared_` (PG 15+,
+  общие каталоги) не считаются. Фильтр убирать нельзя.
+- **Дельты:** счётчики кумулятивны, предыдущий снапшот хранится в Redis
+  `pg_stats:prev` (JSON, TTL 40 мин — переживает рестарты приложения). Первый
+  сэмпл только фиксирует базу; уменьшение счётчиков (рестарт PG /
+  `pg_stat_reset`) → дельты пропускаются, снапшот перезаписывается. Снапшот
+  сохраняется ДО записи дельт — интервал гарантированно не задваивается: сбой
+  до сохранения снапшота перенесёт дельту в следующий сэмпл, сбой после
+  сохранения (но до записи) потеряет её один раз. NULL-колонки (отключённый
+  сбор статистики, `track_counts=off`) — сэмпл пропускается целиком.
+- Дельты пишутся через `flush_live_delta` (без live-реестра): в `/flowviz`
+  метрика не выводится — дельта раз в 10 мин бессмысленна для окна ~2 с.
+- Тесты: `tests/unit/test_pg_stats.py`.
 
 ### API
 
@@ -81,6 +109,13 @@ auto-refresh (раз в 10 мин). Фильтры синхронизируют�
 «раздельно» (по командам / по каналам / по этапам — top-N подтипов на одном графике).
 Для gauge-метрик (`sse_connections`, `active_channels`) «(все)» убран — выбирается
 конкретный подтип (`total`/`incoming`/...).
+
+Группа **«Инфраструктура»** (optgroup в селекте типов): `pg_io` (подтипы — 9 операций
+PG, «(все)» убран, доступен «раздельно по операциям») и live-счётчики `db_queries` /
+`redis_ops` / `http_requests` / `twitch_api_calls` / `mqtt_publish` / `mqtt_messages` /
+`eventsub_events` / `sse_events` — они уже пишутся в таблицу джобой
+`flush_live_metrics` (см. /flowviz), здесь только открываются в UI; подтипы у них
+динамические → «(все)» + «раздельно» (top-N).
 
 ## Live-метрики и карта потоков (`/flowviz`)
 

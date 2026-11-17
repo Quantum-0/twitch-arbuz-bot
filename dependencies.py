@@ -212,6 +212,27 @@ def _register_scheduler_jobs(
         replace_existing=True,
     )
 
+    # Опрос серверной статистики PostgreSQL (pg_stat_database, только текущая
+    # база): дельты кумулятивных счётчиков → метрика pg_io на /stats.
+    # Сэмпл в середине бакета (minute=5-59/10): одна дельта на 10-минутный
+    # бакет; second=15 — разнести с flush_statistics (second=0).
+    from services.pg_stats import poll_pg_io
+
+    async def poll_pg_io_job() -> None:
+        try:
+            await poll_pg_io(statistics, container.db_session_factory(), container.redis())
+        except Exception:
+            logging.getLogger(__name__).error("poll_pg_io failed", exc_info=True)
+
+    scheduler.add_job(
+        poll_pg_io_job,
+        trigger="cron",
+        minute="5-59/10",
+        second="15",
+        id="poll_pg_io",
+        replace_existing=True,
+    )
+
     # Cleanup overlay-managed EventSub подписок (раз в 3 минуты).
     # Если heartbeat истёк и нет SSE-клиентов — отписываемся.
     from services.overlay_eventsub_cleanup import cleanup_overlay_eventsub

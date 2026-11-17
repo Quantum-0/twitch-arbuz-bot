@@ -203,6 +203,11 @@ class StatsType(StrEnum):
     # Counter: вызовы Twitch API: обёртка twitchAPI (helix) + прямые httpx-вызовы
     # (helix/oauth). Subtype: "helix" | "oauth".
     TWITCH_API_CALLS = "twitch_api_calls"
+    # Counter: серверные операции PostgreSQL по текущей базе приложения
+    # (опросщик services/pg_stats.py, pg_stat_database, раз в 10 минут).
+    # Subtype: "blks_read" | "blks_hit" | "tup_returned" | "tup_fetched" |
+    # "tup_inserted" | "tup_updated" | "tup_deleted" | "xact_commit" | "xact_rollback".
+    PG_IO = "pg_io"
 
 
 class StatsPeriod(StrEnum):

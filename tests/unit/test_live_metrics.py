@@ -83,6 +83,7 @@ class TestLiveRegistry:
             StatsType.EVENTSUB_EVENTS,
             StatsType.SSE_EVENTS,
             StatsType.TWITCH_API_CALLS,
+            StatsType.PG_IO,
         }
         assert not new_types & GAUGE_TYPES
         assert not new_types & TIMING_TYPES

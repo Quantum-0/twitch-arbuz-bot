@@ -51,6 +51,19 @@
         ],
         // users_count: кумулятивный график, без подтипов.
         users_count: [""],
+        // Инфраструктурные live-счётчики: подтипы динамические (глаголы SQL,
+        // команды Redis, сегменты пути...) — «(все)» + top-N раздельно.
+        db_queries: ["", "__split__"],
+        redis_ops: ["", "__split__"],
+        http_requests: ["", "__split__"],
+        mqtt_publish: ["", "__split__"],
+        mqtt_messages: ["", "__split__"],
+        eventsub_events: ["", "__split__"],
+        sse_events: ["", "__split__"],
+        twitch_api_calls: ["", "__split__"],
+        // Операции PostgreSQL (pg_stat_database): без «(все)» — суммировать
+        // блоки/строки/транзакции вместе бессмысленно (по аналогии с reward_*).
+        pg_io: ["blks_read", "blks_hit", "tup_returned", "tup_fetched", "tup_inserted", "tup_updated", "tup_deleted", "xact_commit", "xact_rollback", "__split__"],
     };
 
     const SUBTYPE_LABELS = {
@@ -89,6 +102,16 @@
         server_error: "ошибка сервера",
         network_error: "сетевая ошибка",
         expired: "истёк",
+        // pg_io (pg_stat_database)
+        blks_read: "блоки: чтение с диска",
+        blks_hit: "блоки: чтение из кэша",
+        tup_returned: "строки: чтение (сканы)",
+        tup_fetched: "строки: чтение (индексы)",
+        tup_inserted: "строки: вставлено",
+        tup_updated: "строки: обновлено",
+        tup_deleted: "строки: удалено",
+        xact_commit: "транзакции: коммиты",
+        xact_rollback: "транзакции: откаты",
     };
 
     // Псевдо-subtype, при котором фронт идёт к series endpoint для multi-line.
@@ -100,10 +123,33 @@
         sse_connections: "по каналам",
         ai_sticker_processing_time: "по этапам",
         ma_token_refresh: "по исходам",
+        db_queries: "по глаголам SQL",
+        redis_ops: "по командам",
+        http_requests: "по разделам пути",
+        mqtt_publish: "по топикам",
+        mqtt_messages: "по топикам",
+        eventsub_events: "по типам подписок",
+        sse_events: "по каналам",
+        twitch_api_calls: "по типам вызовов",
+        pg_io: "по операциям",
     };
 
     // Типы метрик, для которых доступна «раздельно» (multi-line) режим.
-    const SPLITTABLE_TYPES = new Set(["command_handled", "sse_connections", "ai_sticker_processing_time", "ma_token_refresh"]);
+    const SPLITTABLE_TYPES = new Set([
+        "command_handled",
+        "sse_connections",
+        "ai_sticker_processing_time",
+        "ma_token_refresh",
+        "db_queries",
+        "redis_ops",
+        "http_requests",
+        "mqtt_publish",
+        "mqtt_messages",
+        "eventsub_events",
+        "sse_events",
+        "twitch_api_calls",
+        "pg_io",
+    ]);
 
     const TYPE_LABELS = {
         message_incoming: "Входящие сообщения",
@@ -121,6 +167,16 @@
         tts_blocked: "TTS: блокировки",
         ban_blocked: "Отклонено баном",
         users_count: "Пользователи бота",
+        // Инфраструктура (optgroup в stats.html)
+        pg_io: "PostgreSQL: операции",
+        db_queries: "SQL-запросы",
+        redis_ops: "Команды Redis",
+        http_requests: "HTTP-запросы",
+        twitch_api_calls: "Twitch API: вызовы",
+        mqtt_publish: "MQTT: публикации",
+        mqtt_messages: "MQTT: сообщения",
+        eventsub_events: "EventSub-события",
+        sse_events: "SSE-события",
     };
 
     // Типы метрик, для которых значение — это «среднее» (мс), а не «количество».
