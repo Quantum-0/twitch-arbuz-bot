@@ -13,6 +13,9 @@ let roundHasSpiral = false;
 let spiralCard = null;
 let spiralDone = false;
 
+const CLOSE_STEP_MS = 50;  // шаг волны закрытия карточек после победы
+const FLIP_MS = 600;       // = transition transform у .card в pair.html
+
 function uuid() {
     return 'xxxxxxxx'.replace(/x/g, () =>
         Math.floor(Math.random() * 16).toString(16)
@@ -141,7 +144,24 @@ function onWin() {
 
     roundActive = false;
     celebrate();
-    setTimeout(startNextRound, RESTART_DELAY * 1000);
+    setTimeout(closeCardsWave, RESTART_DELAY * 1000);
+}
+
+// Закрытие победной сетки: карточки переворачиваются лицом вниз по одной
+// с шагом CLOSE_STEP_MS, змейкой (чётные строки слева-направо, нечётные —
+// справа-налево). Дождавшись переворота последней — грузим новую колоду.
+function closeCardsWave() {
+    const cards = [...grid.children];
+    const ordered = [];
+    for (let r = 0; r * GRID_COLS < cards.length; r++) {
+        const row = cards.slice(r * GRID_COLS, (r + 1) * GRID_COLS);
+        if (r % 2 === 1) row.reverse();
+        ordered.push(...row);
+    }
+    ordered.forEach((card, i) => {
+        setTimeout(() => card.classList.remove("flipped", "matched"), i * CLOSE_STEP_MS);
+    });
+    setTimeout(startNextRound, (ordered.length - 1) * CLOSE_STEP_MS + FLIP_MS);
 }
 
 function celebrate() {
