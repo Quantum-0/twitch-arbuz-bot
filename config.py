@@ -93,6 +93,9 @@ class AppSettings(BaseSettings):
     sentry_dsn: AnyHttpUrl | None = None
     otel_endpoint: AnyHttpUrl | None = "http://localhost:4317"  # type: ignore[assignment]
     otel_service_name: str = "twitch-bot"
+    # Доля трейсов, уходящих в jaeger, в процентах (ParentBased(TraceIdRatioBased)):
+    # 100 — все трейсы, 33 — каждый третий. 0 полностью выключает экспорт трейсов.
+    otel_traces_sample_percent: float = Field(default=100.0, ge=0.0, le=100.0)
     # Upstream Heat API (клики по экрану, wss) — канал SSE `heat`.
     heat_url: str = "wss://heat-api.j38.net/channel/"
     # Окно перезапуска стрима (мин): если стрим вернулся онлайн в течение этого

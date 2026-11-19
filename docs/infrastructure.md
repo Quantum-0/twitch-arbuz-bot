@@ -13,9 +13,12 @@ Docker-контейнер приложения на vds-msk; деплой вып
 ## Jaeger (трейсы)
 
 - Compose в `~/jaeger/` (config `jaeger-config.yml`); приложение шлёт трейсы на
-  `jaeger:4317` (`config.otel_endpoint`), семплирование 100%.
-- Хранилище in-memory с кольцевым буфером `max_traces: 40000` — лимит подобран под
-  memory-лимит; глубокой истории трейсов нет.
+  `jaeger:4317` (`config.otel_endpoint`). Семплирование — env
+  `OTEL_TRACES_SAMPLE_PERCENT` (проценты, по умолчанию 100; прод — 33).
+- Хранилище in-memory с кольцевым буфером `max_traces: 20000` — лимит подобран под
+  memory-лимит; глубокой истории трейсов нет. 2026-11-14–19 кольцо на 40000 трейсов
+  при 100% семплировании уходило в GC-трэш: jaeger вставал в свой CPU-кап 0.5 ядра
+  (+8% нагрузки хоста), лечилось рестартом + снижением max_traces/семплирования.
 - Healthcheck: `wget http://127.0.0.1:13133/status` (важно: путь `/status`, не `/`).
 - Шум OTel в GlitchTip: логгер `opentelemetry.exporter.otlp.proto.grpc.exporter`
   заглушен уровнем CRITICAL (`utils/logging_conf.py`) — `propagate=False` не

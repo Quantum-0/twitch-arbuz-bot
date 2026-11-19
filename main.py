@@ -16,6 +16,7 @@ from opentelemetry.propagators.b3 import B3MultiFormat
 from opentelemetry.propagators.composite import CompositePropagator
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
+from opentelemetry.sdk.trace.sampling import ParentBased, TraceIdRatioBased
 from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapPropagator
 from prometheus_fastapi_instrumentator import Instrumentator as PrometheusInstrumentator
 from sentry_sdk.integrations.fastapi import FastApiIntegration
@@ -53,7 +54,8 @@ async def lifespan(app: FastAPI):
 app = FastAPI(lifespan=lifespan)
 
 # OTEL
-trace_provider = TracerProvider()
+# ParentBased: дети sampled-родителя доезжают целиком, корни режутся по вероятности.
+trace_provider = TracerProvider(sampler=ParentBased(TraceIdRatioBased(settings.app.otel_traces_sample_percent / 100)))
 trace_processor = BatchSpanProcessor(OTLPSpanExporter(endpoint=str(settings.app.otel_endpoint)))
 trace_provider.add_span_processor(trace_processor)
 trace.set_tracer_provider(trace_provider)
